@@ -11,23 +11,41 @@
 
 ## Bootstrap a fresh install
 
-```bash
-docker compose up -d --build
-docker compose exec web flask db upgrade
-docker compose exec web flask seed-permissions
-docker compose exec web flask seed-system-roles
-docker compose exec web flask seed-default-categories
-docker compose exec web flask seed-super-admin \
-  --username oumar \
-  --password 'change-me-on-first-login' \
-  --email you@example.com   # optional
+1. Copy `.env.example` to `.env` and fill in at minimum:
+   - `DB_PASSWORD` (matches the value in `DATABASE_URL`)
+   - `SECRET_KEY` (long random string)
+   - `ADMIN_USERNAME` (e.g. `admin`)
+   - `ADMIN_PASSWORD` (used once to create the super admin — change it after first login)
+   - `ADMIN_EMAIL` and `ADMIN_FULL_NAME` (optional)
+
+2. Build and start:
+   ```bash
+   docker compose up -d --build
+   ```
+
+`entrypoint.sh` then does this on container start, every time:
+
+```
+flask db upgrade   # apply any new migrations
+flask seed         # idempotent: permissions, roles, categories, settings, super admin
 ```
 
-The `entrypoint.sh` runs `flask db upgrade` automatically — the other seed
-commands are idempotent so you can re-run them safely on later deploys.
+The `seed` command refuses to overwrite an existing super admin, so it's
+safe to leave `ADMIN_PASSWORD` set in `.env` across redeploys.
 
 Usernames are lowercase, no spaces, the only thing a user types at login.
 Email is optional and used only for password reset / notifications.
+
+### Manual super admin bootstrap (alternative)
+
+If you don't want credentials in `.env`, leave `ADMIN_PASSWORD` empty and
+bootstrap from the CLI:
+
+```bash
+docker compose exec web flask seed-super-admin \
+  --username admin \
+  --password 'one-time-temporary-password'
+```
 
 ## Onboard a new staff user
 

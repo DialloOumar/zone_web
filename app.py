@@ -362,6 +362,82 @@ DEFAULT_SETTINGS = [
 ]
 
 
+# ── Shared seed helpers (called by both `flask seed` and the per-step CLI cmds) ─
+
+# Map role slug → (name, can_approve, list of permission keys)
+SYSTEM_ROLES = {
+    "fleet_manager": ("Fleet Manager",  True, [
+        "vehicle.view", "vehicle.create", "vehicle.edit", "vehicle.delete",
+        "entry.view", "entry.create", "entry.edit", "entry.delete",
+        "maintenance_record.view", "maintenance_record.create", "maintenance_record.edit", "maintenance_record.delete",
+        "maintenance_rule.view", "maintenance_rule.create", "maintenance_rule.edit", "maintenance_rule.delete",
+        "alert.view", "alert.resolve", "alert.dismiss",
+        "expense.view", "expense.create", "expense.edit", "expense.delete",
+        "report.view", "report.export_pdf",
+    ]),
+    "supervisor":    ("Supervisor",      False, [
+        "vehicle.view",
+        "entry.view", "entry.create", "entry.edit",
+        "maintenance_record.view", "maintenance_record.create",
+        "alert.view", "alert.resolve",
+        "expense.view", "expense.create",
+        "report.view",
+    ]),
+    "inspector":     ("Inspector",       False, [
+        "vehicle.view",
+        "entry.view",
+        "maintenance_record.view", "maintenance_rule.view",
+        "alert.view",
+        "expense.view",
+        "report.view",
+    ]),
+    "external":      ("External",        False, [
+        "vehicle.view",
+        "entry.view",
+        "report.view",
+    ]),
+}
+
+
+def _seed_system_roles_data():
+    """Insert any missing system roles + their RolePermission rows. Idempotent.
+    Never overwrites existing role config — admins can re-tune permissions
+    via the UI without losing their changes on next deploy.
+    """
+    created = 0
+    for slug, (name, can_approve, perm_keys) in SYSTEM_ROLES.items():
+        if Role.query.filter_by(slug=slug).first():
+            continue
+        role = Role(name=name, slug=slug, is_system=True, can_approve=can_approve)
+        db.session.add(role)
+        db.session.flush()
+        for key in perm_keys:
+            p = Permission.query.filter_by(key=key).first()
+            if p:
+                db.session.add(RolePermission(role_id=role.id, permission_id=p.id, requires_approval=False))
+        created += 1
+    db.session.commit()
+    return created
+
+
+def _seed_default_categories_data():
+    """Insert default vehicle categories + app settings. Idempotent."""
+    added = 0
+    for code, label, label_fr, unit, baseline, cost, order in DEFAULT_CATEGORIES:
+        if not VehicleCategory.query.filter_by(code=code).first():
+            db.session.add(VehicleCategory(
+                code=code, label=label, label_fr=label_fr, unit_type=unit,
+                default_baseline_l_per_unit=baseline, default_cost_per_unit=cost,
+                sort_order=order,
+            ))
+            added += 1
+    for key, value, label, category in DEFAULT_SETTINGS:
+        if not db.session.get(AppSetting, key):
+            db.session.add(AppSetting(key=key, value=value, label=label, category=category))
+    db.session.commit()
+    return added
+
+
 @app.cli.command("seed-permissions")
 def seed_permissions_cmd():
     """Insert the master permission catalogue. Idempotent."""
@@ -377,20 +453,8 @@ def seed_permissions_cmd():
 
 @app.cli.command("seed-default-categories")
 def seed_default_categories_cmd():
-    """Seed the default vehicle categories. Idempotent."""
-    added = 0
-    for code, label, label_fr, unit, baseline, cost, order in DEFAULT_CATEGORIES:
-        if not VehicleCategory.query.filter_by(code=code).first():
-            db.session.add(VehicleCategory(
-                code=code, label=label, label_fr=label_fr, unit_type=unit,
-                default_baseline_l_per_unit=baseline, default_cost_per_unit=cost,
-                sort_order=order,
-            ))
-            added += 1
-    for key, value, label, category in DEFAULT_SETTINGS:
-        if not db.session.get(AppSetting, key):
-            db.session.add(AppSetting(key=key, value=value, label=label, category=category))
-    db.session.commit()
+    """Seed the default vehicle categories + app settings. Idempotent."""
+    added = _seed_default_categories_data()
     click.echo(f"Categories: {added} added. Default settings ensured.")
 
 
@@ -402,53 +466,77 @@ def seed_system_roles_cmd():
     role already exists, its permissions are NOT reset (so admins can tune
     them and not have the tuning blown away on next deploy).
     """
-    # Map role slug → (name, can_approve, list of permission keys, all with requires_approval=False)
-    system_roles = {
-        "fleet_manager": ("Fleet Manager",  True, [
-            "vehicle.view", "vehicle.create", "vehicle.edit", "vehicle.delete",
-            "entry.view", "entry.create", "entry.edit", "entry.delete",
-            "maintenance_record.view", "maintenance_record.create", "maintenance_record.edit", "maintenance_record.delete",
-            "maintenance_rule.view", "maintenance_rule.create", "maintenance_rule.edit", "maintenance_rule.delete",
-            "alert.view", "alert.resolve", "alert.dismiss",
-            "expense.view", "expense.create", "expense.edit", "expense.delete",
-            "report.view", "report.export_pdf",
-        ]),
-        "supervisor":    ("Supervisor",      False, [
-            "vehicle.view",
-            "entry.view", "entry.create", "entry.edit",
-            "maintenance_record.view", "maintenance_record.create",
-            "alert.view", "alert.resolve",
-            "expense.view", "expense.create",
-            "report.view",
-        ]),
-        "inspector":     ("Inspector",       False, [
-            "vehicle.view",
-            "entry.view",
-            "maintenance_record.view", "maintenance_rule.view",
-            "alert.view",
-            "expense.view",
-            "report.view",
-        ]),
-        "external":      ("External",        False, [
-            "vehicle.view",
-            "entry.view",
-            "report.view",
-        ]),
-    }
-    created = 0
-    for slug, (name, can_approve, perm_keys) in system_roles.items():
-        if Role.query.filter_by(slug=slug).first():
-            continue
-        role = Role(name=name, slug=slug, is_system=True, can_approve=can_approve)
-        db.session.add(role)
-        db.session.flush()  # get role.id
-        for key in perm_keys:
-            p = Permission.query.filter_by(key=key).first()
-            if p:
-                db.session.add(RolePermission(role_id=role.id, permission_id=p.id, requires_approval=False))
-        created += 1
-    db.session.commit()
+    created = _seed_system_roles_data()
     click.echo(f"System roles: {created} created (idempotent — existing ones left untouched).")
+
+
+def _seed_super_admin_from_env():
+    """Create the single super admin from ADMIN_USERNAME / ADMIN_PASSWORD env
+    vars if no super admin exists yet. Idempotent: silently no-ops on
+    redeploys where the super admin row is already there.
+
+    Refuses to start if a brand-new install lacks ADMIN_PASSWORD — better
+    to fail loud than to leave the app without an admin.
+    """
+    if User.query.filter_by(is_super_admin=True).first():
+        return False  # already bootstrapped
+
+    username = os.environ.get("ADMIN_USERNAME", "admin").strip().lower()
+    password = os.environ.get("ADMIN_PASSWORD", "").strip()
+    if not password:
+        raise RuntimeError(
+            "ADMIN_PASSWORD environment variable is required to bootstrap the super admin."
+        )
+    if User.query.filter_by(username=username).first():
+        raise RuntimeError(
+            f"A user with username '{username}' already exists but is not the super admin."
+        )
+    email = (os.environ.get("ADMIN_EMAIL") or "").strip() or None
+    full_name = os.environ.get("ADMIN_FULL_NAME", "Super Admin")
+
+    u = User(
+        username=username, full_name=full_name, email=(email.lower() if email else None),
+        is_super_admin=True, lang=os.environ.get("APP_DEFAULT_LANG", "fr"),
+    )
+    u.set_password(password)
+    db.session.add(u)
+    db.session.commit()
+    return True
+
+
+@app.cli.command("seed")
+def seed_cmd():
+    """Bootstrap the whole app: permissions, system roles, default categories,
+    settings, and the single super admin from env vars.
+
+    All steps are idempotent — safe to re-run on every deploy.
+    """
+    # 1. Permissions catalog
+    added = 0
+    for key, label, category, resource, action in PERMISSIONS_CATALOG:
+        if not Permission.query.filter_by(key=key).first():
+            db.session.add(Permission(key=key, label=label, category=category,
+                                      resource=resource, action=action))
+            added += 1
+    db.session.commit()
+    click.echo(f"  permissions: {added} added, {len(PERMISSIONS_CATALOG)} in catalog")
+
+    # 2. System roles
+    role_count = _seed_system_roles_data()
+    click.echo(f"  system roles: {role_count} created (existing left untouched)")
+
+    # 3. Default vehicle categories + app settings
+    cats_added = _seed_default_categories_data()
+    click.echo(f"  categories: {cats_added} added; app settings ensured")
+
+    # 4. Super admin from env vars
+    created = _seed_super_admin_from_env()
+    if created:
+        click.echo(f"  super admin: created from ADMIN_USERNAME env var")
+    else:
+        click.echo(f"  super admin: already exists, skipped")
+
+    click.echo("Seed complete.")
 
 
 @app.cli.command("seed-super-admin")
@@ -457,10 +545,13 @@ def seed_system_roles_cmd():
 @click.option("--full-name", default="Super Admin")
 @click.option("--email", default=None, help="optional, for password reset and notifications")
 def seed_super_admin_cmd(username, password, full_name, email):
-    """Create the single super admin user. Refuses if one already exists."""
-    existing_super = User.query.filter_by(is_super_admin=True).first()
-    if existing_super:
-        click.echo(f"A super admin already exists: {existing_super.username}", err=True)
+    """Create the single super admin user via CLI flags.
+
+    Use this when you don't want to put credentials in .env (e.g. on a
+    shared box). Refuses if one already exists.
+    """
+    if User.query.filter_by(is_super_admin=True).first():
+        click.echo("A super admin already exists.", err=True)
         click.echo("Use `flask reset-super-admin-password` or transfer via SQL.", err=True)
         raise SystemExit(1)
     username = username.strip().lower()
@@ -470,7 +561,7 @@ def seed_super_admin_cmd(username, password, full_name, email):
     u = User(
         username=username, full_name=full_name,
         email=(email.strip().lower() if email else None),
-        is_super_admin=True, lang="fr",
+        is_super_admin=True, lang=os.environ.get("APP_DEFAULT_LANG", "fr"),
     )
     u.set_password(password)
     db.session.add(u)
