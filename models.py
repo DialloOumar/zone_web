@@ -24,12 +24,18 @@ db = SQLAlchemy()
 
 class User(UserMixin, db.Model):
     __tablename__ = "users"
-    __table_args__ = (db.UniqueConstraint("email", name="uq_users_email"),)
+    __table_args__ = (
+        db.UniqueConstraint("username", name="uq_users_username"),
+        # email is optional and only used for password reset / notifications.
+        # When set, it must still be unique so we don't have two users sharing
+        # a reset address; the partial uniqueness is handled at insert time.
+    )
 
     id             = db.Column(db.Integer, primary_key=True)
-    email          = db.Column(db.String(120), nullable=False)
-    password_hash  = db.Column(db.String(256), nullable=False)
+    username       = db.Column(db.String(80),  nullable=False)
     full_name      = db.Column(db.String(120), nullable=False)
+    email          = db.Column(db.String(120), nullable=True)            # optional
+    password_hash  = db.Column(db.String(256), nullable=False)
     # The one super admin flag — exactly one row in the table has it set to True.
     # Bootstrapped via the seed-super-admin CLI command, never editable in the UI.
     is_super_admin = db.Column(db.Boolean, nullable=False, default=False)

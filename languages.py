@@ -17,7 +17,9 @@ TRANSLATIONS = {
         # Auth
         "auth.login":             "Connexion",
         "auth.logout":            "Déconnexion",
+        "auth.username":          "Nom d'utilisateur",
         "auth.email":             "Courriel",
+        "auth.email_optional":    "Courriel (facultatif)",
         "auth.password":          "Mot de passe",
         "auth.sign_in":           "Se connecter",
         "auth.invalid_credentials": "Identifiants invalides.",
@@ -94,7 +96,9 @@ TRANSLATIONS = {
 
         "auth.login":             "Login",
         "auth.logout":            "Log out",
+        "auth.username":          "Username",
         "auth.email":             "Email",
+        "auth.email_optional":    "Email (optional)",
         "auth.password":          "Password",
         "auth.sign_in":           "Sign in",
         "auth.invalid_credentials": "Invalid credentials.",

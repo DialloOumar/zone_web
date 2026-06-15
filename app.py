@@ -217,7 +217,7 @@ def log_action(action, resource_type, *, resource_id=None, detail=None, fleet_id
         )
         entry = AuditLog(
             user_id=current_user.id,
-            username=current_user.email,
+            username=current_user.username,
             actor_role=role_snapshot,
             fleet_id=fleet_id,
             action=action,
@@ -252,15 +252,18 @@ def login():
         return redirect(url_for("dashboard"))
     error = None
     if request.method == "POST":
-        email = (request.form.get("email") or "").strip().lower()
+        username = (request.form.get("username") or "").strip().lower()
         password = request.form.get("password") or ""
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter_by(username=username).first()
         if user and user.is_active and user.check_password(password):
             login_user(user)
             log_action("LOGIN", "auth", detail="Successful login")
             db.session.commit()
             return redirect(request.args.get("next") or url_for("dashboard"))
-        log_action("LOGIN_FAILED", "auth", detail=f"email={email}")
+        # Log the attempt without exposing the user's typed username — the
+        # request log + IP suffice for forensics. Avoid leaking that an
+        # unknown username was attempted, to prevent username enumeration.
+        log_action("LOGIN_FAILED", "auth", detail="Invalid credentials submitted")
         db.session.commit()
         error = get_t().get("auth.invalid_credentials", "Invalid credentials.")
     return render_template("login.html", error=error)
@@ -449,24 +452,30 @@ def seed_system_roles_cmd():
 
 
 @app.cli.command("seed-super-admin")
-@click.option("--email",    required=True)
+@click.option("--username", required=True, help="login username (no spaces, case-insensitive)")
 @click.option("--password", required=True)
 @click.option("--full-name", default="Super Admin")
-def seed_super_admin_cmd(email, password, full_name):
+@click.option("--email", default=None, help="optional, for password reset and notifications")
+def seed_super_admin_cmd(username, password, full_name, email):
     """Create the single super admin user. Refuses if one already exists."""
     existing_super = User.query.filter_by(is_super_admin=True).first()
     if existing_super:
-        click.echo(f"A super admin already exists: {existing_super.email}", err=True)
+        click.echo(f"A super admin already exists: {existing_super.username}", err=True)
         click.echo("Use `flask reset-super-admin-password` or transfer via SQL.", err=True)
         raise SystemExit(1)
-    if User.query.filter_by(email=email).first():
-        click.echo(f"A user with email {email} already exists.", err=True)
+    username = username.strip().lower()
+    if User.query.filter_by(username=username).first():
+        click.echo(f"A user with username '{username}' already exists.", err=True)
         raise SystemExit(1)
-    u = User(email=email.lower(), full_name=full_name, is_super_admin=True, lang="fr")
+    u = User(
+        username=username, full_name=full_name,
+        email=(email.strip().lower() if email else None),
+        is_super_admin=True, lang="fr",
+    )
     u.set_password(password)
     db.session.add(u)
     db.session.commit()
-    click.echo(f"Super admin created: {email}")
+    click.echo(f"Super admin created: {username}")
 
 
 @app.cli.command("reset-super-admin-password")
@@ -479,16 +488,16 @@ def reset_super_admin_password_cmd(password):
         raise SystemExit(1)
     u.set_password(password)
     db.session.commit()
-    click.echo(f"Super admin password reset for {u.email}.")
+    click.echo(f"Super admin password reset for {u.username}.")
 
 
 @app.cli.command("grant-fleet")
-@click.option("--user",  required=True, help="email of the user")
+@click.option("--user",  required=True, help="username of the user")
 @click.option("--fleet", required=True, help="slug of the fleet")
 @click.option("--role",  required=True, help="name or slug of the role")
 def grant_fleet_cmd(user, fleet, role):
     """Break-glass: assign a fleet/role to a user from the CLI."""
-    u = User.query.filter_by(email=user.lower()).first()
+    u = User.query.filter_by(username=user.lower()).first()
     f = Fleet.query.filter_by(slug=fleet).first()
     r = Role.query.filter_by(slug=role).first() or Role.query.filter_by(name=role).first()
     if not u or not f or not r:
@@ -502,7 +511,7 @@ def grant_fleet_cmd(user, fleet, role):
         db.session.add(UserFleet(user_id=u.id, fleet_id=f.id, role_id=r.id))
         action = "Created"
     db.session.commit()
-    click.echo(f"{action}: {u.email} → {f.name} as {r.name}")
+    click.echo(f"{action}: {u.username} → {f.name} as {r.name}")
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────
