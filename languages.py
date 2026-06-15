@@ -26,15 +26,17 @@ TRANSLATIONS = {
         "auth.required":          "Veuillez vous connecter.",
 
         # Nav
-        "nav.dashboard":     "Tableau de bord",
-        "nav.vehicles":      "Véhicules",
-        "nav.daily_entries": "Saisie quotidienne",
-        "nav.maintenance":   "Maintenance",
-        "nav.alerts":        "Alertes",
-        "nav.expenses":      "Dépenses",
-        "nav.reports":       "Rapports",
-        "nav.approvals":     "Validations en attente",
-        "nav.admin":         "Administration",
+        "nav.dashboard":            "Tableau de bord",
+        "nav.vehicles":             "Véhicules",
+        "nav.daily_entries":        "Saisie quotidienne",
+        "nav.maintenance":          "Maintenance",
+        "nav.maintenance_records":  "Historique entretien",
+        "nav.maintenance_rules":    "Règles d'entretien",
+        "nav.alerts":               "Alertes",
+        "nav.expenses":             "Dépenses",
+        "nav.reports":              "Rapports",
+        "nav.approvals":            "Validations en attente",
+        "nav.admin":                "Administration",
 
         # Admin
         "admin.users":      "Utilisateurs",
@@ -42,6 +44,15 @@ TRANSLATIONS = {
         "admin.roles":      "Rôles",
         "admin.categories": "Catégories de véhicules",
         "admin.settings":   "Paramètres",
+        "admin.audit_log":  "Journal d'audit",
+
+        # Roles
+        "role.super_admin": "Super admin",
+        "role.user":        "Utilisateur",
+
+        # Errors
+        "error.forbidden":  "Accès refusé",
+        "error.not_found":  "Page introuvable",
 
         # Common buttons / labels
         "btn.save":   "Enregistrer",
@@ -104,21 +115,30 @@ TRANSLATIONS = {
         "auth.invalid_credentials": "Invalid credentials.",
         "auth.required":          "Please log in.",
 
-        "nav.dashboard":     "Dashboard",
-        "nav.vehicles":      "Vehicles",
-        "nav.daily_entries": "Daily entries",
-        "nav.maintenance":   "Maintenance",
-        "nav.alerts":        "Alerts",
-        "nav.expenses":      "Expenses",
-        "nav.reports":       "Reports",
-        "nav.approvals":     "Pending approvals",
-        "nav.admin":         "Administration",
+        "nav.dashboard":            "Dashboard",
+        "nav.vehicles":             "Vehicles",
+        "nav.daily_entries":        "Daily entries",
+        "nav.maintenance":          "Maintenance",
+        "nav.maintenance_records":  "Maintenance history",
+        "nav.maintenance_rules":    "Maintenance rules",
+        "nav.alerts":               "Alerts",
+        "nav.expenses":             "Expenses",
+        "nav.reports":              "Reports",
+        "nav.approvals":            "Pending approvals",
+        "nav.admin":                "Administration",
 
         "admin.users":      "Users",
         "admin.fleets":     "Fleets",
         "admin.roles":      "Roles",
         "admin.categories": "Vehicle categories",
         "admin.settings":   "Settings",
+        "admin.audit_log":  "Audit log",
+
+        "role.super_admin": "Super admin",
+        "role.user":        "User",
+
+        "error.forbidden":  "Forbidden",
+        "error.not_found":  "Not found",
 
         "btn.save":   "Save",
         "btn.cancel": "Cancel",

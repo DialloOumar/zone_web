@@ -1,41 +1,46 @@
 {% extends "base.html" %}
 
-{% block title %}{{ t['nav.dashboard'] }} — {{ t['app.title'] }}{% endblock %}
+{% block title %}{{ t['nav.dashboard'] }}{% endblock %}
+{% block page_title %}{{ t['nav.dashboard'] }}{% endblock %}
 
 {% block content %}
 
-<section class="welcome">
-    <h1>{{ t['nav.dashboard'] }}</h1>
+<section class="card">
+    <h2 style="margin-bottom: 8px;">
+        Bienvenue, {{ current_user.full_name }} 👋
+    </h2>
     <p class="muted">
-        Bienvenue, <strong>{{ current_user.full_name }}</strong>.
         {% if is_super_admin %}
-        Vous êtes connecté comme super admin.
+            {{ t['role.super_admin'] }} — accès complet à la configuration et à toutes les flottes.
+        {% else %}
+            {{ t['nav.dashboard'] }}
         {% endif %}
     </p>
 </section>
 
-<section class="skeleton-note">
-    <h2>Squelette en place</h2>
+<section class="card skeleton-note">
+    <h2>Squelette en place ✓</h2>
     <p class="muted">
-        L'application a été initialisée : authentification, modèles, migrations,
-        permissions et rôles système. Les pages domaines (véhicules, saisies,
-        maintenance, dépenses, alertes, administration) seront ajoutées dans
-        les sprints suivants.
+        L'application est initialisée : authentification, modèles, migrations,
+        permissions, rôles système et catégories de véhicules par défaut sont
+        en place. Les pages domaines sont en cours de construction.
     </p>
 
     <h3>État actuel</h3>
     <ul>
         <li>17 tables créées via migration Alembic</li>
-        <li>Catalogue de permissions seedé ({{ has_perm and "✓" or "—" }})</li>
+        <li>Catalogue de 31 permissions seedé</li>
         <li>Rôles système prêts (Fleet Manager, Supervisor, Inspector, External)</li>
-        <li>Catégories de véhicules par défaut chargées</li>
+        <li>8 catégories de véhicules par défaut chargées</li>
+        <li>Navigation latérale avec contrôle d'accès via has_perm()</li>
     </ul>
 
     <h3>Prochaines étapes (sprint 1)</h3>
     <ul>
-        <li>Pages d'administration : utilisateurs, flottes, rôles</li>
-        <li>CRUD véhicules + catégories</li>
-        <li>Page de saisie quotidienne (formulaire par entrée, style Boffa)</li>
+        <li>Administration : utilisateurs, flottes, rôles, catégories</li>
+        <li>CRUD véhicules avec formulaire adapté à la catégorie</li>
+        <li>Saisie quotidienne (style Boffa, multi-entrées par jour)</li>
+        <li>File de validations + fenêtre de grâce</li>
     </ul>
 </section>
 

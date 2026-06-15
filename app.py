@@ -58,21 +58,47 @@ def _load_user(user_id):
 # ── i18n helper ──────────────────────────────────────────────────────────────
 
 
+APP_VERSION = "0.1.0"  # bumped manually on releases; appended to static asset URLs
+
+
+def current_lang():
+    """Pick the language for this request: logged-in user preference, then
+    session, then APP_DEFAULT_LANG env, default 'fr'.
+    """
+    if current_user.is_authenticated and getattr(current_user, "lang", None):
+        return current_user.lang
+    return session.get("lang") or os.environ.get("APP_DEFAULT_LANG", "fr")
+
+
 def get_t():
-    """Return the translation dict for the current user (default = fr)."""
-    lang = (current_user.lang if current_user.is_authenticated else None) \
-           or os.environ.get("APP_DEFAULT_LANG", "fr")
+    """Return the translation dict for the current request."""
+    lang = current_lang()
     return TRANSLATIONS.get(lang, TRANSLATIONS["fr"])
+
+
+@app.route("/set-language/<lang>")
+def set_language(lang):
+    if lang in TRANSLATIONS:
+        session["lang"] = lang
+        if current_user.is_authenticated:
+            current_user.lang = lang
+            db.session.commit()
+    return redirect(request.referrer or url_for("dashboard"))
 
 
 @app.context_processor
 def _inject_globals():
-    """Make `t` and `has_perm` directly callable inside Jinja."""
+    """Make `t`, `has_perm`, `lang`, `v` callable inside Jinja templates."""
     return {
         "t": get_t(),
+        "lang": current_lang(),
+        "v": APP_VERSION,
         "has_perm": has_perm,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
-        "app_settings": {s.key: s.value for s in AppSetting.query.all()} if current_user.is_authenticated else {},
+        "can_approve_any": current_user.is_authenticated and (
+            current_user.is_super_admin or
+            any(uf.role and uf.role.can_approve for uf in current_user.user_fleets)
+        ),
     }
 
 

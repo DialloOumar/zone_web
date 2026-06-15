@@ -1,13 +1,20 @@
-{% extends "base.html" if current_user.is_authenticated else "login.html" %}
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ code }} — {{ t['app.title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ v }}">
+</head>
+<body class="auth-body">
 
-{% block title %}{{ code }} — {{ t['app.title'] }}{% endblock %}
-
-{% block content %}
-<section class="error-page">
+<div class="auth-card error-page">
     <h1>{{ code }}</h1>
     <p>{{ message }}</p>
-    <a href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('login') }}" class="btn">
+    <a href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('login') }}" class="btn btn--primary">
         ← {{ t['nav.dashboard'] if current_user.is_authenticated else t['auth.login'] }}
     </a>
-</section>
-{% endblock %}
+</div>
+
+</body>
+</html>
