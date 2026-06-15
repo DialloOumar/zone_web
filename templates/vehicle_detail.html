@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}{{ vehicle.code }}{% endblock %}
+{% block page_title %}{{ vehicle.code }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ vehicle.code }}</h2>
+            <div style="margin-top: 8px; display: flex; gap: 6px; align-items: center;">
+                <span class="chip chip--{{ vehicle.category.code|lower }}">{{ vehicle.category.label_fr if lang == 'fr' else vehicle.category.label }}</span>
+                {% if vehicle.is_active %}
+                <span class="badge badge--active">{{ t['vehicle.active'] }}</span>
+                {% else %}
+                <span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="row-actions">
+            {% if has_perm('vehicle.edit') %}
+            <a href="{{ url_for('vehicles.edit', vid=vehicle.id) }}" class="btn btn--tonal">
+                <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}
+            </a>
+            {% endif %}
+            <a href="{{ url_for('vehicles.index') }}" class="btn btn--outlined">{{ t['btn.back'] }}</a>
+        </div>
+    </div>
+
+    <dl class="detail-grid">
+        <div>
+            <dt>{{ t['vehicle.fleet'] }}</dt>
+            <dd>{{ vehicle.fleet.name }}</dd>
+        </div>
+        <div>
+            <dt>{{ t['vehicle.site'] }}</dt>
+            <dd>{{ vehicle.site or '—' }}</dd>
+        </div>
+        <div>
+            <dt>{{ t['vehicle.baseline'] }}</dt>
+            <dd>
+                {% if vehicle.effective_baseline %}
+                    {{ vehicle.effective_baseline }} L / {{ t['unit.' + vehicle.category.unit_type] }}
+                    {% if not vehicle.baseline_l_per_unit_override %}
+                    <span class="muted small">({{ t['vehicle.from_category'] }})</span>
+                    {% endif %}
+                {% else %}—{% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt>{{ t['vehicle.cost_override'] }}</dt>
+            <dd>
+                {% if vehicle.effective_cost_per_unit %}
+                    {{ '{:,}'.format(vehicle.effective_cost_per_unit) }} GNF
+                    {% if not vehicle.cost_per_unit_override %}
+                    <span class="muted small">({{ t['vehicle.from_category'] }})</span>
+                    {% endif %}
+                {% else %}—{% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt>{{ t['vehicle.operator_morning'] }}</dt>
+            <dd>{{ vehicle.operator_morning or '—' }}</dd>
+        </div>
+        <div>
+            <dt>{{ t['vehicle.operator_evening'] }}</dt>
+            <dd>{{ vehicle.operator_evening or '—' }}</dd>
+        </div>
+        {% if vehicle.description %}
+        <div style="grid-column: 1 / -1;">
+            <dt>{{ t['vehicle.description'] }}</dt>
+            <dd>{{ vehicle.description }}</dd>
+        </div>
+        {% endif %}
+    </dl>
+</section>
+
+<div class="stat-grid">
+    <section class="card coming-soon">
+        <span class="material-symbols-outlined">list_alt</span>
+        <div><h3>{{ t['nav.daily_entries'] }}</h3><p class="muted small">{{ t['common.coming_soon'] }}</p></div>
+    </section>
+    <section class="card coming-soon">
+        <span class="material-symbols-outlined">handyman</span>
+        <div><h3>{{ t['nav.maintenance_records'] }}</h3><p class="muted small">{{ t['common.coming_soon'] }}</p></div>
+    </section>
+    <section class="card coming-soon">
+        <span class="material-symbols-outlined">payments</span>
+        <div><h3>{{ t['nav.expenses'] }}</h3><p class="muted small">{{ t['common.coming_soon'] }}</p></div>
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% set is_edit = vehicle is not none %}
+{% block title %}{{ t['vehicle.edit'] if is_edit else t['vehicle.new'] }}{% endblock %}
+{% block page_title %}{{ t['vehicle.edit'] if is_edit else t['vehicle.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    <form method="post" class="entry-form">
+        <div class="field">
+            <input type="text" id="code" name="code" placeholder=" " required
+                   value="{{ request.form.get('code') or (vehicle.code if is_edit else '') }}">
+            <label for="code">{{ t['vehicle.code'] }}</label>
+        </div>
+
+        <div class="form-row">
+            <div class="field field--select">
+                <select id="fleet_id" name="fleet_id" required>
+                    <option value="" hidden></option>
+                    {% set sel_fleet = request.form.get('fleet_id')|int(0) or (vehicle.fleet_id if is_edit else 0) %}
+                    {% for f in fleets %}
+                    <option value="{{ f.id }}" data-categories="{{ f.categories|join(',') }}"
+                            {% if f.id == sel_fleet %}selected{% endif %}>{{ f.name }}</option>
+                    {% endfor %}
+                </select>
+                <label for="fleet_id">{{ t['vehicle.fleet'] }}</label>
+            </div>
+
+            <div class="field field--select">
+                <select id="category_id" name="category_id" required>
+                    <option value="" hidden></option>
+                    {% set sel_cat = request.form.get('category_id')|int(0) or (vehicle.category_id if is_edit else 0) %}
+                    {% for c in categories %}
+                    <option value="{{ c.id }}" data-code="{{ c.code }}"
+                            {% if c.id == sel_cat %}selected{% endif %}>{{ c.label_fr if lang == 'fr' else c.label }}</option>
+                    {% endfor %}
+                </select>
+                <label for="category_id">{{ t['vehicle.category'] }}</label>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="site" name="site" placeholder=" "
+                       value="{{ request.form.get('site') or (vehicle.site if is_edit else '') }}">
+                <label for="site">{{ t['vehicle.site'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="baseline_l_per_unit_override" name="baseline_l_per_unit_override" placeholder=" " inputmode="decimal"
+                       value="{{ request.form.get('baseline_l_per_unit_override') or (vehicle.baseline_l_per_unit_override if is_edit and vehicle.baseline_l_per_unit_override is not none else '') }}">
+                <label for="baseline_l_per_unit_override">{{ t['vehicle.baseline_override'] }}</label>
+                <div class="field-hint">{{ t['vehicle.baseline_hint'] }}</div>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="cost_per_unit_override" name="cost_per_unit_override" placeholder=" " inputmode="numeric"
+                       value="{{ request.form.get('cost_per_unit_override') or (vehicle.cost_per_unit_override if is_edit and vehicle.cost_per_unit_override is not none else '') }}">
+                <label for="cost_per_unit_override">{{ t['vehicle.cost_override'] }}</label>
+                <div class="field-hint">{{ t['vehicle.cost_hint'] }}</div>
+            </div>
+            <div class="field">
+                <input type="text" id="operator_morning" name="operator_morning" placeholder=" "
+                       value="{{ request.form.get('operator_morning') or (vehicle.operator_morning if is_edit and vehicle.operator_morning else '') }}">
+                <label for="operator_morning">{{ t['vehicle.operator_morning'] }}</label>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="operator_evening" name="operator_evening" placeholder=" "
+                       value="{{ request.form.get('operator_evening') or (vehicle.operator_evening if is_edit and vehicle.operator_evening else '') }}">
+                <label for="operator_evening">{{ t['vehicle.operator_evening'] }}</label>
+            </div>
+            <div class="field">
+                <textarea id="description" name="description" placeholder=" " rows="1">{{ request.form.get('description') or (vehicle.description if is_edit else '') }}</textarea>
+                <label for="description">{{ t['vehicle.description'] }}</label>
+            </div>
+        </div>
+
+        <label class="checkbox-item" style="max-width: 220px;">
+            <input type="checkbox" name="is_active" {% if form_active %}checked{% endif %}>
+            <span>{{ t['vehicle.is_active'] }}</span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">
+                <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+            </button>
+            <a href="{{ url_for('vehicles.detail', vid=vehicle.id) if is_edit else url_for('vehicles.index') }}" class="btn btn--outlined">{{ t['btn.cancel'] }}</a>
+        </div>
+    </form>
+</section>
+
+<script>
+// Narrow the category options to those belonging to the selected fleet.
+(function () {
+    var fleetSel = document.getElementById("fleet_id");
+    var catSel = document.getElementById("category_id");
+    if (!fleetSel || !catSel) return;
+    function refresh() {
+        var opt = fleetSel.options[fleetSel.selectedIndex];
+        var allowed = ((opt && opt.dataset.categories) || "").split(",").filter(Boolean);
+        var currentOk = false;
+        Array.prototype.forEach.call(catSel.options, function (o) {
+            if (!o.value) return;
+            var ok = allowed.length === 0 || allowed.indexOf(o.dataset.code) >= 0;
+            o.hidden = !ok;
+            o.disabled = !ok;
+            if (ok && o.value === catSel.value) currentOk = true;
+        });
+        if (!currentOk) catSel.value = "";
+    }
+    fleetSel.addEventListener("change", refresh);
+    refresh();
+})();
+</script>
+{% endblock %}

@@ -24,6 +24,41 @@
     });
 })();
 
+// ── Material ripple ──
+// Adds a touch ripple to interactive surfaces. Elements need
+// position:relative + overflow:hidden (handled in CSS).
+(function () {
+    function spawn(el, e) {
+        var rect = el.getBoundingClientRect();
+        var size = Math.max(rect.width, rect.height);
+        var x = (e.clientX || rect.left + rect.width / 2) - rect.left - size / 2;
+        var y = (e.clientY || rect.top + rect.height / 2) - rect.top - size / 2;
+        var r = document.createElement("span");
+        r.className = "ripple";
+        r.style.width = r.style.height = size + "px";
+        r.style.left = x + "px";
+        r.style.top = y + "px";
+        el.appendChild(r);
+        r.addEventListener("animationend", function () { r.remove(); });
+    }
+    var sel = ".btn, .fab, .sidebar-nav a, .checkbox-item, .logout-btn";
+    document.addEventListener("click", function (e) {
+        var el = e.target.closest(sel);
+        if (el) spawn(el, e);
+    });
+})();
+
+// ── Auto-dismiss success snackbars ──
+(function () {
+    document.querySelectorAll(".alert--success").forEach(function (el) {
+        setTimeout(function () {
+            el.style.transition = "opacity 0.4s";
+            el.style.opacity = "0";
+            setTimeout(function () { el.remove(); }, 400);
+        }, 4000);
+    });
+})();
+
 // ── Image compression (port from batmex_web) ──
 // Used by photo inputs to shrink phone photos before upload so uploads
 // still succeed on slow field connections. Output is JPEG ~250 KB from a

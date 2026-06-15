@@ -4,6 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ t['auth.login'] }} — {{ t['app.title'] }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="auth-body">
@@ -17,15 +21,18 @@
     {% endif %}
 
     <form method="post" class="auth-form">
-        <label for="username">{{ t['auth.username'] }}</label>
-        <input type="text" id="username" name="username" required autofocus autocomplete="username" autocapitalize="none" spellcheck="false">
-
-        <label for="password">{{ t['auth.password'] }}</label>
-        <input type="password" id="password" name="password" required autocomplete="current-password">
-
-        <button type="submit" class="btn btn--primary">{{ t['auth.sign_in'] }}</button>
+        <div class="field">
+            <input type="text" id="username" name="username" placeholder=" " required autofocus autocomplete="username" autocapitalize="none" spellcheck="false">
+            <label for="username">{{ t['auth.username'] }}</label>
+        </div>
+        <div class="field">
+            <input type="password" id="password" name="password" placeholder=" " required autocomplete="current-password">
+            <label for="password">{{ t['auth.password'] }}</label>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block">{{ t['auth.sign_in'] }}</button>
     </form>
 </div>
 
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

@@ -10,6 +10,7 @@ admin pages) come in subsequent sprints.
 """
 import logging
 import os
+import re
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -262,14 +263,62 @@ def _get_setting(key, default=None):
     return s.value if s else default
 
 
+def slugify(text):
+    """Lowercase, hyphenate, strip non-word chars — for fleet / role slugs."""
+    s = re.sub(r"[^\w\s-]", "", (text or "").strip().lower())
+    s = re.sub(r"[\s_-]+", "-", s).strip("-")
+    return s or "item"
+
+
+def submit_change(*, resource_type, action, fleet_id, payload, resource_id=None, reason=None):
+    """Park a change in the approval queue as a PendingChange row.
+
+    Feature modules call this when needs_approval() is True: instead of
+    applying the change, the proposed state is stored for a reviewer with
+    can_approve on the fleet. The Approvals UI (built later) replays the
+    payload on approval. Returns the created row.
+    """
+    pc = PendingChange(
+        requested_by=current_user.id,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        action=action,
+        payload=payload,
+        reason=reason,
+        fleet_id=fleet_id,
+        status="pending",
+    )
+    db.session.add(pc)
+    log_action("SUBMIT", resource_type, resource_id=resource_id, fleet_id=fleet_id,
+               detail=f"Submitted {action} for approval")
+    db.session.commit()
+    return pc
+
+
 # ── Base routes (auth + landing placeholder) ─────────────────────────────────
 
 
 @app.route("/")
 @login_required
 def dashboard():
-    """Placeholder landing page. Real dashboard comes in sprint 2."""
-    return render_template("dashboard.html")
+    """Landing page with at-a-glance KPI cards, scoped to the user's fleets."""
+    fleet_ids = current_user_fleet_ids()  # None for super admin = no restriction
+    vq = Vehicle.query
+    oq = Operator.query
+    fq = Fleet.query
+    aq = Alert.query.filter(Alert.status == "open")
+    if fleet_ids is not None:
+        vq = vq.filter(Vehicle.fleet_id.in_(fleet_ids))
+        oq = oq.filter(Operator.fleet_id.in_(fleet_ids))
+        fq = fq.filter(Fleet.id.in_(fleet_ids))
+        aq = aq.join(Vehicle, Alert.vehicle_id == Vehicle.id).filter(Vehicle.fleet_id.in_(fleet_ids))
+    stats = {
+        "fleets": fq.count(),
+        "vehicles": vq.count(),
+        "operators": oq.count(),
+        "alerts_open": aq.count(),
+    }
+    return render_template("dashboard.html", stats=stats)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -666,6 +715,17 @@ def grant_fleet_cmd(user, fleet, role):
         action = "Created"
     db.session.commit()
     click.echo(f"{action}: {u.username} → {f.name} as {r.name}")
+
+
+# ── Blueprints ───────────────────────────────────────────────────────────────
+# Imported here, after the helpers and `app` are defined, so blueprint modules
+# can `from app import ...` without tripping a circular import. Each feature
+# module (admin, vehicles, entries, …) registers as its own blueprint.
+from blueprints.admin import admin_bp  # noqa: E402
+from blueprints.vehicles import vehicles_bp  # noqa: E402
+
+app.register_blueprint(admin_bp)
+app.register_blueprint(vehicles_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['admin.fleets'] }}{% endblock %}
+{% block page_title %}{{ t['admin.fleets'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['admin.fleets'] }}</h2>
+        <a href="{{ url_for('admin.fleet_new') }}" class="fab">
+            <span class="material-symbols-outlined">add</span> {{ t['fleet.new'] }}
+        </a>
+    </div>
+
+    {% if fleets %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['fleet.name'] }}</th>
+                <th>{{ t['fleet.slug'] }}</th>
+                <th>{{ t['fleet.categories'] }}</th>
+                <th>{{ t['fleet.vehicles'] }}</th>
+                <th>{{ t['fleet.users'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in fleets %}
+            <tr>
+                <td>
+                    <strong>{{ f.name }}</strong>
+                    {% if f.description %}<div class="muted small">{{ f.description }}</div>{% endif %}
+                </td>
+                <td><code>{{ f.slug }}</code></td>
+                <td>
+                    {% for code in f.categories %}
+                        {% set c = cat_labels.get(code) %}
+                        <span class="chip chip--{{ code|lower }}">{{ (c.label_fr if lang == 'fr' else c.label) if c else code }}</span>
+                    {% else %}
+                        <span class="muted">—</span>
+                    {% endfor %}
+                </td>
+                <td>{{ counts[f.id].vehicles }}</td>
+                <td>{{ counts[f.id].users }}</td>
+                <td class="row-actions">
+                    <a href="{{ url_for('admin.fleet_edit', fleet_id=f.id) }}" class="btn btn--sm btn--tonal">{{ t['btn.edit'] }}</a>
+                    <form method="post" action="{{ url_for('admin.fleet_delete', fleet_id=f.id) }}"
+                          onsubmit="return confirm('{{ t['fleet.delete_confirm'] }}');" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">workspaces</span>
+        <p>{{ t['fleet.empty'] }}</p>
+        <a href="{{ url_for('admin.fleet_new') }}" class="fab">
+            <span class="material-symbols-outlined">add</span> {{ t['fleet.new'] }}
+        </a>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

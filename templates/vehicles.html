@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.vehicles'] }}{% endblock %}
+{% block page_title %}{{ t['nav.vehicles'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.vehicles'] }}</h2>
+        {% if has_perm('vehicle.create') %}
+        <a href="{{ url_for('vehicles.new') }}" class="fab">
+            <span class="material-symbols-outlined">add</span> {{ t['vehicle.new'] }}
+        </a>
+        {% endif %}
+    </div>
+
+    {% if filter_cats %}
+    <div class="filter-chips">
+        <a href="{{ url_for('vehicles.index') }}" class="filter-chip {% if not active_code %}active{% endif %}">{{ t['vehicle.all'] }}</a>
+        {% for c in filter_cats %}
+        <a href="{{ url_for('vehicles.index', category=c.code) }}" class="filter-chip {% if active_code == c.code %}active{% endif %}">
+            {{ c.label_fr if lang == 'fr' else c.label }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if vehicles %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['vehicle.code'] }}</th>
+                <th>{{ t['vehicle.category'] }}</th>
+                <th>{{ t['vehicle.fleet'] }}</th>
+                <th>{{ t['vehicle.site'] }}</th>
+                <th>{{ t['vehicle.baseline'] }}</th>
+                <th>{{ t['vehicle.status'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in vehicles %}
+            <tr>
+                <td><a href="{{ url_for('vehicles.detail', vid=v.id) }}"><strong>{{ v.code }}</strong></a></td>
+                <td><span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span></td>
+                <td>{{ v.fleet.name }}</td>
+                <td>{{ v.site or '—' }}</td>
+                <td>
+                    {% if v.effective_baseline %}
+                        {{ v.effective_baseline }} L / {{ t['unit.' + v.category.unit_type] }}
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if v.is_active %}
+                        <span class="badge badge--active">{{ t['vehicle.active'] }}</span>
+                    {% else %}
+                        <span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>
+                    {% endif %}
+                </td>
+                <td class="row-actions">
+                    {% if has_perm('vehicle.edit') %}
+                    <a href="{{ url_for('vehicles.edit', vid=v.id) }}" class="btn btn--sm btn--tonal">{{ t['btn.edit'] }}</a>
+                    {% endif %}
+                    {% if has_perm('vehicle.delete') %}
+                    <form method="post" action="{{ url_for('vehicles.delete', vid=v.id) }}"
+                          onsubmit="return confirm('{{ t['vehicle.delete_confirm'] }}');" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">directions_bus</span>
+        <p>{{ t['vehicle.empty'] }}</p>
+        {% if has_perm('vehicle.create') %}
+        <a href="{{ url_for('vehicles.new') }}" class="fab">
+            <span class="material-symbols-outlined">add</span> {{ t['vehicle.new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
