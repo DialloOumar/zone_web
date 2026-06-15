@@ -1,0 +1,13 @@
+{% extends "base.html" if current_user.is_authenticated else "login.html" %}
+
+{% block title %}{{ code }} — {{ t['app.title'] }}{% endblock %}
+
+{% block content %}
+<section class="error-page">
+    <h1>{{ code }}</h1>
+    <p>{{ message }}</p>
+    <a href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('login') }}" class="btn">
+        ← {{ t['nav.dashboard'] if current_user.is_authenticated else t['auth.login'] }}
+    </a>
+</section>
+{% endblock %}

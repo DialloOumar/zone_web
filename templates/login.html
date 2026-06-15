@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ t['auth.login'] }} — {{ t['app.title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth-body">
+
+<div class="auth-card">
+    <h1 class="auth-card__title">{{ t['app.title'] }}</h1>
+    <p class="auth-card__tagline">{{ t['app.tagline'] }}</p>
+
+    {% if error %}
+    <div class="alert alert--error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" class="auth-form">
+        <label for="email">{{ t['auth.email'] }}</label>
+        <input type="email" id="email" name="email" required autofocus autocomplete="email">
+
+        <label for="password">{{ t['auth.password'] }}</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+
+        <button type="submit" class="btn btn--primary">{{ t['auth.sign_in'] }}</button>
+    </form>
+</div>
+
+</body>
+</html>

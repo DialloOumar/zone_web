@@ -1,0 +1,35 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Environments
+venv/
+env/
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Database
+*.db
+*.db-journal
+instance/
+
+# OS junk
+.DS_Store
+Thumbs.db
+bash.exe.stackdump
+
+# Build / deploy
+*.log
+*.pid
+
+# Generated artifacts
+test_report.pdf

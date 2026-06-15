@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.dashboard'] }} — {{ t['app.title'] }}{% endblock %}
+
+{% block content %}
+
+<section class="welcome">
+    <h1>{{ t['nav.dashboard'] }}</h1>
+    <p class="muted">
+        Bienvenue, <strong>{{ current_user.full_name }}</strong>.
+        {% if is_super_admin %}
+        Vous êtes connecté comme super admin.
+        {% endif %}
+    </p>
+</section>
+
+<section class="skeleton-note">
+    <h2>Squelette en place</h2>
+    <p class="muted">
+        L'application a été initialisée : authentification, modèles, migrations,
+        permissions et rôles système. Les pages domaines (véhicules, saisies,
+        maintenance, dépenses, alertes, administration) seront ajoutées dans
+        les sprints suivants.
+    </p>
+
+    <h3>État actuel</h3>
+    <ul>
+        <li>17 tables créées via migration Alembic</li>
+        <li>Catalogue de permissions seedé ({{ has_perm and "✓" or "—" }})</li>
+        <li>Rôles système prêts (Fleet Manager, Supervisor, Inspector, External)</li>
+        <li>Catégories de véhicules par défaut chargées</li>
+    </ul>
+
+    <h3>Prochaines étapes (sprint 1)</h3>
+    <ul>
+        <li>Pages d'administration : utilisateurs, flottes, rôles</li>
+        <li>CRUD véhicules + catégories</li>
+        <li>Page de saisie quotidienne (formulaire par entrée, style Boffa)</li>
+    </ul>
+</section>
+
+{% endblock %}
