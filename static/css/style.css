@@ -141,12 +141,15 @@ a:hover { text-decoration: underline; }
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
-.sidebar-lang {
+.sidebar-lang,
+.sidebar-change-pw {
     font-size: 0.7rem;
     color: var(--primary);
     margin-top: 2px;
+    text-decoration: none;
 }
-.sidebar-lang:hover { text-decoration: underline; }
+.sidebar-lang:hover,
+.sidebar-change-pw:hover { text-decoration: underline; }
 
 .logout-btn {
     font-size: 1.1rem;
@@ -283,6 +286,40 @@ a:hover { text-decoration: underline; }
 .error-page { text-align: center; padding: 60px 20px; }
 .error-page h1 { font-size: 4rem; margin: 0; color: var(--danger); }
 .error-page p { margin: 16px 0 24px; color: var(--muted); }
+
+/* ── Entry form (shared across most CRUD modals/pages) ── */
+.entry-form { display: flex; flex-direction: column; gap: 14px; }
+.entry-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.entry-form .form-group label {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.entry-form .form-group input,
+.entry-form .form-group select,
+.entry-form .form-group textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+}
+.entry-form .form-group input:focus,
+.entry-form .form-group select:focus,
+.entry-form .form-group textarea:focus { border-color: var(--primary); }
+.entry-form .form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
 
 /* ── Skeleton roadmap note (temporary, on dashboard) ── */
 .skeleton-note h3 { font-size: 0.85rem; margin: 16px 0 6px; color: var(--text); }

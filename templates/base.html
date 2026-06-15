@@ -102,6 +102,9 @@
                 <span class="sidebar-user-role">
                     {% if is_super_admin %}{{ t['role.super_admin'] }}{% else %}{{ t['role.user'] }}{% endif %}
                 </span>
+                <a href="{{ url_for('change_password') }}" class="sidebar-change-pw">
+                    🔑 {{ t['nav.change_password'] }}
+                </a>
                 <a href="{{ url_for('set_language', lang='fr' if lang == 'en' else 'en') }}" class="sidebar-lang">
                     🌐 {{ 'EN' if lang == 'fr' else 'FR' }}
                 </a>

@@ -304,6 +304,34 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/change-password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    """Let any logged-in user change their own password.
+
+    Same shape as batmex_web: translation keys are returned in error/success
+    so the template renders the localized message.
+    """
+    error = success = None
+    if request.method == "POST":
+        current_pw = request.form.get("current_password", "")
+        new_pw     = request.form.get("new_password", "")
+        confirm_pw = request.form.get("confirm_password", "")
+        if not current_user.check_password(current_pw):
+            error = "pw.error.wrong_current"
+        elif len(new_pw) < 6:
+            error = "pw.error.too_short"
+        elif new_pw != confirm_pw:
+            error = "pw.error.no_match"
+        else:
+            current_user.set_password(new_pw)
+            log_action("UPDATE", "user", resource_id=current_user.id,
+                       detail="Self-service password change")
+            db.session.commit()
+            success = "pw.success"
+    return render_template("change_password.html", error=error, success=success)
+
+
 @app.route("/healthz")
 def healthz():
     """Liveness probe for Docker / load balancer."""

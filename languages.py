@@ -38,6 +38,18 @@ TRANSLATIONS = {
         "nav.reports":              "Rapports",
         "nav.approvals":            "Validations en attente",
         "nav.admin":                "Administration",
+        "nav.change_password":      "Changer le mot de passe",
+
+        # Password change
+        "pw.title":                  "Changement de mot de passe",
+        "pw.error.wrong_current":    "Le mot de passe actuel est incorrect.",
+        "pw.error.too_short":        "Le nouveau mot de passe doit contenir au moins 6 caractères.",
+        "pw.error.no_match":         "Les deux nouveaux mots de passe ne correspondent pas.",
+        "pw.success":                "Mot de passe mis à jour.",
+        "form.current_password":     "Mot de passe actuel",
+        "form.new_password":         "Nouveau mot de passe",
+        "form.confirm_password":     "Confirmer le nouveau mot de passe",
+        "form.update_password":      "Mettre à jour le mot de passe",
 
         # Admin
         "admin.users":      "Utilisateurs",
@@ -129,6 +141,18 @@ TRANSLATIONS = {
         "nav.reports":              "Reports",
         "nav.approvals":            "Pending approvals",
         "nav.admin":                "Administration",
+        "nav.change_password":      "Change password",
+
+        # Password change
+        "pw.title":                  "Change password",
+        "pw.error.wrong_current":    "Current password is incorrect.",
+        "pw.error.too_short":        "New password must be at least 6 characters.",
+        "pw.error.no_match":         "The two new passwords do not match.",
+        "pw.success":                "Password updated.",
+        "form.current_password":     "Current password",
+        "form.new_password":         "New password",
+        "form.confirm_password":     "Confirm new password",
+        "form.update_password":      "Update password",
 
         "admin.users":      "Users",
         "admin.fleets":     "Fleets",
