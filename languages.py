@@ -28,6 +28,7 @@ TRANSLATIONS = {
         # Nav
         "nav.dashboard":            "Tableau de bord",
         "nav.vehicles":             "Véhicules",
+        "nav.operators":            "Conducteurs",
         "nav.daily_entries":        "Saisie quotidienne",
         "nav.maintenance":          "Maintenance",
         "nav.maintenance_records":  "Historique entretien",
@@ -83,6 +84,7 @@ TRANSLATIONS = {
 
         # Permissions categories (for the role grid)
         "perm.cat.vehicles":     "Véhicules",
+        "perm.cat.operators":    "Conducteurs",
         "perm.cat.entries":      "Saisies",
         "perm.cat.maintenance":  "Maintenance",
         "perm.cat.expenses":     "Dépenses",
@@ -117,6 +119,7 @@ TRANSLATIONS = {
 
         "nav.dashboard":            "Dashboard",
         "nav.vehicles":             "Vehicles",
+        "nav.operators":            "Operators",
         "nav.daily_entries":        "Daily entries",
         "nav.maintenance":          "Maintenance",
         "nav.maintenance_records":  "Maintenance history",
@@ -165,6 +168,7 @@ TRANSLATIONS = {
         "cat.autre":      "Other",
 
         "perm.cat.vehicles":     "Vehicles",
+        "perm.cat.operators":    "Operators",
         "perm.cat.entries":      "Entries",
         "perm.cat.maintenance":  "Maintenance",
         "perm.cat.expenses":     "Expenses",

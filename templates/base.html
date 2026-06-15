@@ -24,6 +24,12 @@
             </a></li>
             {% endif %}
 
+            {% if has_perm('operator.view') %}
+            <li><a href="#" class="{% if request.endpoint == 'operators' %}active{% endif %}">
+                <span class="nav-icon">👷</span> {{ t['nav.operators'] }}
+            </a></li>
+            {% endif %}
+
             {% if has_perm('entry.view') %}
             <li><a href="#" class="{% if request.endpoint == 'daily_entries' %}active{% endif %}">
                 <span class="nav-icon">☰</span> {{ t['nav.daily_entries'] }}

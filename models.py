@@ -203,6 +203,32 @@ class Vehicle(db.Model):
         return self.cost_per_unit_override or (self.category and self.category.default_cost_per_unit)
 
 
+class Operator(db.Model):
+    """Driver / operator pool for a fleet.
+
+    DailyEntry.operator stays a String so historical entries are preserved
+    if an operator is later renamed or deactivated; the Operator table is
+    primarily the source for typeahead dropdowns and the operators admin
+    page (similar to batmex_web's Operator model).
+    """
+    __tablename__ = "operators"
+    __table_args__ = (
+        db.UniqueConstraint("fleet_id", "name", name="uq_operators_fleet_name"),
+    )
+
+    id              = db.Column(db.Integer, primary_key=True)
+    fleet_id        = db.Column(db.Integer, db.ForeignKey("fleets.id"), nullable=False)
+    name            = db.Column(db.String(120), nullable=False)
+    phone           = db.Column(db.String(30),  nullable=True)
+    license_number  = db.Column(db.String(40),  nullable=True)
+    notes           = db.Column(db.String(255), nullable=True)
+    is_active       = db.Column(db.Boolean,     nullable=False, default=True)
+    created_at      = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+    created_by      = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+
+    fleet = db.relationship("Fleet")
+
+
 # ── Daily operations ──────────────────────────────────────────────────────────
 
 

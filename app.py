@@ -23,7 +23,7 @@ from flask_migrate import Migrate
 
 from languages import TRANSLATIONS
 from models import (Alert, AppSetting, AuditLog, DailyEntry, Expense, Fleet,
-                    MaintenanceRecord, MaintenanceRule, PendingChange,
+                    MaintenanceRecord, MaintenanceRule, Operator, PendingChange,
                     Permission, Role, RolePermission, User, UserFleet, Vehicle,
                     VehicleCategory, db)
 
@@ -331,6 +331,11 @@ PERMISSIONS_CATALOG = [
     ("vehicle.create", "Create vehicle",  "Vehicles", "vehicle", "create"),
     ("vehicle.edit",   "Edit vehicle",    "Vehicles", "vehicle", "edit"),
     ("vehicle.delete", "Delete vehicle",  "Vehicles", "vehicle", "delete"),
+    # Operators (drivers)
+    ("operator.view",   "View operators",   "Operators", "operator", "view"),
+    ("operator.create", "Create operator",  "Operators", "operator", "create"),
+    ("operator.edit",   "Edit operator",    "Operators", "operator", "edit"),
+    ("operator.delete", "Delete operator",  "Operators", "operator", "delete"),
     # Daily entries
     ("entry.view",   "View daily entries",   "Entries", "entry", "view"),
     ("entry.create", "Log daily entry",      "Entries", "entry", "create"),
@@ -394,6 +399,7 @@ DEFAULT_SETTINGS = [
 SYSTEM_ROLES = {
     "fleet_manager": ("Fleet Manager",  True, [
         "vehicle.view", "vehicle.create", "vehicle.edit", "vehicle.delete",
+        "operator.view", "operator.create", "operator.edit", "operator.delete",
         "entry.view", "entry.create", "entry.edit", "entry.delete",
         "maintenance_record.view", "maintenance_record.create", "maintenance_record.edit", "maintenance_record.delete",
         "maintenance_rule.view", "maintenance_rule.create", "maintenance_rule.edit", "maintenance_rule.delete",
@@ -403,6 +409,7 @@ SYSTEM_ROLES = {
     ]),
     "supervisor":    ("Supervisor",      False, [
         "vehicle.view",
+        "operator.view",
         "entry.view", "entry.create", "entry.edit",
         "maintenance_record.view", "maintenance_record.create",
         "alert.view", "alert.resolve",
@@ -411,6 +418,7 @@ SYSTEM_ROLES = {
     ]),
     "inspector":     ("Inspector",       False, [
         "vehicle.view",
+        "operator.view",
         "entry.view",
         "maintenance_record.view", "maintenance_rule.view",
         "alert.view",
@@ -419,6 +427,7 @@ SYSTEM_ROLES = {
     ]),
     "external":      ("External",        False, [
         "vehicle.view",
+        "operator.view",
         "entry.view",
         "report.view",
     ]),
