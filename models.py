@@ -43,7 +43,14 @@ class User(UserMixin, db.Model):
     is_active      = db.Column(db.Boolean,    nullable=False, default=True)
     created_at     = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
 
-    user_fleets = db.relationship("UserFleet", back_populates="user", cascade="all, delete-orphan")
+    # UserFleet has two FKs pointing at users (user_id and assigned_by), so the
+    # back relationship must say which one is the "owner" side.
+    user_fleets = db.relationship(
+        "UserFleet",
+        back_populates="user",
+        foreign_keys="UserFleet.user_id",
+        cascade="all, delete-orphan",
+    )
 
     def set_password(self, raw):
         self.password_hash = generate_password_hash(raw)
