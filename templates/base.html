@@ -4,10 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ t['app.title'] }}{% endblock %} — {{ t['app.title'] }}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ v }}">
 </head>
 <body>
@@ -35,7 +31,10 @@
             {% endif %}
 
             {% if has_perm('entry.view') %}
-            <li><a href="#" class="{% if request.endpoint == 'daily_entries' %}active{% endif %}">
+            <li><a href="{{ url_for('entries.roster_index') }}" class="{% if request.endpoint in ['entries.roster', 'entries.roster_index'] %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">fact_check</span> {{ t['nav.roster'] }}
+            </a></li>
+            <li><a href="{{ url_for('entries.index') }}" class="{% if request.endpoint == 'entries.index' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">list_alt</span> {{ t['nav.daily_entries'] }}
             </a></li>
             {% endif %}

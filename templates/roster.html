@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.roster'] }}{% endblock %}
+{% block page_title %}{{ t['nav.roster'] }}{% endblock %}
+
+{% block content %}
+{% if not fleet %}
+<div class="empty-state">
+    <span class="material-symbols-outlined">workspaces</span>
+    <p>{{ t['roster.no_fleet'] }}</p>
+</div>
+{% else %}
+
+{% if fleets|length > 1 %}
+<div class="filter-chips">
+    {% for f in fleets %}
+    <a href="{{ url_for('entries.roster', slug=f.slug, date=date_str) }}"
+       class="filter-chip {% if f.id == fleet.id %}active{% endif %}">{{ f.name }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="roster-toolbar">
+    <a href="{{ url_for('entries.roster', slug=fleet.slug, date=prev_date) }}" class="roster-nav-btn" aria-label="{{ t['roster.prev_day'] }}">
+        <span class="material-symbols-outlined">chevron_left</span>
+    </a>
+    <form method="get" action="{{ url_for('entries.roster', slug=fleet.slug) }}" class="roster-date-form">
+        <input type="date" name="date" value="{{ date_str }}" onchange="this.form.submit()">
+    </form>
+    <a href="{{ url_for('entries.roster', slug=fleet.slug, date=next_date) }}" class="roster-nav-btn" aria-label="{{ t['roster.next_day'] }}">
+        <span class="material-symbols-outlined">chevron_right</span>
+    </a>
+    <div class="roster-stats">
+        <span class="roster-stat roster-stat--done">{{ done }} {{ t['roster.done'] }}</span>
+        <span class="roster-stat roster-stat--pending">{{ pending }} {{ t['roster.pending'] }}</span>
+    </div>
+</div>
+
+{% if vehicles %}
+<div class="roster-grid">
+    {% for v in vehicles %}
+    {% set ents = by_vehicle.get(v.id, []) %}
+    <div class="roster-vehicle {% if ents %}is-done{% endif %}">
+        <div class="roster-vehicle__head">
+            <div>
+                <a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="roster-vehicle__code">{{ v.code }}</a>
+                <span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
+            </div>
+            {% if has_perm('entry.create') %}
+            <a class="roster-add" href="{{ url_for('entries.new', vehicle_id=v.id, date=date_str) }}"
+               data-modal-url="{{ url_for('entries.new', vehicle_id=v.id, date=date_str) }}" data-modal-title="{{ t['entry.new'] }} — {{ v.code }}"
+               aria-label="{{ t['entry.add'] }}">
+                <span class="material-symbols-outlined">add</span>
+            </a>
+            {% endif %}
+        </div>
+
+        {% if ents %}
+        <div class="roster-entries">
+            {% for e in ents %}
+            <a class="roster-entry" href="{{ url_for('entries.edit', eid=e.id) }}"
+               {% if has_perm('entry.edit') %}data-modal-url="{{ url_for('entries.edit', eid=e.id) }}" data-modal-title="{{ t['entry.edit'] }} — {{ v.code }}"{% endif %}>
+                <span class="roster-entry__activity">
+                    {% if v.category.unit_type == 'trips' %}
+                        {% if e.trips is not none %}{{ e.trips }} {{ t['unit.trips'] }}{% if e.trips != 1 %}s{% endif %}{% else %}—{% endif %}
+                    {% else %}
+                        {% if e.hours is not none %}{{ e.hours }} {{ t['unit.hours'] }}{% else %}—{% endif %}
+                    {% endif %}
+                </span>
+                <span class="roster-entry__op">{{ e.operator or '—' }}</span>
+                {% if e.fuel_liters is not none %}<span class="roster-entry__fuel">{{ e.fuel_liters }} L</span>{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <a class="roster-empty {% if not has_perm('entry.create') %}is-static{% endif %}"
+           href="{{ url_for('entries.new', vehicle_id=v.id, date=date_str) }}"
+           {% if has_perm('entry.create') %}data-modal-url="{{ url_for('entries.new', vehicle_id=v.id, date=date_str) }}" data-modal-title="{{ t['entry.new'] }} — {{ v.code }}"{% endif %}>
+            {{ t['roster.tap_to_log'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <span class="material-symbols-outlined">directions_bus</span>
+    <p>{{ t['roster.no_vehicles'] }}</p>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

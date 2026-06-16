@@ -76,11 +76,38 @@
     </dl>
 </section>
 
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.daily_entries'] }}</h2>
+        {% if has_perm('entry.create') %}
+        <a href="{{ url_for('entries.new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--primary"
+           data-modal-url="{{ url_for('entries.new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['entry.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['entry.add'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% if entries %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['entry.date'] }}</th>
+                <th>{{ t['entry.activity'] }}</th>
+                <th>{{ t['entry.fuel'] }}</th>
+                <th>{{ t['entry.km'] }}</th>
+                <th>{{ t['entry.operator'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% with show_vehicle = False %}{% include "_entry_rows.html" %}{% endwith %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['entry.empty'] }}</p>
+    {% endif %}
+</section>
+
 <div class="stat-grid">
-    <section class="card coming-soon">
-        <span class="material-symbols-outlined">list_alt</span>
-        <div><h3>{{ t['nav.daily_entries'] }}</h3><p class="muted small">{{ t['common.coming_soon'] }}</p></div>
-    </section>
     <section class="card coming-soon">
         <span class="material-symbols-outlined">handyman</span>
         <div><h3>{{ t['nav.maintenance_records'] }}</h3><p class="muted small">{{ t['common.coming_soon'] }}</p></div>

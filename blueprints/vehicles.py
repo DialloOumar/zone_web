@@ -150,7 +150,10 @@ def index():
 @require_perm("vehicle.view")
 def detail(vid):
     vehicle = _get_vehicle_or_404(vid)
-    return render_template("vehicle_detail.html", vehicle=vehicle)
+    entries = (DailyEntry.query.filter_by(vehicle_id=vid)
+               .order_by(DailyEntry.date.desc(), DailyEntry.id.desc())
+               .limit(10).all())
+    return render_template("vehicle_detail.html", vehicle=vehicle, entries=entries)
 
 
 def _render_vehicle_form(vehicle, error=None):

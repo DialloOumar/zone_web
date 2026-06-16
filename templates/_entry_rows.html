@@ -1,0 +1,35 @@
+{# Renders <tr> rows for a set of daily entries.
+   Context: entries, and show_vehicle (bool) to include the vehicle column. #}
+{% for e in entries %}
+<tr>
+    <td>{{ e.date }}</td>
+    {% if show_vehicle %}
+    <td>
+        <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
+        <span class="chip chip--{{ e.vehicle.category.code|lower }}">{{ e.vehicle.category.label_fr if lang == 'fr' else e.vehicle.category.label }}</span>
+    </td>
+    {% endif %}
+    <td>
+        {% if e.vehicle.category.unit_type == 'trips' %}
+            {% if e.trips is not none %}{{ e.trips }} {{ t['unit.trips'] }}{% if e.trips != 1 %}s{% endif %}{% else %}—{% endif %}
+        {% else %}
+            {% if e.hours is not none %}{{ e.hours }} {{ t['unit.hours'] }}{% else %}—{% endif %}
+        {% endif %}
+    </td>
+    <td>{% if e.fuel_liters is not none %}{{ e.fuel_liters }} L{% else %}—{% endif %}</td>
+    <td>{% if e.kilometers is not none %}{{ e.kilometers }}{% else %}—{% endif %}</td>
+    <td>{{ e.operator or '—' }}</td>
+    <td class="row-actions">
+        {% if has_perm('entry.edit') %}
+        <a href="{{ url_for('entries.edit', eid=e.id) }}" class="btn btn--sm btn--tonal"
+           data-modal-url="{{ url_for('entries.edit', eid=e.id) }}" data-modal-title="{{ t['entry.edit'] }}">{{ t['btn.edit'] }}</a>
+        {% endif %}
+        {% if has_perm('entry.delete') %}
+        <form method="post" action="{{ url_for('entries.delete', eid=e.id) }}"
+              onsubmit="return confirm('{{ t['entry.delete_confirm'] }}');" style="display:inline">
+            <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+        </form>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}

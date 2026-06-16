@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.daily_entries'] }}{% endblock %}
+{% block page_title %}{{ t['nav.daily_entries'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.daily_entries'] }}</h2>
+        {% if has_perm('entry.create') %}
+        <a href="{{ url_for('entries.new') }}" class="fab" data-modal-url="{{ url_for('entries.new') }}" data-modal-title="{{ t['entry.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['entry.new'] }}
+        </a>
+        {% endif %}
+    </div>
+
+    <form method="get" class="filter-bar">
+        <div class="field field--select" style="min-width: 220px;">
+            <select id="filter_vehicle" name="vehicle_id" onchange="this.form.submit()">
+                <option value="">{{ t['entry.all_vehicles'] }}</option>
+                {% for v in vehicles %}
+                <option value="{{ v.id }}" {% if fv == v.id %}selected{% endif %}>{{ v.code }}</option>
+                {% endfor %}
+            </select>
+            <label for="filter_vehicle">{{ t['entry.vehicle'] }}</label>
+        </div>
+        <div class="field" style="min-width: 170px;">
+            <input type="date" id="filter_date" name="date" value="{{ fd }}" placeholder=" " onchange="this.form.submit()">
+            <label for="filter_date">{{ t['entry.date'] }}</label>
+        </div>
+        {% if fv or fd %}
+        <a href="{{ url_for('entries.index') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
+        {% endif %}
+    </form>
+
+    {% if entries %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['entry.date'] }}</th>
+                <th>{{ t['entry.vehicle'] }}</th>
+                <th>{{ t['entry.activity'] }}</th>
+                <th>{{ t['entry.fuel'] }}</th>
+                <th>{{ t['entry.km'] }}</th>
+                <th>{{ t['entry.operator'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% with show_vehicle = True %}{% include "_entry_rows.html" %}{% endwith %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">list_alt</span>
+        <p>{{ t['entry.empty'] }}</p>
+        {% if has_perm('entry.create') %}
+        <a href="{{ url_for('entries.new') }}" class="fab" data-modal-url="{{ url_for('entries.new') }}" data-modal-title="{{ t['entry.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['entry.new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
