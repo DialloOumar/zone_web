@@ -59,6 +59,97 @@
     });
 })();
 
+// ── Modal dialog layer ──
+// Any element with [data-modal-url] opens its target in a dialog instead of
+// navigating. The URL returns a bare form partial; submitting it POSTs via
+// fetch — JSON success reloads the page (showing the flash + fresh list),
+// an HTML response (validation error) is re-injected with inline errors.
+// Links keep their href, so without JS everything still works as full pages.
+(function () {
+    var overlay = null;
+
+    function close() {
+        if (!overlay) return;
+        document.removeEventListener("keydown", onKey);
+        var o = overlay;
+        overlay = null;
+        o.classList.remove("open");
+        setTimeout(function () { o.remove(); }, 200);
+    }
+    function onKey(e) { if (e.key === "Escape") close(); }
+
+    function build(title) {
+        overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.innerHTML =
+            '<div class="modal" role="dialog" aria-modal="true">' +
+            '<div class="modal__header"><h2></h2>' +
+            '<button class="modal__close" type="button" aria-label="Close">' +
+            '<span class="material-symbols-outlined">close</span></button></div>' +
+            '<div class="modal__body"><div class="modal__loading">…</div></div></div>';
+        overlay.querySelector(".modal__header h2").textContent = title || "";
+        document.body.appendChild(overlay);
+        requestAnimationFrame(function () { overlay.classList.add("open"); });
+        overlay.addEventListener("click", function (e) { if (e.target === overlay) close(); });
+        overlay.querySelector(".modal__close").addEventListener("click", close);
+        document.addEventListener("keydown", onKey);
+    }
+
+    function runScripts(container) {
+        container.querySelectorAll("script").forEach(function (old) {
+            var s = document.createElement("script");
+            s.textContent = old.textContent;
+            old.replaceWith(s);
+        });
+    }
+
+    function bind(body) {
+        var form = body.querySelector("form");
+        if (!form) return;
+        var cancel = body.querySelector("[data-modal-cancel]");
+        if (cancel) cancel.addEventListener("click", function (e) { e.preventDefault(); close(); });
+        form.addEventListener("submit", function (e) {
+            e.preventDefault();
+            var btn = form.querySelector("button[type=submit]");
+            if (btn) btn.disabled = true;
+            fetch(form.action, {
+                method: "POST",
+                body: new FormData(form),
+                headers: { "X-Requested-With": "fetch" }
+            }).then(function (r) {
+                var ct = r.headers.get("content-type") || "";
+                if (ct.indexOf("application/json") >= 0) {
+                    return r.json().then(function () { window.location.reload(); });
+                }
+                return r.text().then(function (html) { inject(html); });
+            }).catch(function () { if (btn) btn.disabled = false; });
+        });
+    }
+
+    function inject(html) {
+        if (!overlay) return;
+        var body = overlay.querySelector(".modal__body");
+        body.innerHTML = html;
+        runScripts(body);
+        bind(body);
+    }
+
+    function open(url, title) {
+        build(title);
+        fetch(url, { headers: { "X-Requested-With": "fetch" } })
+            .then(function (r) { return r.text(); })
+            .then(function (html) { inject(html); })
+            .catch(function () { close(); window.location = url; });
+    }
+
+    document.addEventListener("click", function (e) {
+        var trg = e.target.closest("[data-modal-url]");
+        if (!trg) return;
+        e.preventDefault();
+        open(trg.getAttribute("data-modal-url"), trg.getAttribute("data-modal-title"));
+    });
+})();
+
 // ── Image compression (port from batmex_web) ──
 // Used by photo inputs to shrink phone photos before upload so uploads
 // still succeed on slow field connections. Output is JPEG ~250 KB from a

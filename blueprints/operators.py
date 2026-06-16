@@ -11,8 +11,8 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
-from app import (current_user_fleet_ids, get_t, log_action, needs_approval,
-                 require_perm, scoped, submit_change)
+from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
+                 modal_ok, needs_approval, require_perm, scoped, submit_change)
 from models import Fleet, Operator, db
 
 operators_bp = Blueprint("operators", __name__)
@@ -103,6 +103,14 @@ def index():
                            filter_fleets=fleets, active_fleet=active_fleet)
 
 
+def _render_operator_form(operator, error=None):
+    """Render the operator form as a modal partial or a full page."""
+    tpl = "_operator_form.html" if is_modal_request() else "operator_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, operator=operator, error=error,
+                           **_form_context(operator)), status
+
+
 @operators_bp.route("/operators/new", methods=["GET", "POST"])
 @login_required
 @require_perm("operator.create")
@@ -111,22 +119,21 @@ def new():
     if request.method == "POST":
         data, error = _read_operator_form(None)
         if error:
-            flash("error|" + error)
-        elif needs_approval("operator.create"):
+            return _render_operator_form(None, error)
+        if needs_approval("operator.create"):
             submit_change(resource_type="operator", action="create",
                           fleet_id=data["fleet_id"], payload=data)
             flash("success|" + t["operator.submitted"])
-            return redirect(url_for("operators.index"))
-        else:
-            op = Operator(created_by=current_user.id, **data)
-            db.session.add(op)
-            db.session.flush()
-            log_action("CREATE", "operator", resource_id=op.id, fleet_id=op.fleet_id,
-                       detail=f"Created operator '{op.name}'")
-            db.session.commit()
-            flash("success|" + t["operator.created"])
-            return redirect(url_for("operators.index"))
-    return render_template("operator_form.html", operator=None, **_form_context(None))
+            return modal_ok() if is_modal_request() else redirect(url_for("operators.index"))
+        op = Operator(created_by=current_user.id, **data)
+        db.session.add(op)
+        db.session.flush()
+        log_action("CREATE", "operator", resource_id=op.id, fleet_id=op.fleet_id,
+                   detail=f"Created operator '{op.name}'")
+        db.session.commit()
+        flash("success|" + t["operator.created"])
+        return modal_ok() if is_modal_request() else redirect(url_for("operators.index"))
+    return _render_operator_form(None)
 
 
 @operators_bp.route("/operators/<int:oid>/edit", methods=["GET", "POST"])
@@ -138,21 +145,21 @@ def edit(oid):
     if request.method == "POST":
         data, error = _read_operator_form(op)
         if error:
-            flash("error|" + error)
-        elif needs_approval("operator.edit", op.created_by, op.created_at):
+            return _render_operator_form(op, error)
+        if needs_approval("operator.edit", op.created_by, op.created_at):
             submit_change(resource_type="operator", action="update",
                           resource_id=op.id, fleet_id=data["fleet_id"], payload=data)
             flash("success|" + t["operator.submitted"])
-            return redirect(url_for("operators.index"))
-        else:
-            for k, val in data.items():
-                setattr(op, k, val)
-            log_action("UPDATE", "operator", resource_id=op.id, fleet_id=op.fleet_id,
-                       detail=f"Updated operator '{op.name}'")
-            db.session.commit()
-            flash("success|" + t["operator.updated"])
-            return redirect(url_for("operators.index"))
-    return render_template("operator_form.html", operator=op, **_form_context(op))
+            return modal_ok() if is_modal_request() else redirect(url_for("operators.index"))
+        for k, val in data.items():
+            setattr(op, k, val)
+        log_action("UPDATE", "operator", resource_id=op.id, fleet_id=op.fleet_id,
+                   detail=f"Updated operator '{op.name}'")
+        db.session.commit()
+        flash("success|" + t["operator.updated"])
+        return modal_ok() if is_modal_request() else redirect(url_for("operators.index"))
+    return _render_operator_form(op)
+
 
 
 @operators_bp.route("/operators/<int:oid>/delete", methods=["POST"])

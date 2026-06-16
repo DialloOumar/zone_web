@@ -6,54 +6,6 @@
 
 {% block content %}
 <section class="card" style="max-width: 660px;">
-    <form method="post" class="entry-form">
-        <div class="form-row">
-            <div class="field">
-                <input type="text" id="name" name="name" placeholder=" " required
-                       value="{{ request.form.get('name') or (operator.name if is_edit else '') }}">
-                <label for="name">{{ t['operator.name'] }}</label>
-            </div>
-            <div class="field field--select">
-                <select id="fleet_id" name="fleet_id" required>
-                    <option value="" hidden></option>
-                    {% set sel_fleet = request.form.get('fleet_id')|int(0) or (operator.fleet_id if is_edit else 0) %}
-                    {% for f in fleets %}
-                    <option value="{{ f.id }}" {% if f.id == sel_fleet %}selected{% endif %}>{{ f.name }}</option>
-                    {% endfor %}
-                </select>
-                <label for="fleet_id">{{ t['operator.fleet'] }}</label>
-            </div>
-        </div>
-
-        <div class="form-row">
-            <div class="field">
-                <input type="text" id="phone" name="phone" placeholder=" " inputmode="tel"
-                       value="{{ request.form.get('phone') or (operator.phone if is_edit and operator.phone else '') }}">
-                <label for="phone">{{ t['operator.phone'] }}</label>
-            </div>
-            <div class="field">
-                <input type="text" id="license_number" name="license_number" placeholder=" "
-                       value="{{ request.form.get('license_number') or (operator.license_number if is_edit and operator.license_number else '') }}">
-                <label for="license_number">{{ t['operator.license'] }}</label>
-            </div>
-        </div>
-
-        <div class="field">
-            <textarea id="notes" name="notes" placeholder=" " rows="2">{{ request.form.get('notes') or (operator.notes if is_edit else '') }}</textarea>
-            <label for="notes">{{ t['operator.notes'] }}</label>
-        </div>
-
-        <label class="checkbox-item" style="max-width: 220px;">
-            <input type="checkbox" name="is_active" {% if form_active %}checked{% endif %}>
-            <span>{{ t['operator.is_active'] }}</span>
-        </label>
-
-        <div class="form-actions">
-            <button type="submit" class="btn btn--primary">
-                <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
-            </button>
-            <a href="{{ url_for('operators.index') }}" class="btn btn--outlined">{{ t['btn.cancel'] }}</a>
-        </div>
-    </form>
+    {% include "_operator_form.html" %}
 </section>
 {% endblock %}

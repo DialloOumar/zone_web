@@ -295,6 +295,21 @@ def submit_change(*, resource_type, action, fleet_id, payload, resource_id=None,
     return pc
 
 
+def is_modal_request():
+    """True when a request originates from the modal layer (fetch + header).
+
+    Lets form routes serve a bare partial / JSON to the dialog while still
+    rendering full pages for direct navigation and no-JS clients.
+    """
+    return request.headers.get("X-Requested-With") == "fetch"
+
+
+def modal_ok():
+    """Success response for a modal form submit — the client reloads to pick
+    up the flash message and the refreshed list."""
+    return jsonify(ok=True)
+
+
 # ── Base routes (auth + landing placeholder) ─────────────────────────────────
 
 

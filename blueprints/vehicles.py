@@ -9,8 +9,8 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
-from app import (current_user_fleet_ids, get_t, log_action, needs_approval,
-                 require_perm, scoped, submit_change)
+from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
+                 modal_ok, needs_approval, require_perm, scoped, submit_change)
 from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Vehicle,
                     VehicleCategory, db)
 
@@ -153,6 +153,14 @@ def detail(vid):
     return render_template("vehicle_detail.html", vehicle=vehicle)
 
 
+def _render_vehicle_form(vehicle, error=None):
+    """Render the vehicle form as a modal partial or a full page."""
+    tpl = "_vehicle_form.html" if is_modal_request() else "vehicle_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, vehicle=vehicle, error=error,
+                           **_form_context(vehicle)), status
+
+
 @vehicles_bp.route("/vehicles/new", methods=["GET", "POST"])
 @login_required
 @require_perm("vehicle.create")
@@ -161,22 +169,21 @@ def new():
     if request.method == "POST":
         data, error = _read_vehicle_form(None)
         if error:
-            flash("error|" + error)
-        elif needs_approval("vehicle.create"):
+            return _render_vehicle_form(None, error)
+        if needs_approval("vehicle.create"):
             submit_change(resource_type="vehicle", action="create",
                           fleet_id=data["fleet_id"], payload=data)
             flash("success|" + t["vehicle.submitted"])
-            return redirect(url_for("vehicles.index"))
-        else:
-            v = Vehicle(created_by=current_user.id, **data)
-            db.session.add(v)
-            db.session.flush()
-            log_action("CREATE", "vehicle", resource_id=v.id, fleet_id=v.fleet_id,
-                       detail=f"Created vehicle '{v.code}'")
-            db.session.commit()
-            flash("success|" + t["vehicle.created"])
-            return redirect(url_for("vehicles.detail", vid=v.id))
-    return render_template("vehicle_form.html", vehicle=None, **_form_context(None))
+            return modal_ok() if is_modal_request() else redirect(url_for("vehicles.index"))
+        v = Vehicle(created_by=current_user.id, **data)
+        db.session.add(v)
+        db.session.flush()
+        log_action("CREATE", "vehicle", resource_id=v.id, fleet_id=v.fleet_id,
+                   detail=f"Created vehicle '{v.code}'")
+        db.session.commit()
+        flash("success|" + t["vehicle.created"])
+        return modal_ok() if is_modal_request() else redirect(url_for("vehicles.detail", vid=v.id))
+    return _render_vehicle_form(None)
 
 
 @vehicles_bp.route("/vehicles/<int:vid>/edit", methods=["GET", "POST"])
@@ -188,22 +195,21 @@ def edit(vid):
     if request.method == "POST":
         data, error = _read_vehicle_form(vehicle)
         if error:
-            flash("error|" + error)
-        elif needs_approval("vehicle.edit", vehicle.created_by, vehicle.created_at):
+            return _render_vehicle_form(vehicle, error)
+        if needs_approval("vehicle.edit", vehicle.created_by, vehicle.created_at):
             submit_change(resource_type="vehicle", action="update",
                           resource_id=vehicle.id, fleet_id=data["fleet_id"],
                           payload=data)
             flash("success|" + t["vehicle.submitted"])
-            return redirect(url_for("vehicles.detail", vid=vehicle.id))
-        else:
-            for k, val in data.items():
-                setattr(vehicle, k, val)
-            log_action("UPDATE", "vehicle", resource_id=vehicle.id,
-                       fleet_id=vehicle.fleet_id, detail=f"Updated vehicle '{vehicle.code}'")
-            db.session.commit()
-            flash("success|" + t["vehicle.updated"])
-            return redirect(url_for("vehicles.detail", vid=vehicle.id))
-    return render_template("vehicle_form.html", vehicle=vehicle, **_form_context(vehicle))
+            return modal_ok() if is_modal_request() else redirect(url_for("vehicles.detail", vid=vehicle.id))
+        for k, val in data.items():
+            setattr(vehicle, k, val)
+        log_action("UPDATE", "vehicle", resource_id=vehicle.id,
+                   fleet_id=vehicle.fleet_id, detail=f"Updated vehicle '{vehicle.code}'")
+        db.session.commit()
+        flash("success|" + t["vehicle.updated"])
+        return modal_ok() if is_modal_request() else redirect(url_for("vehicles.detail", vid=vehicle.id))
+    return _render_vehicle_form(vehicle)
 
 
 @vehicles_bp.route("/vehicles/<int:vid>/delete", methods=["POST"])

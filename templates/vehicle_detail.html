@@ -19,7 +19,8 @@
         </div>
         <div class="row-actions">
             {% if has_perm('vehicle.edit') %}
-            <a href="{{ url_for('vehicles.edit', vid=vehicle.id) }}" class="btn btn--tonal">
+            <a href="{{ url_for('vehicles.edit', vid=vehicle.id) }}" class="btn btn--tonal"
+               data-modal-url="{{ url_for('vehicles.edit', vid=vehicle.id) }}" data-modal-title="{{ t['vehicle.edit'] }}">
                 <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}
             </a>
             {% endif %}

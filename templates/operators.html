@@ -8,7 +8,7 @@
     <div class="card-header">
         <h2>{{ t['nav.operators'] }}</h2>
         {% if has_perm('operator.create') %}
-        <a href="{{ url_for('operators.new') }}" class="fab">
+        <a href="{{ url_for('operators.new') }}" class="fab" data-modal-url="{{ url_for('operators.new') }}" data-modal-title="{{ t['operator.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['operator.new'] }}
         </a>
         {% endif %}
@@ -54,7 +54,8 @@
                 </td>
                 <td class="row-actions">
                     {% if has_perm('operator.edit') %}
-                    <a href="{{ url_for('operators.edit', oid=op.id) }}" class="btn btn--sm btn--tonal">{{ t['btn.edit'] }}</a>
+                    <a href="{{ url_for('operators.edit', oid=op.id) }}" class="btn btn--sm btn--tonal"
+                       data-modal-url="{{ url_for('operators.edit', oid=op.id) }}" data-modal-title="{{ t['operator.edit'] }}">{{ t['btn.edit'] }}</a>
                     {% endif %}
                     {% if has_perm('operator.delete') %}
                     <form method="post" action="{{ url_for('operators.delete', oid=op.id) }}"
@@ -72,7 +73,7 @@
         <span class="material-symbols-outlined">badge</span>
         <p>{{ t['operator.empty'] }}</p>
         {% if has_perm('operator.create') %}
-        <a href="{{ url_for('operators.new') }}" class="fab">
+        <a href="{{ url_for('operators.new') }}" class="fab" data-modal-url="{{ url_for('operators.new') }}" data-modal-title="{{ t['operator.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['operator.new'] }}
         </a>
         {% endif %}

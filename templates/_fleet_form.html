@@ -1,0 +1,42 @@
+{% set is_edit = fleet is not none %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('admin.fleet_edit', fleet_id=fleet.id) if is_edit else url_for('admin.fleet_new') }}">
+    <div class="field">
+        <input type="text" id="name" name="name" placeholder=" " required
+               value="{{ request.form.get('name') or (fleet.name if is_edit else '') }}">
+        <label for="name">{{ t['fleet.name'] }}</label>
+    </div>
+
+    <div class="field">
+        <input type="text" id="slug" name="slug" placeholder=" "
+               value="{{ request.form.get('slug') or (fleet.slug if is_edit else '') }}">
+        <label for="slug">{{ t['fleet.slug'] }}</label>
+        <div class="field-hint">{{ t['fleet.slug_hint'] }}</div>
+    </div>
+
+    <div class="field">
+        <textarea id="description" name="description" placeholder=" " rows="2">{{ request.form.get('description') or (fleet.description if is_edit else '') }}</textarea>
+        <label for="description">{{ t['fleet.description'] }}</label>
+    </div>
+
+    <div>
+        <span class="field-label">{{ t['fleet.categories'] }}</span>
+        <div class="checkbox-grid">
+            {% for c in categories %}
+            <label class="checkbox-item">
+                <input type="checkbox" name="categories" value="{{ c.code }}"
+                       {% if c.code in selected_codes %}checked{% endif %}>
+                <span>{{ c.label_fr if lang == 'fr' else c.label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('admin.fleets') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

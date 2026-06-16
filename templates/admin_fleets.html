@@ -7,7 +7,7 @@
 <section class="card">
     <div class="card-header">
         <h2>{{ t['admin.fleets'] }}</h2>
-        <a href="{{ url_for('admin.fleet_new') }}" class="fab">
+        <a href="{{ url_for('admin.fleet_new') }}" class="fab" data-modal-url="{{ url_for('admin.fleet_new') }}" data-modal-title="{{ t['fleet.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['fleet.new'] }}
         </a>
     </div>
@@ -43,7 +43,8 @@
                 <td>{{ counts[f.id].vehicles }}</td>
                 <td>{{ counts[f.id].users }}</td>
                 <td class="row-actions">
-                    <a href="{{ url_for('admin.fleet_edit', fleet_id=f.id) }}" class="btn btn--sm btn--tonal">{{ t['btn.edit'] }}</a>
+                    <a href="{{ url_for('admin.fleet_edit', fleet_id=f.id) }}" class="btn btn--sm btn--tonal"
+                       data-modal-url="{{ url_for('admin.fleet_edit', fleet_id=f.id) }}" data-modal-title="{{ t['fleet.edit'] }}">{{ t['btn.edit'] }}</a>
                     <form method="post" action="{{ url_for('admin.fleet_delete', fleet_id=f.id) }}"
                           onsubmit="return confirm('{{ t['fleet.delete_confirm'] }}');" style="display:inline">
                         <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
@@ -57,7 +58,7 @@
     <div class="empty-state">
         <span class="material-symbols-outlined">workspaces</span>
         <p>{{ t['fleet.empty'] }}</p>
-        <a href="{{ url_for('admin.fleet_new') }}" class="fab">
+        <a href="{{ url_for('admin.fleet_new') }}" class="fab" data-modal-url="{{ url_for('admin.fleet_new') }}" data-modal-title="{{ t['fleet.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['fleet.new'] }}
         </a>
     </div>

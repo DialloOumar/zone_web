@@ -11,7 +11,8 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import login_required
 
-from app import get_t, log_action, slugify, super_admin_required
+from app import (get_t, is_modal_request, log_action, modal_ok, slugify,
+                 super_admin_required)
 from models import Fleet, Operator, UserFleet, Vehicle, VehicleCategory, db
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -38,24 +39,30 @@ def fleets():
     )
 
 
+def _render_fleet_form(fleet, error=None):
+    """Render the fleet form as a modal partial or a full page."""
+    categories = VehicleCategory.query.order_by(VehicleCategory.sort_order).all()
+    if request.method == "POST":
+        selected = request.form.getlist("categories")
+    else:
+        selected = list(fleet.categories or []) if fleet else []
+    tpl = "_fleet_form.html" if is_modal_request() else "admin_fleet_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, fleet=fleet, categories=categories,
+                           selected_codes=selected, error=error), status
+
+
 @admin_bp.route("/fleets/new", methods=["GET", "POST"])
 @login_required
 @super_admin_required
 def fleet_new():
-    categories = VehicleCategory.query.order_by(VehicleCategory.sort_order).all()
-    selected_codes = []
     if request.method == "POST":
-        selected_codes = request.form.getlist("categories")
         error = _save_fleet(None)
         if error:
-            flash("error|" + error)
-        else:
-            flash("success|" + get_t().get("fleet.created", "Flotte créée."))
-            return redirect(url_for("admin.fleets"))
-    return render_template(
-        "admin_fleet_form.html", fleet=None, categories=categories,
-        selected_codes=selected_codes,
-    )
+            return _render_fleet_form(None, error)
+        flash("success|" + get_t().get("fleet.created", "Flotte créée."))
+        return modal_ok() if is_modal_request() else redirect(url_for("admin.fleets"))
+    return _render_fleet_form(None)
 
 
 @admin_bp.route("/fleets/<int:fleet_id>/edit", methods=["GET", "POST"])
@@ -65,20 +72,13 @@ def fleet_edit(fleet_id):
     fleet = db.session.get(Fleet, fleet_id)
     if not fleet:
         abort(404)
-    categories = VehicleCategory.query.order_by(VehicleCategory.sort_order).all()
-    selected_codes = list(fleet.categories or [])
     if request.method == "POST":
-        selected_codes = request.form.getlist("categories")
         error = _save_fleet(fleet)
         if error:
-            flash("error|" + error)
-        else:
-            flash("success|" + get_t().get("fleet.updated", "Flotte mise à jour."))
-            return redirect(url_for("admin.fleets"))
-    return render_template(
-        "admin_fleet_form.html", fleet=fleet, categories=categories,
-        selected_codes=selected_codes,
-    )
+            return _render_fleet_form(fleet, error)
+        flash("success|" + get_t().get("fleet.updated", "Flotte mise à jour."))
+        return modal_ok() if is_modal_request() else redirect(url_for("admin.fleets"))
+    return _render_fleet_form(fleet)
 
 
 @admin_bp.route("/fleets/<int:fleet_id>/delete", methods=["POST"])
