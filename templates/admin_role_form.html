@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% set is_edit = role is not none %}
+{% block title %}{{ t['role.edit'] if is_edit else t['role.new'] }}{% endblock %}
+{% block page_title %}{{ t['role.edit'] if is_edit else t['role.new'] }}{% endblock %}
+
+{% block content %}
+<form method="post" class="entry-form">
+    <section class="card" style="max-width: 720px;">
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="name" name="name" placeholder=" " required
+                       value="{{ request.form.get('name') or (role.name if is_edit else '') }}">
+                <label for="name">{{ t['role.name'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="description" name="description" placeholder=" "
+                       value="{{ request.form.get('description') or (role.description if is_edit and role.description else '') }}">
+                <label for="description">{{ t['role.description'] }}</label>
+            </div>
+        </div>
+        <label class="checkbox-item" style="max-width: 420px;">
+            <input type="checkbox" name="can_approve"
+                   {% if (is_edit and role.can_approve) or (request.method == 'POST' and request.form.get('can_approve')) %}checked{% endif %}>
+            <span>{{ t['role.can_approve_full'] }}</span>
+        </label>
+    </section>
+
+    <section class="card">
+        <div class="card-header"><h2>{{ t['role.permissions'] }}</h2></div>
+        <div class="perm-legend">
+            <span class="perm-legend__item"><span class="dot dot--cannot"></span> <strong>{{ t['perm.state.cannot'] }}</strong> — {{ t['role.legend.cannot'] }}</span>
+            <span class="perm-legend__item"><span class="dot dot--direct"></span> <strong>{{ t['perm.state.direct'] }}</strong> — {{ t['role.legend.direct'] }}</span>
+            <span class="perm-legend__item"><span class="dot dot--approval"></span> <strong>{{ t['perm.state.approval'] }}</strong> — {{ t['role.legend.approval'] }}</span>
+        </div>
+
+        {% for resource, perms in groups %}
+        <div class="perm-card" data-perm-group>
+            <div class="perm-card__head">
+                <span class="perm-card__title">{{ t['perm.res.' + resource] }}</span>
+                <div class="perm-card__quick">
+                    <span class="muted small">{{ t['role.set_all'] }}</span>
+                    <button type="button" class="btn" data-setall="cannot">{{ t['perm.state.cannot'] }}</button>
+                    <button type="button" class="btn" data-setall="direct">{{ t['perm.state.direct'] }}</button>
+                    <button type="button" class="btn" data-setall="approval">{{ t['perm.state.approval'] }}</button>
+                </div>
+            </div>
+            {% for p in perms %}
+            {% set st = state.get(p.id) %}
+            <div class="perm-row">
+                <span class="perm-row__label">{{ t['perm.action.' + p.action] }}</span>
+                <div class="tri">
+                    <label class="tri__opt"><input type="radio" name="perm_{{ p.id }}" value="cannot" {% if not st %}checked{% endif %}><span>{{ t['perm.state.cannot'] }}</span></label>
+                    <label class="tri__opt tri__opt--direct"><input type="radio" name="perm_{{ p.id }}" value="direct" {% if st == 'direct' %}checked{% endif %}><span>{{ t['perm.state.direct'] }}</span></label>
+                    <label class="tri__opt tri__opt--approval"><input type="radio" name="perm_{{ p.id }}" value="approval" {% if st == 'approval' %}checked{% endif %}><span>{{ t['perm.state.approval'] }}</span></label>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+
+        <script>
+        document.querySelectorAll('[data-perm-group]').forEach(function (group) {
+            group.querySelectorAll('[data-setall]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var val = btn.getAttribute('data-setall');
+                    group.querySelectorAll('input[type=radio][value="' + val + '"]').forEach(function (r) { r.checked = true; });
+                });
+            });
+        });
+        </script>
+
+        <div class="form-actions" style="margin-top:18px;">
+            <button type="submit" class="btn btn--primary">
+                <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+            </button>
+            <a href="{{ url_for('admin.roles') }}" class="btn btn--outlined">{{ t['btn.cancel'] }}</a>
+        </div>
+    </section>
+</form>
+{% endblock %}

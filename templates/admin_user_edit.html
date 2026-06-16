@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.full_name }}{% endblock %}
+{% block page_title %}{{ user.full_name }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    <div class="card-header"><h2>{{ t['user.basic_info'] }}</h2>
+        <a href="{{ url_for('admin.users') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    </div>
+    <form method="post" action="{{ url_for('admin.user_edit', user_id=user.id) }}" class="entry-form">
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="username" name="username" placeholder=" " required
+                       autocapitalize="none" spellcheck="false" value="{{ user.username }}">
+                <label for="username">{{ t['user.username'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="full_name" name="full_name" placeholder=" " required value="{{ user.full_name }}">
+                <label for="full_name">{{ t['user.full_name'] }}</label>
+            </div>
+        </div>
+        <div class="field">
+            <input type="email" id="email" name="email" placeholder=" " autocapitalize="none" value="{{ user.email or '' }}">
+            <label for="email">{{ t['user.email'] }}</label>
+        </div>
+        <label class="checkbox-item" style="max-width: 220px;">
+            <input type="checkbox" name="is_active" {% if user.is_active %}checked{% endif %}>
+            <span>{{ t['user.active'] }}</span>
+        </label>
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        </div>
+    </form>
+</section>
+
+<section class="card" style="max-width: 720px;">
+    <div class="card-header"><h2>{{ t['user.assignments'] }}</h2></div>
+    <p class="muted small" style="margin-bottom: 14px;">{{ t['user.assignments_hint'] }}</p>
+
+    {% if assignments %}
+    <table class="data-table" style="margin-bottom: 16px;">
+        <thead><tr><th>{{ t['user.fleet'] }}</th><th>{{ t['user.role'] }}</th><th></th></tr></thead>
+        <tbody>
+            {% for fleet, role, uf in assignments %}
+            <tr>
+                <td><strong>{{ fleet.name if fleet else '—' }}</strong></td>
+                <td>{{ role.name if role else '—' }}{% if role and role.can_approve %} <span class="badge badge--info">{{ t['role.approver'] }}</span>{% endif %}</td>
+                <td class="row-actions">
+                    <form method="post" action="{{ url_for('admin.user_unassign', user_id=user.id) }}" style="display:inline">
+                        <input type="hidden" name="fleet_id" value="{{ fleet.id if fleet else '' }}">
+                        <button type="submit" class="btn btn--sm btn--danger">{{ t['user.remove'] }}</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted small" style="margin-bottom: 14px;">{{ t['user.no_access'] }}</p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('admin.user_assign', user_id=user.id) }}" class="filter-bar">
+        <div class="field field--select" style="min-width: 200px;">
+            <select name="fleet_id" required>
+                <option value="" hidden></option>
+                {% for f in fleets %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}
+            </select>
+            <label>{{ t['user.fleet'] }}</label>
+        </div>
+        <div class="field field--select" style="min-width: 200px;">
+            <select name="role_id" required>
+                <option value="" hidden></option>
+                {% for r in roles %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
+            </select>
+            <label>{{ t['user.role'] }}</label>
+        </div>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['user.add_access'] }}</button>
+    </form>
+</section>
+
+<section class="card" style="max-width: 720px;">
+    <div class="card-header"><h2>{{ t['user.reset_password'] }}</h2></div>
+    <form method="post" action="{{ url_for('admin.user_password', user_id=user.id) }}" class="filter-bar">
+        <div class="field" style="min-width: 260px;">
+            <input type="password" name="password" placeholder=" " required minlength="6" autocomplete="new-password">
+            <label>{{ t['user.new_password'] }}</label>
+        </div>
+        <button type="submit" class="btn btn--sm btn--tonal">{{ t['user.reset_password'] }}</button>
+    </form>
+</section>
+{% endblock %}

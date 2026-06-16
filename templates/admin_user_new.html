@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['user.new'] }}{% endblock %}
+{% block page_title %}{{ t['user.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 660px;">
+    {% include "_user_form.html" %}
+</section>
+{% endblock %}

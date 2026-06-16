@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['admin.users'] }}{% endblock %}
+{% block page_title %}{{ t['admin.users'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['admin.users'] }}</h2>
+        <a href="{{ url_for('admin.user_new') }}" class="fab" data-modal-url="{{ url_for('admin.user_new') }}" data-modal-title="{{ t['user.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['user.new'] }}
+        </a>
+    </div>
+
+    {% if users %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['user.username'] }}</th>
+                <th>{{ t['user.full_name'] }}</th>
+                <th>{{ t['user.access'] }}</th>
+                <th>{{ t['user.active'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td><strong>{{ u.username }}</strong>{% if u.email %}<div class="muted small">{{ u.email }}</div>{% endif %}</td>
+                <td>{{ u.full_name }}</td>
+                <td>
+                    {% for fleet, role in assigns[u.id] %}
+                        {% if fleet and role %}<span class="chip">{{ fleet.name }} · {{ role.name }}</span>{% endif %}
+                    {% else %}
+                        <span class="muted small">{{ t['user.no_access'] }}</span>
+                    {% endfor %}
+                </td>
+                <td>
+                    {% if u.is_active %}<span class="badge badge--active">{{ t['user.active'] }}</span>
+                    {% else %}<span class="badge badge--inactive">{{ t['user.inactive'] }}</span>{% endif %}
+                </td>
+                <td class="row-actions">
+                    <a href="{{ url_for('admin.user_edit', user_id=u.id) }}" class="btn btn--sm btn--tonal">{{ t['btn.edit'] }}</a>
+                    <form method="post" action="{{ url_for('admin.user_delete', user_id=u.id) }}"
+                          onsubmit="return confirm('{{ t['user.delete_confirm'] }}');" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">group</span>
+        <p>{{ t['user.empty'] }}</p>
+        <a href="{{ url_for('admin.user_new') }}" class="fab" data-modal-url="{{ url_for('admin.user_new') }}" data-modal-title="{{ t['user.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['user.new'] }}
+        </a>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['admin.roles'] }}{% endblock %}
+{% block page_title %}{{ t['admin.roles'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['admin.roles'] }}</h2>
+        <a href="{{ url_for('admin.role_new') }}" class="fab">
+            <span class="material-symbols-outlined">add</span> {{ t['role.new'] }}
+        </a>
+    </div>
+
+    {% if roles %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['role.name'] }}</th>
+                <th>{{ t['role.permissions'] }}</th>
+                <th>{{ t['role.can_approve'] }}</th>
+                <th></th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in roles %}
+            <tr>
+                <td>
+                    <strong>{{ r.name }}</strong>
+                    {% if r.description %}<div class="muted small">{{ r.description }}</div>{% endif %}
+                </td>
+                <td>{{ counts[r.id] }}</td>
+                <td>{% if r.can_approve %}<span class="badge badge--info">{{ t['role.approver'] }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td>{% if r.is_system %}<span class="badge badge--inactive">{{ t['role.system'] }}</span>{% endif %}</td>
+                <td class="row-actions">
+                    <a href="{{ url_for('admin.role_edit', role_id=r.id) }}" class="btn btn--sm btn--tonal">{{ t['btn.edit'] }}</a>
+                    {% if not r.is_system %}
+                    <form method="post" action="{{ url_for('admin.role_delete', role_id=r.id) }}"
+                          onsubmit="return confirm('{{ t['role.delete_confirm'] }}');" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">admin_panel_settings</span>
+        <p>{{ t['role.empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

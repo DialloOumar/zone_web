@@ -1,0 +1,37 @@
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form action="{{ url_for('admin.user_new') }}">
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="username" name="username" placeholder=" " required
+                   autocapitalize="none" spellcheck="false" value="{{ request.form.get('username', '') }}">
+            <label for="username">{{ t['user.username'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="full_name" name="full_name" placeholder=" " required
+                   value="{{ request.form.get('full_name', '') }}">
+            <label for="full_name">{{ t['user.full_name'] }}</label>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input type="email" id="email" name="email" placeholder=" "
+                   autocapitalize="none" value="{{ request.form.get('email', '') }}">
+            <label for="email">{{ t['user.email'] }}</label>
+        </div>
+        <div class="field">
+            <input type="password" id="password" name="password" placeholder=" " required
+                   minlength="6" autocomplete="new-password">
+            <label for="password">{{ t['user.password'] }}</label>
+        </div>
+    </div>
+    <label class="checkbox-item" style="max-width: 220px;">
+        <input type="checkbox" name="is_active" checked>
+        <span>{{ t['user.active'] }}</span>
+    </label>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('admin.users') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

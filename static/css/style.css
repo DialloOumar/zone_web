@@ -571,6 +571,53 @@ a:hover { text-decoration: underline; }
 .chip--service     { background: var(--c-green-bg);  color: var(--c-green);  border-color: transparent; }
 .chip--autre       { background: var(--md-surface-container-high); color: var(--md-on-surface-variant); }
 
+/* ── Permission grid (roles) ── */
+.perm-legend {
+    display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 18px;
+    font-size: 0.8rem; color: var(--md-on-surface-variant);
+}
+.perm-legend__item { display: inline-flex; align-items: center; gap: 7px; }
+.perm-legend .dot { width: 11px; height: 11px; border-radius: 50%; }
+.dot--cannot { background: var(--md-outline); }
+.dot--direct { background: var(--c-green); }
+.dot--approval { background: var(--c-amber); }
+
+.perm-card {
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--shape-md);
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+.perm-card__head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+    padding: 10px 14px; background: var(--md-surface-container);
+}
+.perm-card__title { font-weight: 700; font-size: 0.9rem; }
+.perm-card__quick { display: inline-flex; align-items: center; gap: 6px; }
+.perm-card__quick .muted { margin-right: 2px; }
+.perm-card__quick .btn { height: 28px; padding: 0 12px; font-size: 0.74rem; }
+
+.perm-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 9px 14px;
+}
+.perm-row + .perm-row { border-top: 1px solid var(--md-outline-variant); }
+.perm-row__label { font-size: 0.88rem; }
+
+.tri { display: inline-flex; border: 1px solid var(--md-outline-variant); border-radius: var(--shape-full); overflow: hidden; flex-shrink: 0; }
+.tri__opt { position: relative; }
+.tri__opt input { position: absolute; opacity: 0; pointer-events: none; }
+.tri__opt span {
+    display: inline-block; padding: 6px 14px; font-size: 0.78rem; font-weight: 500;
+    color: var(--md-on-surface-variant); cursor: pointer; transition: background 0.12s, color 0.12s;
+    border-right: 1px solid var(--md-outline-variant);
+}
+.tri__opt:last-child span { border-right: none; }
+.tri__opt input:checked + span { background: var(--md-outline); color: #fff; }
+.tri__opt--direct input:checked + span { background: var(--c-green); color: #fff; }
+.tri__opt--approval input:checked + span { background: var(--c-amber); color: #fff; }
+
 /* ── Maintenance: severity badges + alert cards ── */
 .badge--info { background: var(--c-blue-bg); color: var(--c-blue); }
 .badge--warning { background: var(--c-amber-bg); color: var(--c-amber); }

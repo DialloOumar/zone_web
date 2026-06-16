@@ -78,13 +78,13 @@
 
             {% if is_super_admin %}
             <li class="sidebar-section">{{ t['nav.admin'] }}</li>
-            <li><a href="#" class="sidebar-sub {% if request.endpoint == 'admin_users' %}active{% endif %}">
+            <li><a href="{{ url_for('admin.users') }}" class="sidebar-sub {% if request.endpoint in ['admin.users', 'admin.user_new', 'admin.user_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">group</span> {{ t['admin.users'] }}
             </a></li>
             <li><a href="{{ url_for('admin.fleets') }}" class="sidebar-sub {% if request.endpoint in ['admin.fleets', 'admin.fleet_new', 'admin.fleet_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">workspaces</span> {{ t['admin.fleets'] }}
             </a></li>
-            <li><a href="#" class="sidebar-sub {% if request.endpoint == 'admin_roles' %}active{% endif %}">
+            <li><a href="{{ url_for('admin.roles') }}" class="sidebar-sub {% if request.endpoint in ['admin.roles', 'admin.role_new', 'admin.role_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">admin_panel_settings</span> {{ t['admin.roles'] }}
             </a></li>
             <li><a href="#" class="sidebar-sub {% if request.endpoint == 'admin_categories' %}active{% endif %}">
