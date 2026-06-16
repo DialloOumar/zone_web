@@ -739,6 +739,7 @@ def grant_fleet_cmd(user, fleet, role):
 from blueprints.admin import admin_bp  # noqa: E402
 from blueprints.entries import entries_bp  # noqa: E402
 from blueprints.expenses import expenses_bp  # noqa: E402
+from blueprints.maintenance import maintenance_bp  # noqa: E402
 from blueprints.operators import operators_bp  # noqa: E402
 from blueprints.vehicles import vehicles_bp  # noqa: E402
 
@@ -747,6 +748,7 @@ app.register_blueprint(vehicles_bp)
 app.register_blueprint(operators_bp)
 app.register_blueprint(entries_bp)
 app.register_blueprint(expenses_bp)
+app.register_blueprint(maintenance_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────

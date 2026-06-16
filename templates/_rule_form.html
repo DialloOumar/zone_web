@@ -1,0 +1,93 @@
+{% set is_edit = rule is not none %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('maintenance.rule_edit', rid=rule.id) if is_edit else url_for('maintenance.rule_new') }}">
+    <div class="field">
+        <input type="text" id="name" name="name" placeholder=" " required
+               value="{{ request.form.get('name') or (rule.name if is_edit else '') }}">
+        <label for="name">{{ t['maint.rule_name'] }}</label>
+    </div>
+
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="service_type" name="service_type" required>
+                <option value="" hidden></option>
+                {% set sel_st = request.form.get('service_type') or (rule.service_type if is_edit else '') %}
+                {% for rt in record_types %}
+                <option value="{{ rt }}" {% if rt == sel_st %}selected{% endif %}>{{ t['maint.rtype.' + rt] }}</option>
+                {% endfor %}
+            </select>
+            <label for="service_type">{{ t['maint.service_type'] }}</label>
+        </div>
+        <div class="field field--select">
+            <select id="type" name="type" required>
+                <option value="" hidden></option>
+                {% set sel_type = request.form.get('type') or (rule.type if is_edit else '') %}
+                {% for rt in rule_types %}
+                <option value="{{ rt }}" {% if rt == sel_type %}selected{% endif %}>{{ t['maint.ruletype.' + rt] }}</option>
+                {% endfor %}
+            </select>
+            <label for="type">{{ t['maint.rule_type'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" inputmode="numeric" id="interval" name="interval" placeholder=" " required
+                   value="{{ request.form.get('interval') or (rule.interval if is_edit else '') }}">
+            <label for="interval">{{ t['maint.interval'] }}</label>
+            <div class="field-hint">{{ t['maint.interval_hint'] }}</div>
+        </div>
+        <div class="field">
+            <input type="text" inputmode="numeric" id="advance_warning" name="advance_warning" placeholder=" "
+                   value="{{ request.form.get('advance_warning') or (rule.advance_warning if is_edit and rule.advance_warning is not none else '') }}">
+            <label for="advance_warning">{{ t['maint.advance_warning'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+    <div class="field field--select">
+        <select id="severity" name="severity">
+            {% set sel_sev = request.form.get('severity') or (rule.severity if is_edit else 'warning') %}
+            {% for s in severities %}
+            <option value="{{ s }}" {% if s == sel_sev %}selected{% endif %}>{{ t['maint.sev.' + s] }}</option>
+            {% endfor %}
+        </select>
+        <label for="severity">{{ t['maint.severity'] }}</label>
+    </div>
+    <div class="field field--select">
+        <select id="target" name="target">
+            {% set tv = target_value %}
+            <option value="all" {% if tv == 'all' %}selected{% endif %}>{{ t['maint.target.all'] }}</option>
+            {% if fleets %}
+            <optgroup label="{{ t['maint.target.fleet'] }}">
+                {% for f in fleets %}<option value="fleet:{{ f.id }}" {% if tv == 'fleet:' ~ f.id %}selected{% endif %}>{{ f.name }}</option>{% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if categories %}
+            <optgroup label="{{ t['maint.target.category'] }}">
+                {% for c in categories %}<option value="category:{{ c.id }}" {% if tv == 'category:' ~ c.id %}selected{% endif %}>{{ c.label_fr if lang == 'fr' else c.label }}</option>{% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if vehicles %}
+            <optgroup label="{{ t['maint.target.vehicle'] }}">
+                {% for v in vehicles %}<option value="vehicle:{{ v.id }}" {% if tv == 'vehicle:' ~ v.id %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
+            </optgroup>
+            {% endif %}
+        </select>
+        <label for="target">{{ t['maint.target'] }}</label>
+    </div>
+    </div>
+
+    <label class="checkbox-item" style="max-width: 220px;">
+        <input type="checkbox" name="is_active" {% if form_active %}checked{% endif %}>
+        <span>{{ t['maint.rule_active'] }}</span>
+    </label>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('maintenance.rules') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

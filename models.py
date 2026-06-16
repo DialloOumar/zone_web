@@ -272,6 +272,7 @@ class MaintenanceRule(db.Model):
     name            = db.Column(db.String(120), nullable=False)
     description     = db.Column(db.String(255), nullable=True)
     type            = db.Column(db.String(20),  nullable=False)              # km_recurring | hours_recurring | time_recurring | anomaly
+    service_type    = db.Column(db.String(40),  nullable=True)               # which service this schedules: oil_change | filter | … (RECORD_TYPES)
     interval        = db.Column(db.Integer,     nullable=True)               # km, hours, or days
     advance_warning = db.Column(db.Integer,     nullable=True)               # fire N units before threshold
 
@@ -339,6 +340,9 @@ class Alert(db.Model):
     resolved_by                  = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     resolution_note              = db.Column(db.String(255), nullable=True)
     resolution_maintenance_id    = db.Column(db.Integer,  db.ForeignKey("maintenance_records.id"), nullable=True)
+
+    vehicle = db.relationship("Vehicle")
+    rule    = db.relationship("MaintenanceRule")
 
 
 # ── Expenses ──────────────────────────────────────────────────────────────────

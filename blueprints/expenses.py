@@ -18,9 +18,10 @@ from models import Expense, Fleet, Vehicle, db
 expenses_bp = Blueprint("expenses", __name__)
 
 # Fixed catalogue of expense categories (codes; labels via expense.cat.<code>).
+# Maintenance costs are NOT here — they live on the maintenance service record
+# (which has its own cost field) so a service is never counted twice.
 EXPENSE_CATEGORIES = [
-    "fuel", "vidange", "filtre", "pneus", "reparation", "piece",
-    "assurance", "accident", "lavage", "agent", "autre",
+    "fuel", "assurance", "accident", "lavage", "agent", "autre",
 ]
 
 

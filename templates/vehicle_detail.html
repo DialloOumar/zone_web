@@ -142,10 +142,56 @@
     {% endif %}
 </section>
 
-<div class="stat-grid">
-    <section class="card coming-soon">
-        <span class="material-symbols-outlined">handyman</span>
-        <div><h3>{{ t['nav.maintenance_records'] }}</h3><p class="muted small">{{ t['common.coming_soon'] }}</p></div>
-    </section>
-</div>
+{% if alerts %}
+<section class="card">
+    <div class="card-header"><h2>{{ t['nav.alerts'] }} <span class="badge badge--critical">{{ alerts|length }}</span></h2></div>
+    <div class="alert-list">
+        {% for a in alerts %}
+        <div class="alert-card alert-card--{{ a.severity }}">
+            <div class="alert-card__body"><div class="alert-card__msg">{{ a.message }}</div></div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.maintenance_records'] }}</h2>
+        {% if has_perm('maintenance_record.create') %}
+        <a href="{{ url_for('maintenance.record_new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--primary"
+           data-modal-url="{{ url_for('maintenance.record_new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['maint.record_new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['expense.add'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% if records %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['maint.date'] }}</th>
+                <th>{{ t['maint.record_type'] }}</th>
+                <th>{{ t['maint.at'] }}</th>
+                <th style="text-align:right;">{{ t['maint.cost'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in records %}
+            <tr>
+                <td>{{ m.date }}</td>
+                <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
+                <td>
+                    {% if m.kilometers_at is not none %}{{ m.kilometers_at }} km{% endif %}
+                    {% if m.hours_at is not none %}{% if m.kilometers_at is not none %} · {% endif %}{{ m.hours_at }} h{% endif %}
+                    {% if m.kilometers_at is none and m.hours_at is none %}—{% endif %}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} GNF{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['maint.records_empty'] }}</p>
+    {% endif %}
+</section>
 {% endblock %}

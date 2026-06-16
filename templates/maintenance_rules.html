@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.maintenance_rules'] }}{% endblock %}
+{% block page_title %}{{ t['nav.maintenance_rules'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.maintenance_rules'] }}</h2>
+        {% if has_perm('maintenance_rule.create') %}
+        <a href="{{ url_for('maintenance.rule_new') }}" class="fab" data-modal-url="{{ url_for('maintenance.rule_new') }}" data-modal-title="{{ t['maint.rule_new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['maint.rule_new'] }}
+        </a>
+        {% endif %}
+    </div>
+
+    {% if rules %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['maint.rule_name'] }}</th>
+                <th>{{ t['maint.rule_type'] }}</th>
+                <th>{{ t['maint.interval'] }}</th>
+                <th>{{ t['maint.target'] }}</th>
+                <th>{{ t['maint.severity'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rules %}
+            <tr {% if not r.is_active %}class="muted"{% endif %}>
+                <td>
+                    <strong>{{ r.name }}</strong>
+                    {% if r.service_type %}<div><span class="chip">{{ t['maint.rtype.' + r.service_type] }}</span></div>{% endif %}
+                </td>
+                <td><span class="chip">{{ t['maint.ruletype.' + r.type] }}</span></td>
+                <td>
+                    {{ r.interval }}
+                    {% if r.type == 'km_recurring' %}km{% elif r.type == 'hours_recurring' %}h{% else %}{{ t['maint.days'] }}{% endif %}
+                    {% if r.advance_warning %}<span class="muted small">(−{{ r.advance_warning }})</span>{% endif %}
+                </td>
+                <td>{{ target_label(r) }}</td>
+                <td><span class="badge badge--{{ r.severity }}">{{ t['maint.sev.' + r.severity] }}</span></td>
+                <td class="row-actions">
+                    {% if has_perm('maintenance_rule.edit') %}
+                    <a href="{{ url_for('maintenance.rule_edit', rid=r.id) }}" class="btn btn--sm btn--tonal"
+                       data-modal-url="{{ url_for('maintenance.rule_edit', rid=r.id) }}" data-modal-title="{{ t['maint.rule_edit'] }}">{{ t['btn.edit'] }}</a>
+                    {% endif %}
+                    {% if has_perm('maintenance_rule.delete') %}
+                    <form method="post" action="{{ url_for('maintenance.rule_delete', rid=r.id) }}"
+                          onsubmit="return confirm('{{ t['maint.rule_delete_confirm'] }}');" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">rule</span>
+        <p>{{ t['maint.rules_empty'] }}</p>
+        {% if has_perm('maintenance_rule.create') %}
+        <a href="{{ url_for('maintenance.rule_new') }}" class="fab" data-modal-url="{{ url_for('maintenance.rule_new') }}" data-modal-title="{{ t['maint.rule_new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['maint.rule_new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

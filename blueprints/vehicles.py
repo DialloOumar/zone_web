@@ -11,8 +11,8 @@ from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change)
-from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Vehicle,
-                    VehicleCategory, db)
+from models import (Alert, DailyEntry, Expense, Fleet, MaintenanceRecord,
+                    Vehicle, VehicleCategory, db)
 
 vehicles_bp = Blueprint("vehicles", __name__)
 
@@ -156,8 +156,15 @@ def detail(vid):
     expenses = (Expense.query.filter_by(vehicle_id=vid)
                 .order_by(Expense.date.desc(), Expense.id.desc())
                 .limit(10).all())
+    records = (MaintenanceRecord.query.filter_by(vehicle_id=vid)
+               .order_by(MaintenanceRecord.date.desc(), MaintenanceRecord.id.desc())
+               .limit(10).all())
+    alerts = (Alert.query.filter_by(vehicle_id=vid)
+              .filter(Alert.status.in_(("open", "snoozed")))
+              .order_by(Alert.triggered_at.desc()).all())
     return render_template("vehicle_detail.html", vehicle=vehicle,
-                           entries=entries, expenses=expenses)
+                           entries=entries, expenses=expenses,
+                           records=records, alerts=alerts)
 
 
 def _render_vehicle_form(vehicle, error=None):

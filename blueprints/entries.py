@@ -18,6 +18,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
+import maintenance_engine
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, submit_change)
 from models import DailyEntry, Fleet, Operator, Vehicle, db
@@ -261,6 +262,7 @@ def new():
         db.session.add(e)
         _recompute_cumulatives(e.vehicle_id)
         db.session.flush()
+        maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, e.vehicle_id))
         log_action("CREATE", "daily_entry", resource_id=e.id, fleet_id=fleet_id,
                    detail=f"Logged entry for vehicle #{e.vehicle_id} on {e.date}")
         db.session.commit()
@@ -292,6 +294,7 @@ def edit(eid):
         _recompute_cumulatives(entry.vehicle_id)
         if old_vehicle != entry.vehicle_id:
             _recompute_cumulatives(old_vehicle)
+        maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, entry.vehicle_id))
         log_action("UPDATE", "daily_entry", resource_id=entry.id, fleet_id=fleet_id,
                    detail=f"Edited entry #{entry.id}")
         db.session.commit()

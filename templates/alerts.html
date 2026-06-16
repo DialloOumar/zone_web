@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.alerts'] }}{% endblock %}
+{% block page_title %}{{ t['nav.alerts'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.alerts'] }}{% if active_count %} <span class="badge badge--critical">{{ active_count }}</span>{% endif %}</h2>
+    </div>
+
+    <div class="filter-chips">
+        <a href="{{ url_for('maintenance.alerts', status='active') }}" class="filter-chip {% if show == 'active' %}active{% endif %}">{{ t['maint.alerts.active'] }}</a>
+        <a href="{{ url_for('maintenance.alerts', status='resolved') }}" class="filter-chip {% if show == 'resolved' %}active{% endif %}">{{ t['maint.alerts.resolved'] }}</a>
+        <a href="{{ url_for('maintenance.alerts', status='dismissed') }}" class="filter-chip {% if show == 'dismissed' %}active{% endif %}">{{ t['maint.alerts.dismissed'] }}</a>
+    </div>
+
+    {% if alerts %}
+    <div class="alert-list">
+        {% for a in alerts %}
+        <div class="alert-card alert-card--{{ a.severity }}">
+            <div class="alert-card__body">
+                <div class="alert-card__msg">{{ a.message }}</div>
+                <div class="alert-card__meta">
+                    <a href="{{ url_for('vehicles.detail', vid=a.vehicle_id) }}"><strong>{{ a.vehicle.code }}</strong></a>
+                    · {{ a.triggered_at.strftime('%Y-%m-%d') }}
+                    {% if a.status == 'snoozed' and a.snoozed_until %} · <span class="muted">{{ t['maint.snoozed_until'] }} {{ a.snoozed_until.strftime('%Y-%m-%d') }}</span>{% endif %}
+                </div>
+            </div>
+            {% if a.status in ('open', 'snoozed') %}
+            <div class="alert-card__actions">
+                {% if has_perm('maintenance_record.create') %}
+                <a class="btn btn--sm btn--primary" href="{{ url_for('maintenance.record_new', vehicle_id=a.vehicle_id, rule_id=a.rule_id) }}"
+                   data-modal-url="{{ url_for('maintenance.record_new', vehicle_id=a.vehicle_id, rule_id=a.rule_id) }}" data-modal-title="{{ t['maint.log_service'] }}">
+                    <span class="material-symbols-outlined">handyman</span> {{ t['maint.log_service'] }}
+                </a>
+                {% endif %}
+                {% if has_perm('alert.resolve') %}
+                <form method="post" action="{{ url_for('maintenance.alert_snooze', aid=a.id) }}" style="display:inline">
+                    <button class="btn btn--sm btn--tonal">{{ t['maint.snooze'] }}</button>
+                </form>
+                <form method="post" action="{{ url_for('maintenance.alert_resolve', aid=a.id) }}" style="display:inline">
+                    <button class="btn btn--sm btn--tonal">{{ t['maint.resolve'] }}</button>
+                </form>
+                {% endif %}
+                {% if has_perm('alert.dismiss') %}
+                <form method="post" action="{{ url_for('maintenance.alert_dismiss', aid=a.id) }}" style="display:inline">
+                    <button class="btn btn--sm">{{ t['maint.dismiss'] }}</button>
+                </form>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="alert-card__status muted">{{ t['maint.status.' + a.status] }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">check_circle</span>
+        <p>{{ t['maint.alerts_empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = record is not none %}
+{% block title %}{{ t['maint.record_edit'] if is_edit else t['maint.record_new'] }}{% endblock %}
+{% block page_title %}{{ t['maint.record_edit'] if is_edit else t['maint.record_new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_record_form.html" %}
+</section>
+{% endblock %}

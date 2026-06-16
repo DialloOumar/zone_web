@@ -42,17 +42,17 @@
             {% if has_perm('maintenance_rule.view') or has_perm('maintenance_record.view') or has_perm('alert.view') %}
             <li class="sidebar-section">{{ t['nav.maintenance'] }}</li>
             {% if has_perm('alert.view') %}
-            <li><a href="#" class="sidebar-sub {% if request.endpoint == 'alerts' %}active{% endif %}">
+            <li><a href="{{ url_for('maintenance.alerts') }}" class="sidebar-sub {% if request.endpoint == 'maintenance.alerts' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">warning</span> {{ t['nav.alerts'] }}
             </a></li>
             {% endif %}
             {% if has_perm('maintenance_record.view') %}
-            <li><a href="#" class="sidebar-sub {% if request.endpoint == 'maintenance_records' %}active{% endif %}">
+            <li><a href="{{ url_for('maintenance.records') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.records', 'maintenance.record_new', 'maintenance.record_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">handyman</span> {{ t['nav.maintenance_records'] }}
             </a></li>
             {% endif %}
             {% if has_perm('maintenance_rule.view') %}
-            <li><a href="#" class="sidebar-sub {% if request.endpoint == 'maintenance_rules' %}active{% endif %}">
+            <li><a href="{{ url_for('maintenance.rules') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.rules', 'maintenance.rule_new', 'maintenance.rule_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">rule</span> {{ t['nav.maintenance_rules'] }}
             </a></li>
             {% endif %}

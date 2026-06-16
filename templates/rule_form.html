@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = rule is not none %}
+{% block title %}{{ t['maint.rule_edit'] if is_edit else t['maint.rule_new'] }}{% endblock %}
+{% block page_title %}{{ t['maint.rule_edit'] if is_edit else t['maint.rule_new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 700px;">
+    {% include "_rule_form.html" %}
+</section>
+{% endblock %}

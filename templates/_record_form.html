@@ -1,0 +1,72 @@
+{% set is_edit = record is not none %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('maintenance.record_edit', mid=record.id) if is_edit else url_for('maintenance.record_new') }}">
+    {% if is_edit and record.rule_id %}<input type="hidden" name="rule_id" value="{{ record.rule_id }}">
+    {% elif preset_rule %}<input type="hidden" name="rule_id" value="{{ preset_rule }}">{% endif %}
+
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="vehicle_id" name="vehicle_id" required>
+                <option value="" hidden></option>
+                {% set sel_v = request.form.get('vehicle_id')|int(0) or (record.vehicle_id if is_edit else preset_vehicle or 0) %}
+                {% for v in vehicles %}<option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
+            </select>
+            <label for="vehicle_id">{{ t['maint.vehicle'] }}</label>
+        </div>
+        <div class="field field--select">
+            <select id="type" name="type" required>
+                <option value="" hidden></option>
+                {% set sel_t = request.form.get('type') or (record.type if is_edit else (preset_type or '')) %}
+                {% for rt in record_types %}<option value="{{ rt }}" {% if rt == sel_t %}selected{% endif %}>{{ t['maint.rtype.' + rt] }}</option>{% endfor %}
+            </select>
+            <label for="type">{{ t['maint.record_type'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or (record.date if is_edit else today) }}">
+            <label for="date">{{ t['maint.date'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" inputmode="numeric" id="cost" name="cost" placeholder=" "
+                   value="{{ request.form.get('cost') or (record.cost if is_edit and record.cost is not none else '') }}">
+            <label for="cost">{{ t['maint.cost'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" inputmode="decimal" id="kilometers_at" name="kilometers_at" placeholder=" "
+                   value="{{ request.form.get('kilometers_at') or (record.kilometers_at if is_edit and record.kilometers_at is not none else '') }}">
+            <label for="kilometers_at">{{ t['maint.kilometers_at'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" inputmode="decimal" id="hours_at" name="hours_at" placeholder=" "
+                   value="{{ request.form.get('hours_at') or (record.hours_at if is_edit and record.hours_at is not none else '') }}">
+            <label for="hours_at">{{ t['maint.hours_at'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="supplier" name="supplier" placeholder=" "
+                   value="{{ request.form.get('supplier') or (record.supplier if is_edit and record.supplier else '') }}">
+            <label for="supplier">{{ t['maint.supplier'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="description" name="description" placeholder=" "
+                   value="{{ request.form.get('description') or (record.description if is_edit and record.description else '') }}">
+            <label for="description">{{ t['maint.description'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('maintenance.records') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

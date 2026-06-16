@@ -571,6 +571,27 @@ a:hover { text-decoration: underline; }
 .chip--service     { background: var(--c-green-bg);  color: var(--c-green);  border-color: transparent; }
 .chip--autre       { background: var(--md-surface-container-high); color: var(--md-on-surface-variant); }
 
+/* ── Maintenance: severity badges + alert cards ── */
+.badge--info { background: var(--c-blue-bg); color: var(--c-blue); }
+.badge--warning { background: var(--c-amber-bg); color: var(--c-amber); }
+.badge--critical { background: var(--c-red-bg); color: var(--c-red); }
+
+.alert-list { display: flex; flex-direction: column; gap: 10px; }
+.alert-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 13px 16px; border-radius: var(--shape-md);
+    background: var(--md-surface-container-low);
+    border: 1px solid var(--md-outline-variant);
+    border-left: 4px solid var(--md-outline);
+}
+.alert-card--info { border-left-color: var(--c-blue); }
+.alert-card--warning { border-left-color: var(--c-amber); }
+.alert-card--critical { border-left-color: var(--c-red); }
+.alert-card__msg { font-weight: 600; font-size: 0.92rem; }
+.alert-card__meta { font-size: 0.8rem; color: var(--md-on-surface-variant); margin-top: 3px; }
+.alert-card__actions { display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+.alert-card__status { font-size: 0.8rem; flex-shrink: 0; }
+
 /* ── Expense total summary ── */
 .expense-total {
     display: flex; align-items: baseline; gap: 8px;

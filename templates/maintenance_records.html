@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.maintenance_records'] }}{% endblock %}
+{% block page_title %}{{ t['nav.maintenance_records'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.maintenance_records'] }}</h2>
+        {% if has_perm('maintenance_record.create') %}
+        <a href="{{ url_for('maintenance.record_new') }}" class="fab" data-modal-url="{{ url_for('maintenance.record_new') }}" data-modal-title="{{ t['maint.record_new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['maint.record_new'] }}
+        </a>
+        {% endif %}
+    </div>
+
+    <form method="get" class="filter-bar">
+        <div class="field field--select" style="min-width: 220px;">
+            <select id="filter_vehicle" name="vehicle_id" onchange="this.form.submit()">
+                <option value="">{{ t['maint.all_vehicles'] }}</option>
+                {% for v in vehicles %}<option value="{{ v.id }}" {% if fv == v.id %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
+            </select>
+            <label for="filter_vehicle">{{ t['maint.vehicle'] }}</label>
+        </div>
+        {% if fv %}<a href="{{ url_for('maintenance.records') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>{% endif %}
+    </form>
+
+    {% if records %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['maint.date'] }}</th>
+                <th>{{ t['maint.vehicle'] }}</th>
+                <th>{{ t['maint.record_type'] }}</th>
+                <th>{{ t['maint.at'] }}</th>
+                <th>{{ t['maint.supplier'] }}</th>
+                <th style="text-align:right;">{{ t['maint.cost'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in records %}
+            <tr>
+                <td>{{ m.date }}</td>
+                <td><a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a></td>
+                <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
+                <td>
+                    {% if m.kilometers_at is not none %}{{ m.kilometers_at }} km{% endif %}
+                    {% if m.hours_at is not none %}{% if m.kilometers_at is not none %} · {% endif %}{{ m.hours_at }} h{% endif %}
+                    {% if m.kilometers_at is none and m.hours_at is none %}—{% endif %}
+                </td>
+                <td>{{ m.supplier or '—' }}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} GNF{% else %}—{% endif %}</td>
+                <td class="row-actions">
+                    {% if has_perm('maintenance_record.edit') %}
+                    <a href="{{ url_for('maintenance.record_edit', mid=m.id) }}" class="btn btn--sm btn--tonal"
+                       data-modal-url="{{ url_for('maintenance.record_edit', mid=m.id) }}" data-modal-title="{{ t['maint.record_edit'] }}">{{ t['btn.edit'] }}</a>
+                    {% endif %}
+                    {% if has_perm('maintenance_record.delete') %}
+                    <form method="post" action="{{ url_for('maintenance.record_delete', mid=m.id) }}"
+                          onsubmit="return confirm('{{ t['maint.record_delete_confirm'] }}');" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">handyman</span>
+        <p>{{ t['maint.records_empty'] }}</p>
+        {% if has_perm('maintenance_record.create') %}
+        <a href="{{ url_for('maintenance.record_new') }}" class="fab" data-modal-url="{{ url_for('maintenance.record_new') }}" data-modal-title="{{ t['maint.record_new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['maint.record_new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
