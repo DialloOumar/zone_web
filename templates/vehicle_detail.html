@@ -106,14 +106,46 @@
     {% endif %}
 </section>
 
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.expenses'] }}</h2>
+        {% if has_perm('expense.create') %}
+        <a href="{{ url_for('expenses.new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--primary"
+           data-modal-url="{{ url_for('expenses.new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['expense.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['expense.add'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% if expenses %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['expense.date'] }}</th>
+                <th>{{ t['expense.category'] }}</th>
+                <th>{{ t['expense.supplier'] }}</th>
+                <th style="text-align:right;">{{ t['expense.amount'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in expenses %}
+            <tr>
+                <td>{{ e.date }}</td>
+                <td><span class="chip">{{ t['expense.cat.' + e.category] }}</span></td>
+                <td>{{ e.supplier or '—' }}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} GNF</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['expense.empty'] }}</p>
+    {% endif %}
+</section>
+
 <div class="stat-grid">
     <section class="card coming-soon">
         <span class="material-symbols-outlined">handyman</span>
         <div><h3>{{ t['nav.maintenance_records'] }}</h3><p class="muted small">{{ t['common.coming_soon'] }}</p></div>
-    </section>
-    <section class="card coming-soon">
-        <span class="material-symbols-outlined">payments</span>
-        <div><h3>{{ t['nav.expenses'] }}</h3><p class="muted small">{{ t['common.coming_soon'] }}</p></div>
     </section>
 </div>
 {% endblock %}

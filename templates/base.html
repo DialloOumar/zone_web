@@ -59,7 +59,7 @@
             {% endif %}
 
             {% if has_perm('expense.view') %}
-            <li><a href="#" class="{% if request.endpoint == 'expenses' %}active{% endif %}">
+            <li><a href="{{ url_for('expenses.index') }}" class="{% if request.blueprint == 'expenses' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">payments</span> {{ t['nav.expenses'] }}
             </a></li>
             {% endif %}

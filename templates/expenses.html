@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.expenses'] }}{% endblock %}
+{% block page_title %}{{ t['nav.expenses'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.expenses'] }}</h2>
+        {% if has_perm('expense.create') %}
+        <a href="{{ url_for('expenses.new') }}" class="fab" data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="filter-chips">
+        <a href="{{ url_for('expenses.index') }}" class="filter-chip {% if not active_cat %}active{% endif %}">{{ t['expense.all'] }}</a>
+        {% for c in categories %}
+        <a href="{{ url_for('expenses.index', category=c) }}" class="filter-chip {% if active_cat == c %}active{% endif %}">{{ t['expense.cat.' + c] }}</a>
+        {% endfor %}
+    </div>
+
+    {% if expenses %}
+    <div class="expense-total">
+        {{ t['expense.total'] }}<strong>{{ '{:,}'.format(total) }} GNF</strong>
+        <span class="muted small">· {{ expenses|length }} {{ t['expense.count'] }}</span>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['expense.date'] }}</th>
+                <th>{{ t['expense.category'] }}</th>
+                <th>{{ t['expense.target'] }}</th>
+                <th>{{ t['expense.supplier'] }}</th>
+                <th style="text-align:right;">{{ t['expense.amount'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in expenses %}
+            <tr>
+                <td>{{ e.date }}</td>
+                <td><span class="chip">{{ t['expense.cat.' + e.category] }}</span></td>
+                <td>
+                    {% if e.vehicle_id %}
+                        <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
+                    {% else %}
+                        <span class="muted">{{ e.fleet.name }} · {{ t['expense.fleet_wide'] }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ e.supplier or '—' }}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} GNF</td>
+                <td class="row-actions">
+                    {% if has_perm('expense.edit') %}
+                    <a href="{{ url_for('expenses.edit', xid=e.id) }}" class="btn btn--sm btn--tonal"
+                       data-modal-url="{{ url_for('expenses.edit', xid=e.id) }}" data-modal-title="{{ t['expense.edit'] }}">{{ t['btn.edit'] }}</a>
+                    {% endif %}
+                    {% if has_perm('expense.delete') %}
+                    <form method="post" action="{{ url_for('expenses.delete', xid=e.id) }}"
+                          onsubmit="return confirm('{{ t['expense.delete_confirm'] }}');" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">payments</span>
+        <p>{{ t['expense.empty'] }}</p>
+        {% if has_perm('expense.create') %}
+        <a href="{{ url_for('expenses.new') }}" class="fab" data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% set is_edit = expense is not none %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('expenses.edit', xid=expense.id) if is_edit else url_for('expenses.new') }}">
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="category" name="category" required>
+                <option value="" hidden></option>
+                {% set sel_cat = request.form.get('category') or (expense.category if is_edit else '') %}
+                {% for c in categories %}
+                <option value="{{ c }}" {% if c == sel_cat %}selected{% endif %}>{{ t['expense.cat.' + c] }}</option>
+                {% endfor %}
+            </select>
+            <label for="category">{{ t['expense.category'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or (expense.date if is_edit else today) }}">
+            <label for="date">{{ t['expense.date'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="fleet_id" name="fleet_id" required>
+                <option value="" hidden></option>
+                {% set sel_fleet = request.form.get('fleet_id')|int(0) or (expense.fleet_id if is_edit else preset_fleet or 0) %}
+                {% for f in fleets %}
+                <option value="{{ f.id }}" {% if f.id == sel_fleet %}selected{% endif %}>{{ f.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="fleet_id">{{ t['expense.fleet'] }}</label>
+        </div>
+        <div class="field field--select">
+            <select id="vehicle_id" name="vehicle_id">
+                <option value="">{{ t['expense.fleet_wide'] }}</option>
+                {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else preset_vehicle or 0) %}
+                {% for v in vehicles %}
+                <option value="{{ v.id }}" data-fleet="{{ v.fleet_id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>
+                {% endfor %}
+            </select>
+            <label for="vehicle_id">{{ t['expense.vehicle'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder=" " required
+                   value="{{ request.form.get('amount') or (expense.amount if is_edit else '') }}">
+            <label for="amount">{{ t['expense.amount'] }}</label>
+        </div>
+        <div class="field" id="field-liters">
+            <input type="text" inputmode="decimal" id="liters" name="liters" placeholder=" "
+                   value="{{ request.form.get('liters') or (expense.liters if is_edit and expense.liters is not none else '') }}">
+            <label for="liters">{{ t['expense.liters'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="supplier" name="supplier" placeholder=" "
+                   value="{{ request.form.get('supplier') or (expense.supplier if is_edit and expense.supplier else '') }}">
+            <label for="supplier">{{ t['expense.supplier'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="description" name="description" placeholder=" "
+                   value="{{ request.form.get('description') or (expense.description if is_edit and expense.description else '') }}">
+            <label for="description">{{ t['expense.description'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('expenses.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
+
+<script>
+// Narrow vehicle options to the chosen fleet, and show the litres field only
+// for fuel expenses.
+(function () {
+    var fleetSel = document.getElementById("fleet_id");
+    var vSel = document.getElementById("vehicle_id");
+    var catSel = document.getElementById("category");
+    var liters = document.getElementById("field-liters");
+    function refreshVehicles() {
+        var fid = fleetSel.value;
+        var curOk = (vSel.value === "");
+        Array.prototype.forEach.call(vSel.options, function (o) {
+            if (!o.value) return;
+            var ok = !fid || o.dataset.fleet === fid;
+            o.hidden = !ok; o.disabled = !ok;
+            if (ok && o.value === vSel.value) curOk = true;
+        });
+        if (!curOk) vSel.value = "";
+    }
+    function refreshLiters() { if (liters) liters.style.display = (catSel.value === "fuel") ? "" : "none"; }
+    if (fleetSel && vSel) fleetSel.addEventListener("change", refreshVehicles);
+    if (catSel) catSel.addEventListener("change", refreshLiters);
+    refreshVehicles();
+    refreshLiters();
+})();
+</script>

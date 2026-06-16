@@ -153,7 +153,11 @@ def detail(vid):
     entries = (DailyEntry.query.filter_by(vehicle_id=vid)
                .order_by(DailyEntry.date.desc(), DailyEntry.id.desc())
                .limit(10).all())
-    return render_template("vehicle_detail.html", vehicle=vehicle, entries=entries)
+    expenses = (Expense.query.filter_by(vehicle_id=vid)
+                .order_by(Expense.date.desc(), Expense.id.desc())
+                .limit(10).all())
+    return render_template("vehicle_detail.html", vehicle=vehicle,
+                           entries=entries, expenses=expenses)
 
 
 def _render_vehicle_form(vehicle, error=None):

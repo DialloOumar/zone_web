@@ -363,13 +363,15 @@ class Expense(db.Model):
     supplier              = db.Column(db.String(120), nullable=True)
     description           = db.Column(db.String(255), nullable=True)
     photo_key             = db.Column(db.String(200), nullable=True)                              # S3 receipt
-    is_backchargeable     = db.Column(db.Boolean,    nullable=False, default=False)
 
     # Cross-link when an expense IS a maintenance event (auto-closes the alert)
     maintenance_record_id = db.Column(db.Integer, db.ForeignKey("maintenance_records.id"), nullable=True)
 
     created_by = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    vehicle = db.relationship("Vehicle")
+    fleet   = db.relationship("Fleet")
 
 
 # ── Workflow — approvals & audit ──────────────────────────────────────────────
