@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.operators'] }}{% endblock %}
+{% block page_title %}{{ t['nav.operators'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.operators'] }}</h2>
+        {% if has_perm('operator.create') %}
+        <a href="{{ url_for('operators.new') }}" class="fab">
+            <span class="material-symbols-outlined">add</span> {{ t['operator.new'] }}
+        </a>
+        {% endif %}
+    </div>
+
+    {% if filter_fleets|length > 1 %}
+    <div class="filter-chips">
+        <a href="{{ url_for('operators.index') }}" class="filter-chip {% if not active_fleet %}active{% endif %}">{{ t['operator.all'] }}</a>
+        {% for f in filter_fleets %}
+        <a href="{{ url_for('operators.index', fleet=f.id) }}" class="filter-chip {% if active_fleet == f.id %}active{% endif %}">{{ f.name }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if operators %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['operator.name'] }}</th>
+                <th>{{ t['operator.fleet'] }}</th>
+                <th>{{ t['operator.phone'] }}</th>
+                <th>{{ t['operator.license'] }}</th>
+                <th>{{ t['operator.status'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for op in operators %}
+            <tr>
+                <td>
+                    <strong>{{ op.name }}</strong>
+                    {% if op.notes %}<div class="muted small">{{ op.notes }}</div>{% endif %}
+                </td>
+                <td>{{ op.fleet.name }}</td>
+                <td>{{ op.phone or '—' }}</td>
+                <td>{{ op.license_number or '—' }}</td>
+                <td>
+                    {% if op.is_active %}
+                        <span class="badge badge--active">{{ t['operator.active'] }}</span>
+                    {% else %}
+                        <span class="badge badge--inactive">{{ t['operator.inactive'] }}</span>
+                    {% endif %}
+                </td>
+                <td class="row-actions">
+                    {% if has_perm('operator.edit') %}
+                    <a href="{{ url_for('operators.edit', oid=op.id) }}" class="btn btn--sm btn--tonal">{{ t['btn.edit'] }}</a>
+                    {% endif %}
+                    {% if has_perm('operator.delete') %}
+                    <form method="post" action="{{ url_for('operators.delete', oid=op.id) }}"
+                          onsubmit="return confirm('{{ t['operator.delete_confirm'] }}');" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">badge</span>
+        <p>{{ t['operator.empty'] }}</p>
+        {% if has_perm('operator.create') %}
+        <a href="{{ url_for('operators.new') }}" class="fab">
+            <span class="material-symbols-outlined">add</span> {{ t['operator.new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

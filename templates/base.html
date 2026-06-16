@@ -29,7 +29,7 @@
             {% endif %}
 
             {% if has_perm('operator.view') %}
-            <li><a href="#" class="{% if request.endpoint == 'operators' %}active{% endif %}">
+            <li><a href="{{ url_for('operators.index') }}" class="{% if request.blueprint == 'operators' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">badge</span> {{ t['nav.operators'] }}
             </a></li>
             {% endif %}

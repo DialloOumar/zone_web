@@ -722,10 +722,12 @@ def grant_fleet_cmd(user, fleet, role):
 # can `from app import ...` without tripping a circular import. Each feature
 # module (admin, vehicles, entries, …) registers as its own blueprint.
 from blueprints.admin import admin_bp  # noqa: E402
+from blueprints.operators import operators_bp  # noqa: E402
 from blueprints.vehicles import vehicles_bp  # noqa: E402
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(vehicles_bp)
+app.register_blueprint(operators_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────
