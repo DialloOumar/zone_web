@@ -262,12 +262,12 @@ def role_delete(role_id):
     if role.is_system:
         flash("error|" + t.get("role.err.system", "Les rôles système ne peuvent pas être supprimés."))
         return redirect(url_for("admin.roles"))
-    if UserFleet.query.filter_by(role_id=role_id).count():
-        flash("error|" + t.get("role.err.in_use", "Ce rôle est attribué à des utilisateurs."))
-        return redirect(url_for("admin.roles"))
     name = role.name
+    # Cascade: users assigned this role lose that fleet access (the confirm warns).
+    removed = UserFleet.query.filter_by(role_id=role_id).delete()
     db.session.delete(role)
-    log_action("DELETE", "role", resource_id=role_id, detail="Deleted role '%s'" % name)
+    log_action("DELETE", "role", resource_id=role_id,
+               detail="Deleted role '%s' (%d assignment(s) removed)" % (name, removed))
     db.session.commit()
     flash("success|" + t.get("role.deleted", "Rôle supprimé."))
     return redirect(url_for("admin.roles"))
