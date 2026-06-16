@@ -245,7 +245,7 @@ class DailyEntry(db.Model):
     id               = db.Column(db.Integer, primary_key=True)
     vehicle_id       = db.Column(db.Integer, db.ForeignKey("vehicles.id"), nullable=False)
     date             = db.Column(db.String(10), nullable=False)              # YYYY-MM-DD
-    fuel_liters      = db.Column(db.Float, nullable=True)
+    # Fuel is NOT logged here — it is captured as an Expense (category 'fuel').
     trips            = db.Column(db.Integer, nullable=True)                  # for trip-tracked vehicles
     hours            = db.Column(db.Float,   nullable=True)                  # for hour-tracked vehicles
     kilometers       = db.Column(db.Float,   nullable=True)

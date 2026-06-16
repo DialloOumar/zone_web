@@ -36,24 +36,18 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" inputmode="decimal" id="fuel_liters" name="fuel_liters" placeholder=" "
-                   value="{{ request.form.get('fuel_liters') or (entry.fuel_liters if is_edit and entry.fuel_liters is not none else '') }}">
-            <label for="fuel_liters">{{ t['entry.fuel'] }}</label>
-        </div>
-        <div class="field">
             <input type="text" inputmode="decimal" id="kilometers" name="kilometers" placeholder=" "
                    value="{{ request.form.get('kilometers') or (entry.kilometers if is_edit and entry.kilometers is not none else '') }}">
             <label for="kilometers">{{ t['entry.km'] }}</label>
         </div>
-    </div>
-
-    <div class="field">
-        <input type="text" id="operator" name="operator" list="operators-list" placeholder=" "
-               value="{{ request.form.get('operator') or (entry.operator if is_edit and entry.operator else '') }}">
-        <label for="operator">{{ t['entry.operator'] }}</label>
-        <datalist id="operators-list">
-            {% for o in operators %}<option value="{{ o.name }}"></option>{% endfor %}
-        </datalist>
+        <div class="field">
+            <input type="text" id="operator" name="operator" list="operators-list" placeholder=" "
+                   value="{{ request.form.get('operator') or (entry.operator if is_edit and entry.operator else '') }}">
+            <label for="operator">{{ t['entry.operator'] }}</label>
+            <datalist id="operators-list">
+                {% for o in operators %}<option value="{{ o.name }}"></option>{% endfor %}
+            </datalist>
+        </div>
     </div>
 
     <div class="field">

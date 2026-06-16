@@ -16,7 +16,6 @@
             {% if e.hours is not none %}{{ e.hours }} {{ t['unit.hours'] }}{% else %}—{% endif %}
         {% endif %}
     </td>
-    <td>{% if e.fuel_liters is not none %}{{ e.fuel_liters }} L{% else %}—{% endif %}</td>
     <td>{% if e.kilometers is not none %}{{ e.kilometers }}{% else %}—{% endif %}</td>
     <td>{{ e.operator or '—' }}</td>
     <td class="row-actions">

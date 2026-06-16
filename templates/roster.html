@@ -68,7 +68,7 @@
                     {% endif %}
                 </span>
                 <span class="roster-entry__op">{{ e.operator or '—' }}</span>
-                {% if e.fuel_liters is not none %}<span class="roster-entry__fuel">{{ e.fuel_liters }} L</span>{% endif %}
+                {% if e.kilometers is not none %}<span class="roster-entry__fuel">{{ e.kilometers }} km</span>{% endif %}
             </a>
             {% endfor %}
         </div>

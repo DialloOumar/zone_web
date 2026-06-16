@@ -129,20 +129,18 @@ def _read_entry_form(entry):
     if not date_str or not _valid_date(date_str):
         return None, t["entry.err.date_required"]
 
-    fuel, e1 = _num(request.form.get("fuel_liters"), float)
-    km, e2 = _num(request.form.get("kilometers"), float)
+    km, e1 = _num(request.form.get("kilometers"), float)
     trips = hours = None
     if vehicle.category.unit_type == "trips":
-        trips, e3 = _num(request.form.get("trips"), lambda s: int(round(float(s))))
+        trips, e2 = _num(request.form.get("trips"), lambda s: int(round(float(s))))
     else:
-        hours, e3 = _num(request.form.get("hours"), float)
-    if e1 or e2 or e3:
+        hours, e2 = _num(request.form.get("hours"), float)
+    if e1 or e2:
         return None, t["entry.err.bad_number"]
 
     data = dict(
         vehicle_id=vehicle_id,
         date=date_str,
-        fuel_liters=fuel,
         kilometers=km,
         trips=trips,
         hours=hours,
