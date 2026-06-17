@@ -44,7 +44,7 @@
     <div class="stat-card">
         <span class="stat-icon stat-icon--green material-symbols-outlined">payments</span>
         <div>
-            <div class="stat-value">{{ '{:,}'.format(stats.month_spend) }}<span class="stat-unit"> GNF</span></div>
+            <div class="stat-value">{{ '{:,}'.format(stats.month_spend) }}<span class="stat-unit"> {{ currency }}</span></div>
             <div class="stat-label">{{ t['dash.month_spend'] }}</div>
         </div>
     </div>

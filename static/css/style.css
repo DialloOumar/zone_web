@@ -953,6 +953,24 @@ a.stat-card { text-decoration: none; color: inherit; }
 }
 .pager-info { font-size: 0.85rem; color: var(--md-on-surface-variant); }
 
+/* ── Settings ── */
+.settings-group {
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--shape-md);
+    padding: 16px 18px 6px;
+    margin: 0 0 20px;
+}
+.settings-group legend {
+    padding: 0 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--md-on-surface-variant);
+}
+.field--error input, .field--error select { border-color: var(--c-red); }
+.field-error { font-size: 0.74rem; color: var(--c-red); margin-top: 4px; }
+
 /* ── Dashboard skeleton note ── */
 .skeleton-note h3 { font-size: 0.85rem; margin: 16px 0 6px; color: var(--md-on-surface); }
 .skeleton-note ul { margin: 0 0 12px 20px; color: var(--md-on-surface-variant); font-size: 0.88rem; }

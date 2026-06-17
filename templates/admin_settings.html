@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['admin.settings'] }}{% endblock %}
+{% block page_title %}{{ t['admin.settings'] }}{% endblock %}
+
+{% macro setting_label(s) -%}
+    {{ t['setting.' + s.key] if ('setting.' + s.key) in t else s.label }}
+{%- endmacro %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    <div class="card-header">
+        <h2>{{ t['admin.settings'] }}</h2>
+    </div>
+
+    <form method="post" class="entry-form">
+        {% for category, items in groups.items() %}
+        <fieldset class="settings-group">
+            <legend>{{ t['setting.cat.' + category] if ('setting.cat.' + category) in t else category }}</legend>
+
+            {% for s in items %}
+            {% set spec = schema.get(s.key, {}) %}
+            {% set val = (form[s.key] if form else s.value) %}
+            <div class="field {% if spec.type == 'select' %}field--select{% endif %} {% if errors.get(s.key) %}field--error{% endif %}">
+                {% if spec.type == 'select' %}
+                <select id="{{ s.key }}" name="{{ s.key }}">
+                    {% for opt in spec.options %}
+                    <option value="{{ opt }}" {% if val == opt %}selected{% endif %}>
+                        {{ t['setting.lang.' + opt] if ('setting.lang.' + opt) in t else opt }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% elif spec.type == 'number' %}
+                <input type="number" id="{{ s.key }}" name="{{ s.key }}" value="{{ val }}"
+                       {% if spec.min is not none %}min="{{ spec.min }}"{% endif %}
+                       {% if spec.max is not none %}max="{{ spec.max }}"{% endif %} placeholder=" ">
+                {% else %}
+                <input type="text" id="{{ s.key }}" name="{{ s.key }}" value="{{ val }}" placeholder=" ">
+                {% endif %}
+                <label for="{{ s.key }}">{{ setting_label(s) }}</label>
+                {% if errors.get(s.key) %}<div class="field-error">{{ errors[s.key] }}</div>{% endif %}
+                {% if s.updated_at %}<div class="field-hint">{{ t['setting.updated'] }} {{ s.updated_at.strftime('%Y-%m-%d %H:%M') }}</div>{% endif %}
+            </div>
+            {% endfor %}
+        </fieldset>
+        {% endfor %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">
+                <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+            </button>
+        </div>
+    </form>
+</section>
+{% endblock %}

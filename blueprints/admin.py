@@ -15,7 +15,7 @@ from flask_login import current_user, login_required
 
 from app import (get_t, is_modal_request, log_action, modal_ok, slugify,
                  super_admin_required)
-from models import (AuditLog, Fleet, Operator, Permission, Role,
+from models import (AppSetting, AuditLog, Fleet, Operator, Permission, Role,
                     RolePermission, User, UserFleet, Vehicle, VehicleCategory,
                     db)
 
@@ -670,3 +670,76 @@ def audit():
         filters=flt,
         has_filters=any(flt.values()),
     )
+
+
+# ── Settings ──────────────────────────────────────────────────────────────────
+
+# Drives input rendering + validation per setting key. Keys not listed here
+# fall back to a free-text input with no validation.
+SETTINGS_SCHEMA = {
+    "grace_period_minutes": {"type": "number", "min": 0, "max": 1440},
+    "currency":             {"type": "select", "options": ["GNF", "USD", "EUR", "XOF"]},
+    "default_lang":         {"type": "select", "options": ["fr", "en"]},
+}
+
+
+@admin_bp.route("/settings", methods=["GET", "POST"])
+@login_required
+@super_admin_required
+def settings():
+    t = get_t()
+    rows = AppSetting.query.order_by(AppSetting.category, AppSetting.key).all()
+
+    if request.method == "POST":
+        errors = {}
+        for s in rows:
+            if s.key not in request.form:
+                continue
+            raw = (request.form.get(s.key) or "").strip()
+            spec = SETTINGS_SCHEMA.get(s.key, {})
+            kind = spec.get("type")
+
+            if kind == "number":
+                if not raw.lstrip("-").isdigit():
+                    errors[s.key] = t.get("setting.err.number", "Valeur numérique invalide.")
+                    continue
+                n = int(raw)
+                lo, hi = spec.get("min"), spec.get("max")
+                if (lo is not None and n < lo) or (hi is not None and n > hi):
+                    errors[s.key] = t.get("setting.err.range", "Valeur hors limites.")
+                    continue
+                raw = str(n)
+            elif kind == "select":
+                if raw not in spec["options"]:
+                    errors[s.key] = t.get("setting.err.choice", "Choix invalide.")
+                    continue
+
+            s.value = raw
+            s.updated_by = current_user.id
+
+        if errors:
+            db.session.rollback()
+            return render_template(
+                "admin_settings.html",
+                groups=_settings_groups(rows), schema=SETTINGS_SCHEMA,
+                errors=errors, form=request.form,
+            )
+
+        log_action("UPDATE", "app_setting", detail="Updated %d settings" % len(rows))
+        db.session.commit()
+        flash("success|" + t.get("setting.saved", "Paramètres enregistrés."))
+        return redirect(url_for("admin.settings"))
+
+    return render_template(
+        "admin_settings.html",
+        groups=_settings_groups(rows), schema=SETTINGS_SCHEMA,
+        errors={}, form=None,
+    )
+
+
+def _settings_groups(rows):
+    """Group settings by category, preserving query order within each."""
+    grouped = {}
+    for s in rows:
+        grouped.setdefault(s.category, []).append(s)
+    return grouped

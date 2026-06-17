@@ -68,7 +68,13 @@ def current_lang():
     """
     if current_user.is_authenticated and getattr(current_user, "lang", None):
         return current_user.lang
-    return session.get("lang") or os.environ.get("APP_DEFAULT_LANG", "fr")
+    if session.get("lang"):
+        return session["lang"]
+    try:
+        configured = _get_setting("default_lang", None)
+    except Exception:
+        configured = None  # DB not migrated yet — fall back to env
+    return configured or os.environ.get("APP_DEFAULT_LANG", "fr")
 
 
 def get_t():
@@ -110,6 +116,7 @@ def _inject_globals():
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,
+        "currency": _get_setting("currency", "GNF"),
     }
 
 

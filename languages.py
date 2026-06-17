@@ -88,6 +88,20 @@ TRANSLATIONS = {
         "audit.next":          "Suivant",
         "audit.page":          "Page",
 
+        # Settings
+        "setting.cat.approval":      "Validation",
+        "setting.cat.general":       "Général",
+        "setting.grace_period_minutes": "Délai de grâce pour les auto-corrections (minutes)",
+        "setting.currency":          "Devise par défaut",
+        "setting.default_lang":      "Langue par défaut",
+        "setting.lang.fr":           "Français",
+        "setting.lang.en":           "Anglais",
+        "setting.updated":           "Modifié le",
+        "setting.saved":             "Paramètres enregistrés.",
+        "setting.err.number":        "Valeur numérique invalide.",
+        "setting.err.range":         "Valeur hors limites.",
+        "setting.err.choice":        "Choix invalide.",
+
         # Fleets
         "fleet.new":            "Nouvelle flotte",
         "fleet.edit":           "Modifier la flotte",
@@ -615,6 +629,20 @@ TRANSLATIONS = {
         "audit.prev":          "Previous",
         "audit.next":          "Next",
         "audit.page":          "Page",
+
+        # Settings
+        "setting.cat.approval":      "Approval",
+        "setting.cat.general":       "General",
+        "setting.grace_period_minutes": "Grace period for self-corrections (minutes)",
+        "setting.currency":          "Default currency",
+        "setting.default_lang":      "Default language",
+        "setting.lang.fr":           "French",
+        "setting.lang.en":           "English",
+        "setting.updated":           "Updated",
+        "setting.saved":             "Settings saved.",
+        "setting.err.number":        "Invalid numeric value.",
+        "setting.err.range":         "Value out of range.",
+        "setting.err.choice":        "Invalid choice.",
 
         # Fleets
         "fleet.new":            "New fleet",
