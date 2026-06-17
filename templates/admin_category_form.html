@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = category is not none %}
+{% block title %}{{ t['vcat.edit'] if is_edit else t['vcat.new'] }}{% endblock %}
+{% block page_title %}{{ t['vcat.edit'] if is_edit else t['vcat.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 660px;">
+    {% include "_category_form.html" %}
+</section>
+{% endblock %}

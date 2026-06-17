@@ -484,3 +484,125 @@ def user_delete(user_id):
     db.session.commit()
     flash("success|" + t.get("user.deleted", "Utilisateur supprime."))
     return redirect(url_for("admin.users"))
+
+
+# ── Vehicle categories ──────────────────────────────────────────────────────────
+
+CATEGORY_UNIT_TYPES = ["trips", "hours"]
+
+
+def _cat_num(raw, cast):
+    raw = (raw or "").strip().replace(",", ".")
+    if not raw:
+        return None, False
+    try:
+        return cast(raw), False
+    except (TypeError, ValueError):
+        return None, True
+
+
+@admin_bp.route("/categories")
+@login_required
+@super_admin_required
+def categories():
+    rows = VehicleCategory.query.order_by(VehicleCategory.sort_order, VehicleCategory.code).all()
+    counts = {c.id: Vehicle.query.filter_by(category_id=c.id).count() for c in rows}
+    return render_template("admin_categories.html", categories=rows, counts=counts)
+
+
+def _save_category(cat):
+    t = get_t()
+    label = (request.form.get("label") or "").strip()
+    label_fr = (request.form.get("label_fr") or "").strip()
+    unit_type = (request.form.get("unit_type") or "").strip()
+    if not label or not label_fr:
+        return t.get("vcat.err.label_required", "Les libelles sont obligatoires.")
+    if unit_type not in CATEGORY_UNIT_TYPES:
+        return t.get("vcat.err.unit_required", "Choisissez un type d'unite.")
+
+    creating = cat is None
+    if creating:
+        code = (request.form.get("code") or "").strip().upper().replace(" ", "_")
+        if not code:
+            return t.get("vcat.err.code_required", "Le code est obligatoire.")
+        if VehicleCategory.query.filter(db.func.upper(VehicleCategory.code) == code).first():
+            return t.get("vcat.err.code_taken", "Ce code existe deja.")
+
+    baseline, e1 = _cat_num(request.form.get("default_baseline_l_per_unit"), float)
+    cost, e2 = _cat_num(request.form.get("default_cost_per_unit"),
+                        lambda s: int(round(float(s.replace(" ", "")))))
+    order, e3 = _cat_num(request.form.get("sort_order"), lambda s: int(round(float(s))))
+    if e1 or e2 or e3:
+        return t.get("vcat.err.bad_number", "Valeur numerique invalide.")
+
+    if creating:
+        cat = VehicleCategory(code=code)
+        db.session.add(cat)
+    cat.label = label
+    cat.label_fr = label_fr
+    cat.unit_type = unit_type
+    cat.default_baseline_l_per_unit = baseline
+    cat.default_cost_per_unit = cost
+    cat.sort_order = order if order is not None else 0
+    db.session.flush()
+    log_action("CREATE" if creating else "UPDATE", "vehicle_category", resource_id=cat.id,
+               detail="%s category '%s'" % ("Created" if creating else "Updated", cat.code))
+    db.session.commit()
+    return None
+
+
+def _render_category_form(cat, error=None):
+    tpl = "_category_form.html" if is_modal_request() else "admin_category_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, category=cat, unit_types=CATEGORY_UNIT_TYPES, error=error), status
+
+
+@admin_bp.route("/categories/new", methods=["GET", "POST"])
+@login_required
+@super_admin_required
+def category_new():
+    if request.method == "POST":
+        error = _save_category(None)
+        if error:
+            return _render_category_form(None, error)
+        flash("success|" + get_t().get("vcat.created", "Categorie creee."))
+        return modal_ok() if is_modal_request() else redirect(url_for("admin.categories"))
+    return _render_category_form(None)
+
+
+@admin_bp.route("/categories/<int:cat_id>/edit", methods=["GET", "POST"])
+@login_required
+@super_admin_required
+def category_edit(cat_id):
+    cat = db.session.get(VehicleCategory, cat_id)
+    if not cat:
+        abort(404)
+    if request.method == "POST":
+        error = _save_category(cat)
+        if error:
+            return _render_category_form(cat, error)
+        flash("success|" + get_t().get("vcat.updated", "Categorie mise a jour."))
+        return modal_ok() if is_modal_request() else redirect(url_for("admin.categories"))
+    return _render_category_form(cat)
+
+
+@admin_bp.route("/categories/<int:cat_id>/delete", methods=["POST"])
+@login_required
+@super_admin_required
+def category_delete(cat_id):
+    cat = db.session.get(VehicleCategory, cat_id)
+    if not cat:
+        abort(404)
+    t = get_t()
+    used_by_vehicles = Vehicle.query.filter_by(category_id=cat_id).count()
+    used_by_fleets = any(cat.code in (fl.categories or []) for fl in Fleet.query.all())
+    if used_by_vehicles or used_by_fleets:
+        flash("error|" + t.get("vcat.err.delete_blocked",
+              "Impossible de supprimer : des vehicules ou flottes utilisent cette categorie."))
+        return redirect(url_for("admin.categories"))
+    code = cat.code
+    db.session.delete(cat)
+    log_action("DELETE", "vehicle_category", resource_id=cat_id, detail="Deleted category '%s'" % code)
+    db.session.commit()
+    flash("success|" + t.get("vcat.deleted", "Categorie supprimee."))
+    return redirect(url_for("admin.categories"))

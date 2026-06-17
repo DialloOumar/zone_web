@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['admin.categories'] }}{% endblock %}
+{% block page_title %}{{ t['admin.categories'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['admin.categories'] }}</h2>
+        <a href="{{ url_for('admin.category_new') }}" class="fab" data-modal-url="{{ url_for('admin.category_new') }}" data-modal-title="{{ t['vcat.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['vcat.new'] }}
+        </a>
+    </div>
+
+    {% if categories %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['vcat.code'] }}</th>
+                <th>{{ t['vcat.label_fr'] }}</th>
+                <th>{{ t['vcat.unit_type'] }}</th>
+                <th style="text-align:right;">{{ t['vcat.baseline'] }}</th>
+                <th style="text-align:right;">{{ t['vcat.cost'] }}</th>
+                <th style="text-align:right;">{{ t['vcat.usage'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in categories %}
+            <tr>
+                <td><span class="chip chip--{{ c.code|lower }}">{{ c.code }}</span></td>
+                <td><strong>{{ c.label_fr }}</strong>{% if c.label != c.label_fr %}<div class="muted small">{{ c.label }}</div>{% endif %}</td>
+                <td>{{ t['vcat.unit.' + c.unit_type] }}</td>
+                <td style="text-align:right;">{% if c.default_baseline_l_per_unit is not none %}{{ c.default_baseline_l_per_unit }} L/{{ t['unit.' + c.unit_type] }}{% else %}—{% endif %}</td>
+                <td style="text-align:right;">{% if c.default_cost_per_unit is not none %}{{ '{:,}'.format(c.default_cost_per_unit) }} GNF{% else %}—{% endif %}</td>
+                <td style="text-align:right;">{{ counts[c.id] }}</td>
+                <td class="row-actions">
+                    <a href="{{ url_for('admin.category_edit', cat_id=c.id) }}" class="btn btn--sm btn--tonal"
+                       data-modal-url="{{ url_for('admin.category_edit', cat_id=c.id) }}" data-modal-title="{{ t['vcat.edit'] }}">{{ t['btn.edit'] }}</a>
+                    <form method="post" action="{{ url_for('admin.category_delete', cat_id=c.id) }}"
+                          onsubmit="return confirm('{{ t['vcat.delete_confirm'] }}');" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">category</span>
+        <p>{{ t['vcat.empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

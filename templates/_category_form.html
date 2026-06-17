@@ -1,0 +1,66 @@
+{% set is_edit = category is not none %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('admin.category_edit', cat_id=category.id) if is_edit else url_for('admin.category_new') }}">
+    <div class="form-row">
+        <div class="field">
+            {% if is_edit %}
+            <input type="text" id="code" value="{{ category.code }}" disabled>
+            {% else %}
+            <input type="text" id="code" name="code" placeholder=" " required autocapitalize="characters"
+                   value="{{ request.form.get('code', '') }}">
+            {% endif %}
+            <label for="code">{{ t['vcat.code'] }}</label>
+            {% if not is_edit %}<div class="field-hint">{{ t['vcat.code_hint'] }}</div>{% endif %}
+        </div>
+        <div class="field field--select">
+            <select id="unit_type" name="unit_type" required>
+                <option value="" hidden></option>
+                {% set sel_u = request.form.get('unit_type') or (category.unit_type if is_edit else '') %}
+                {% for u in unit_types %}<option value="{{ u }}" {% if u == sel_u %}selected{% endif %}>{{ t['vcat.unit.' + u] }}</option>{% endfor %}
+            </select>
+            <label for="unit_type">{{ t['vcat.unit_type'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="label_fr" name="label_fr" placeholder=" " required
+                   value="{{ request.form.get('label_fr') or (category.label_fr if is_edit else '') }}">
+            <label for="label_fr">{{ t['vcat.label_fr'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="label" name="label" placeholder=" " required
+                   value="{{ request.form.get('label') or (category.label if is_edit else '') }}">
+            <label for="label">{{ t['vcat.label'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" inputmode="decimal" id="default_baseline_l_per_unit" name="default_baseline_l_per_unit" placeholder=" "
+                   value="{{ request.form.get('default_baseline_l_per_unit') or (category.default_baseline_l_per_unit if is_edit and category.default_baseline_l_per_unit is not none else '') }}">
+            <label for="default_baseline_l_per_unit">{{ t['vcat.baseline'] }}</label>
+            <div class="field-hint">{{ t['vcat.baseline_hint'] }}</div>
+        </div>
+        <div class="field">
+            <input type="text" inputmode="numeric" id="default_cost_per_unit" name="default_cost_per_unit" placeholder=" "
+                   value="{{ request.form.get('default_cost_per_unit') or (category.default_cost_per_unit if is_edit and category.default_cost_per_unit is not none else '') }}">
+            <label for="default_cost_per_unit">{{ t['vcat.cost'] }}</label>
+            <div class="field-hint">{{ t['vcat.cost_hint'] }}</div>
+        </div>
+    </div>
+
+    <div class="field" style="max-width:180px;">
+        <input type="text" inputmode="numeric" id="sort_order" name="sort_order" placeholder=" "
+               value="{{ request.form.get('sort_order') or (category.sort_order if is_edit else '') }}">
+        <label for="sort_order">{{ t['vcat.sort_order'] }}</label>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('admin.categories') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

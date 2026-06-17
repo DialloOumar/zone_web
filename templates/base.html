@@ -83,7 +83,7 @@
             <li><a href="{{ url_for('admin.roles') }}" class="sidebar-sub {% if request.endpoint in ['admin.roles', 'admin.role_new', 'admin.role_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">admin_panel_settings</span> {{ t['admin.roles'] }}
             </a></li>
-            <li><a href="#" class="sidebar-sub {% if request.endpoint == 'admin_categories' %}active{% endif %}">
+            <li><a href="{{ url_for('admin.categories') }}" class="sidebar-sub {% if request.endpoint in ['admin.categories', 'admin.category_new', 'admin.category_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">category</span> {{ t['admin.categories'] }}
             </a></li>
             <li><a href="#" class="sidebar-sub {% if request.endpoint == 'admin_settings' %}active{% endif %}">
