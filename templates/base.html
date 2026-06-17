@@ -89,7 +89,7 @@
             <li><a href="#" class="sidebar-sub {% if request.endpoint == 'admin_settings' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">settings</span> {{ t['admin.settings'] }}
             </a></li>
-            <li><a href="#" class="sidebar-sub {% if request.endpoint == 'admin_audit' %}active{% endif %}">
+            <li><a href="{{ url_for('admin.audit') }}" class="sidebar-sub {% if request.endpoint == 'admin.audit' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">history</span> {{ t['admin.audit_log'] }}
             </a></li>
             {% endif %}

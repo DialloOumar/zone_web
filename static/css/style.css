@@ -923,6 +923,36 @@ a.stat-card { text-decoration: none; color: inherit; }
 .activity-item:last-child { border-bottom: none; }
 .activity-main { flex: 1; font-size: 0.9rem; }
 
+/* ── Audit log ── */
+.audit-table td { vertical-align: top; }
+.audit-detail { max-width: 360px; }
+.nowrap { white-space: nowrap; }
+.audit-action {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    background: var(--md-surface-container-high);
+    color: var(--md-on-surface-variant);
+}
+.audit-action--create  { background: var(--c-green-bg);  color: var(--c-green); }
+.audit-action--update  { background: var(--c-blue-bg);   color: var(--c-blue); }
+.audit-action--delete  { background: var(--c-red-bg);    color: var(--c-red); }
+.audit-action--approve { background: var(--c-green-bg);  color: var(--c-green); }
+.audit-action--reject  { background: var(--c-red-bg);    color: var(--c-red); }
+.audit-action--login_failed { background: var(--c-amber-bg); color: var(--c-amber); }
+
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 16px;
+}
+.pager-info { font-size: 0.85rem; color: var(--md-on-surface-variant); }
+
 /* ── Dashboard skeleton note ── */
 .skeleton-note h3 { font-size: 0.85rem; margin: 16px 0 6px; color: var(--md-on-surface); }
 .skeleton-note ul { margin: 0 0 12px 20px; color: var(--md-on-surface-variant); font-size: 0.88rem; }

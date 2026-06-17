@@ -71,6 +71,23 @@ TRANSLATIONS = {
         "admin.settings":   "Paramètres",
         "admin.audit_log":  "Journal d'audit",
 
+        # Audit log viewer
+        "audit.entries":       "entrées",
+        "audit.timestamp":     "Horodatage",
+        "audit.user":          "Utilisateur",
+        "audit.action":        "Action",
+        "audit.resource":      "Ressource",
+        "audit.detail":        "Détail",
+        "audit.ip":            "IP",
+        "audit.search_user":   "Rechercher un utilisateur",
+        "audit.all_actions":   "Toutes les actions",
+        "audit.all_resources": "Toutes les ressources",
+        "audit.all_fleets":    "Toutes les flottes",
+        "audit.empty":         "Aucune entrée dans le journal.",
+        "audit.prev":          "Précédent",
+        "audit.next":          "Suivant",
+        "audit.page":          "Page",
+
         # Fleets
         "fleet.new":            "Nouvelle flotte",
         "fleet.edit":           "Modifier la flotte",
@@ -581,6 +598,23 @@ TRANSLATIONS = {
         "admin.categories": "Vehicle categories",
         "admin.settings":   "Settings",
         "admin.audit_log":  "Audit log",
+
+        # Audit log viewer
+        "audit.entries":       "entries",
+        "audit.timestamp":     "Timestamp",
+        "audit.user":          "User",
+        "audit.action":        "Action",
+        "audit.resource":      "Resource",
+        "audit.detail":        "Detail",
+        "audit.ip":            "IP",
+        "audit.search_user":   "Search a user",
+        "audit.all_actions":   "All actions",
+        "audit.all_resources": "All resources",
+        "audit.all_fleets":    "All fleets",
+        "audit.empty":         "No entries in the log.",
+        "audit.prev":          "Previous",
+        "audit.next":          "Next",
+        "audit.page":          "Page",
 
         # Fleets
         "fleet.new":            "New fleet",

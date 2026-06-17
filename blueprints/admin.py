@@ -7,14 +7,17 @@ Helpers (super_admin_required, log_action, slugify, get_t) are imported from
 app.py; this module is imported at the bottom of app.py once those exist, so
 there is no circular-import problem.
 """
+from datetime import datetime, timedelta
+
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
 from app import (get_t, is_modal_request, log_action, modal_ok, slugify,
                  super_admin_required)
-from models import (Fleet, Operator, Permission, Role, RolePermission, User,
-                    UserFleet, Vehicle, VehicleCategory, db)
+from models import (AuditLog, Fleet, Operator, Permission, Role,
+                    RolePermission, User, UserFleet, Vehicle, VehicleCategory,
+                    db)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -606,3 +609,64 @@ def category_delete(cat_id):
     db.session.commit()
     flash("success|" + t.get("vcat.deleted", "Categorie supprimee."))
     return redirect(url_for("admin.categories"))
+
+
+# ── Audit log ─────────────────────────────────────────────────────────────────
+
+AUDIT_PER_PAGE = 50
+
+
+@admin_bp.route("/audit")
+@login_required
+@super_admin_required
+def audit():
+    """Read-only viewer over the AuditLog trail, with filters + pagination."""
+    flt = {
+        "q":         (request.args.get("q") or "").strip(),
+        "action":    (request.args.get("action") or "").strip(),
+        "resource":  (request.args.get("resource") or "").strip(),
+        "fleet_id":  request.args.get("fleet_id", type=int),
+        "date_from": (request.args.get("date_from") or "").strip(),
+        "date_to":   (request.args.get("date_to") or "").strip(),
+    }
+    page = request.args.get("page", 1, type=int)
+
+    query = AuditLog.query
+    if flt["q"]:
+        query = query.filter(AuditLog.username.ilike("%" + flt["q"] + "%"))
+    if flt["action"]:
+        query = query.filter(AuditLog.action == flt["action"])
+    if flt["resource"]:
+        query = query.filter(AuditLog.resource_type == flt["resource"])
+    if flt["fleet_id"]:
+        query = query.filter(AuditLog.fleet_id == flt["fleet_id"])
+    if flt["date_from"]:
+        try:
+            query = query.filter(AuditLog.timestamp >= datetime.strptime(flt["date_from"], "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if flt["date_to"]:
+        try:
+            query = query.filter(AuditLog.timestamp < datetime.strptime(flt["date_to"], "%Y-%m-%d") + timedelta(days=1))
+        except ValueError:
+            pass
+
+    pagination = query.order_by(AuditLog.timestamp.desc()).paginate(
+        page=page, per_page=AUDIT_PER_PAGE, error_out=False
+    )
+
+    actions   = [a[0] for a in db.session.query(AuditLog.action).distinct().order_by(AuditLog.action).all()]
+    resources = [r[0] for r in db.session.query(AuditLog.resource_type).distinct().order_by(AuditLog.resource_type).all()]
+    fleets    = Fleet.query.order_by(Fleet.name).all()
+
+    return render_template(
+        "admin_audit.html",
+        pagination=pagination,
+        logs=pagination.items,
+        actions=actions,
+        resources=resources,
+        fleets=fleets,
+        fleets_by_id={fl.id: fl for fl in fleets},
+        filters=flt,
+        has_filters=any(flt.values()),
+    )

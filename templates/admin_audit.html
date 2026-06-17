@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['admin.audit_log'] }}{% endblock %}
+{% block page_title %}{{ t['admin.audit_log'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['admin.audit_log'] }}</h2>
+        <span class="muted small">{{ '{:,}'.format(pagination.total) }} {{ t['audit.entries'] }}</span>
+    </div>
+
+    <form method="get" class="filter-bar">
+        <div class="field" style="min-width:170px;">
+            <input type="text" name="q" value="{{ filters.q }}" placeholder=" ">
+            <label>{{ t['audit.search_user'] }}</label>
+        </div>
+        <div class="field field--select" style="min-width:140px;">
+            <select name="action">
+                <option value="">{{ t['audit.all_actions'] }}</option>
+                {% for a in actions %}<option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+            </select>
+            <label>{{ t['audit.action'] }}</label>
+        </div>
+        <div class="field field--select" style="min-width:160px;">
+            <select name="resource">
+                <option value="">{{ t['audit.all_resources'] }}</option>
+                {% for r in resources %}<option value="{{ r }}" {% if filters.resource == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+            </select>
+            <label>{{ t['audit.resource'] }}</label>
+        </div>
+        <div class="field field--select" style="min-width:150px;">
+            <select name="fleet_id">
+                <option value="">{{ t['audit.all_fleets'] }}</option>
+                {% for fl in fleets %}<option value="{{ fl.id }}" {% if filters.fleet_id == fl.id %}selected{% endif %}>{{ fl.name }}</option>{% endfor %}
+            </select>
+            <label>{{ t['vehicle.fleet'] }}</label>
+        </div>
+        <div class="field" style="min-width:140px;">
+            <input type="date" name="date_from" value="{{ filters.date_from }}" placeholder=" ">
+            <label>{{ t['entry.from'] }}</label>
+        </div>
+        <div class="field" style="min-width:140px;">
+            <input type="date" name="date_to" value="{{ filters.date_to }}" placeholder=" ">
+            <label>{{ t['entry.to'] }}</label>
+        </div>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        {% if has_filters %}
+        <a href="{{ url_for('admin.audit') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
+        {% endif %}
+    </form>
+
+    {% if logs %}
+    <table class="data-table audit-table">
+        <thead>
+            <tr>
+                <th>{{ t['audit.timestamp'] }}</th>
+                <th>{{ t['audit.user'] }}</th>
+                <th>{{ t['audit.action'] }}</th>
+                <th>{{ t['audit.resource'] }}</th>
+                <th>{{ t['audit.detail'] }}</th>
+                <th>{{ t['vehicle.fleet'] }}</th>
+                <th>{{ t['audit.ip'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td class="nowrap muted small">{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    <strong>{{ log.username }}</strong>
+                    {% if log.actor_role %}<div class="muted small">{{ log.actor_role }}</div>{% endif %}
+                </td>
+                <td><span class="audit-action audit-action--{{ log.action|lower }}">{{ log.action }}</span></td>
+                <td>{{ log.resource_type }}{% if log.resource_id %} <span class="muted">#{{ log.resource_id }}</span>{% endif %}</td>
+                <td class="audit-detail">{{ log.detail or '—' }}</td>
+                <td>{% if log.fleet_id and fleets_by_id.get(log.fleet_id) %}{{ fleets_by_id[log.fleet_id].name }}{% else %}—{% endif %}</td>
+                <td class="muted small">{{ log.ip_address or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if pagination.pages > 1 %}
+    <div class="pager">
+        {% if pagination.has_prev %}
+        <a class="btn btn--sm btn--tonal" href="{{ url_for('admin.audit', page=pagination.prev_num, q=filters.q, action=filters.action, resource=filters.resource, fleet_id=filters.fleet_id, date_from=filters.date_from, date_to=filters.date_to) }}">
+            <span class="material-symbols-outlined">chevron_left</span> {{ t['audit.prev'] }}
+        </a>
+        {% endif %}
+        <span class="pager-info">{{ t['audit.page'] }} {{ pagination.page }} / {{ pagination.pages }}</span>
+        {% if pagination.has_next %}
+        <a class="btn btn--sm btn--tonal" href="{{ url_for('admin.audit', page=pagination.next_num, q=filters.q, action=filters.action, resource=filters.resource, fleet_id=filters.fleet_id, date_from=filters.date_from, date_to=filters.date_to) }}">
+            {{ t['audit.next'] }} <span class="material-symbols-outlined">chevron_right</span>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">history</span>
+        <p>{{ t['audit.empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
