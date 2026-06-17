@@ -936,6 +936,17 @@ a.stat-card { text-decoration: none; color: inherit; }
 .dash-chart { margin: 0; }
 .chart-box { position: relative; height: 260px; }
 
+/* ── Insights ── */
+.variance { font-weight: 700; }
+.variance--good   { color: var(--c-green); }
+.variance--warn   { color: var(--c-amber); }
+.variance--danger { color: var(--c-red); }
+.chip--idle {
+    background: var(--c-amber-bg); color: var(--c-amber);
+    border-color: transparent; margin-left: 6px;
+}
+.row-idle { background: var(--c-amber-bg); }
+
 /* ── Audit log ── */
 .audit-table td { vertical-align: top; }
 .audit-detail { max-width: 360px; }

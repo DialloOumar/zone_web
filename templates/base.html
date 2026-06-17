@@ -64,6 +64,12 @@
             </a></li>
             {% endif %}
 
+            {% if has_perm('report.view') %}
+            <li><a href="{{ url_for('insights.index') }}" class="{% if request.blueprint == 'insights' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">query_stats</span> {{ t['nav.insights'] }}
+            </a></li>
+            {% endif %}
+
 
             {% if can_approve_any %}
             <li><a href="{{ url_for('approvals.index') }}" class="{% if request.blueprint == 'approvals' %}active{% endif %}">

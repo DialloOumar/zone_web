@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.insights'] }}{% endblock %}
+{% block page_title %}{{ t['nav.insights'] }}{% endblock %}
+
+{% macro unit(t_, code) %}{{ t_['unit.' + code] }}{% endmacro %}
+
+{% block content %}
+
+<form method="get" class="filter-bar">
+    <div class="field" style="min-width:135px;">
+        <input type="month" name="month" value="{{ month }}" placeholder=" ">
+        <label>{{ t['entry.month'] }}</label>
+    </div>
+    {% if fleets|length > 1 %}
+    <div class="field field--select" style="min-width:150px;">
+        <select name="fleet_id">
+            <option value="">{{ t['entry.all_fleets'] }}</option>
+            {% for fl in fleets %}<option value="{{ fl.id }}" {% if fleet_id == fl.id %}selected{% endif %}>{{ fl.name }}</option>{% endfor %}
+        </select>
+        <label>{{ t['vehicle.fleet'] }}</label>
+    </div>
+    {% endif %}
+    <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+</form>
+
+<div class="stat-grid">
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--green material-symbols-outlined">payments</span>
+        <div>
+            <div class="stat-value">{{ '{:,.0f}'.format(fleet_total) }}<span class="stat-unit"> {{ currency }}</span></div>
+            <div class="stat-label">{{ t['insights.fleet_total'] }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon {{ 'stat-icon--red' if over_count else 'stat-icon--teal' }} material-symbols-outlined">local_gas_station</span>
+        <div>
+            <div class="stat-value">{{ over_count }}</div>
+            <div class="stat-label">{{ t['insights.over_baseline'] }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon {{ 'stat-icon--amber' if idle_count else 'stat-icon--teal' }} material-symbols-outlined">bedtime</span>
+        <div>
+            <div class="stat-value">{{ idle_count }}</div>
+            <div class="stat-label">{{ t['insights.idle_count'] }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── 1. Fuel vs. baseline ─────────────────────────────────────────── -->
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['insights.fuel_title'] }}</h2>
+        <span class="muted small">{{ t['insights.fuel_hint'] }}</span>
+    </div>
+    {% if fuel_rows %}
+    <div class="chart-box" style="height:240px;"><canvas id="chart-fuel"></canvas></div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['entry.vehicle'] }}</th>
+                <th style="text-align:right;">{{ t['insights.activity'] }}</th>
+                <th style="text-align:right;">{{ t['insights.expected_l'] }}</th>
+                <th style="text-align:right;">{{ t['insights.actual_l'] }}</th>
+                <th style="text-align:right;">{{ t['insights.variance'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in fuel_rows %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('vehicles.detail', vid=r.v.id) }}"><strong>{{ r.v.code }}</strong></a>
+                    <span class="chip chip--{{ r.v.category.code|lower }}">{{ r.v.category.label_fr if lang == 'fr' else r.v.category.label }}</span>
+                </td>
+                <td style="text-align:right;">{{ '%.0f'|format(r.units) }} {{ unit(t, r.unit_type) }}</td>
+                <td style="text-align:right;">{{ '%.0f'|format(r.expected_l) }} L</td>
+                <td style="text-align:right;">{{ '%.0f'|format(r.actual_l) }} L</td>
+                <td style="text-align:right;">
+                    <span class="variance {% if r.var_pct >= over_danger %}variance--danger{% elif r.var_pct >= over_warn %}variance--warn{% elif r.var_pct < 0 %}variance--good{% endif %}">
+                        {{ '+' if r.var_pct >= 0 else '' }}{{ '%.0f'|format(r.var_pct) }}%
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">local_gas_station</span>
+        <p>{{ t['insights.fuel_empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+
+<!-- ── 2. Cost per vehicle ──────────────────────────────────────────── -->
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['insights.cost_title'] }}</h2>
+    </div>
+    {% if cost_rows %}
+    <div class="chart-box" style="height:260px;"><canvas id="chart-cost"></canvas></div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['entry.vehicle'] }}</th>
+                <th style="text-align:right;">{{ t['expense.cat.fuel'] }}</th>
+                <th style="text-align:right;">{{ t['nav.maintenance'] }}</th>
+                <th style="text-align:right;">{{ t['insights.other'] }}</th>
+                <th style="text-align:right;">{{ t['insights.total'] }}</th>
+                <th style="text-align:right;">{{ t['insights.per_unit'] }}</th>
+                <th style="text-align:right;">{{ t['insights.per_km'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in cost_rows %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('vehicles.detail', vid=r.v.id) }}"><strong>{{ r.v.code }}</strong></a>
+                </td>
+                <td style="text-align:right;">{{ '{:,.0f}'.format(r.fuel) }}</td>
+                <td style="text-align:right;">{{ '{:,.0f}'.format(r.maint) }}</td>
+                <td style="text-align:right;">{{ '{:,.0f}'.format(r.other) }}</td>
+                <td style="text-align:right;"><strong>{{ '{:,.0f}'.format(r.total) }}</strong></td>
+                <td style="text-align:right;">{% if r.per_unit is not none %}{{ '{:,.0f}'.format(r.per_unit) }}/{{ unit(t, r.unit_type) }}{% else %}—{% endif %}</td>
+                <td style="text-align:right;">{% if r.per_km is not none %}{{ '{:,.0f}'.format(r.per_km) }}/km{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="muted small">{{ t['insights.cost_note'] }}</p>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">payments</span>
+        <p>{{ t['dash.no_activity'] }}</p>
+    </div>
+    {% endif %}
+</section>
+
+<!-- ── 3. Idle / under-utilised ─────────────────────────────────────── -->
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['insights.idle_title'] }}</h2>
+        <span class="muted small">{{ t['insights.idle_hint']|replace('%d', idle_days|string) }}</span>
+    </div>
+    {% if idle_rows %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['entry.vehicle'] }}</th>
+                <th>{{ t['vehicle.fleet'] }}</th>
+                <th>{{ t['insights.last_activity'] }}</th>
+                <th style="text-align:right;">{{ t['insights.days_idle'] }}</th>
+                <th style="text-align:right;">{{ t['insights.activity'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in idle_rows %}
+            <tr class="{% if r.idle %}row-idle{% endif %}">
+                <td>
+                    <a href="{{ url_for('vehicles.detail', vid=r.v.id) }}"><strong>{{ r.v.code }}</strong></a>
+                    {% if r.idle %}<span class="chip chip--idle">{{ t['insights.idle_badge'] }}</span>{% endif %}
+                </td>
+                <td>{{ r.v.fleet.name }}</td>
+                <td>{% if r.last_date %}{{ r.last_date }}{% else %}<span class="muted">{{ t['insights.never'] }}</span>{% endif %}</td>
+                <td style="text-align:right;">{% if r.days is not none %}{{ r.days }}{% else %}—{% endif %}</td>
+                <td style="text-align:right;">{{ '%.0f'|format(r.units) }} {{ unit(t, r.unit_type) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">directions_bus</span>
+        <p>{{ t['insights.idle_empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+
+<script id="fuel-chart-data" type="application/json">{{ fuel_chart|tojson }}</script>
+<script id="cost-chart-data" type="application/json">{{ cost_chart|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}?v={{ v }}"></script>
+<script>
+(function () {
+    if (typeof Chart === "undefined") return;
+    var css = getComputedStyle(document.documentElement);
+    var v = function (n) { return css.getPropertyValue(n).trim(); };
+    var textColor = v("--md-on-surface-variant") || "#666";
+    var gridColor = v("--md-outline-variant") || "#ddd";
+    var currency = {{ currency|tojson }};
+    Chart.defaults.font.family = "Roboto, sans-serif";
+    Chart.defaults.color = textColor;
+    var money = function (n) { return Number(n).toLocaleString() + " " + currency; };
+
+    // 1. Fuel variance % per vehicle — red over baseline, green under.
+    var fd = JSON.parse(document.getElementById("fuel-chart-data").textContent);
+    var fEl = document.getElementById("chart-fuel");
+    if (fEl && fd.labels.length) {
+        new Chart(fEl, {
+            type: "bar",
+            data: {
+                labels: fd.labels,
+                datasets: [{
+                    data: fd.values,
+                    backgroundColor: fd.values.map(function (x) { return x >= 0 ? v("--c-red") : v("--c-green"); }),
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: function (c) { return (c.parsed.y >= 0 ? "+" : "") + c.parsed.y + "%"; } } },
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: textColor } },
+                    y: { grid: { color: gridColor }, ticks: { color: textColor, callback: function (x) { return x + "%"; } } },
+                },
+            },
+        });
+    }
+
+    // 2. Cost per vehicle — stacked fuel / maintenance / other.
+    var cd = JSON.parse(document.getElementById("cost-chart-data").textContent);
+    var cEl = document.getElementById("chart-cost");
+    if (cEl && cd.labels.length) {
+        new Chart(cEl, {
+            type: "bar",
+            data: {
+                labels: cd.labels,
+                datasets: [
+                    { label: {{ t['expense.cat.fuel']|tojson }}, data: cd.fuel,  backgroundColor: v("--c-blue") },
+                    { label: {{ t['nav.maintenance']|tojson }},  data: cd.maint, backgroundColor: v("--c-orange") },
+                    { label: {{ t['insights.other']|tojson }},   data: cd.other, backgroundColor: v("--c-teal") },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: "top", labels: { color: textColor, boxWidth: 12 } },
+                    tooltip: { callbacks: { label: function (c) { return c.dataset.label + ": " + money(c.parsed.y); } } },
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: { color: textColor } },
+                    y: {
+                        stacked: true, grid: { color: gridColor },
+                        ticks: {
+                            color: textColor,
+                            callback: function (x) { if (x >= 1e6) return (x / 1e6) + "M"; if (x >= 1e3) return (x / 1e3) + "k"; return x; },
+                        },
+                    },
+                },
+            },
+        });
+    }
+})();
+</script>
+{% endblock %}
