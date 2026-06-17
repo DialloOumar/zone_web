@@ -5,13 +5,6 @@
 
 {% block content %}
 
-<section class="welcome-banner">
-    <h2>{{ t['dash.welcome'] }}, {{ current_user.full_name }} 👋</h2>
-    <p>
-        {% if is_super_admin %}{{ t['dash.super_sub'] }}{% else %}{{ t['app.tagline'] }}{% endif %}
-    </p>
-</section>
-
 <div class="stat-grid">
     <div class="stat-card">
         <span class="stat-icon stat-icon--indigo material-symbols-outlined">workspaces</span>
