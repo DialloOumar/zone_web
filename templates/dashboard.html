@@ -41,6 +41,82 @@
             <div class="stat-label">{{ t['nav.alerts'] }}</div>
         </div>
     </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--green material-symbols-outlined">payments</span>
+        <div>
+            <div class="stat-value">{{ '{:,}'.format(stats.month_spend) }}<span class="stat-unit"> GNF</span></div>
+            <div class="stat-label">{{ t['dash.month_spend'] }}</div>
+        </div>
+    </div>
+    {% if can_approve_any %}
+    <a class="stat-card" href="{{ url_for('approvals.index') }}">
+        <span class="stat-icon {{ 'stat-icon--amber' if pending_approvals else 'stat-icon--teal' }} material-symbols-outlined">pending_actions</span>
+        <div>
+            <div class="stat-value">{{ pending_approvals }}</div>
+            <div class="stat-label">{{ t['dash.pending'] }}</div>
+        </div>
+    </a>
+    {% endif %}
+</div>
+
+<div class="dash-panels">
+    <section class="card dash-panel">
+        <div class="card-header">
+            <h2>{{ t['dash.open_alerts'] }}</h2>
+            {% if has_perm('alert.view') %}
+            <a class="link-more" href="{{ url_for('maintenance.alerts') }}">{{ t['dash.view_all'] }}</a>
+            {% endif %}
+        </div>
+        {% if open_alerts %}
+        <div class="alert-list">
+            {% for a in open_alerts %}
+            <div class="alert-card alert-card--{{ a.severity }}">
+                <div class="alert-card__body">
+                    <div class="alert-card__msg">{{ a.message }}</div>
+                    <div class="alert-card__meta">
+                        <a href="{{ url_for('vehicles.detail', vid=a.vehicle_id) }}"><strong>{{ a.vehicle.code }}</strong></a>
+                        · {{ a.triggered_at.strftime('%Y-%m-%d') }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state empty-state--soft">
+            <span class="material-symbols-outlined">task_alt</span>
+            <p>{{ t['dash.no_alerts'] }}</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="card dash-panel">
+        <div class="card-header">
+            <h2>{{ t['dash.recent_activity'] }}</h2>
+            {% if has_perm('entry.view') %}
+            <a class="link-more" href="{{ url_for('entries.index') }}">{{ t['dash.view_all'] }}</a>
+            {% endif %}
+        </div>
+        {% if recent_entries %}
+        <ul class="activity-list">
+            {% for e in recent_entries %}
+            <li class="activity-item">
+                <span class="chip chip--{{ e.vehicle.category.code|lower }}">{{ e.vehicle.code }}</span>
+                <span class="activity-main">
+                    {%- if e.trips is not none %}{{ e.trips }} {{ t['unit.trips'] }}{% endif -%}
+                    {%- if e.hours is not none %}{% if e.trips is not none %} · {% endif %}{{ e.hours }} {{ t['unit.hours'] }}{% endif -%}
+                    {%- if e.kilometers is not none %} · {{ e.kilometers }} km{% endif -%}
+                </span>
+                <span class="muted small">{{ e.date }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="empty-state empty-state--soft">
+            <span class="material-symbols-outlined">list_alt</span>
+            <p>{{ t['dash.no_activity'] }}</p>
+        </div>
+        {% endif %}
+    </section>
 </div>
 
 {% endblock %}

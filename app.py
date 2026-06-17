@@ -337,13 +337,39 @@ def dashboard():
         oq = oq.filter(Operator.fleet_id.in_(fleet_ids))
         fq = fq.filter(Fleet.id.in_(fleet_ids))
         aq = aq.join(Vehicle, Alert.vehicle_id == Vehicle.id).filter(Vehicle.fleet_id.in_(fleet_ids))
+    # This-month spend (Expense carries its own fleet_id — no join needed).
+    month_prefix = datetime.utcnow().strftime("%Y-%m")
+    eq = Expense.query.filter(Expense.date.like(month_prefix + "%"))
+    if fleet_ids is not None:
+        eq = eq.filter(Expense.fleet_id.in_(fleet_ids))
+    month_spend = eq.with_entities(db.func.coalesce(db.func.sum(Expense.amount), 0)).scalar()
+
     stats = {
         "fleets": fq.count(),
         "vehicles": vq.count(),
         "operators": oq.count(),
         "alerts_open": aq.count(),
+        "month_spend": month_spend,
     }
-    return render_template("dashboard.html", stats=stats)
+
+    # Open alerts — newest first, scoped via the vehicle's fleet.
+    alq = Alert.query.filter(Alert.status == "open")
+    if fleet_ids is not None:
+        alq = alq.join(Vehicle, Alert.vehicle_id == Vehicle.id).filter(Vehicle.fleet_id.in_(fleet_ids))
+    open_alerts = alq.order_by(Alert.triggered_at.desc()).limit(6).all()
+
+    # Recent daily entries — latest operational activity.
+    enq = DailyEntry.query
+    if fleet_ids is not None:
+        enq = enq.join(Vehicle, DailyEntry.vehicle_id == Vehicle.id).filter(Vehicle.fleet_id.in_(fleet_ids))
+    recent_entries = enq.order_by(DailyEntry.date.desc(), DailyEntry.id.desc()).limit(8).all()
+
+    return render_template(
+        "dashboard.html",
+        stats=stats,
+        open_alerts=open_alerts,
+        recent_entries=recent_entries,
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])

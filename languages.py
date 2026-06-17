@@ -28,6 +28,13 @@ TRANSLATIONS = {
         # Dashboard
         "dash.welcome":   "Bienvenue",
         "dash.super_sub": "Super admin — accès complet à la configuration et à toutes les flottes.",
+        "dash.month_spend":      "Dépenses du mois",
+        "dash.pending":          "À valider",
+        "dash.open_alerts":      "Alertes ouvertes",
+        "dash.recent_activity":  "Activité récente",
+        "dash.no_alerts":        "Aucune alerte ouverte. Tout est en ordre.",
+        "dash.no_activity":      "Aucune saisie récente.",
+        "dash.view_all":         "Tout voir",
 
         # Nav
         "nav.dashboard":            "Tableau de bord",
@@ -534,6 +541,13 @@ TRANSLATIONS = {
 
         "dash.welcome":   "Welcome",
         "dash.super_sub": "Super admin — full access to configuration and all fleets.",
+        "dash.month_spend":      "This month's spend",
+        "dash.pending":          "To approve",
+        "dash.open_alerts":      "Open alerts",
+        "dash.recent_activity":  "Recent activity",
+        "dash.no_alerts":        "No open alerts. All clear.",
+        "dash.no_activity":      "No recent entries.",
+        "dash.view_all":         "View all",
 
         "nav.dashboard":            "Dashboard",
         "nav.vehicles":             "Vehicles",
