@@ -4,13 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ t['auth.login'] }} — {{ t['app.title'] }}</title>
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/icon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="auth-body">
 
 <div class="auth-card">
-    <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ t['app.title'] }}" class="auth-logo">
+    <h1 class="auth-card__title">{{ t['app.title'] }}</h1>
+    <p class="auth-card__tagline">{{ t['app.tagline'] }}</p>
 
     {% if error %}
     <div class="alert alert--error">{{ error }}</div>

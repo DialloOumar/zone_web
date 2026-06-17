@@ -4,15 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ t['app.title'] }}{% endblock %} — {{ t['app.title'] }}</title>
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/icon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ v }}">
 </head>
 <body>
     <nav class="sidebar">
         <div class="sidebar-logo">
-            <a href="{{ url_for('dashboard') }}" class="sidebar-logo-link">
-                <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ t['app.title'] }}" class="sidebar-logo-img">
-            </a>
+            <span class="sidebar-brand">{{ t['app.title'] }}</span>
+            <span class="sidebar-brand-tag">{{ t['app.tagline'] }}</span>
         </div>
 
         <ul class="sidebar-nav">
