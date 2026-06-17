@@ -738,7 +738,9 @@ a:hover { text-decoration: underline; }
 .roster-empty.is-static { pointer-events: none; }
 
 /* ── Filter bar (select + date inputs) ── */
-.filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px; }
+.filter-bar .btn { margin-bottom: 1px; }
+.filter-or { color: var(--md-on-surface-variant); font-size: 0.82rem; padding-bottom: 9px; }
 
 /* ── Filter chips (clickable) ── */
 .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }

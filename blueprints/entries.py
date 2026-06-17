@@ -14,14 +14,14 @@ Reuses the shared permission, approval/grace, audit, and modal machinery.
 """
 from datetime import date, datetime, timedelta
 
-from flask import (Blueprint, abort, flash, redirect, render_template,
-                   request, url_for)
+from flask import (Blueprint, abort, flash, make_response, redirect,
+                   render_template, request, url_for)
 from flask_login import current_user, login_required
 
 import maintenance_engine
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, submit_change)
-from models import DailyEntry, Fleet, Operator, Vehicle, db
+from models import DailyEntry, Fleet, Operator, Vehicle, VehicleCategory, db
 
 entries_bp = Blueprint("entries", __name__)
 
@@ -91,6 +91,24 @@ def _valid_date(s):
         return True
     except ValueError:
         return False
+
+
+def _valid_month(s):
+    try:
+        datetime.strptime(s, "%Y-%m")
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _accessible_categories():
+    if current_user_fleet_ids() is None:
+        return VehicleCategory.query.order_by(VehicleCategory.sort_order).all()
+    codes = set()
+    for fl in _accessible_fleets():
+        codes.update(fl.categories or [])
+    return (VehicleCategory.query.filter(VehicleCategory.code.in_(codes))
+            .order_by(VehicleCategory.sort_order).all())
 
 
 def _recompute_cumulatives(vehicle_id):
@@ -173,23 +191,99 @@ def _render_entry_form(entry, error=None):
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 
+def _filter_values():
+    return {
+        "fleet_id": request.args.get("fleet_id", type=int),
+        "vehicle_id": request.args.get("vehicle_id", type=int),
+        "category_id": request.args.get("category_id", type=int),
+        "operator": (request.args.get("operator") or "").strip(),
+        "month": request.args.get("month") or "",
+        "date_from": request.args.get("date_from") or "",
+        "date_to": request.args.get("date_to") or "",
+    }
+
+
+def _apply_filters(q):
+    """Apply the daily-entry filters from request.args to a Vehicle-joined query.
+    A month takes precedence over the date range (batmex-style)."""
+    f = _filter_values()
+    if f["fleet_id"]:
+        q = q.filter(Vehicle.fleet_id == f["fleet_id"])
+    if f["category_id"]:
+        q = q.filter(Vehicle.category_id == f["category_id"])
+    if f["vehicle_id"]:
+        q = q.filter(DailyEntry.vehicle_id == f["vehicle_id"])
+    if f["operator"]:
+        q = q.filter(DailyEntry.operator == f["operator"])
+    if f["month"] and _valid_month(f["month"]):
+        q = q.filter(DailyEntry.date.like(f["month"] + "-%"))
+    else:
+        if f["date_from"] and _valid_date(f["date_from"]):
+            q = q.filter(DailyEntry.date >= f["date_from"])
+        if f["date_to"] and _valid_date(f["date_to"]):
+            q = q.filter(DailyEntry.date <= f["date_to"])
+    return q
+
+
 @entries_bp.route("/entries")
 @login_required
 @require_perm("entry.view")
 def index():
-    vehicles = _accessible_vehicles()
-    fv = request.args.get("vehicle_id", type=int)
-    fd = request.args.get("date") or ""
+    entries = (_apply_filters(_scoped_entries())
+               .order_by(DailyEntry.date.desc(), DailyEntry.id.desc()).limit(500).all())
+    return render_template("entries.html", entries=entries,
+                           fleets=_accessible_fleets(), vehicles=_accessible_vehicles(),
+                           categories=_accessible_categories(),
+                           operators=_accessible_operators(), f=_filter_values())
 
-    q = _scoped_entries()
-    if fv:
-        q = q.filter(DailyEntry.vehicle_id == fv)
-    if fd and _valid_date(fd):
-        q = q.filter(DailyEntry.date == fd)
-    entries = q.order_by(DailyEntry.date.desc(), DailyEntry.id.desc()).limit(200).all()
 
-    return render_template("entries.html", entries=entries, vehicles=vehicles,
-                           fv=fv, fd=fd)
+@entries_bp.route("/entries/export.pdf")
+@login_required
+@require_perm("report.export_pdf")
+def export_pdf():
+    """Export the filtered daily entries as a printable PDF (batmex-style)."""
+    t = get_t()
+    try:
+        import weasyprint
+    except Exception:
+        flash("error|" + t["export.unavailable"])
+        return redirect(url_for("entries.index", **request.args.to_dict()))
+    entries = (_apply_filters(_scoped_entries())
+               .order_by(DailyEntry.date.desc(), DailyEntry.id.desc()).limit(1000).all())
+
+    f = _filter_values()
+    parts = []
+    if f["fleet_id"]:
+        fl = db.session.get(Fleet, f["fleet_id"])
+        if fl:
+            parts.append(fl.name)
+    if f["category_id"]:
+        cat = db.session.get(VehicleCategory, f["category_id"])
+        if cat:
+            parts.append(cat.label_fr or cat.label)
+    if f["vehicle_id"]:
+        v = db.session.get(Vehicle, f["vehicle_id"])
+        if v:
+            parts.append(v.code)
+    if f["operator"]:
+        parts.append(f["operator"])
+    if f["month"] and _valid_month(f["month"]):
+        parts.append(f["month"])
+    elif f["date_from"] or f["date_to"]:
+        parts.append("%s → %s" % (f["date_from"] or "…", f["date_to"] or "…"))
+    subtitle = " · ".join(parts) if parts else t["export.all_vehicles"]
+
+    html = render_template(
+        "entries_pdf.html", entries=entries, subtitle=subtitle,
+        total_km=sum(e.kilometers or 0 for e in entries),
+        total_trips=sum(e.trips or 0 for e in entries),
+        total_hours=sum(e.hours or 0 for e in entries),
+        generated=datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+    resp = make_response(weasyprint.HTML(string=html).write_pdf())
+    resp.headers["Content-Type"] = "application/pdf"
+    stamp = f["month"] or f["date_from"] or f["date_to"] or datetime.utcnow().strftime("%Y-%m-%d")
+    resp.headers["Content-Disposition"] = "inline; filename=saisie_%s.pdf" % stamp
+    return resp
 
 
 @entries_bp.route("/roster")
