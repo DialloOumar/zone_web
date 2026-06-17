@@ -833,6 +833,227 @@ def grant_fleet_cmd(user, fleet, role):
     click.echo(f"{action}: {u.username} → {f.name} as {r.name}")
 
 
+# Demo fleets: (name, slug, [category codes]). Categories must already be seeded.
+DEMO_FLEETS = [
+    ("Zone Nord", "zone-nord", ["BUS", "NAVETTE", "SERVICE"]),
+    ("Zone Sud",  "zone-sud",  ["CAMION_TSF", "MACHINE_TSF", "CITERNE"]),
+]
+
+# Demo vehicles: (code, category code, fleet slug, fuel factor, idle?).
+# fuel factor scales consumption vs. baseline so Insights has a story:
+# 1.3 = 30% over (loss), 0.8 = under, ~1.0 = normal. idle = no recent entries.
+DEMO_VEHICLES = [
+    ("BUS-01",     "BUS",         "zone-nord", 1.32, False),
+    ("BUS-02",     "BUS",         "zone-nord", 1.04, False),
+    ("NAV-07",     "NAVETTE",     "zone-nord", 0.82, False),
+    ("SRV-01",     "SERVICE",     "zone-nord", 1.00, True),
+    ("CAM-TSF-03", "CAMION_TSF",  "zone-sud",  1.06, False),
+    ("MAC-TSF-01", "MACHINE_TSF", "zone-sud",  0.97, False),
+    ("CIT-05",     "CITERNE",     "zone-sud",  1.10, False),
+]
+
+DEMO_OPERATORS = {
+    "zone-nord": ["Mamadou Diallo", "Aïssatou Bah", "Ousmane Camara"],
+    "zone-sud":  ["Saïkou Barry", "Fatoumata Sow", "Ibrahima Touré"],
+}
+
+FUEL_PRICE_GNF = 13_000  # per liter
+
+
+@app.cli.command("seed-demo")
+@click.option("--days", default=80, help="how many past days of activity to generate")
+@click.option("--force", is_flag=True, help="proceed even if demo data already exists")
+def seed_demo_cmd(days, force):
+    """Populate realistic operational demo data (fleets, vehicles, operators,
+    daily entries, fuel/other expenses, maintenance rules + records, alerts).
+
+    Built so the dashboard and Insights tell a story: one vehicle consistently
+    over its fuel baseline (loss), one under, one idle, plus open alerts and
+    six months of spend. Idempotent on stable keys (fleet slug, vehicle code,
+    operator name); safe to re-run, but new dated rows accumulate, so use a
+    fresh DB for a clean demo.
+    """
+    import random
+    from datetime import date, timedelta
+    rng = random.Random(42)  # deterministic
+
+    if Vehicle.query.first() and not force:
+        click.echo("Vehicles already exist. Re-run with --force to add demo data anyway.", err=True)
+        raise SystemExit(1)
+
+    _seed_default_categories_data()
+    cats = {c.code: c for c in VehicleCategory.query.all()}
+    if not cats:
+        click.echo("No vehicle categories found — run `flask seed` first.", err=True)
+        raise SystemExit(1)
+
+    # Fleets
+    fleets = {}
+    for name, slug, cat_codes in DEMO_FLEETS:
+        f = Fleet.query.filter_by(slug=slug).first()
+        if not f:
+            f = Fleet(name=name, slug=slug, categories=cat_codes)
+            db.session.add(f)
+        fleets[slug] = f
+    db.session.flush()
+
+    # Operators
+    for slug, names in DEMO_OPERATORS.items():
+        for nm in names:
+            if not Operator.query.filter_by(fleet_id=fleets[slug].id, name=nm).first():
+                db.session.add(Operator(fleet_id=fleets[slug].id, name=nm, is_active=True))
+    db.session.flush()
+    ops_by_fleet = {
+        slug: [o.name for o in Operator.query.filter_by(fleet_id=fleets[slug].id).all()]
+        for slug in fleets
+    }
+
+    # Vehicles
+    vehicles = {}
+    for code, cat_code, slug, factor, idle in DEMO_VEHICLES:
+        v = Vehicle.query.filter_by(code=code).first()
+        if not v:
+            v = Vehicle(code=code, category_id=cats[cat_code].id, fleet_id=fleets[slug].id, is_active=True)
+            db.session.add(v)
+        vehicles[code] = (v, cat_code, slug, factor, idle)
+    db.session.flush()
+
+    today = date.today()
+    start = today - timedelta(days=days)
+
+    # Daily entries + running cumulative; tally units & km per (vehicle, month).
+    units_vm, km_vm = {}, {}
+    cum_km, cum_h = {}, {}
+    for code, (v, cat_code, slug, factor, idle) in vehicles.items():
+        cat = cats[cat_code]
+        cum_km[code] = 0.0
+        cum_h[code] = 0.0
+        d = start
+        while d <= today:
+            # SRV-01 (idle) stops logging 22 days ago; everyone skips ~weekends/random days.
+            recent_cut = today - timedelta(days=22)
+            skip = (idle and d > recent_cut) or rng.random() < 0.25
+            if not skip:
+                ym = d.strftime("%Y-%m")
+                op = rng.choice(ops_by_fleet[slug]) if ops_by_fleet[slug] else None
+                km = round(rng.uniform(40, 120) if cat.unit_type == "trips" else rng.uniform(0, 30), 0)
+                cum_km[code] += km
+                if cat.unit_type == "trips":
+                    trips = rng.randint(4, 16)
+                    hours = None
+                    units_vm[(code, ym)] = units_vm.get((code, ym), 0) + trips
+                else:
+                    hours = round(rng.uniform(5, 11), 1)
+                    trips = None
+                    cum_h[code] += hours
+                    units_vm[(code, ym)] = units_vm.get((code, ym), 0) + hours
+                km_vm[(code, ym)] = km_vm.get((code, ym), 0) + km
+                db.session.add(DailyEntry(
+                    vehicle_id=v.id, date=d.strftime("%Y-%m-%d"),
+                    trips=trips, hours=hours, kilometers=km,
+                    cumulative_km=round(cum_km[code], 1),
+                    cumulative_hours=round(cum_h[code], 1) if cat.unit_type == "hours" else None,
+                    operator=op,
+                ))
+            d += timedelta(days=1)
+    db.session.flush()
+
+    # Fuel expenses — one per (vehicle, month), coherent with logged activity,
+    # scaled by the vehicle's fuel factor so Insights variance is meaningful.
+    for code, (v, cat_code, slug, factor, idle) in vehicles.items():
+        baseline = cats[cat_code].default_baseline_l_per_unit or 10.0
+        months = sorted({ym for (c, ym) in units_vm if c == code})
+        for ym in months:
+            units = units_vm[(code, ym)]
+            liters = round(units * baseline * factor * rng.uniform(0.96, 1.04), 0)
+            if liters <= 0:
+                continue
+            db.session.add(Expense(
+                vehicle_id=v.id, fleet_id=v.fleet_id, category="fuel",
+                date=ym + "-08", amount=int(liters * FUEL_PRICE_GNF), liters=liters,
+                supplier="Total Énergies",
+            ))
+
+    # A few non-fuel expenses this month for the cost split.
+    this_month = today.strftime("%Y-%m")
+    extra = [
+        ("BUS-01",     "assurance", 1_500_000, "Assurance trimestrielle"),
+        ("CAM-TSF-03", "accident",    900_000, "Pare-brise remplacé"),
+        ("NAV-07",     "lavage",      150_000, None),
+        ("CIT-05",     "agent",       300_000, "Frais de mission"),
+    ]
+    for code, cat_c, amt, desc in extra:
+        v = vehicles[code][0]
+        db.session.add(Expense(
+            vehicle_id=v.id, fleet_id=v.fleet_id, category=cat_c,
+            date=this_month + "-12", amount=amt, description=desc,
+        ))
+
+    # Maintenance rules
+    rules = {}
+    rule_specs = [
+        ("Vidange 5000 km", "km_recurring",    5000, "warning",  "zone-nord", "oil_change"),
+        ("Révision 250 h",  "hours_recurring",  250, "critical", "zone-sud",  "inspection"),
+    ]
+    for name, rtype, interval, sev, slug, stype in rule_specs:
+        r = MaintenanceRule.query.filter_by(name=name).first()
+        if not r:
+            r = MaintenanceRule(name=name, type=rtype, interval=interval, severity=sev,
+                                fleet_id=fleets[slug].id, service_type=stype, is_active=True)
+            db.session.add(r)
+        rules[name] = r
+    db.session.flush()
+
+    # Maintenance records (past services) — these carry the maintenance cost.
+    rec_specs = [
+        ("BUS-02",     "oil_change", 18, 1_050_000, "Vidange + filtre"),
+        ("MAC-TSF-01", "inspection", 30, 2_400_000, "Révision 250h"),
+        ("CIT-05",     "tires",      45, 1_800_000, "2 pneus avant"),
+    ]
+    for code, rtype, days_ago, cost, desc in rec_specs:
+        v = vehicles[code][0]
+        db.session.add(MaintenanceRecord(
+            vehicle_id=v.id, type=rtype,
+            date=(today - timedelta(days=days_ago)).strftime("%Y-%m-%d"),
+            cost=cost, description=desc, supplier="Garage Central",
+            kilometers_at=round(cum_km.get(code, 0), 0),
+        ))
+
+    # Open alerts — the forward-looking "needs attention" list.
+    alert_specs = [
+        ("Vidange 5000 km", "BUS-01",     "warning",  "Vidange due (5 200 km depuis le dernier entretien)"),
+        ("Révision 250 h",  "CAM-TSF-03", "critical", "Révision moteur en retard (268 h)"),
+    ]
+    for rule_name, code, sev, msg in alert_specs:
+        v = vehicles[code][0]
+        db.session.add(Alert(
+            rule_id=rules[rule_name].id, vehicle_id=v.id,
+            severity=sev, message=msg, status="open",
+            triggered_at=datetime.utcnow() - timedelta(days=2),
+        ))
+
+    db.session.commit()
+
+    # Optional demo manager (scoped to Zone Nord) to showcase fleet scoping.
+    fm = Role.query.filter_by(slug="fleet_manager").first()
+    if fm and not User.query.filter_by(username="manager").first():
+        mgr = User(username="manager", full_name="Chef Zone Nord", is_super_admin=False, lang="fr")
+        mgr.set_password("manager123")
+        db.session.add(mgr)
+        db.session.flush()
+        db.session.add(UserFleet(user_id=mgr.id, fleet_id=fleets["zone-nord"].id, role_id=fm.id))
+        db.session.commit()
+        click.echo("  demo user: manager / manager123 (Fleet Manager on Zone Nord)")
+
+    click.echo(
+        "Demo data seeded: %d fleets, %d vehicles, %d operators, %d daily entries, "
+        "%d expenses, %d maintenance records, %d alerts."
+        % (Fleet.query.count(), Vehicle.query.count(), Operator.query.count(),
+           DailyEntry.query.count(), Expense.query.count(),
+           MaintenanceRecord.query.count(), Alert.query.count())
+    )
+
+
 # ── Blueprints ───────────────────────────────────────────────────────────────
 # Imported here, after the helpers and `app` are defined, so blueprint modules
 # can `from app import ...` without tripping a circular import. Each feature
