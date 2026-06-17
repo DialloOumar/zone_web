@@ -59,6 +59,30 @@
     {% endif %}
 </div>
 
+<div class="dash-charts">
+    <section class="card dash-chart">
+        <div class="card-header">
+            <h2>{{ t['dash.spend_trend'] }}</h2>
+            <span class="muted small">{{ t['dash.last_6_months'] }}</span>
+        </div>
+        <div class="chart-box"><canvas id="chart-spend-trend"></canvas></div>
+    </section>
+
+    <section class="card dash-chart">
+        <div class="card-header">
+            <h2>{{ t['dash.spend_by_cat'] }}</h2>
+        </div>
+        {% if charts.spend_by_cat.values %}
+        <div class="chart-box"><canvas id="chart-spend-cat"></canvas></div>
+        {% else %}
+        <div class="empty-state empty-state--soft">
+            <span class="material-symbols-outlined">donut_large</span>
+            <p>{{ t['dash.no_activity'] }}</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+
 <div class="dash-panels">
     <section class="card dash-panel">
         <div class="card-header">
@@ -119,4 +143,96 @@
     </section>
 </div>
 
+<script id="dash-chart-data" type="application/json">{{ charts|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}?v={{ v }}"></script>
+<script>
+(function () {
+    var el = document.getElementById("dash-chart-data");
+    if (!el || typeof Chart === "undefined") return;
+    var data = JSON.parse(el.textContent);
+    var currency = {{ currency|tojson }};
+
+    var css = getComputedStyle(document.documentElement);
+    var v = function (name) { return css.getPropertyValue(name).trim(); };
+    var textColor = v("--md-on-surface-variant") || "#666";
+    var gridColor = v("--md-outline-variant") || "#ddd";
+    var palette = ["--c-blue", "--c-green", "--c-orange", "--c-teal", "--c-indigo",
+                   "--c-red", "--c-purple", "--c-cyan", "--c-amber", "--c-pink"].map(v);
+
+    Chart.defaults.font.family = "Roboto, sans-serif";
+    Chart.defaults.color = textColor;
+
+    var fmt = function (n) { return Number(n).toLocaleString() + " " + currency; };
+
+    // ── Spend trend (line) ──
+    var trend = document.getElementById("chart-spend-trend");
+    if (trend) {
+        new Chart(trend, {
+            type: "line",
+            data: {
+                labels: data.spend_trend.labels,
+                datasets: [{
+                    data: data.spend_trend.values,
+                    borderColor: palette[0],
+                    backgroundColor: (v("--c-blue-bg") || palette[0]),
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointBackgroundColor: palette[0],
+                    borderWidth: 2,
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: function (c) { return fmt(c.parsed.y); } } },
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: textColor } },
+                    y: {
+                        beginAtZero: true, grid: { color: gridColor },
+                        ticks: {
+                            color: textColor,
+                            callback: function (val) {
+                                if (val >= 1e6) return (val / 1e6) + "M";
+                                if (val >= 1e3) return (val / 1e3) + "k";
+                                return val;
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    // ── Spend by category (doughnut) ──
+    var cat = document.getElementById("chart-spend-cat");
+    if (cat && data.spend_by_cat.values.length) {
+        new Chart(cat, {
+            type: "doughnut",
+            data: {
+                labels: data.spend_by_cat.labels,
+                datasets: [{
+                    data: data.spend_by_cat.values,
+                    backgroundColor: palette,
+                    borderWidth: 2,
+                    borderColor: v("--md-surface-container-low") || "#fff",
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                cutout: "62%",
+                plugins: {
+                    legend: { position: "right", labels: { color: textColor, boxWidth: 12, padding: 10 } },
+                    tooltip: { callbacks: { label: function (c) { return c.label + ": " + fmt(c.parsed); } } },
+                },
+            },
+        });
+    }
+})();
+</script>
 {% endblock %}

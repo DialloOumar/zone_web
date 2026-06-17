@@ -330,6 +330,61 @@ def modal_ok():
 # ── Base routes (auth + landing placeholder) ─────────────────────────────────
 
 
+# Localized short month labels for the spend-trend chart (index = month - 1).
+MONTH_ABBR = {
+    "fr": ["janv.", "févr.", "mars", "avr.", "mai", "juin",
+           "juil.", "août", "sept.", "oct.", "nov.", "déc."],
+    "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+}
+
+
+def _scoped_expense_sum(prefix, fleet_ids):
+    """Sum of scoped Expense.amount whose date string starts with `prefix`."""
+    q = Expense.query.filter(Expense.date.like(prefix + "%"))
+    if fleet_ids is not None:
+        q = q.filter(Expense.fleet_id.in_(fleet_ids))
+    return int(q.with_entities(db.func.coalesce(db.func.sum(Expense.amount), 0)).scalar() or 0)
+
+
+def _dashboard_charts(fleet_ids, now, lang):
+    """Build the two dashboard chart series, fleet-scoped.
+
+    1. spend_trend  — total spend per month over the last 6 months.
+    2. spend_by_cat — this month's spend grouped by expense category.
+    """
+    abbr = MONTH_ABBR.get(lang, MONTH_ABBR["en"])
+    t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+
+    # Last 6 months ending with the current one, oldest first.
+    trend_labels, trend_values = [], []
+    y, m = now.year, now.month
+    for i in range(5, -1, -1):
+        yy, mm = y, m - i
+        while mm <= 0:
+            mm += 12
+            yy -= 1
+        trend_labels.append(abbr[mm - 1])
+        trend_values.append(_scoped_expense_sum("%04d-%02d" % (yy, mm), fleet_ids))
+
+    # This-month spend by category (descending), labels translated.
+    prefix = now.strftime("%Y-%m")
+    cq = db.session.query(
+        Expense.category, db.func.coalesce(db.func.sum(Expense.amount), 0)
+    ).filter(Expense.date.like(prefix + "%"))
+    if fleet_ids is not None:
+        cq = cq.filter(Expense.fleet_id.in_(fleet_ids))
+    cat_rows = cq.group_by(Expense.category).order_by(db.func.sum(Expense.amount).desc()).all()
+
+    return {
+        "spend_trend": {"labels": trend_labels, "values": trend_values},
+        "spend_by_cat": {
+            "labels": [t.get("expense.cat." + code, code) for code, _ in cat_rows],
+            "values": [int(total or 0) for _, total in cat_rows],
+        },
+    }
+
+
 @app.route("/")
 @login_required
 def dashboard():
@@ -371,11 +426,14 @@ def dashboard():
         enq = enq.join(Vehicle, DailyEntry.vehicle_id == Vehicle.id).filter(Vehicle.fleet_id.in_(fleet_ids))
     recent_entries = enq.order_by(DailyEntry.date.desc(), DailyEntry.id.desc()).limit(8).all()
 
+    charts = _dashboard_charts(fleet_ids, datetime.utcnow(), current_lang())
+
     return render_template(
         "dashboard.html",
         stats=stats,
         open_alerts=open_alerts,
         recent_entries=recent_entries,
+        charts=charts,
     )
 
 

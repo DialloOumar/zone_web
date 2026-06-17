@@ -149,5 +149,6 @@
     </main>
 
     <script src="{{ url_for('static', filename='js/main.js') }}?v={{ v }}"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

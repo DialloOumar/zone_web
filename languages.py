@@ -35,6 +35,9 @@ TRANSLATIONS = {
         "dash.no_alerts":        "Aucune alerte ouverte. Tout est en ordre.",
         "dash.no_activity":      "Aucune saisie récente.",
         "dash.view_all":         "Tout voir",
+        "dash.spend_trend":      "Évolution des dépenses",
+        "dash.last_6_months":    "6 derniers mois",
+        "dash.spend_by_cat":     "Dépenses par catégorie",
 
         # Nav
         "nav.dashboard":            "Tableau de bord",
@@ -579,6 +582,9 @@ TRANSLATIONS = {
         "dash.no_alerts":        "No open alerts. All clear.",
         "dash.no_activity":      "No recent entries.",
         "dash.view_all":         "View all",
+        "dash.spend_trend":      "Spend trend",
+        "dash.last_6_months":    "Last 6 months",
+        "dash.spend_by_cat":     "Spend by category",
 
         "nav.dashboard":            "Dashboard",
         "nav.vehicles":             "Vehicles",

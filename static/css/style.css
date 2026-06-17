@@ -923,6 +923,19 @@ a.stat-card { text-decoration: none; color: inherit; }
 .activity-item:last-child { border-bottom: none; }
 .activity-main { flex: 1; font-size: 0.9rem; }
 
+/* ── Dashboard charts ── */
+.dash-charts {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+}
+@media (max-width: 860px) {
+    .dash-charts { grid-template-columns: 1fr; }
+}
+.dash-chart { margin: 0; }
+.chart-box { position: relative; height: 260px; }
+
 /* ── Audit log ── */
 .audit-table td { vertical-align: top; }
 .audit-detail { max-width: 360px; }
