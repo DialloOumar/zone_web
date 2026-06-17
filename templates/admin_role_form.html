@@ -19,7 +19,7 @@
                 <label for="description">{{ t['role.description'] }}</label>
             </div>
         </div>
-        <label class="checkbox-item" style="max-width: 420px;">
+        <label class="checkbox-item" style="max-width: 420px; margin-top: 16px;">
             <input type="checkbox" name="can_approve"
                    {% if (is_edit and role.can_approve) or (request.method == 'POST' and request.form.get('can_approve')) %}checked{% endif %}>
             <span>{{ t['role.can_approve_full'] }}</span>

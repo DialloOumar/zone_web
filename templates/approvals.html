@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.approvals'] }}{% endblock %}
+{% block page_title %}{{ t['nav.approvals'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.approvals'] }}{% if pending_count %} <span class="badge badge--warning">{{ pending_count }}</span>{% endif %}</h2>
+    </div>
+
+    <div class="filter-chips">
+        <a href="{{ url_for('approvals.index', status='pending') }}" class="filter-chip {% if show == 'pending' %}active{% endif %}">{{ t['approval.pending'] }}</a>
+        <a href="{{ url_for('approvals.index', status='approved') }}" class="filter-chip {% if show == 'approved' %}active{% endif %}">{{ t['approval.approved_tab'] }}</a>
+        <a href="{{ url_for('approvals.index', status='rejected') }}" class="filter-chip {% if show == 'rejected' %}active{% endif %}">{{ t['approval.rejected_tab'] }}</a>
+    </div>
+
+    {% if items %}
+    <div class="alert-list">
+        {% for it in items %}
+        {% set pc = it.pc %}
+        <div class="approval-card approval-card--{{ pc.status }}">
+            <div class="approval-card__head">
+                <div>
+                    <span class="badge badge--{{ 'warning' if pc.action == 'delete' else 'info' }}">{{ t['approval.action.' + pc.action] }}</span>
+                    <strong>{{ t['approval.res.' + pc.resource_type] }}</strong>
+                </div>
+                <div class="muted small">
+                    {{ it.requester.full_name if it.requester else '—' }}{% if it.fleet %} · {{ it.fleet.name }}{% endif %} · {{ pc.requested_at.strftime('%Y-%m-%d %H:%M') }}
+                </div>
+            </div>
+
+            {% if pc.reason %}<p class="muted small approval-card__reason">{{ t['approval.reason'] }} : {{ pc.reason }}</p>{% endif %}
+
+            {% if it.fields %}
+            <dl class="approval-fields">
+                {% for label, value in it.fields %}
+                <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+                {% endfor %}
+            </dl>
+            {% endif %}
+
+            {% if pc.status == 'pending' %}
+            <form method="post" action="{{ url_for('approvals.review', pid=pc.id) }}" class="approval-actions">
+                <input type="text" name="note" class="approval-note" placeholder="{{ t['approval.note'] }}">
+                <button type="submit" name="action" value="approve" class="btn btn--sm btn--primary">
+                    <span class="material-symbols-outlined">check_circle</span> {{ t['approval.approve'] }}
+                </button>
+                <button type="submit" name="action" value="reject" class="btn btn--sm btn--danger"
+                        onclick="return confirm('{{ t['approval.reject_confirm'] }}');">{{ t['approval.reject'] }}</button>
+            </form>
+            {% else %}
+            <div class="muted small" style="margin-top:8px;">
+                <span class="badge badge--{{ 'active' if pc.status == 'approved' else 'inactive' }}">{{ t['approval.status.' + pc.status] }}</span>
+                {% if pc.review_note %} — {{ pc.review_note }}{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">check_circle</span>
+        <p>{{ t['approval.empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

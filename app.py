@@ -90,16 +90,26 @@ def set_language(lang):
 @app.context_processor
 def _inject_globals():
     """Make `t`, `has_perm`, `lang`, `v` callable inside Jinja templates."""
+    can_approve_any = current_user.is_authenticated and (
+        current_user.is_super_admin or
+        any(uf.role and uf.role.can_approve for uf in current_user.user_fleets)
+    )
+    pending_approvals = 0
+    if can_approve_any:
+        q = PendingChange.query.filter_by(status="pending")
+        if not current_user.is_super_admin:
+            fids = [uf.fleet_id for uf in current_user.user_fleets
+                    if uf.role and uf.role.can_approve]
+            q = q.filter(PendingChange.fleet_id.in_(fids))
+        pending_approvals = q.count()
     return {
         "t": get_t(),
         "lang": current_lang(),
         "v": APP_VERSION,
         "has_perm": has_perm,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
-        "can_approve_any": current_user.is_authenticated and (
-            current_user.is_super_admin or
-            any(uf.role and uf.role.can_approve for uf in current_user.user_fleets)
-        ),
+        "can_approve_any": can_approve_any,
+        "pending_approvals": pending_approvals,
     }
 
 
@@ -742,6 +752,7 @@ from blueprints.expenses import expenses_bp  # noqa: E402
 from blueprints.maintenance import maintenance_bp  # noqa: E402
 from blueprints.operators import operators_bp  # noqa: E402
 from blueprints.vehicles import vehicles_bp  # noqa: E402
+from blueprints.approvals import approvals_bp  # noqa: E402  (imports entries/maintenance)
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(vehicles_bp)
@@ -749,6 +760,7 @@ app.register_blueprint(operators_bp)
 app.register_blueprint(entries_bp)
 app.register_blueprint(expenses_bp)
 app.register_blueprint(maintenance_bp)
+app.register_blueprint(approvals_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────

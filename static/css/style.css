@@ -571,6 +571,40 @@ a:hover { text-decoration: underline; }
 .chip--service     { background: var(--c-green-bg);  color: var(--c-green);  border-color: transparent; }
 .chip--autre       { background: var(--md-surface-container-high); color: var(--md-on-surface-variant); }
 
+/* ── Approvals ── */
+.nav-badge {
+    margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--c-amber); color: #fff; border-radius: var(--shape-full);
+    font-size: 0.72rem; font-weight: 700;
+}
+.approval-card {
+    border: 1px solid var(--md-outline-variant);
+    border-left: 4px solid var(--md-primary);
+    border-radius: var(--shape-md); padding: 14px 16px;
+}
+.approval-card--approved { border-left-color: var(--c-green); }
+.approval-card--rejected { border-left-color: var(--c-red); }
+.approval-card__head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+}
+.approval-card__head strong { margin-left: 6px; }
+.approval-card__reason { margin-top: 6px; }
+.approval-fields {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px 18px; margin: 12px 0 4px;
+}
+.approval-fields dt { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--md-on-surface-variant); }
+.approval-fields dd { font-size: 0.9rem; }
+.approval-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.approval-note {
+    flex: 1; min-width: 180px; padding: 8px 12px;
+    border: 1px solid var(--md-outline-variant); border-radius: var(--shape-sm);
+    font-family: inherit; font-size: 0.85rem; background: var(--md-surface); color: var(--md-on-surface);
+}
+.approval-note:focus { outline: none; border-color: var(--md-primary); }
+
 /* ── Permission grid (roles) ── */
 .perm-legend {
     display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 18px;

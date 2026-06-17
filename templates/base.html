@@ -71,8 +71,9 @@
             {% endif %}
 
             {% if can_approve_any %}
-            <li><a href="#" class="{% if request.endpoint == 'approvals' %}active{% endif %}">
+            <li><a href="{{ url_for('approvals.index') }}" class="{% if request.blueprint == 'approvals' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">pending_actions</span> {{ t['nav.approvals'] }}
+                {% if pending_approvals %}<span class="nav-badge">{{ pending_approvals }}</span>{% endif %}
             </a></li>
             {% endif %}
 
