@@ -44,13 +44,13 @@
     --sidebar-w: 248px;
 
     /* Color roles — indigo seed (#4f46e5) expanded into an MD3 tonal set */
-    --md-primary:                 #4f46e5;
+    --md-primary:                 #0F74BC;
     --md-on-primary:              #ffffff;
-    --md-primary-container:       #e2e0ff;
-    --md-on-primary-container:    #110065;
-    --md-secondary:               #5d5c72;
-    --md-secondary-container:     #e3e0f9;
-    --md-on-secondary-container:  #1a1a2c;
+    --md-primary-container:       #d4e9fb;
+    --md-on-primary-container:    #082a45;
+    --md-secondary:               #4f6070;
+    --md-secondary-container:     #dceaf6;
+    --md-on-secondary-container:  #0e1d2a;
     --md-tertiary:                #7d5260;
     --md-error:                   #ba1a1a;
     --md-on-error:                #ffffff;
@@ -132,13 +132,13 @@
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --md-primary:                 #c4c0ff;
-        --md-on-primary:              #1c00a9;
-        --md-primary-container:       #362fa0;
-        --md-on-primary-container:    #e2e0ff;
-        --md-secondary:               #c6c4dd;
-        --md-secondary-container:     #454559;
-        --md-on-secondary-container:  #e3e0f9;
+        --md-primary:                 #8ecaff;
+        --md-on-primary:              #00344f;
+        --md-primary-container:       #0a5285;
+        --md-on-primary-container:    #d4e9fb;
+        --md-secondary:               #b6c6d6;
+        --md-secondary-container:     #354654;
+        --md-on-secondary-container:  #d4e9fb;
         --md-error:                   #ffb4ab;
         --md-on-error:                #690005;
         --md-error-container:         #93000a;
