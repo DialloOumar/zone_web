@@ -8,7 +8,7 @@
                 <option value="" hidden></option>
                 {% set sel_v = request.form.get('vehicle_id')|int(0) or (entry.vehicle_id if is_edit else preset_vehicle or 0) %}
                 {% for v in vehicles %}
-                <option value="{{ v.id }}" data-unit="{{ v.category.unit_type }}"
+                <option value="{{ v.id }}" data-unit="{{ v.category.unit_type }}" data-fleet="{{ v.fleet_id }}"
                         {% if v.id == sel_v %}selected{% endif %}>{{ v.code }} — {{ v.category.label_fr if lang == 'fr' else v.category.label }}</option>
                 {% endfor %}
             </select>
@@ -40,13 +40,19 @@
                    value="{{ request.form.get('kilometers') or (entry.kilometers if is_edit and entry.kilometers is not none else '') }}">
             <label for="kilometers">{{ t['entry.km'] }}</label>
         </div>
-        <div class="field">
-            <input type="text" id="operator" name="operator" list="operators-list" placeholder=" "
-                   value="{{ request.form.get('operator') or (entry.operator if is_edit and entry.operator else '') }}">
+        <div class="field field--select">
+            {% set sel_op = request.form.get('operator') or (entry.operator if is_edit and entry.operator else '') %}
+            {% set op_names = operators|map(attribute='name')|list %}
+            <select id="operator" name="operator">
+                <option value="">{{ t['form.select'] }}</option>
+                {% for o in operators %}
+                <option value="{{ o.name }}" data-fleet="{{ o.fleet_id }}" {% if o.name == sel_op %}selected{% endif %}>{{ o.name }}</option>
+                {% endfor %}
+                {% if sel_op and sel_op not in op_names %}
+                <option value="{{ sel_op }}" data-fleet="" selected>{{ sel_op }}</option>
+                {% endif %}
+            </select>
             <label for="operator">{{ t['entry.operator'] }}</label>
-            <datalist id="operators-list">
-                {% for o in operators %}<option value="{{ o.name }}"></option>{% endfor %}
-            </datalist>
         </div>
     </div>
 
@@ -64,18 +70,33 @@
 </form>
 
 <script>
-// Show the trips field for trip-tracked vehicles and the hours field for
-// hour-tracked ones, based on the selected vehicle's category.
+// Adapt the form to the selected vehicle: show the right unit field (trips
+// vs hours) for its category, and restrict the conducteur list to drivers of
+// that vehicle's fleet.
 (function () {
     var vSel = document.getElementById("vehicle_id");
     var trips = document.getElementById("field-trips");
     var hours = document.getElementById("field-hours");
+    var opSel = document.getElementById("operator");
     if (!vSel) return;
     function refresh() {
         var opt = vSel.options[vSel.selectedIndex];
         var unit = (opt && opt.dataset.unit) || "";
+        var fleet = (opt && opt.dataset.fleet) || "";
         if (trips) trips.style.display = unit === "trips" ? "" : "none";
         if (hours) hours.style.display = unit === "hours" ? "" : "none";
+        if (opSel) {
+            Array.prototype.forEach.call(opSel.options, function (o) {
+                if (!o.value) return;  // keep the placeholder
+                // Hide drivers from other fleets; always keep a preserved
+                // legacy value (data-fleet="") visible.
+                var ok = !fleet || !o.dataset.fleet || o.dataset.fleet === fleet;
+                o.hidden = !ok;
+                o.disabled = !ok;
+            });
+            var cur = opSel.selectedOptions[0];
+            if (cur && cur.hidden) opSel.value = "";  // reset if now out of scope
+        }
     }
     vSel.addEventListener("change", refresh);
     refresh();
