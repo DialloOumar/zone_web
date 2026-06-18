@@ -19,11 +19,28 @@ services:
     build: .
     restart: always
     env_file: .env
+    expose:
+      - "8000"                  # internal only; Caddy reaches it at web:8000
     ports:
-      - "127.0.0.1:8001:8000"   # avoid clashing with batmex_web on 8000
+      - "127.0.0.1:8001:8000"   # local debug on the host loopback (optional)
     depends_on:
       db:
         condition: service_healthy
 
+  caddy:
+    image: caddy:2
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data         # persisted TLS certificates
+      - caddy_config:/config
+    depends_on:
+      - web
+
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:

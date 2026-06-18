@@ -1,0 +1,19 @@
+# Auto-HTTPS reverse proxy for zone-equip.com.
+# Caddy provisions and renews Let's Encrypt certs automatically — the only
+# prerequisites are that the domain's A records point at this server and
+# ports 80 + 443 are open to the internet.
+
+{
+	# Email used by Let's Encrypt for expiry notices (optional).
+	email admin@zone-equip.com
+}
+
+# Redirect the www host to the bare domain.
+www.zone-equip.com {
+	redir https://zone-equip.com{uri} permanent
+}
+
+zone-equip.com {
+	encode zstd gzip
+	reverse_proxy web:8000
+}
