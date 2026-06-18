@@ -110,9 +110,9 @@
     --c-red:    #dc2626; --c-red-bg:    #fee2e2;
     --c-purple: #7c3aed; --c-purple-bg: #ede9fe;
     --c-pink:   #db2777; --c-pink-bg:   #fce7f3;
-    /* Fixed brand gradient (theme-independent) so white text stays legible
-       in both light and dark mode — used for primary buttons + the FAB. */
-    --accent-gradient: linear-gradient(90deg, #4f46e5, #7c3aed);
+    /* Brand-blue gradient (logo blue #0F74BC), theme-independent so white
+       text stays legible in light and dark mode — primary buttons + FAB. */
+    --accent-gradient: linear-gradient(135deg, #1488d6, #0F74BC);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -219,14 +219,16 @@ a:hover { text-decoration: underline; }
     height: 100vh;
 }
 .sidebar-logo {
-    padding: 14px 12px 18px;
+    padding: 12px 12px 16px;
     display: flex;
 }
-.sidebar-logo-link { display: block; width: 100%; }
+.sidebar-logo-link { display: block; }
 .sidebar-logo-img {
     display: block;
-    width: 100%;
-    max-width: 190px;
+    width: 150px;
+    max-width: 100%;
+    /* Reserve the box before the SVG loads so the nav never jumps. */
+    aspect-ratio: 637 / 150;
     height: auto;
 }
 
@@ -756,7 +758,7 @@ a:hover { text-decoration: underline; }
     transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .filter-chip:hover { background: var(--md-surface-container); text-decoration: none; }
-.filter-chip.active { background: var(--md-primary); color: var(--md-on-primary); border-color: var(--md-primary); }
+.filter-chip.active { background: var(--accent-gradient); color: #fff; border-color: transparent; }
 
 /* ── Status badges ── */
 .badge {
@@ -844,7 +846,7 @@ a:hover { text-decoration: underline; }
 }
 .auth-card__title { font-size: 1.6rem; font-weight: 700; color: var(--md-primary); }
 .auth-card__tagline { color: var(--md-on-surface-variant); margin: 4px 0 28px; font-size: 0.9rem; }
-.auth-logo { display: block; width: 100%; max-width: 260px; height: auto; margin: 0 auto 28px; }
+.auth-logo { display: block; width: 210px; max-width: 100%; aspect-ratio: 637 / 150; height: auto; margin: 0 auto 28px; }
 .auth-form { gap: 20px; }
 .auth-form .btn { margin-top: 8px; height: 48px; }
 
