@@ -110,7 +110,9 @@
     --c-red:    #dc2626; --c-red-bg:    #fee2e2;
     --c-purple: #7c3aed; --c-purple-bg: #ede9fe;
     --c-pink:   #db2777; --c-pink-bg:   #fce7f3;
-    --accent-gradient: linear-gradient(90deg, var(--md-primary), #7c3aed);
+    /* Fixed brand gradient (theme-independent) so white text stays legible
+       in both light and dark mode — used for primary buttons + the FAB. */
+    --accent-gradient: linear-gradient(90deg, #4f46e5, #7c3aed);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -206,7 +208,8 @@ a:hover { text-decoration: underline; }
 /* ── Navigation drawer (sidebar) ── */
 .sidebar {
     width: var(--sidebar-w);
-    background: var(--md-surface-container-low);
+    background: var(--md-background);
+    border-right: 1px solid var(--md-outline-variant);
     display: flex;
     flex-direction: column;
     padding: 12px;
@@ -328,14 +331,14 @@ a:hover { text-decoration: underline; }
     gap: 12px;
     height: 64px;
     padding: 0 24px;
-    background: var(--accent-gradient);
-    color: #fff;
-    box-shadow: var(--elev-1);
+    background: var(--md-background);
+    color: var(--md-on-surface);
+    border-bottom: 1px solid var(--md-outline-variant);
 }
-.page-title { font-size: 1.375rem; font-weight: 500; flex: 1; color: #fff; }
+.page-title { font-size: 1.375rem; font-weight: 500; flex: 1; color: var(--md-on-surface); }
 .menu-toggle, .lang-toggle {
     background: none; border: none; cursor: pointer;
-    color: rgba(255,255,255,0.92);
+    color: var(--md-on-surface-variant);
     height: 44px; min-width: 44px; padding: 0 10px;
     border-radius: var(--shape-full);
     font-size: 0.85rem; font-weight: 500;
@@ -343,7 +346,7 @@ a:hover { text-decoration: underline; }
     transition: background 0.15s;
 }
 .menu-toggle { display: none; font-size: 1.5rem; }
-.lang-toggle:hover, .menu-toggle:hover { background: rgba(255,255,255,0.18); text-decoration: none; }
+.lang-toggle:hover, .menu-toggle:hover { background: var(--md-surface-container-high); text-decoration: none; }
 
 .content {
     flex: 1;
@@ -425,7 +428,7 @@ a:hover { text-decoration: underline; }
 .btn:focus-visible::after { opacity: 0.12; }
 
 /* Filled (primary) */
-.btn--primary { background: var(--md-primary); color: var(--md-on-primary); }
+.btn--primary { background: var(--accent-gradient); color: #fff; }
 .btn--primary:hover { box-shadow: var(--elev-1); }
 /* Tonal */
 .btn--tonal { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
@@ -450,8 +453,8 @@ a:hover { text-decoration: underline; }
     padding: 0 20px;
     border: none;
     border-radius: var(--shape-lg);
-    background: var(--md-primary);
-    color: var(--md-on-primary);
+    background: var(--accent-gradient);
+    color: #fff;
     font-family: inherit;
     font-size: 0.9rem;
     font-weight: 600;
