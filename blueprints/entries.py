@@ -149,12 +149,24 @@ def _read_entry_form(entry):
         return None, t["entry.err.date_required"]
 
     km, e1 = _num(request.form.get("kilometers"), float)
-    trips = hours = None
-    if vehicle.category.unit_type == "trips":
-        trips, e2 = _num(request.form.get("trips"), lambda s: int(round(float(s))))
-    else:
-        hours, e2 = _num(request.form.get("hours"), float)
-    if e1 or e2:
+    trips = hours = index_start = index_end = None
+    bad = False
+    tracking = vehicle.category.tracking
+    if tracking == "trips":
+        trips, bad = _num(request.form.get("trips"), lambda s: int(round(float(s))))
+    elif tracking == "hours_index":
+        # Hour-meter readings; worked hours = end - start.
+        index_start, es = _num(request.form.get("index_start"), float)
+        index_end, ee = _num(request.form.get("index_end"), float)
+        bad = es or ee
+        if not bad and index_start is not None and index_end is not None:
+            if index_end < index_start:
+                return None, t.get("entry.err.index_order",
+                                   "L'index de fin doit être supérieur ou égal à l'index de début.")
+            hours = round(index_end - index_start, 2)
+    else:  # "hours" — direct entry
+        hours, bad = _num(request.form.get("hours"), float)
+    if e1 or bad:
         return None, t["entry.err.bad_number"]
 
     data = dict(
@@ -163,6 +175,8 @@ def _read_entry_form(entry):
         kilometers=km,
         trips=trips,
         hours=hours,
+        index_start=index_start,
+        index_end=index_end,
         operator=(request.form.get("operator") or "").strip() or None,
         note=(request.form.get("note") or "").strip() or None,
     )

@@ -18,7 +18,7 @@
             <tr>
                 <th>{{ t['vcat.code'] }}</th>
                 <th>{{ t['vcat.label_fr'] }}</th>
-                <th>{{ t['vcat.unit_type'] }}</th>
+                <th>{{ t['vcat.tracking'] }}</th>
                 <th style="text-align:right;">{{ t['vcat.baseline'] }}</th>
                 <th style="text-align:right;">{{ t['vcat.cost'] }}</th>
                 <th style="text-align:right;">{{ t['vcat.usage'] }}</th>
@@ -30,7 +30,7 @@
             <tr>
                 <td><span class="chip chip--{{ c.code|lower }}">{{ c.code }}</span></td>
                 <td><strong>{{ c.label_fr }}</strong>{% if c.label != c.label_fr %}<div class="muted small">{{ c.label }}</div>{% endif %}</td>
-                <td>{{ t['vcat.unit.' + c.unit_type] }}</td>
+                <td>{{ t['vcat.track.' + c.tracking] }}</td>
                 <td style="text-align:right;">{% if c.default_baseline_l_per_unit is not none %}{{ c.default_baseline_l_per_unit }} L/{{ t['unit.' + c.unit_type] }}{% else %}—{% endif %}</td>
                 <td style="text-align:right;">{% if c.default_cost_per_unit is not none %}{{ '{:,}'.format(c.default_cost_per_unit) }} GNF{% else %}—{% endif %}</td>
                 <td style="text-align:right;">{{ counts[c.id] }}</td>

@@ -14,12 +14,13 @@
             {% if not is_edit %}<div class="field-hint">{{ t['vcat.code_hint'] }}</div>{% endif %}
         </div>
         <div class="field field--select">
-            <select id="unit_type" name="unit_type" required>
+            <select id="tracking" name="tracking" required>
                 <option value="" hidden></option>
-                {% set sel_u = request.form.get('unit_type') or (category.unit_type if is_edit else '') %}
-                {% for u in unit_types %}<option value="{{ u }}" {% if u == sel_u %}selected{% endif %}>{{ t['vcat.unit.' + u] }}</option>{% endfor %}
+                {% set sel_tr = request.form.get('tracking') or (category.tracking if is_edit else '') %}
+                {% for tr in tracking_modes %}<option value="{{ tr }}" {% if tr == sel_tr %}selected{% endif %}>{{ t['vcat.track.' + tr] }}</option>{% endfor %}
             </select>
-            <label for="unit_type">{{ t['vcat.unit_type'] }}</label>
+            <label for="tracking">{{ t['vcat.tracking'] }}</label>
+            <div class="field-hint">{{ t['vcat.tracking_hint'] }}</div>
         </div>
     </div>
 

@@ -566,15 +566,17 @@ PERMISSIONS_CATALOG = [
 
 # Default vehicle categories — seeded into vehicle_categories.
 # Format: (code, label_en, label_fr, unit_type, default_l_per_unit, default_cost_per_unit, sort_order)
+# (code, label, label_fr, tracking, baseline, cost, sort_order)
+# tracking: "trips" | "hours" | "hours_index"; unit_type is derived from it.
 DEFAULT_CATEGORIES = [
-    ("BUS",         "Bus",             "Bus",                "trips",  12.0,  None,  1),
-    ("MINIBUS",     "Minibus",         "Minibus",            "trips",   8.0,  None,  2),
-    ("NAVETTE",     "Shuttle",         "Navette",            "trips",   6.0,  None,  3),
-    ("CAMION_TSF",  "TSF Truck",       "Camion TSF",         "hours",  25.0,  None,  4),
-    ("MACHINE_TSF", "TSF Machine",     "Machine TSF",        "hours",  30.0,  None,  5),
-    ("CITERNE",     "Water tanker",    "Citerne à eau",      "trips",  15.0,  None,  6),
-    ("SERVICE",     "Service vehicle", "Véhicule de service", "trips",  4.0,  None,  7),
-    ("AUTRE",       "Other",           "Autre",              "trips",  None,  None,  8),
+    ("BUS",         "Bus",             "Bus",                "trips",        12.0,  None,  1),
+    ("MINIBUS",     "Minibus",         "Minibus",            "trips",         8.0,  None,  2),
+    ("NAVETTE",     "Shuttle",         "Navette",            "trips",         6.0,  None,  3),
+    ("CAMION_TSF",  "TSF Truck",       "Camion TSF",         "hours",        25.0,  None,  4),
+    ("MACHINE_TSF", "TSF Machine",     "Machine TSF",        "hours_index",  30.0,  None,  5),
+    ("CITERNE",     "Water tanker",    "Citerne à eau",      "trips",        15.0,  None,  6),
+    ("SERVICE",     "Service vehicle", "Véhicule de service", "trips",        4.0,  None,  7),
+    ("AUTRE",       "Other",           "Autre",              "trips",        None,  None,  8),
 ]
 
 
@@ -651,10 +653,11 @@ def _seed_system_roles_data():
 def _seed_default_categories_data():
     """Insert default vehicle categories + app settings. Idempotent."""
     added = 0
-    for code, label, label_fr, unit, baseline, cost, order in DEFAULT_CATEGORIES:
+    for code, label, label_fr, tracking, baseline, cost, order in DEFAULT_CATEGORIES:
         if not VehicleCategory.query.filter_by(code=code).first():
             db.session.add(VehicleCategory(
-                code=code, label=label, label_fr=label_fr, unit_type=unit,
+                code=code, label=label, label_fr=label_fr,
+                tracking=tracking, unit_type=("trips" if tracking == "trips" else "hours"),
                 default_baseline_l_per_unit=baseline, default_cost_per_unit=cost,
                 sort_order=order,
             ))
@@ -923,11 +926,12 @@ def seed_demo_cmd(days, force):
 
     # Daily entries + running cumulative; tally units & km per (vehicle, month).
     units_vm, km_vm = {}, {}
-    cum_km, cum_h = {}, {}
+    cum_km, cum_h, meter = {}, {}, {}
     for code, (v, cat_code, slug, factor, idle) in vehicles.items():
         cat = cats[cat_code]
         cum_km[code] = 0.0
         cum_h[code] = 0.0
+        meter[code] = float(rng.randint(800, 2500))  # hour-meter base for index machines
         d = start
         while d <= today:
             # SRV-01 (idle) stops logging 22 days ago; everyone skips ~weekends/random days.
@@ -938,19 +942,23 @@ def seed_demo_cmd(days, force):
                 op = rng.choice(ops_by_fleet[slug]) if ops_by_fleet[slug] else None
                 km = round(rng.uniform(40, 120) if cat.unit_type == "trips" else rng.uniform(0, 30), 0)
                 cum_km[code] += km
+                trips = hours = index_start = index_end = None
                 if cat.unit_type == "trips":
                     trips = rng.randint(4, 16)
-                    hours = None
                     units_vm[(code, ym)] = units_vm.get((code, ym), 0) + trips
                 else:
                     hours = round(rng.uniform(5, 11), 1)
-                    trips = None
+                    if cat.tracking == "hours_index":
+                        index_start = round(meter[code], 1)
+                        index_end = round(meter[code] + hours, 1)
+                        meter[code] = index_end
                     cum_h[code] += hours
                     units_vm[(code, ym)] = units_vm.get((code, ym), 0) + hours
                 km_vm[(code, ym)] = km_vm.get((code, ym), 0) + km
                 db.session.add(DailyEntry(
                     vehicle_id=v.id, date=d.strftime("%Y-%m-%d"),
                     trips=trips, hours=hours, kilometers=km,
+                    index_start=index_start, index_end=index_end,
                     cumulative_km=round(cum_km[code], 1),
                     cumulative_hours=round(cum_h[code], 1) if cat.unit_type == "hours" else None,
                     operator=op,

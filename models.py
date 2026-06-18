@@ -166,7 +166,12 @@ class VehicleCategory(db.Model):
     code                        = db.Column(db.String(30),  nullable=False, unique=True)  # "BUS", "CAMION_TSF"
     label                       = db.Column(db.String(80),  nullable=False)               # EN label
     label_fr                    = db.Column(db.String(80),  nullable=False)               # FR label
-    unit_type                   = db.Column(db.String(10),  nullable=False)               # "trips" | "hours"
+    unit_type                   = db.Column(db.String(10),  nullable=False)               # "trips" | "hours" (derived from tracking)
+    # How a daily entry is logged for this category — chosen at creation:
+    #   "trips"        → enter a trip count
+    #   "hours"        → enter hours worked directly
+    #   "hours_index"  → enter hour-meter index start/end; hours = end - start
+    tracking                    = db.Column(db.String(20),  nullable=False, default="trips")
     default_baseline_l_per_unit = db.Column(db.Float,       nullable=True)                # L/trip or L/hour
     default_cost_per_unit       = db.Column(db.Integer,     nullable=True)                # GNF per unit, for perte d'exploitation
     icon                        = db.Column(db.String(30),  nullable=True)
@@ -247,7 +252,10 @@ class DailyEntry(db.Model):
     date             = db.Column(db.String(10), nullable=False)              # YYYY-MM-DD
     # Fuel is NOT logged here — it is captured as an Expense (category 'fuel').
     trips            = db.Column(db.Integer, nullable=True)                  # for trip-tracked vehicles
-    hours            = db.Column(db.Float,   nullable=True)                  # for hour-tracked vehicles
+    hours            = db.Column(db.Float,   nullable=True)                  # worked hours (direct, or index_end - index_start)
+    # Hour-meter index readings for "hours_index" categories; hours = end - start.
+    index_start      = db.Column(db.Float,   nullable=True)
+    index_end        = db.Column(db.Float,   nullable=True)
     kilometers       = db.Column(db.Float,   nullable=True)
     # Running totals as of this entry — for the maintenance rule engine.
     cumulative_km    = db.Column(db.Float,   nullable=True)

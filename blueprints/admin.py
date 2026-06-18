@@ -491,7 +491,9 @@ def user_delete(user_id):
 
 # ── Vehicle categories ──────────────────────────────────────────────────────────
 
-CATEGORY_UNIT_TYPES = ["trips", "hours"]
+# How a category's daily entries are logged (chosen at creation).
+# unit_type is derived: "trips" for "trips", "hours" for the hours_* modes.
+CATEGORY_TRACKING = ["trips", "hours", "hours_index"]
 
 
 def _cat_num(raw, cast):
@@ -517,11 +519,12 @@ def _save_category(cat):
     t = get_t()
     label = (request.form.get("label") or "").strip()
     label_fr = (request.form.get("label_fr") or "").strip()
-    unit_type = (request.form.get("unit_type") or "").strip()
+    tracking = (request.form.get("tracking") or "").strip()
     if not label or not label_fr:
         return t.get("vcat.err.label_required", "Les libelles sont obligatoires.")
-    if unit_type not in CATEGORY_UNIT_TYPES:
-        return t.get("vcat.err.unit_required", "Choisissez un type d'unite.")
+    if tracking not in CATEGORY_TRACKING:
+        return t.get("vcat.err.unit_required", "Choisissez une methode de suivi.")
+    unit_type = "trips" if tracking == "trips" else "hours"
 
     creating = cat is None
     if creating:
@@ -543,6 +546,7 @@ def _save_category(cat):
         db.session.add(cat)
     cat.label = label
     cat.label_fr = label_fr
+    cat.tracking = tracking
     cat.unit_type = unit_type
     cat.default_baseline_l_per_unit = baseline
     cat.default_cost_per_unit = cost
@@ -557,7 +561,7 @@ def _save_category(cat):
 def _render_category_form(cat, error=None):
     tpl = "_category_form.html" if is_modal_request() else "admin_category_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, category=cat, unit_types=CATEGORY_UNIT_TYPES, error=error), status
+    return render_template(tpl, category=cat, tracking_modes=CATEGORY_TRACKING, error=error), status
 
 
 @admin_bp.route("/categories/new", methods=["GET", "POST"])

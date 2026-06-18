@@ -8,7 +8,7 @@
                 <option value="" hidden></option>
                 {% set sel_v = request.form.get('vehicle_id')|int(0) or (entry.vehicle_id if is_edit else preset_vehicle or 0) %}
                 {% for v in vehicles %}
-                <option value="{{ v.id }}" data-unit="{{ v.category.unit_type }}" data-fleet="{{ v.fleet_id }}"
+                <option value="{{ v.id }}" data-unit="{{ v.category.unit_type }}" data-tracking="{{ v.category.tracking }}" data-fleet="{{ v.fleet_id }}"
                         {% if v.id == sel_v %}selected{% endif %}>{{ v.code }} — {{ v.category.label_fr if lang == 'fr' else v.category.label }}</option>
                 {% endfor %}
             </select>
@@ -31,6 +31,23 @@
             <input type="text" inputmode="decimal" id="hours" name="hours" placeholder=" "
                    value="{{ request.form.get('hours') or (entry.hours if is_edit and entry.hours is not none else '') }}">
             <label for="hours">{{ t['entry.hours'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row" id="field-index">
+        <div class="field">
+            <input type="text" inputmode="decimal" id="index_start" name="index_start" placeholder=" "
+                   value="{{ request.form.get('index_start') or (entry.index_start if is_edit and entry.index_start is not none else '') }}">
+            <label for="index_start">{{ t['entry.index_start'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" inputmode="decimal" id="index_end" name="index_end" placeholder=" "
+                   value="{{ request.form.get('index_end') or (entry.index_end if is_edit and entry.index_end is not none else '') }}">
+            <label for="index_end">{{ t['entry.index_end'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="index_hours_preview" placeholder="—" disabled>
+            <label for="index_hours_preview">{{ t['entry.hours_auto'] }}</label>
         </div>
     </div>
 
@@ -70,22 +87,37 @@
 </form>
 
 <script>
-// Adapt the form to the selected vehicle: show the right unit field (trips
-// vs hours) for its category, and restrict the conducteur list to drivers of
-// that vehicle's fleet.
+// Adapt the form to the selected vehicle's category tracking method:
+//   trips        → show the trips field
+//   hours        → show the direct hours field
+//   hours_index  → show index start/end and auto-compute hours = end - start
+// Also restrict the conducteur list to drivers of that vehicle's fleet.
 (function () {
     var vSel = document.getElementById("vehicle_id");
     var trips = document.getElementById("field-trips");
     var hours = document.getElementById("field-hours");
+    var index = document.getElementById("field-index");
+    var iStart = document.getElementById("index_start");
+    var iEnd = document.getElementById("index_end");
+    var iPrev = document.getElementById("index_hours_preview");
     var opSel = document.getElementById("operator");
     if (!vSel) return;
+
+    function computeIndex() {
+        if (!iPrev) return;
+        var d = parseFloat(iEnd.value) - parseFloat(iStart.value);
+        iPrev.value = (isFinite(d) && d >= 0) ? d.toFixed(1) + " h" : "—";
+    }
+
     function refresh() {
         var opt = vSel.options[vSel.selectedIndex];
-        var unit = (opt && opt.dataset.unit) || "";
-        var fleet = (opt && opt.dataset.fleet) || "";
-        if (trips) trips.style.display = unit === "trips" ? "" : "none";
-        if (hours) hours.style.display = unit === "hours" ? "" : "none";
+        var track = (opt && opt.dataset.tracking) || (opt && opt.dataset.unit) || "";
+        if (trips) trips.style.display = track === "trips" ? "" : "none";
+        if (hours) hours.style.display = track === "hours" ? "" : "none";
+        if (index) index.style.display = track === "hours_index" ? "" : "none";
+        if (track === "hours_index") computeIndex();
         if (opSel) {
+            var fleet = (opt && opt.dataset.fleet) || "";
             Array.prototype.forEach.call(opSel.options, function (o) {
                 if (!o.value) return;  // keep the placeholder
                 // Hide drivers from other fleets; always keep a preserved
@@ -98,7 +130,10 @@
             if (cur && cur.hidden) opSel.value = "";  // reset if now out of scope
         }
     }
+
     vSel.addEventListener("change", refresh);
+    if (iStart) iStart.addEventListener("input", computeIndex);
+    if (iEnd) iEnd.addEventListener("input", computeIndex);
     refresh();
 })();
 </script>
