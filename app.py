@@ -945,13 +945,19 @@ def seed_demo_cmd(days, force):
         slug: [o.name for o in Operator.query.filter_by(fleet_id=fleets[slug].id).all()]
         for slug in fleets
     }
+    # First operator of each fleet — used as the vehicles' default driver.
+    first_op = {
+        slug: Operator.query.filter_by(fleet_id=fleets[slug].id).order_by(Operator.id).first()
+        for slug in fleets
+    }
 
     # Vehicles
     vehicles = {}
     for code, cat_code, slug, factor, idle in DEMO_VEHICLES:
         v = Vehicle.query.filter_by(code=code).first()
         if not v:
-            v = Vehicle(code=code, category_id=cats[cat_code].id, fleet_id=fleets[slug].id, is_active=True)
+            v = Vehicle(code=code, category_id=cats[cat_code].id, fleet_id=fleets[slug].id, is_active=True,
+                        default_operator_id=(first_op[slug].id if first_op.get(slug) else None))
             db.session.add(v)
         vehicles[code] = (v, cat_code, slug, factor, idle)
     db.session.flush()

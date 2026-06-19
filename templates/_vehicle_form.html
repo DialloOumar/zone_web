@@ -49,6 +49,17 @@
     </div>
 
     <div class="form-row">
+        <div class="field field--select">
+            <select id="default_operator_id" name="default_operator_id">
+                <option value="">{{ t['vehicle.no_default_operator'] }}</option>
+                {% set sel_op = request.form.get('default_operator_id')|int(0) or (vehicle.default_operator_id if is_edit and vehicle.default_operator_id else 0) %}
+                {% for o in operators %}
+                <option value="{{ o.id }}" data-fleet="{{ o.fleet_id }}" {% if o.id == sel_op %}selected{% endif %}>{{ o.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="default_operator_id">{{ t['vehicle.default_operator'] }}</label>
+            <div class="field-hint">{{ t['vehicle.default_operator_hint'] }}</div>
+        </div>
         <div class="field">
             <textarea id="description" name="description" placeholder=" " rows="1">{{ request.form.get('description') or (vehicle.description if is_edit else '') }}</textarea>
             <label for="description">{{ t['vehicle.description'] }}</label>
@@ -69,14 +80,16 @@
 </form>
 
 <script>
-// Narrow the category options to those belonging to the selected fleet.
+// Narrow the category options (and the default-driver list) to the selected fleet.
 (function () {
     var fleetSel = document.getElementById("fleet_id");
     var catSel = document.getElementById("category_id");
+    var opSel = document.getElementById("default_operator_id");
     if (!fleetSel || !catSel) return;
     function refresh() {
         var opt = fleetSel.options[fleetSel.selectedIndex];
         var allowed = ((opt && opt.dataset.categories) || "").split(",").filter(Boolean);
+        var fleetId = (opt && opt.value) || "";
         var currentOk = false;
         Array.prototype.forEach.call(catSel.options, function (o) {
             if (!o.value) return;
@@ -86,6 +99,15 @@
             if (ok && o.value === catSel.value) currentOk = true;
         });
         if (!currentOk) catSel.value = "";
+        if (opSel) {
+            Array.prototype.forEach.call(opSel.options, function (o) {
+                if (!o.value) return;
+                var ok = !fleetId || o.dataset.fleet === fleetId;
+                o.hidden = !ok; o.disabled = !ok;
+            });
+            var cur = opSel.selectedOptions[0];
+            if (cur && cur.hidden) opSel.value = "";
+        }
     }
     fleetSel.addEventListener("change", refresh);
     refresh();

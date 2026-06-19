@@ -13,7 +13,7 @@ from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change)
-from models import Fleet, Operator, db
+from models import Fleet, Operator, Vehicle, db
 
 operators_bp = Blueprint("operators", __name__)
 
@@ -169,6 +169,11 @@ def delete(oid):
     op = _get_operator_or_404(oid)
     t = get_t()
     name, fleet_id = op.name, op.fleet_id
+    # Clear this operator as any vehicle's default driver before deleting,
+    # so the FK never blocks the delete (the default simply resets).
+    Vehicle.query.filter_by(default_operator_id=oid).update(
+        {"default_operator_id": None}, synchronize_session=False
+    )
     db.session.delete(op)
     log_action("DELETE", "operator", resource_id=oid, fleet_id=fleet_id,
                detail=f"Deleted operator '{name}'")

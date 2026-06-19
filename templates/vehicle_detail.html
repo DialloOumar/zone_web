@@ -37,6 +37,10 @@
             <dd>{{ vehicle.site or '—' }}</dd>
         </div>
         <div>
+            <dt>{{ t['vehicle.default_operator'] }}</dt>
+            <dd>{{ vehicle.default_operator.name if vehicle.default_operator else '—' }}</dd>
+        </div>
+        <div>
             <dt>{{ t['vehicle.baseline'] }}</dt>
             <dd>
                 {% if vehicle.effective_baseline %}

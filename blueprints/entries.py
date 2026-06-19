@@ -187,10 +187,19 @@ def _form_context(entry):
     preset_date = request.args.get("date")
     if not (preset_date and _valid_date(preset_date)):
         preset_date = None
+    # When opening the form for a specific vehicle (e.g. from the roster),
+    # pre-fill its default driver if it has one.
+    preset_vehicle = request.args.get("vehicle_id", type=int)
+    preset_operator = ""
+    if preset_vehicle and entry is None:
+        v = db.session.get(Vehicle, preset_vehicle)
+        if v and v.default_operator and v.default_operator.is_active:
+            preset_operator = v.default_operator.name
     return {
         "vehicles": _accessible_vehicles(active_only=True),
         "operators": _accessible_operators(),
-        "preset_vehicle": request.args.get("vehicle_id", type=int),
+        "preset_vehicle": preset_vehicle,
+        "preset_operator": preset_operator,
         "preset_date": preset_date,
         "today": date.today().isoformat(),
     }

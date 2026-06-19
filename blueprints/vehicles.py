@@ -12,7 +12,7 @@ from flask_login import current_user, login_required
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change)
 from models import (Alert, DailyEntry, Expense, Fleet, MaintenanceRecord,
-                    Vehicle, VehicleCategory, db)
+                    Operator, Vehicle, VehicleCategory, db)
 
 vehicles_bp = Blueprint("vehicles", __name__)
 
@@ -92,6 +92,14 @@ def _read_vehicle_form(vehicle):
     if err1:
         return None, t["vehicle.err.bad_number"]
 
+    # Optional default driver — must be a registered operator of this fleet.
+    default_operator_id = request.form.get("default_operator_id", type=int) or None
+    if default_operator_id:
+        op = db.session.get(Operator, default_operator_id)
+        if not op or op.fleet_id != fleet_id:
+            return None, t.get("vehicle.err.operator_fleet",
+                               "Le conducteur par défaut doit appartenir à la flotte.")
+
     data = dict(
         code=code,
         fleet_id=fleet_id,
@@ -99,15 +107,25 @@ def _read_vehicle_form(vehicle):
         description=(request.form.get("description") or "").strip() or None,
         site=(request.form.get("site") or "").strip() or None,
         baseline_l_per_unit_override=baseline,
+        default_operator_id=default_operator_id,
         is_active=request.form.get("is_active") is not None,
     )
     return data, None
+
+
+def _accessible_operators():
+    q = Operator.query.filter_by(is_active=True)
+    fids = current_user_fleet_ids()
+    if fids is not None:
+        q = q.filter(Operator.fleet_id.in_(fids))
+    return q.order_by(Operator.name).all()
 
 
 def _form_context(vehicle):
     return {
         "fleets": _accessible_fleets(),
         "categories": VehicleCategory.query.order_by(VehicleCategory.sort_order).all(),
+        "operators": _accessible_operators(),
         "form_active": (request.form.get("is_active") is not None)
         if request.method == "POST"
         else (vehicle.is_active if vehicle else True),

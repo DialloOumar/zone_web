@@ -212,12 +212,16 @@ class Vehicle(db.Model):
     site                          = db.Column(db.String(80),  nullable=True)
     baseline_l_per_unit_override  = db.Column(db.Float,     nullable=True)
     cost_per_unit_override        = db.Column(db.Integer,   nullable=True)
+    # Optional default driver — a real link to a registered Operator (same
+    # fleet), used to pre-fill the conducteur on a new daily entry.
+    default_operator_id           = db.Column(db.Integer,   db.ForeignKey("operators.id"), nullable=True)
     is_active                     = db.Column(db.Boolean,   nullable=False, default=True)
     created_at                    = db.Column(db.DateTime,  nullable=False, default=datetime.utcnow)
     created_by                    = db.Column(db.Integer,   db.ForeignKey("users.id"), nullable=True)
 
-    category = db.relationship("VehicleCategory")
-    fleet    = db.relationship("Fleet")
+    category         = db.relationship("VehicleCategory")
+    fleet            = db.relationship("Fleet")
+    default_operator = db.relationship("Operator", foreign_keys=[default_operator_id])
 
     @property
     def effective_baseline(self):

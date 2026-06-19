@@ -9,6 +9,7 @@
                 {% set sel_v = request.form.get('vehicle_id')|int(0) or (entry.vehicle_id if is_edit else preset_vehicle or 0) %}
                 {% for v in vehicles %}
                 <option value="{{ v.id }}" data-unit="{{ v.category.unit_type }}" data-tracking="{{ v.category.tracking }}" data-fleet="{{ v.fleet_id }}"
+                        data-default-op="{{ v.default_operator.name if v.default_operator and v.default_operator.is_active else '' }}"
                         {% if v.id == sel_v %}selected{% endif %}>{{ v.code }} — {{ v.category.label_fr if lang == 'fr' else v.category.label }}</option>
                 {% endfor %}
             </select>
@@ -58,7 +59,7 @@
             <label for="kilometers">{{ t['entry.km'] }}</label>
         </div>
         <div class="field field--select">
-            {% set sel_op = request.form.get('operator') or (entry.operator if is_edit and entry.operator else '') %}
+            {% set sel_op = request.form.get('operator') or (entry.operator if is_edit and entry.operator else '') or (preset_operator if not is_edit else '') %}
             {% set op_names = operators|map(attribute='name')|list %}
             <select id="operator" name="operator">
                 <option value="">{{ t['form.select'] }}</option>
@@ -109,7 +110,7 @@
         iPrev.value = (isFinite(d) && d >= 0) ? d.toFixed(1) + " h" : "—";
     }
 
-    function refresh() {
+    function refresh(autofill) {
         var opt = vSel.options[vSel.selectedIndex];
         var track = (opt && opt.dataset.tracking) || (opt && opt.dataset.unit) || "";
         if (trips) trips.style.display = track === "trips" ? "" : "none";
@@ -128,12 +129,21 @@
             });
             var cur = opSel.selectedOptions[0];
             if (cur && cur.hidden) opSel.value = "";  // reset if now out of scope
+            // On a vehicle change with no driver chosen, pre-fill its default.
+            if (autofill && !opSel.value) {
+                var def = (opt && opt.dataset.defaultOp) || "";
+                if (def) {
+                    Array.prototype.forEach.call(opSel.options, function (o) {
+                        if (o.value === def && !o.hidden) opSel.value = def;
+                    });
+                }
+            }
         }
     }
 
-    vSel.addEventListener("change", refresh);
+    vSel.addEventListener("change", function () { refresh(true); });
     if (iStart) iStart.addEventListener("input", computeIndex);
     if (iEnd) iEnd.addEventListener("input", computeIndex);
-    refresh();
+    refresh(false);
 })();
 </script>
