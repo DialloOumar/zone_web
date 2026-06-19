@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['tour.title'] }}{% endblock %}
+{% block page_title %}{{ t['tour.title'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 760px;">
+    <div class="welcome-hero">
+        <span class="material-symbols-outlined welcome-hero__icon">fact_check</span>
+        <div>
+            <h2>{{ t['tour.hello'] }}, {{ current_user.full_name }} 👋</h2>
+            <p class="muted">{{ t['tour.intro'] }}</p>
+        </div>
+    </div>
+
+    {% if steps %}
+    <ol class="tour-steps">
+        {% for s in steps %}
+        <li class="tour-step {% if s.done %}is-done{% endif %}">
+            <span class="tour-step__num">
+                {% if s.done %}✓{% else %}{{ loop.index }}{% endif %}
+            </span>
+            <span class="tour-step__icon material-symbols-outlined">{{ s.icon }}</span>
+            <div class="tour-step__body">
+                <div class="tour-step__title">{{ s.title }}</div>
+                <div class="tour-step__desc muted small">{{ s.desc }}</div>
+            </div>
+            {% if s.url %}
+            <a href="{{ s.url }}" class="btn btn--sm btn--tonal tour-step__go">{{ t['tour.go'] }}</a>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ol>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('welcome_done') }}" class="welcome-actions">
+        <button type="submit" class="btn btn--primary">
+            {{ t['tour.start'] if first_time else t['tour.close'] }}
+        </button>
+        <span class="muted small">{{ t['tour.replay_hint'] }}</span>
+    </form>
+</section>
+{% endblock %}

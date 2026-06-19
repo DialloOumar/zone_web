@@ -116,6 +116,9 @@
                 <span class="sidebar-user-role">
                     {% if is_super_admin %}{{ t['role.super_admin'] }}{% else %}{{ t['role.user'] }}{% endif %}
                 </span>
+                <a href="{{ url_for('welcome') }}" class="sidebar-change-pw">
+                    <span class="material-symbols-outlined" style="font-size:16px;">fact_check</span> {{ t['tour.replay'] }}
+                </a>
                 <a href="{{ url_for('change_password') }}" class="sidebar-change-pw">
                     <span class="material-symbols-outlined" style="font-size:16px;">lock_reset</span> {{ t['nav.change_password'] }}
                 </a>

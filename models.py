@@ -41,6 +41,8 @@ class User(UserMixin, db.Model):
     is_super_admin = db.Column(db.Boolean, nullable=False, default=False)
     lang           = db.Column(db.String(5),  nullable=False, default="fr")
     is_active      = db.Column(db.Boolean,    nullable=False, default=True)
+    # When the user finished/skipped the first-login welcome guide (null = not yet).
+    tour_seen_at   = db.Column(db.DateTime,   nullable=True)
     created_at     = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
 
     # UserFleet has two FKs pointing at users (user_id and assigned_by), so the

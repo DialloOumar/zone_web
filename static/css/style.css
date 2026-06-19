@@ -998,6 +998,41 @@ a:hover { text-decoration: underline; }
 .welcome-banner h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
 .welcome-banner p { opacity: 0.92; font-size: 0.92rem; }
 
+/* First-login welcome guide */
+.welcome-hero { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px; }
+.welcome-hero__icon {
+    font-size: 34px; flex-shrink: 0;
+    color: var(--md-primary);
+    background: var(--md-primary-container);
+    width: 56px; height: 56px; border-radius: var(--shape-md);
+}
+.welcome-hero h2 { font-size: 1.3rem; font-weight: 700; }
+.tour-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.tour-step {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--shape-md);
+}
+.tour-step.is-done { background: var(--md-surface-container-low); border-color: transparent; }
+.tour-step__num {
+    flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.85rem;
+    background: var(--md-secondary-container); color: var(--md-on-secondary-container);
+}
+.tour-step.is-done .tour-step__num { background: var(--c-green-bg); color: var(--c-green); }
+.tour-step.is-done .tour-step__num .material-symbols-outlined { font-size: 18px; }
+.tour-step__icon { font-size: 22px; color: var(--md-on-surface-variant); flex-shrink: 0; }
+.tour-step__body { flex: 1; min-width: 0; }
+.tour-step__title { font-weight: 600; }
+.tour-step__go { flex-shrink: 0; }
+.welcome-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 22px; }
+@media (max-width: 600px) {
+    .tour-step__icon { display: none; }
+    .tour-step__desc { display: none; }
+}
+
 .stat-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

@@ -407,6 +407,71 @@ def _home_url():
     return url_for("change_password")  # always available to a logged-in user
 
 
+def _onboarding_steps():
+    """The first-run guide for the current user, in setup→ops→piloting order,
+    filtered to what their role can actually do. Each step's `done` ticks the
+    box when the data already exists (None = a how-to, not a one-time setup)."""
+    t = get_t()
+    steps = []
+
+    def add(icon, key, endpoint, done=None, **kw):
+        steps.append({
+            "icon": icon, "done": done,
+            "title": t.get("tour.%s.t" % key, key),
+            "desc": t.get("tour.%s.d" % key, ""),
+            "url": url_for(endpoint, **kw) if endpoint else None,
+        })
+
+    # Phase 1 — configuration (super admin only)
+    if current_user.is_super_admin:
+        add("workspaces", "fleets", "admin.fleets",
+            done=Fleet.query.filter_by(is_active=True).count() > 0)
+        add("badge", "operators", "operators.index",
+            done=Operator.query.filter_by(is_active=True).count() > 0)
+        add("directions_bus", "vehicles", "vehicles.index",
+            done=Vehicle.query.filter_by(is_active=True).count() > 0)
+        add("group", "users", "admin.users",
+            done=User.query.filter_by(is_super_admin=False).count() > 0)
+        add("rule", "rules", "maintenance.rules",
+            done=MaintenanceRule.query.count() > 0)
+
+    # Phase 2 — daily operations
+    if has_perm("entry.create"):
+        add("fact_check", "entry", "entries.roster_index")
+    if has_perm("expense.create"):
+        add("payments", "expense", "expenses.index")
+    if has_perm("maintenance_record.create"):
+        add("handyman", "maint", "maintenance.records")
+    if has_perm("alert.view"):
+        add("warning", "alerts", "maintenance.alerts")
+
+    # Phase 3 — piloting
+    if has_perm("dashboard.view"):
+        add("space_dashboard", "dashboard", "dashboard")
+    if has_perm("insights.view"):
+        add("assessment", "insights", "insights.index")
+    if has_perm("invoicing.view"):
+        add("payments", "invoicing", "invoicing.index")
+    return steps
+
+
+@app.route("/bienvenue")
+@login_required
+def welcome():
+    """Role-based first-login guide (also reachable later via 'Revoir le guide')."""
+    return render_template("welcome.html", steps=_onboarding_steps(),
+                           first_time=current_user.tour_seen_at is None)
+
+
+@app.route("/bienvenue/termine", methods=["POST"])
+@login_required
+def welcome_done():
+    if current_user.tour_seen_at is None:
+        current_user.tour_seen_at = datetime.utcnow()
+        db.session.commit()
+    return redirect(_home_url())
+
+
 @app.route("/")
 @login_required
 def dashboard():
@@ -474,7 +539,10 @@ def login():
             login_user(user)
             log_action("LOGIN", "auth", detail="Successful login")
             db.session.commit()
-            return redirect(request.args.get("next") or _home_url())
+            dest = request.args.get("next")
+            if not dest and user.tour_seen_at is None:
+                dest = url_for("welcome")  # first login → role-based welcome guide
+            return redirect(dest or _home_url())
         # Log the attempt without exposing the user's typed username — the
         # request log + IP suffice for forensics. Avoid leaking that an
         # unknown username was attempted, to prevent username enumeration.
@@ -1083,16 +1151,25 @@ def seed_demo_cmd(days, force):
 
     db.session.commit()
 
-    # Optional demo manager (scoped to Zone Nord) to showcase fleet scoping.
-    fm = Role.query.filter_by(slug="fleet_manager").first()
-    if fm and not User.query.filter_by(username="manager").first():
-        mgr = User(username="manager", full_name="Chef Zone Nord", is_super_admin=False, lang="fr")
-        mgr.set_password("manager123")
-        db.session.add(mgr)
+    # One demo user per system role so each onboarding flow can be tried.
+    # (username, full name, password, role slug, fleet slug)
+    demo_users = [
+        ("manager",    "Chef Zone Nord",  "manager123",    "fleet_manager", "zone-nord"),
+        ("supervisor", "Superviseur Sud", "supervisor123", "supervisor",    "zone-sud"),
+        ("inspector",  "Inspecteur",      "inspector123",  "inspector",     "zone-nord"),
+        ("external",   "Client externe",  "external123",   "external",      "zone-nord"),
+    ]
+    for username, full_name, password, role_slug, fleet_slug in demo_users:
+        role = Role.query.filter_by(slug=role_slug).first()
+        if not role or fleet_slug not in fleets or User.query.filter_by(username=username).first():
+            continue
+        u = User(username=username, full_name=full_name, is_super_admin=False, lang="fr")
+        u.set_password(password)
+        db.session.add(u)
         db.session.flush()
-        db.session.add(UserFleet(user_id=mgr.id, fleet_id=fleets["zone-nord"].id, role_id=fm.id))
-        db.session.commit()
-        click.echo("  demo user: manager / manager123 (Fleet Manager on Zone Nord)")
+        db.session.add(UserFleet(user_id=u.id, fleet_id=fleets[fleet_slug].id, role_id=role.id))
+        click.echo("  demo user: %s / %s (%s)" % (username, password, role.name))
+    db.session.commit()
 
     click.echo(
         "Demo data seeded: %d fleets, %d vehicles, %d operators, %d daily entries, "
