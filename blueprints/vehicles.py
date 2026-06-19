@@ -99,8 +99,6 @@ def _read_vehicle_form(vehicle):
         description=(request.form.get("description") or "").strip() or None,
         site=(request.form.get("site") or "").strip() or None,
         baseline_l_per_unit_override=baseline,
-        operator_morning=(request.form.get("operator_morning") or "").strip() or None,
-        operator_evening=(request.form.get("operator_evening") or "").strip() or None,
         is_active=request.form.get("is_active") is not None,
     )
     return data, None

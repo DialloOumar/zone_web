@@ -47,14 +47,6 @@
                 {% else %}—{% endif %}
             </dd>
         </div>
-        <div>
-            <dt>{{ t['vehicle.operator_morning'] }}</dt>
-            <dd>{{ vehicle.operator_morning or '—' }}</dd>
-        </div>
-        <div>
-            <dt>{{ t['vehicle.operator_evening'] }}</dt>
-            <dd>{{ vehicle.operator_evening or '—' }}</dd>
-        </div>
         {% if vehicle.description %}
         <div style="grid-column: 1 / -1;">
             <dt>{{ t['vehicle.description'] }}</dt>

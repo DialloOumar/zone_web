@@ -212,8 +212,6 @@ class Vehicle(db.Model):
     site                          = db.Column(db.String(80),  nullable=True)
     baseline_l_per_unit_override  = db.Column(db.Float,     nullable=True)
     cost_per_unit_override        = db.Column(db.Integer,   nullable=True)
-    operator_morning              = db.Column(db.String(120), nullable=True)
-    operator_evening              = db.Column(db.String(120), nullable=True)
     is_active                     = db.Column(db.Boolean,   nullable=False, default=True)
     created_at                    = db.Column(db.DateTime,  nullable=False, default=datetime.utcnow)
     created_by                    = db.Column(db.Integer,   db.ForeignKey("users.id"), nullable=True)
