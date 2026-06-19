@@ -33,3 +33,10 @@ bash.exe.stackdump
 
 # Generated artifacts
 test_report.pdf
+
+# Local dev scratch: screenshot/render temp files and throwaway browser profiles
+_*.html
+_*.png
+_*.db
+_et/
+_edge_tmp/
