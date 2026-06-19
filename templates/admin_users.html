@@ -19,7 +19,7 @@
     </div>
 
     {% if users %}
-    <table class="data-table">
+    <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['user.username'] }}</th>
@@ -61,7 +61,7 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+    </table></div>
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">group</span>

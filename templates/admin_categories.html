@@ -19,7 +19,7 @@
     </div>
 
     {% if categories %}
-    <table class="data-table">
+    <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['vcat.code'] }}</th>
@@ -55,7 +55,7 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+    </table></div>
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">category</span>

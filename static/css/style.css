@@ -867,6 +867,9 @@ a:hover { text-decoration: underline; }
     .filter-advanced .filter-field { flex-basis: 100%; }
     .filter-actions { flex-basis: 100%; }
     .filter-actions .btn { flex: 1 1 auto; }
+    /* Any filter-bar field goes full width on phones (overrides inline
+       min-widths used on the insights / invoicing / audit pages). */
+    .filter-bar .field { flex: 1 1 100% !important; min-width: 0 !important; max-width: none !important; }
     /* Show only the important table columns on phones. */
     .data-table .col-secondary { display: none; }
 }

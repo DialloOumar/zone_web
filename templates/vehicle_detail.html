@@ -71,7 +71,7 @@
         {% endif %}
     </div>
     {% if entries %}
-    <table class="data-table">
+    <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['entry.date'] }}</th>
@@ -84,7 +84,7 @@
         <tbody>
             {% with show_vehicle = False %}{% include "_entry_rows.html" %}{% endwith %}
         </tbody>
-    </table>
+    </table></div>
     {% else %}
     <p class="muted" style="padding: 6px 0;">{{ t['entry.empty'] }}</p>
     {% endif %}
@@ -101,7 +101,7 @@
         {% endif %}
     </div>
     {% if expenses %}
-    <table class="data-table">
+    <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['expense.date'] }}</th>
@@ -120,7 +120,7 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+    </table></div>
     {% else %}
     <p class="muted" style="padding: 6px 0;">{{ t['expense.empty'] }}</p>
     {% endif %}
@@ -150,7 +150,7 @@
         {% endif %}
     </div>
     {% if records %}
-    <table class="data-table">
+    <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['maint.date'] }}</th>
@@ -173,7 +173,7 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+    </table></div>
     {% else %}
     <p class="muted" style="padding: 6px 0;">{{ t['maint.records_empty'] }}</p>
     {% endif %}

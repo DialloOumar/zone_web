@@ -38,6 +38,7 @@
         <span class="invoice-total__value">{{ '{:,.0f}'.format(total) }} <span class="stat-unit">{{ currency }}</span></span>
     </div>
 
+    <div class="table-desktop">
     <table class="data-table">
         <thead>
             <tr>
@@ -68,6 +69,24 @@
             </tr>
         </tfoot>
     </table>
+    </div>
+
+    {# Mobile: one card per vehicle line #}
+    <div class="list-cards">
+        {% for r in rows %}
+        <div class="list-card">
+            <div class="list-card__top">
+                <a href="{{ url_for('vehicles.detail', vid=r.v.id) }}"><strong>{{ r.v.code }}</strong></a>
+                <span class="list-card__amount">{{ '{:,.0f}'.format(r.amount) }} <span class="muted small">{{ currency }}</span>{% if r.missing %} <span class="variance--danger">*</span>{% endif %}</span>
+            </div>
+            <div class="list-card__meta">
+                <span class="chip chip--{{ r.v.category.code|lower }}">{{ r.v.category.label_fr if lang == 'fr' else r.v.category.label }}</span>
+                <span class="muted small">{{ '%.0f'|format(r.units) }} {{ t['unit.' + r.unit_type] }}</span>
+                {% if r.ref_rate is not none %}<span class="muted small">× {{ '{:,.0f}'.format(r.ref_rate) }}</span>{% else %}<span class="variance--danger small">{{ t['invoicing.no_rate'] }}</span>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
     <p class="muted small">{{ t['invoicing.note'] }}</p>
 
     {% else %}

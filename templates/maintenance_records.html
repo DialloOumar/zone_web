@@ -25,6 +25,8 @@
     </form>
 
     {% if records %}
+    {# Desktop: full table #}
+    <div class="table-desktop">
     <table class="data-table">
         <thead>
             <tr>
@@ -49,7 +51,7 @@
                     {% if m.kilometers_at is none and m.hours_at is none %}—{% endif %}
                 </td>
                 <td>{{ m.supplier or '—' }}</td>
-                <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} GNF{% else %}—{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} {{ currency }}{% else %}—{% endif %}</td>
                 <td class="row-actions">
                     {% if has_perm('maintenance_record.edit') %}
                     <a href="{{ url_for('maintenance.record_edit', mid=m.id) }}" class="btn btn--sm btn--tonal"
@@ -66,6 +68,38 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
+
+    {# Mobile: one card per record #}
+    <div class="list-cards">
+        {% for m in records %}
+        <div class="list-card">
+            <div class="list-card__top">
+                <a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a>
+                <span class="list-card__amount">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} <span class="muted small">{{ currency }}</span>{% endif %}</span>
+            </div>
+            <div class="list-card__meta">
+                <span class="chip">{{ t['maint.rtype.' + m.type] }}</span>
+                <span class="muted small">{{ m.date }}</span>
+                {% if m.supplier %}<span class="muted small">· {{ m.supplier }}</span>{% endif %}
+            </div>
+            {% if has_perm('maintenance_record.edit') or has_perm('maintenance_record.delete') %}
+            <div class="list-card__actions">
+                {% if has_perm('maintenance_record.edit') %}
+                <a href="{{ url_for('maintenance.record_edit', mid=m.id) }}" class="btn btn--sm btn--tonal"
+                   data-modal-url="{{ url_for('maintenance.record_edit', mid=m.id) }}" data-modal-title="{{ t['maint.record_edit'] }}">{{ t['btn.edit'] }}</a>
+                {% endif %}
+                {% if has_perm('maintenance_record.delete') %}
+                <form method="post" action="{{ url_for('maintenance.record_delete', mid=m.id) }}"
+                      data-confirm="{{ t['maint.record_delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger>
+                    <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">handyman</span>

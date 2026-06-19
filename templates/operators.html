@@ -30,14 +30,15 @@
     {% endif %}
 
     {% if operators %}
-    <div class="table-wrap">
+    {# Desktop: full table #}
+    <div class="table-desktop">
     <table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['operator.name'] }}</th>
-                <th class="col-secondary">{{ t['operator.fleet'] }}</th>
-                <th class="col-secondary">{{ t['operator.phone'] }}</th>
-                <th class="col-secondary">{{ t['operator.license'] }}</th>
+                <th>{{ t['operator.fleet'] }}</th>
+                <th>{{ t['operator.phone'] }}</th>
+                <th>{{ t['operator.license'] }}</th>
                 <th>{{ t['operator.status'] }}</th>
                 <th></th>
             </tr>
@@ -81,6 +82,48 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
+
+    {# Mobile: one card per operator #}
+    <div class="list-cards">
+        {% for op in operators %}
+        <div class="list-card">
+            <div class="list-card__top">
+                <strong>{{ op.name }}</strong>
+                {% if op.is_active %}
+                <span class="badge badge--active">{{ t['operator.active'] }}</span>
+                {% else %}
+                <span class="badge badge--inactive">{{ t['operator.inactive'] }}</span>
+                {% endif %}
+            </div>
+            <div class="list-card__meta">
+                <span class="muted small">{{ op.fleet.name }}</span>
+                {% if op.phone %}<span class="muted small">· {{ op.phone }}</span>{% endif %}
+                {% if op.license_number %}<span class="muted small">· {{ op.license_number }}</span>{% endif %}
+            </div>
+            {% if op.notes %}<div class="muted small">{{ op.notes }}</div>{% endif %}
+            {% if has_perm('operator.edit') or has_perm('operator.delete') %}
+            <div class="list-card__actions">
+                {% if has_perm('operator.edit') %}
+                <a href="{{ url_for('operators.edit', oid=op.id) }}" class="btn btn--sm btn--tonal"
+                   data-modal-url="{{ url_for('operators.edit', oid=op.id) }}" data-modal-title="{{ t['operator.edit'] }}">{{ t['btn.edit'] }}</a>
+                {% endif %}
+                {% if has_perm('operator.delete') %}
+                    {% if op.is_active %}
+                    <form method="post" action="{{ url_for('operators.delete', oid=op.id) }}"
+                          data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}">
+                        <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.archive'] }}</button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('operators.reactivate', oid=op.id) }}">
+                        <button type="submit" class="btn btn--sm btn--primary">{{ t['btn.reactivate'] }}</button>
+                    </form>
+                    {% endif %}
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
     </div>
     {% else %}
     <div class="empty-state">

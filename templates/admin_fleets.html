@@ -19,7 +19,7 @@
     </div>
 
     {% if fleets %}
-    <table class="data-table">
+    <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['fleet.name'] }}</th>
@@ -65,7 +65,7 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+    </table></div>
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">workspaces</span>

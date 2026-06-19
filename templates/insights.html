@@ -56,7 +56,7 @@
     </div>
     {% if fuel_rows %}
     <div class="chart-box" style="height:240px;"><canvas id="chart-fuel"></canvas></div>
-    <table class="data-table">
+    <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['entry.vehicle'] }}</th>
@@ -84,7 +84,7 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+    </table></div>
     {% else %}
     <div class="empty-state empty-state--soft">
         <span class="material-symbols-outlined">local_gas_station</span>
@@ -100,7 +100,7 @@
     </div>
     {% if cost_rows %}
     <div class="chart-box" style="height:260px;"><canvas id="chart-cost"></canvas></div>
-    <table class="data-table">
+    <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['entry.vehicle'] }}</th>
@@ -127,7 +127,7 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+    </table></div>
     <p class="muted small">{{ t['insights.cost_note'] }}</p>
     {% else %}
     <div class="empty-state empty-state--soft">
@@ -144,7 +144,7 @@
         <span class="muted small">{{ t['insights.idle_hint']|replace('%d', idle_days|string) }}</span>
     </div>
     {% if idle_rows %}
-    <table class="data-table">
+    <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['entry.vehicle'] }}</th>
@@ -168,7 +168,7 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+    </table></div>
     {% else %}
     <div class="empty-state empty-state--soft">
         <span class="material-symbols-outlined">directions_bus</span>

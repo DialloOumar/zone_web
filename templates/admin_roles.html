@@ -19,7 +19,7 @@
     </div>
 
     {% if roles %}
-    <table class="data-table">
+    <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['role.name'] }}</th>
@@ -57,7 +57,7 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+    </table></div>
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">admin_panel_settings</span>

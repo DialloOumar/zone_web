@@ -116,15 +116,16 @@
     </script>
 
     {% if entries %}
-    <div class="table-wrap">
+    {# Desktop: full table #}
+    <div class="table-desktop">
     <table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['entry.date'] }}</th>
                 <th>{{ t['entry.vehicle'] }}</th>
                 <th>{{ t['entry.activity'] }}</th>
-                <th class="col-secondary">{{ t['entry.km'] }}</th>
-                <th class="col-secondary">{{ t['entry.operator'] }}</th>
+                <th>{{ t['entry.km'] }}</th>
+                <th>{{ t['entry.operator'] }}</th>
                 <th></th>
             </tr>
         </thead>
@@ -132,6 +133,41 @@
             {% with show_vehicle = True %}{% include "_entry_rows.html" %}{% endwith %}
         </tbody>
     </table>
+    </div>
+
+    {# Mobile: one card per entry #}
+    <div class="list-cards">
+        {% for e in entries %}
+        <div class="list-card">
+            <div class="list-card__top">
+                <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
+                <span class="list-card__amount">
+                    {% if e.vehicle.category.unit_type == 'trips' %}{% if e.trips is not none %}{{ e.trips }} {{ t['unit.trips'] }}{% endif %}
+                    {% else %}{% if e.hours is not none %}{{ e.hours }} {{ t['unit.hours'] }}{% endif %}{% endif %}
+                </span>
+            </div>
+            <div class="list-card__meta">
+                <span class="chip chip--{{ e.vehicle.category.code|lower }}">{{ e.vehicle.category.label_fr if lang == 'fr' else e.vehicle.category.label }}</span>
+                <span class="muted small">{{ e.date }}</span>
+                {% if e.operator %}<span class="muted small">· {{ e.operator }}</span>{% endif %}
+                {% if e.kilometers is not none %}<span class="muted small">· {{ e.kilometers }} km</span>{% endif %}
+            </div>
+            {% if has_perm('entry.edit') or has_perm('entry.delete') %}
+            <div class="list-card__actions">
+                {% if has_perm('entry.edit') %}
+                <a href="{{ url_for('entries.edit', eid=e.id) }}" class="btn btn--sm btn--tonal"
+                   data-modal-url="{{ url_for('entries.edit', eid=e.id) }}" data-modal-title="{{ t['entry.edit'] }}">{{ t['btn.edit'] }}</a>
+                {% endif %}
+                {% if has_perm('entry.delete') %}
+                <form method="post" action="{{ url_for('entries.delete', eid=e.id) }}"
+                      data-confirm="{{ t['entry.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger>
+                    <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
     </div>
     {% else %}
     <div class="empty-state">
