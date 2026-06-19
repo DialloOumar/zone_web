@@ -74,6 +74,7 @@ class Fleet(db.Model):
     description = db.Column(db.String(255), nullable=True)
     # JSON list of VehicleCategory.code strings, e.g. ["BUS", "MINIBUS", "NAVETTE"]
     categories  = db.Column(db.JSON,        nullable=False, default=list)
+    is_active   = db.Column(db.Boolean,     nullable=False, default=True)  # soft delete = archive
     created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
 
@@ -116,6 +117,7 @@ class Role(db.Model):
     description = db.Column(db.String(255), nullable=True)
     is_system   = db.Column(db.Boolean,     nullable=False, default=False)
     can_approve = db.Column(db.Boolean,     nullable=False, default=False)
+    is_active   = db.Column(db.Boolean,     nullable=False, default=True)  # soft delete = archive
     created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
@@ -198,6 +200,7 @@ class VehicleCategory(db.Model):
     default_cost_per_unit       = db.Column(db.Integer,     nullable=True)                # GNF per unit, for perte d'exploitation
     icon                        = db.Column(db.String(30),  nullable=True)
     sort_order                  = db.Column(db.Integer,     nullable=False, default=0)
+    is_active                   = db.Column(db.Boolean,     nullable=False, default=True)  # soft delete = archive
 
 
 class Vehicle(db.Model):

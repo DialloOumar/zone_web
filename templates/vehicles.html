@@ -6,11 +6,18 @@
 {% block content %}
 <section class="card">
     <div class="card-header card-header--end">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+        {% if show_archived %}
+            <a href="{{ url_for('vehicles.index', category=active_code) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_active'] }}</a>
+        {% elif archived_count %}
+            <a href="{{ url_for('vehicles.index', category=active_code, archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
+        {% endif %}
         {% if has_perm('vehicle.create') %}
         <a href="{{ url_for('vehicles.new') }}" class="fab" data-modal-url="{{ url_for('vehicles.new') }}" data-modal-title="{{ t['vehicle.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['vehicle.new'] }}
         </a>
         {% endif %}
+        </div>
     </div>
 
     {% if filter_cats %}
@@ -62,10 +69,16 @@
                        data-modal-url="{{ url_for('vehicles.edit', vid=v.id) }}" data-modal-title="{{ t['vehicle.edit'] }}">{{ t['btn.edit'] }}</a>
                     {% endif %}
                     {% if has_perm('vehicle.delete') %}
-                    <form method="post" action="{{ url_for('vehicles.delete', vid=v.id) }}"
-                          onsubmit="return confirm('{{ t['vehicle.delete_confirm'] }}');" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
-                    </form>
+                        {% if v.is_active %}
+                        <form method="post" action="{{ url_for('vehicles.delete', vid=v.id) }}"
+                              onsubmit="return confirm('{{ t['archive.confirm'] }}');" style="display:inline">
+                            <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.archive'] }}</button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="{{ url_for('vehicles.reactivate', vid=v.id) }}" style="display:inline">
+                            <button type="submit" class="btn btn--sm btn--primary">{{ t['btn.reactivate'] }}</button>
+                        </form>
+                        {% endif %}
                     {% endif %}
                 </td>
             </tr>

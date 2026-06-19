@@ -6,11 +6,18 @@
 {% block content %}
 <section class="card">
     <div class="card-header card-header--end">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+        {% if show_archived %}
+            <a href="{{ url_for('operators.index', fleet=active_fleet) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_active'] }}</a>
+        {% elif archived_count %}
+            <a href="{{ url_for('operators.index', fleet=active_fleet, archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
+        {% endif %}
         {% if has_perm('operator.create') %}
         <a href="{{ url_for('operators.new') }}" class="fab" data-modal-url="{{ url_for('operators.new') }}" data-modal-title="{{ t['operator.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['operator.new'] }}
         </a>
         {% endif %}
+        </div>
     </div>
 
     {% if filter_fleets|length > 1 %}
@@ -57,10 +64,16 @@
                        data-modal-url="{{ url_for('operators.edit', oid=op.id) }}" data-modal-title="{{ t['operator.edit'] }}">{{ t['btn.edit'] }}</a>
                     {% endif %}
                     {% if has_perm('operator.delete') %}
-                    <form method="post" action="{{ url_for('operators.delete', oid=op.id) }}"
-                          onsubmit="return confirm('{{ t['operator.delete_confirm'] }}');" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
-                    </form>
+                        {% if op.is_active %}
+                        <form method="post" action="{{ url_for('operators.delete', oid=op.id) }}"
+                              onsubmit="return confirm('{{ t['archive.confirm'] }}');" style="display:inline">
+                            <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.archive'] }}</button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="{{ url_for('operators.reactivate', oid=op.id) }}" style="display:inline">
+                            <button type="submit" class="btn btn--sm btn--primary">{{ t['btn.reactivate'] }}</button>
+                        </form>
+                        {% endif %}
                     {% endif %}
                 </td>
             </tr>

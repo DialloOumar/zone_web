@@ -38,7 +38,9 @@ def _valid_iso_date(s):
 @login_required
 @super_admin_required
 def fleets():
-    rows = Fleet.query.order_by(Fleet.name).all()
+    show_archived = request.args.get("archived") == "1"
+    rows = (Fleet.query.filter(Fleet.is_active.is_(not show_archived))
+            .order_by(Fleet.name).all())
     counts = {
         f.id: {
             "vehicles": Vehicle.query.filter_by(fleet_id=f.id).count(),
@@ -47,8 +49,10 @@ def fleets():
         for f in rows
     }
     cat_labels = {c.code: c for c in VehicleCategory.query.all()}
+    archived_count = Fleet.query.filter(Fleet.is_active.is_(False)).count()
     return render_template(
-        "admin_fleets.html", fleets=rows, counts=counts, cat_labels=cat_labels
+        "admin_fleets.html", fleets=rows, counts=counts, cat_labels=cat_labels,
+        show_archived=show_archived, archived_count=archived_count,
     )
 
 
@@ -101,30 +105,31 @@ def fleet_edit(fleet_id):
 @login_required
 @super_admin_required
 def fleet_delete(fleet_id):
+    """Soft delete: archive the fleet (preserves its vehicles/history)."""
     fleet = db.session.get(Fleet, fleet_id)
     if not fleet:
         abort(404)
     t = get_t()
-    # Refuse to delete while anything still references the fleet — deleting it
-    # would orphan vehicles, operators, or user access grants.
-    blocked = (
-        Vehicle.query.filter_by(fleet_id=fleet_id).count()
-        or Operator.query.filter_by(fleet_id=fleet_id).count()
-        or UserFleet.query.filter_by(fleet_id=fleet_id).count()
-    )
-    if blocked:
-        flash("error|" + t.get(
-            "fleet.err.delete_blocked",
-            "Impossible de supprimer : des véhicules, conducteurs ou "
-            "utilisateurs sont encore rattachés à cette flotte.",
-        ))
-        return redirect(url_for("admin.fleets"))
-    name = fleet.name
-    db.session.delete(fleet)
-    log_action("DELETE", "fleet", resource_id=fleet_id,
-               detail=f"Deleted fleet '{name}'")
+    fleet.is_active = False
+    log_action("ARCHIVE", "fleet", resource_id=fleet_id,
+               detail=f"Archived fleet '{fleet.name}'")
     db.session.commit()
-    flash("success|" + t.get("fleet.deleted", "Flotte supprimée."))
+    flash("success|" + t.get("fleet.archived", "Flotte archivée."))
+    return redirect(url_for("admin.fleets"))
+
+
+@admin_bp.route("/fleets/<int:fleet_id>/reactivate", methods=["POST"])
+@login_required
+@super_admin_required
+def fleet_reactivate(fleet_id):
+    fleet = db.session.get(Fleet, fleet_id)
+    if not fleet:
+        abort(404)
+    fleet.is_active = True
+    log_action("REACTIVATE", "fleet", resource_id=fleet_id,
+               detail=f"Reactivated fleet '{fleet.name}'")
+    db.session.commit()
+    flash("success|" + get_t().get("fleet.reactivated", "Flotte réactivée."))
     return redirect(url_for("admin.fleets"))
 
 
@@ -251,9 +256,13 @@ def _submitted_state():
 @login_required
 @super_admin_required
 def roles():
-    rows = Role.query.order_by(Role.is_system.desc(), Role.name).all()
+    show_archived = request.args.get("archived") == "1"
+    rows = (Role.query.filter(Role.is_active.is_(not show_archived))
+            .order_by(Role.is_system.desc(), Role.name).all())
     counts = {r.id: len(r.role_permissions) for r in rows}
-    return render_template("admin_roles.html", roles=rows, counts=counts)
+    archived_count = Role.query.filter(Role.is_active.is_(False)).count()
+    return render_template("admin_roles.html", roles=rows, counts=counts,
+                           show_archived=show_archived, archived_count=archived_count)
 
 
 @admin_bp.route("/roles/new", methods=["GET", "POST"])
@@ -295,6 +304,7 @@ def role_edit(role_id):
 @login_required
 @super_admin_required
 def role_delete(role_id):
+    """Soft delete: archive the role (assignments are kept; reversible)."""
     role = db.session.get(Role, role_id)
     if not role:
         abort(404)
@@ -302,14 +312,26 @@ def role_delete(role_id):
     if role.is_system:
         flash("error|" + t.get("role.err.system", "Les rôles système ne peuvent pas être supprimés."))
         return redirect(url_for("admin.roles"))
-    name = role.name
-    # Cascade: users assigned this role lose that fleet access (the confirm warns).
-    removed = UserFleet.query.filter_by(role_id=role_id).delete()
-    db.session.delete(role)
-    log_action("DELETE", "role", resource_id=role_id,
-               detail="Deleted role '%s' (%d assignment(s) removed)" % (name, removed))
+    role.is_active = False
+    log_action("ARCHIVE", "role", resource_id=role_id,
+               detail=f"Archived role '{role.name}'")
     db.session.commit()
-    flash("success|" + t.get("role.deleted", "Rôle supprimé."))
+    flash("success|" + t.get("role.archived", "Rôle archivé."))
+    return redirect(url_for("admin.roles"))
+
+
+@admin_bp.route("/roles/<int:role_id>/reactivate", methods=["POST"])
+@login_required
+@super_admin_required
+def role_reactivate(role_id):
+    role = db.session.get(Role, role_id)
+    if not role:
+        abort(404)
+    role.is_active = True
+    log_action("REACTIVATE", "role", resource_id=role_id,
+               detail=f"Reactivated role '{role.name}'")
+    db.session.commit()
+    flash("success|" + get_t().get("role.reactivated", "Rôle réactivé."))
     return redirect(url_for("admin.roles"))
 
 
@@ -358,7 +380,10 @@ def _save_role(role):
 @login_required
 @super_admin_required
 def users():
-    rows = User.query.filter_by(is_super_admin=False).order_by(User.username).all()
+    show_archived = request.args.get("archived") == "1"
+    rows = (User.query.filter_by(is_super_admin=False)
+            .filter(User.is_active.is_(not show_archived))
+            .order_by(User.username).all())
     fleets_by_id = {f.id: f for f in Fleet.query.all()}
     roles_by_id = {r.id: r for r in Role.query.all()}
     assigns = {
@@ -366,7 +391,9 @@ def users():
                for uf in UserFleet.query.filter_by(user_id=u.id).all()]
         for u in rows
     }
-    return render_template("admin_users.html", users=rows, assigns=assigns)
+    archived_count = User.query.filter_by(is_super_admin=False).filter(User.is_active.is_(False)).count()
+    return render_template("admin_users.html", users=rows, assigns=assigns,
+                           show_archived=show_archived, archived_count=archived_count)
 
 
 def _create_user():
@@ -516,13 +543,25 @@ def user_unassign(user_id):
 @login_required
 @super_admin_required
 def user_delete(user_id):
+    """Soft delete: archive (deactivate) the user — keeps their audit trail."""
     user = _get_managed_user(user_id)
     t = get_t()
-    username = user.username
-    db.session.delete(user)
-    log_action("DELETE", "user", resource_id=user_id, detail="Deleted user '%s'" % username)
+    user.is_active = False
+    log_action("ARCHIVE", "user", resource_id=user_id, detail="Archived user '%s'" % user.username)
     db.session.commit()
-    flash("success|" + t.get("user.deleted", "Utilisateur supprime."))
+    flash("success|" + t.get("user.archived", "Utilisateur archivé."))
+    return redirect(url_for("admin.users"))
+
+
+@admin_bp.route("/users/<int:user_id>/reactivate", methods=["POST"])
+@login_required
+@super_admin_required
+def user_reactivate(user_id):
+    user = _get_managed_user(user_id)
+    user.is_active = True
+    log_action("REACTIVATE", "user", resource_id=user_id, detail="Reactivated user '%s'" % user.username)
+    db.session.commit()
+    flash("success|" + get_t().get("user.reactivated", "Utilisateur réactivé."))
     return redirect(url_for("admin.users"))
 
 
@@ -547,9 +586,13 @@ def _cat_num(raw, cast):
 @login_required
 @super_admin_required
 def categories():
-    rows = VehicleCategory.query.order_by(VehicleCategory.sort_order, VehicleCategory.code).all()
+    show_archived = request.args.get("archived") == "1"
+    rows = (VehicleCategory.query.filter(VehicleCategory.is_active.is_(not show_archived))
+            .order_by(VehicleCategory.sort_order, VehicleCategory.code).all())
     counts = {c.id: Vehicle.query.filter_by(category_id=c.id).count() for c in rows}
-    return render_template("admin_categories.html", categories=rows, counts=counts)
+    archived_count = VehicleCategory.query.filter(VehicleCategory.is_active.is_(False)).count()
+    return render_template("admin_categories.html", categories=rows, counts=counts,
+                           show_archived=show_archived, archived_count=archived_count)
 
 
 def _save_category(cat):
@@ -631,21 +674,29 @@ def category_edit(cat_id):
 @login_required
 @super_admin_required
 def category_delete(cat_id):
+    """Soft delete: archive the category (vehicles/fleets keep referencing it)."""
     cat = db.session.get(VehicleCategory, cat_id)
     if not cat:
         abort(404)
     t = get_t()
-    used_by_vehicles = Vehicle.query.filter_by(category_id=cat_id).count()
-    used_by_fleets = any(cat.code in (fl.categories or []) for fl in Fleet.query.all())
-    if used_by_vehicles or used_by_fleets:
-        flash("error|" + t.get("vcat.err.delete_blocked",
-              "Impossible de supprimer : des vehicules ou flottes utilisent cette categorie."))
-        return redirect(url_for("admin.categories"))
-    code = cat.code
-    db.session.delete(cat)
-    log_action("DELETE", "vehicle_category", resource_id=cat_id, detail="Deleted category '%s'" % code)
+    cat.is_active = False
+    log_action("ARCHIVE", "vehicle_category", resource_id=cat_id, detail="Archived category '%s'" % cat.code)
     db.session.commit()
-    flash("success|" + t.get("vcat.deleted", "Categorie supprimee."))
+    flash("success|" + t.get("vcat.archived", "Catégorie archivée."))
+    return redirect(url_for("admin.categories"))
+
+
+@admin_bp.route("/categories/<int:cat_id>/reactivate", methods=["POST"])
+@login_required
+@super_admin_required
+def category_reactivate(cat_id):
+    cat = db.session.get(VehicleCategory, cat_id)
+    if not cat:
+        abort(404)
+    cat.is_active = True
+    log_action("REACTIVATE", "vehicle_category", resource_id=cat_id, detail="Reactivated category '%s'" % cat.code)
+    db.session.commit()
+    flash("success|" + get_t().get("vcat.reactivated", "Catégorie réactivée."))
     return redirect(url_for("admin.categories"))
 
 

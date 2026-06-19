@@ -6,9 +6,16 @@
 {% block content %}
 <section class="card">
     <div class="card-header card-header--end">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+        {% if show_archived %}
+            <a href="{{ url_for('admin.categories') }}" class="btn btn--sm btn--outlined">{{ t['archive.show_active'] }}</a>
+        {% elif archived_count %}
+            <a href="{{ url_for('admin.categories', archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
+        {% endif %}
         <a href="{{ url_for('admin.category_new') }}" class="fab" data-modal-url="{{ url_for('admin.category_new') }}" data-modal-title="{{ t['vcat.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['vcat.new'] }}
         </a>
+        </div>
     </div>
 
     {% if categories %}
@@ -34,10 +41,16 @@
                 <td class="row-actions">
                     <a href="{{ url_for('admin.category_edit', cat_id=c.id) }}" class="btn btn--sm btn--tonal"
                        data-modal-url="{{ url_for('admin.category_edit', cat_id=c.id) }}" data-modal-title="{{ t['vcat.edit'] }}">{{ t['btn.edit'] }}</a>
+                    {% if c.is_active %}
                     <form method="post" action="{{ url_for('admin.category_delete', cat_id=c.id) }}"
-                          onsubmit="return confirm('{{ t['vcat.delete_confirm'] }}');" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                          onsubmit="return confirm('{{ t['archive.confirm'] }}');" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.archive'] }}</button>
                     </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('admin.category_reactivate', cat_id=c.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary">{{ t['btn.reactivate'] }}</button>
+                    </form>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

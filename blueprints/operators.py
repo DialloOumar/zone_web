@@ -13,7 +13,7 @@ from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change)
-from models import Fleet, Operator, Vehicle, db
+from models import Fleet, Operator, db
 
 operators_bp = Blueprint("operators", __name__)
 
@@ -93,14 +93,17 @@ def _form_context(operator):
 def index():
     fleets = _accessible_fleets()
     active_fleet = request.args.get("fleet", type=int)
+    show_archived = request.args.get("archived") == "1"
 
-    q = scoped(Operator)
+    q = scoped(Operator).filter(Operator.is_active.is_(not show_archived))
     if active_fleet:
         q = q.filter(Operator.fleet_id == active_fleet)
     operators = q.order_by(Operator.name).all()
+    archived_count = scoped(Operator).filter(Operator.is_active.is_(False)).count()
 
     return render_template("operators.html", operators=operators,
-                           filter_fleets=fleets, active_fleet=active_fleet)
+                           filter_fleets=fleets, active_fleet=active_fleet,
+                           show_archived=show_archived, archived_count=archived_count)
 
 
 def _render_operator_form(operator, error=None):
@@ -166,17 +169,26 @@ def edit(oid):
 @login_required
 @require_perm("operator.delete")
 def delete(oid):
+    """Soft delete: archive the operator (preserves history; reversible)."""
     op = _get_operator_or_404(oid)
     t = get_t()
-    name, fleet_id = op.name, op.fleet_id
-    # Clear this operator as any vehicle's default driver before deleting,
-    # so the FK never blocks the delete (the default simply resets).
-    Vehicle.query.filter_by(default_operator_id=oid).update(
-        {"default_operator_id": None}, synchronize_session=False
-    )
-    db.session.delete(op)
-    log_action("DELETE", "operator", resource_id=oid, fleet_id=fleet_id,
-               detail=f"Deleted operator '{name}'")
+    op.is_active = False
+    log_action("ARCHIVE", "operator", resource_id=oid, fleet_id=op.fleet_id,
+               detail=f"Archived operator '{op.name}'")
     db.session.commit()
-    flash("success|" + t["operator.deleted"])
+    flash("success|" + t.get("operator.archived", "Conducteur archivé."))
+    return redirect(url_for("operators.index"))
+
+
+@operators_bp.route("/operators/<int:oid>/reactivate", methods=["POST"])
+@login_required
+@require_perm("operator.delete")
+def reactivate(oid):
+    op = _get_operator_or_404(oid)
+    t = get_t()
+    op.is_active = True
+    log_action("REACTIVATE", "operator", resource_id=oid, fleet_id=op.fleet_id,
+               detail=f"Reactivated operator '{op.name}'")
+    db.session.commit()
+    flash("success|" + t.get("operator.reactivated", "Conducteur réactivé."))
     return redirect(url_for("operators.index"))

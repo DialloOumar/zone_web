@@ -142,11 +142,13 @@ def index():
     cats = VehicleCategory.query.order_by(VehicleCategory.sort_order).all()
     cat_by_code = {c.code: c for c in cats}
     active_code = request.args.get("category") or ""
+    show_archived = request.args.get("archived") == "1"
 
-    q = scoped(Vehicle)
+    q = scoped(Vehicle).filter(Vehicle.is_active.is_(not show_archived))
     if active_code and active_code in cat_by_code:
         q = q.filter(Vehicle.category_id == cat_by_code[active_code].id)
     vehicles = q.order_by(Vehicle.code).all()
+    archived_count = scoped(Vehicle).filter(Vehicle.is_active.is_(False)).count()
 
     # Filter chips: only categories present in the user's accessible fleets.
     allowed = set()
@@ -155,7 +157,8 @@ def index():
     filter_cats = [c for c in cats if c.code in allowed] or cats
 
     return render_template("vehicles.html", vehicles=vehicles,
-                           filter_cats=filter_cats, active_code=active_code)
+                           filter_cats=filter_cats, active_code=active_code,
+                           show_archived=show_archived, archived_count=archived_count)
 
 
 @vehicles_bp.route("/vehicles/<int:vid>")
@@ -243,20 +246,26 @@ def edit(vid):
 @login_required
 @require_perm("vehicle.delete")
 def delete(vid):
+    """Soft delete: archive the vehicle (keeps all its history; reversible)."""
     vehicle = _get_vehicle_or_404(vid)
     t = get_t()
-    blocked = (
-        DailyEntry.query.filter_by(vehicle_id=vid).count()
-        or MaintenanceRecord.query.filter_by(vehicle_id=vid).count()
-        or Expense.query.filter_by(vehicle_id=vid).count()
-    )
-    if blocked:
-        flash("error|" + t["vehicle.err.delete_blocked"])
-        return redirect(url_for("vehicles.detail", vid=vid))
-    code, fleet_id = vehicle.code, vehicle.fleet_id
-    db.session.delete(vehicle)
-    log_action("DELETE", "vehicle", resource_id=vid, fleet_id=fleet_id,
-               detail=f"Deleted vehicle '{code}'")
+    vehicle.is_active = False
+    log_action("ARCHIVE", "vehicle", resource_id=vid, fleet_id=vehicle.fleet_id,
+               detail=f"Archived vehicle '{vehicle.code}'")
     db.session.commit()
-    flash("success|" + t["vehicle.deleted"])
+    flash("success|" + t.get("vehicle.archived", "Véhicule archivé."))
+    return redirect(url_for("vehicles.index"))
+
+
+@vehicles_bp.route("/vehicles/<int:vid>/reactivate", methods=["POST"])
+@login_required
+@require_perm("vehicle.delete")
+def reactivate(vid):
+    vehicle = _get_vehicle_or_404(vid)
+    t = get_t()
+    vehicle.is_active = True
+    log_action("REACTIVATE", "vehicle", resource_id=vid, fleet_id=vehicle.fleet_id,
+               detail=f"Reactivated vehicle '{vehicle.code}'")
+    db.session.commit()
+    flash("success|" + t.get("vehicle.reactivated", "Véhicule réactivé."))
     return redirect(url_for("vehicles.index"))
