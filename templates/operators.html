@@ -30,13 +30,14 @@
     {% endif %}
 
     {% if operators %}
+    <div class="table-wrap">
     <table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['operator.name'] }}</th>
-                <th>{{ t['operator.fleet'] }}</th>
-                <th>{{ t['operator.phone'] }}</th>
-                <th>{{ t['operator.license'] }}</th>
+                <th class="col-secondary">{{ t['operator.fleet'] }}</th>
+                <th class="col-secondary">{{ t['operator.phone'] }}</th>
+                <th class="col-secondary">{{ t['operator.license'] }}</th>
                 <th>{{ t['operator.status'] }}</th>
                 <th></th>
             </tr>
@@ -48,9 +49,9 @@
                     <strong>{{ op.name }}</strong>
                     {% if op.notes %}<div class="muted small">{{ op.notes }}</div>{% endif %}
                 </td>
-                <td>{{ op.fleet.name }}</td>
-                <td>{{ op.phone or '—' }}</td>
-                <td>{{ op.license_number or '—' }}</td>
+                <td class="col-secondary">{{ op.fleet.name }}</td>
+                <td class="col-secondary">{{ op.phone or '—' }}</td>
+                <td class="col-secondary">{{ op.license_number or '—' }}</td>
                 <td>
                     {% if op.is_active %}
                         <span class="badge badge--active">{{ t['operator.active'] }}</span>
@@ -80,6 +81,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">badge</span>

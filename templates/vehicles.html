@@ -32,14 +32,15 @@
     {% endif %}
 
     {% if vehicles %}
+    <div class="table-wrap">
     <table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['vehicle.code'] }}</th>
                 <th>{{ t['vehicle.category'] }}</th>
-                <th>{{ t['vehicle.fleet'] }}</th>
-                <th>{{ t['vehicle.site'] }}</th>
-                <th>{{ t['vehicle.baseline'] }}</th>
+                <th class="col-secondary">{{ t['vehicle.fleet'] }}</th>
+                <th class="col-secondary">{{ t['vehicle.site'] }}</th>
+                <th class="col-secondary">{{ t['vehicle.baseline'] }}</th>
                 <th>{{ t['vehicle.status'] }}</th>
                 <th></th>
             </tr>
@@ -49,9 +50,9 @@
             <tr>
                 <td><a href="{{ url_for('vehicles.detail', vid=v.id) }}"><strong>{{ v.code }}</strong></a></td>
                 <td><span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span></td>
-                <td>{{ v.fleet.name }}</td>
-                <td>{{ v.site or '—' }}</td>
-                <td>
+                <td class="col-secondary">{{ v.fleet.name }}</td>
+                <td class="col-secondary">{{ v.site or '—' }}</td>
+                <td class="col-secondary">
                     {% if v.effective_baseline %}
                         {{ v.effective_baseline }} L / {{ t['unit.' + v.category.unit_type] }}
                     {% else %}—{% endif %}
@@ -85,6 +86,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">directions_bus</span>

@@ -398,6 +398,7 @@ a:hover { text-decoration: underline; }
     justify-content: space-between;
     gap: 12px;
     margin-bottom: 18px;
+    flex-wrap: wrap;
 }
 .card-header h2 { font-size: 1.15rem; font-weight: 600; }
 /* When the page title already shows in the top bar, the card header keeps only
@@ -742,7 +743,7 @@ a:hover { text-decoration: underline; }
 
 /* ── Expense total summary ── */
 .expense-total {
-    display: flex; align-items: baseline; gap: 8px;
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
     padding: 12px 16px; margin-bottom: 14px;
     background: var(--md-surface-container); border-radius: var(--shape-md);
     font-size: 0.92rem; color: var(--md-on-surface-variant);
@@ -830,6 +831,35 @@ a:hover { text-decoration: underline; }
 
 /* Horizontal scroll for wide tables instead of breaking the mobile layout. */
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Table-on-desktop / cards-on-mobile (batmex pattern). The list-cards block is
+   hidden on desktop; on phones the table hides and the cards show instead. */
+.list-cards { display: none; }
+.list-card {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--shape-md);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.list-card__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.list-card__amount { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.list-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.85rem; }
+.list-card__actions {
+    display: flex;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--md-outline-variant);
+}
+.list-card__actions > a, .list-card__actions > form { flex: 1; }
+.list-card__actions .btn { width: 100%; justify-content: center; }
+
+@media (max-width: 768px) {
+    .table-desktop { display: none; }
+    .list-cards { display: flex; flex-direction: column; gap: 10px; }
+}
 
 @media (max-width: 768px) {
     .filter-field { flex-basis: 100%; max-width: none; }

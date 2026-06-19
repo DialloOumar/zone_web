@@ -25,6 +25,8 @@
         {{ t['expense.total'] }}<strong>{{ '{:,}'.format(total) }} GNF</strong>
         <span class="muted small">· {{ expenses|length }} {{ t['expense.count'] }}</span>
     </div>
+    {# Desktop: full table #}
+    <div class="table-desktop">
     <table class="data-table">
         <thead>
             <tr>
@@ -49,7 +51,7 @@
                     {% endif %}
                 </td>
                 <td>{{ e.supplier or '—' }}</td>
-                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} GNF</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} {{ currency }}</td>
                 <td class="row-actions">
                     {% if has_perm('expense.edit') %}
                     <a href="{{ url_for('expenses.edit', xid=e.id) }}" class="btn btn--sm btn--tonal"
@@ -66,6 +68,42 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
+
+    {# Mobile: one card per expense #}
+    <div class="list-cards">
+        {% for e in expenses %}
+        <div class="list-card">
+            <div class="list-card__top">
+                <span class="chip">{{ t['expense.cat.' + e.category] }}</span>
+                <span class="list-card__amount">{{ '{:,}'.format(e.amount) }} <span class="muted small">{{ currency }}</span></span>
+            </div>
+            <div class="list-card__meta">
+                <span class="muted small">{{ e.date }}</span>
+                {% if e.vehicle_id %}
+                <span>· <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a></span>
+                {% else %}
+                <span class="muted small">· {{ e.fleet.name }}</span>
+                {% endif %}
+                {% if e.supplier %}<span class="muted small">· {{ e.supplier }}</span>{% endif %}
+            </div>
+            {% if has_perm('expense.edit') or has_perm('expense.delete') %}
+            <div class="list-card__actions">
+                {% if has_perm('expense.edit') %}
+                <a href="{{ url_for('expenses.edit', xid=e.id) }}" class="btn btn--sm btn--tonal"
+                   data-modal-url="{{ url_for('expenses.edit', xid=e.id) }}" data-modal-title="{{ t['expense.edit'] }}">{{ t['btn.edit'] }}</a>
+                {% endif %}
+                {% if has_perm('expense.delete') %}
+                <form method="post" action="{{ url_for('expenses.delete', xid=e.id) }}"
+                      data-confirm="{{ t['expense.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="flex:1;">
+                    <button type="submit" class="btn btn--sm btn--danger" style="width:100%;">{{ t['btn.delete'] }}</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">payments</span>
