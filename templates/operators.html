@@ -66,7 +66,7 @@
                     {% if has_perm('operator.delete') %}
                         {% if op.is_active %}
                         <form method="post" action="{{ url_for('operators.delete', oid=op.id) }}"
-                              onsubmit="return confirm('{{ t['archive.confirm'] }}');" style="display:inline">
+                              data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
                             <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.archive'] }}</button>
                         </form>
                         {% else %}

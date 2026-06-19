@@ -150,6 +150,92 @@
     });
 })();
 
+// ── Styled confirm dialog (replaces the native confirm) ──
+// Any <form data-confirm="message"> shows a styled dialog before submitting.
+// Optional: data-confirm-title, data-confirm-ok (button label),
+// data-confirm-danger (red confirm button). Exposed as window.confirmDialog.
+(function () {
+    function dialog(opts) {
+        return new Promise(function (resolve) {
+            var ov = document.createElement("div");
+            ov.className = "modal-overlay confirm-overlay";
+            ov.innerHTML =
+                '<div class="modal modal--confirm" role="alertdialog" aria-modal="true">' +
+                  '<div class="confirm__body">' +
+                    '<h2 class="confirm__title"></h2>' +
+                    '<p class="confirm__msg"></p>' +
+                  '</div>' +
+                  '<div class="confirm__actions">' +
+                    '<button type="button" class="btn btn--outlined" data-act="cancel"></button>' +
+                    '<button type="button" class="btn" data-act="ok"></button>' +
+                  '</div>' +
+                '</div>';
+            var titleEl = ov.querySelector(".confirm__title");
+            if (opts.title) { titleEl.textContent = opts.title; } else { titleEl.remove(); }
+            ov.querySelector(".confirm__msg").textContent = opts.message || "";
+            var ok = ov.querySelector("[data-act=ok]");
+            ok.textContent = opts.ok || "OK";
+            ok.classList.add(opts.danger ? "btn--danger" : "btn--primary");
+            var cancel = ov.querySelector("[data-act=cancel]");
+            cancel.textContent = opts.cancel || (window.ZW && window.ZW.cancel) || "Cancel";
+
+            document.body.appendChild(ov);
+            requestAnimationFrame(function () { ov.classList.add("open"); });
+
+            function done(v) {
+                document.removeEventListener("keydown", onKey);
+                ov.classList.remove("open");
+                setTimeout(function () { ov.remove(); }, 200);
+                resolve(v);
+            }
+            function onKey(e) {
+                if (e.key === "Escape") done(false);
+                else if (e.key === "Enter") { e.preventDefault(); done(true); }
+            }
+            ov.addEventListener("click", function (e) { if (e.target === ov) done(false); });
+            cancel.addEventListener("click", function () { done(false); });
+            ok.addEventListener("click", function () { done(true); });
+            document.addEventListener("keydown", onKey);
+            setTimeout(function () { ok.focus(); }, 40);
+        });
+    }
+    window.confirmDialog = dialog;
+
+    function optsFrom(el) {
+        return {
+            title: el.getAttribute("data-confirm-title") || "",
+            message: el.getAttribute("data-confirm"),
+            ok: el.getAttribute("data-confirm-ok") || "OK",
+            danger: el.hasAttribute("data-confirm-danger")
+        };
+    }
+
+    // Whole-form guard: <form data-confirm>. form.submit() bypasses this.
+    document.addEventListener("submit", function (e) {
+        var form = e.target;
+        if (!form || !form.hasAttribute || !form.hasAttribute("data-confirm")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dialog(optsFrom(form)).then(function (ok) { if (ok) form.submit(); });
+    }, true);
+
+    // Per-control guard: a specific <button data-confirm> (e.g. one of several
+    // submit buttons) or an <a data-confirm> link. On confirm we replay the
+    // original action, keeping the button's name/value as the form submitter.
+    document.addEventListener("click", function (e) {
+        var el = e.target.closest("button[data-confirm], a[data-confirm]");
+        if (!el || el.dataset.confirmed === "1") return;
+        e.preventDefault();
+        e.stopPropagation();
+        dialog(optsFrom(el)).then(function (ok) {
+            if (!ok) return;
+            el.dataset.confirmed = "1";
+            if (el.tagName === "A") window.location = el.getAttribute("href");
+            else el.click();
+        });
+    }, true);
+})();
+
 // ── Image compression (port from batmex_web) ──
 // Used by photo inputs to shrink phone photos before upload so uploads
 // still succeed on slow field connections. Output is JPEG ~250 KB from a

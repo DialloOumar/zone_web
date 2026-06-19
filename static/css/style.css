@@ -1164,6 +1164,19 @@ a.stat-card { text-decoration: none; color: inherit; }
 .modal__body { padding: 22px; overflow-y: auto; }
 .modal__loading { padding: 48px; text-align: center; color: var(--md-on-surface-variant); }
 
+/* Styled confirm dialog */
+.confirm-overlay { align-items: center; }
+.modal--confirm { width: min(420px, 100%); }
+.confirm__body { padding: 24px 24px 8px; }
+.confirm__title { font-size: 1.15rem; font-weight: 600; margin-bottom: 8px; }
+.confirm__msg { color: var(--md-on-surface-variant); font-size: 0.95rem; line-height: 1.5; }
+.confirm__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px 22px;
+}
+
 /* ── Drawer scrim (mobile) ── */
 .sidebar-overlay {
     display: none;

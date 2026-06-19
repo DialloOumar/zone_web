@@ -25,7 +25,7 @@
         {% endif %}
         {% if has_perm('entry.delete') %}
         <form method="post" action="{{ url_for('entries.delete', eid=e.id) }}"
-              onsubmit="return confirm('{{ t['entry.delete_confirm'] }}');" style="display:inline">
+              data-confirm="{{ t['entry.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
             <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
         </form>
         {% endif %}

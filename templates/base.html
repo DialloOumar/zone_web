@@ -163,6 +163,7 @@
         </div>
     </main>
 
+    <script>window.ZW = { cancel: {{ t['btn.cancel']|tojson }} };</script>
     <script src="{{ url_for('static', filename='js/main.js') }}?v={{ v }}"></script>
     {% block scripts %}{% endblock %}
 </body>

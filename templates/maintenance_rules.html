@@ -47,7 +47,7 @@
                     {% endif %}
                     {% if has_perm('maintenance_rule.delete') %}
                     <form method="post" action="{{ url_for('maintenance.rule_delete', rid=r.id) }}"
-                          onsubmit="return confirm('{{ t['maint.rule_delete_confirm'] }}');" style="display:inline">
+                          data-confirm="{{ t['maint.rule_delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
                         <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
                     </form>
                     {% endif %}

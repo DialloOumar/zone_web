@@ -43,7 +43,7 @@
                     <span class="material-symbols-outlined">check_circle</span> {{ t['approval.approve'] }}
                 </button>
                 <button type="submit" name="action" value="reject" class="btn btn--sm btn--danger"
-                        onclick="return confirm('{{ t['approval.reject_confirm'] }}');">{{ t['approval.reject'] }}</button>
+                        data-confirm="{{ t['approval.reject_confirm'] }}" data-confirm-ok="{{ t['approval.reject'] }}" data-confirm-danger>{{ t['approval.reject'] }}</button>
             </form>
             {% else %}
             <div class="muted small" style="margin-top:8px;">
