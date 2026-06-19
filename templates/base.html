@@ -70,6 +70,9 @@
             <li><a href="{{ url_for('insights.index') }}" class="{% if request.blueprint == 'insights' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">query_stats</span> {{ t['nav.insights'] }}
             </a></li>
+            <li><a href="{{ url_for('invoicing.index') }}" class="{% if request.blueprint == 'invoicing' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">request_quote</span> {{ t['nav.invoicing'] }}
+            </a></li>
             {% endif %}
 
 

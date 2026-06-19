@@ -89,9 +89,7 @@ def _read_vehicle_form(vehicle):
         return None, t["vehicle.err.code_taken"]
 
     baseline, err1 = _num(request.form.get("baseline_l_per_unit_override"), float)
-    cost, err2 = _num(request.form.get("cost_per_unit_override"),
-                      lambda s: int(round(float(s))))
-    if err1 or err2:
+    if err1:
         return None, t["vehicle.err.bad_number"]
 
     data = dict(
@@ -101,7 +99,6 @@ def _read_vehicle_form(vehicle):
         description=(request.form.get("description") or "").strip() or None,
         site=(request.form.get("site") or "").strip() or None,
         baseline_l_per_unit_override=baseline,
-        cost_per_unit_override=cost,
         operator_morning=(request.form.get("operator_morning") or "").strip() or None,
         operator_evening=(request.form.get("operator_evening") or "").strip() or None,
         is_active=request.form.get("is_active") is not None,

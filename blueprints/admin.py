@@ -7,7 +7,7 @@ Helpers (super_admin_required, log_action, slugify, get_t) are imported from
 app.py; this module is imported at the bottom of app.py once those exist, so
 there is no circular-import problem.
 """
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
@@ -15,11 +15,20 @@ from flask_login import current_user, login_required
 
 from app import (get_t, is_modal_request, log_action, modal_ok, slugify,
                  super_admin_required)
-from models import (AppSetting, AuditLog, Fleet, Operator, Permission, Role,
-                    RolePermission, User, UserFleet, Vehicle, VehicleCategory,
-                    db)
+from billing import current_rates
+from models import (AppSetting, AuditLog, Fleet, FleetRate, Operator,
+                    Permission, Role, RolePermission, User, UserFleet, Vehicle,
+                    VehicleCategory, db)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+
+def _valid_iso_date(s):
+    try:
+        datetime.strptime(s, "%Y-%m-%d")
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 # ── Fleets ────────────────────────────────────────────────────────────────────
@@ -50,10 +59,13 @@ def _render_fleet_form(fleet, error=None):
         selected = request.form.getlist("categories")
     else:
         selected = list(fleet.categories or []) if fleet else []
+    # Current billing rate per category (in force today) to prefill the inputs.
+    rates = current_rates(fleet.id) if fleet else {}
     tpl = "_fleet_form.html" if is_modal_request() else "admin_fleet_form.html"
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, fleet=fleet, categories=categories,
-                           selected_codes=selected, error=error), status
+                           selected_codes=selected, rates=rates,
+                           today=date.today().isoformat(), error=error), status
 
 
 @admin_bp.route("/fleets/new", methods=["GET", "POST"])
@@ -160,11 +172,36 @@ def _save_fleet(fleet):
         fleet.description = description or None
         fleet.categories = categories
     db.session.flush()  # assign id for the audit log on create
+
+    # Billing rates — append a dated FleetRate row only where the entered rate
+    # differs from the one currently in force (history is never overwritten).
+    eff = (request.form.get("rate_effective_from") or "").strip()
+    if not _valid_iso_date(eff):
+        eff = date.today().isoformat()
+    in_force = current_rates(fleet.id)
+    rate_changes = 0
+    for code in categories:
+        raw = (request.form.get("rate_" + code) or "").strip().replace(" ", "")
+        if not raw:
+            continue
+        try:
+            new_rate = int(round(float(raw.replace(",", "."))))
+        except ValueError:
+            return t.get("fleet.err.bad_rate", "Tarif invalide.")
+        if new_rate < 0:
+            return t.get("fleet.err.bad_rate", "Tarif invalide.")
+        if in_force.get(code) != new_rate:
+            db.session.add(FleetRate(
+                fleet_id=fleet.id, category_code=code, rate_per_unit=new_rate,
+                effective_from=eff, created_by=current_user.id,
+            ))
+            rate_changes += 1
+
     log_action(
         "CREATE" if creating else "UPDATE", "fleet",
         resource_id=fleet.id, fleet_id=fleet.id,
         detail=f"{'Created' if creating else 'Updated'} fleet "
-               f"'{name}' ({len(categories)} categories)",
+               f"'{name}' ({len(categories)} categories, {rate_changes} rate changes)",
     )
     db.session.commit()
     return None
@@ -535,10 +572,8 @@ def _save_category(cat):
             return t.get("vcat.err.code_taken", "Ce code existe deja.")
 
     baseline, e1 = _cat_num(request.form.get("default_baseline_l_per_unit"), float)
-    cost, e2 = _cat_num(request.form.get("default_cost_per_unit"),
-                        lambda s: int(round(float(s.replace(" ", "")))))
     order, e3 = _cat_num(request.form.get("sort_order"), lambda s: int(round(float(s))))
-    if e1 or e2 or e3:
+    if e1 or e3:
         return t.get("vcat.err.bad_number", "Valeur numerique invalide.")
 
     if creating:
@@ -549,7 +584,6 @@ def _save_category(cat):
     cat.tracking = tracking
     cat.unit_type = unit_type
     cat.default_baseline_l_per_unit = baseline
-    cat.default_cost_per_unit = cost
     cat.sort_order = order if order is not None else 0
     db.session.flush()
     log_action("CREATE" if creating else "UPDATE", "vehicle_category", resource_id=cat.id,

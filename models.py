@@ -77,6 +77,28 @@ class Fleet(db.Model):
     created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
 
+class FleetRate(db.Model):
+    """Dated billing rate (GNF per worked unit) for a (fleet/client × category).
+
+    A fleet models the client, so two clients can bill different rates for the
+    same machine type. Rates are append-only history: changing a price inserts
+    a new row with a new effective_from instead of overwriting, so a past month
+    can be re-billed at the price that applied then. The rate in force on a date
+    is the row with the greatest effective_from <= that date.
+    """
+    __tablename__ = "fleet_rates"
+
+    id             = db.Column(db.Integer,    primary_key=True)
+    fleet_id       = db.Column(db.Integer,    db.ForeignKey("fleets.id"), nullable=False)
+    category_code  = db.Column(db.String(30), nullable=False)
+    rate_per_unit  = db.Column(db.Integer,    nullable=False)              # GNF per trip / hour
+    effective_from = db.Column(db.String(10), nullable=False)             # YYYY-MM-DD
+    created_at     = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+    created_by     = db.Column(db.Integer,    db.ForeignKey("users.id"), nullable=True)
+
+    fleet = db.relationship("Fleet")
+
+
 class Role(db.Model):
     """A bundle of permissions, optionally with approval power.
 

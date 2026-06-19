@@ -16,21 +16,38 @@
     </div>
 
     <div class="field">
-        <textarea id="description" name="description" placeholder=" " rows="2">{{ request.form.get('description') or (fleet.description if is_edit else '') }}</textarea>
+        <textarea id="description" name="description" placeholder=" " rows="2">{{ request.form.get('description') or (fleet.description if is_edit and fleet.description else '') }}</textarea>
         <label for="description">{{ t['fleet.description'] }}</label>
     </div>
 
     <div>
         <span class="field-label">{{ t['fleet.categories'] }}</span>
-        <div class="checkbox-grid">
+        <div class="field-hint">{{ t['fleet.rates_hint'] }}</div>
+        <div class="rate-grid">
             {% for c in categories %}
-            <label class="checkbox-item">
-                <input type="checkbox" name="categories" value="{{ c.code }}"
-                       {% if c.code in selected_codes %}checked{% endif %}>
-                <span>{{ c.label_fr if lang == 'fr' else c.label }}</span>
-            </label>
+            {% set rate_val = request.form.get('rate_' + c.code) or (rates.get(c.code, '') if rates else '') %}
+            <div class="rate-row">
+                <label class="checkbox-item">
+                    <input type="checkbox" name="categories" value="{{ c.code }}" data-rate-toggle="{{ c.code }}"
+                           {% if c.code in selected_codes %}checked{% endif %}>
+                    <span>{{ c.label_fr if lang == 'fr' else c.label }}</span>
+                </label>
+                <div class="rate-input">
+                    <input type="text" inputmode="numeric" name="rate_{{ c.code }}" id="rate_{{ c.code }}"
+                           placeholder="{{ t['fleet.rate_ph'] }}" value="{{ rate_val }}"
+                           {% if c.code not in selected_codes %}disabled{% endif %}>
+                    <span class="rate-unit">GNF/{{ t['unit.' + c.unit_type] }}</span>
+                </div>
+            </div>
             {% endfor %}
         </div>
+    </div>
+
+    <div class="field" style="max-width:220px;">
+        <input type="date" id="rate_effective_from" name="rate_effective_from" placeholder=" "
+               value="{{ request.form.get('rate_effective_from') or today }}">
+        <label for="rate_effective_from">{{ t['fleet.rate_effective_from'] }}</label>
+        <div class="field-hint">{{ t['fleet.rate_effective_hint'] }}</div>
     </div>
 
     <div class="form-actions">
@@ -40,3 +57,17 @@
         <a href="{{ url_for('admin.fleets') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
+
+<script>
+// Enable a category's billing-rate input only while its category is checked.
+(function () {
+    var boxes = document.querySelectorAll('input[data-rate-toggle]');
+    Array.prototype.forEach.call(boxes, function (box) {
+        var input = document.getElementById('rate_' + box.dataset.rateToggle);
+        if (!input) return;
+        var sync = function () { input.disabled = !box.checked; };
+        box.addEventListener('change', sync);
+        sync();
+    });
+})();
+</script>

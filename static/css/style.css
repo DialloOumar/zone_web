@@ -547,6 +547,66 @@ a:hover { text-decoration: underline; }
     color: var(--md-on-secondary-container);
 }
 
+/* Fleet billing rates — one row per category: checkbox + GNF/unit input */
+.rate-grid { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.rate-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) minmax(170px, 240px);
+    gap: 10px;
+    align-items: center;
+}
+.rate-row .checkbox-item { margin: 0; }
+.rate-input { display: flex; align-items: center; gap: 6px; }
+.rate-input input {
+    width: 110px;
+    padding: 8px 10px;
+    border: 1px solid var(--md-outline);
+    border-radius: var(--shape-sm);
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    font-size: 0.9rem;
+    text-align: right;
+}
+.rate-input input:disabled { background: var(--md-surface-container-high); opacity: 0.5; }
+.rate-unit { font-size: 0.78rem; color: var(--md-on-surface-variant); white-space: nowrap; }
+
+/* Fleet billing-rate grid: category toggle + its per-unit price */
+.rate-grid { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.rate-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) minmax(170px, 1.2fr);
+    gap: 10px;
+    align-items: center;
+}
+.rate-row .checkbox-item { width: 100%; }
+.rate-input { display: flex; align-items: center; gap: 8px; }
+.rate-input input {
+    flex: 1; min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid var(--md-outline);
+    border-radius: var(--shape-sm);
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    font-family: inherit; font-size: 0.9rem;
+}
+.rate-input input:disabled { background: var(--md-surface-container-high); opacity: 0.55; }
+.rate-unit { font-size: 0.78rem; color: var(--md-on-surface-variant); white-space: nowrap; }
+@media (max-width: 520px) {
+    .rate-row { grid-template-columns: 1fr; gap: 4px; }
+}
+
+/* Facturation total banner */
+.invoice-total {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+    margin: 4px 0 16px; padding: 14px 18px;
+    border-radius: var(--shape-md);
+    background: var(--md-primary-container); color: var(--md-on-primary-container);
+}
+.invoice-total__label { font-size: 0.85rem; font-weight: 600; }
+.invoice-total__value { font-size: 1.5rem; font-weight: 700; }
+.data-table tfoot td { border-top: 2px solid var(--md-outline-variant); padding-top: 10px; }
+
 /* ── Chips ── */
 .chip {
     display: inline-flex;

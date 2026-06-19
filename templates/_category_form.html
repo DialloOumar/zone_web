@@ -44,12 +44,6 @@
             <label for="default_baseline_l_per_unit">{{ t['vcat.baseline'] }}</label>
             <div class="field-hint">{{ t['vcat.baseline_hint'] }}</div>
         </div>
-        <div class="field">
-            <input type="text" inputmode="numeric" id="default_cost_per_unit" name="default_cost_per_unit" placeholder=" "
-                   value="{{ request.form.get('default_cost_per_unit') or (category.default_cost_per_unit if is_edit and category.default_cost_per_unit is not none else '') }}">
-            <label for="default_cost_per_unit">{{ t['vcat.cost'] }}</label>
-            <div class="field-hint">{{ t['vcat.cost_hint'] }}</div>
-        </div>
     </div>
 
     <div class="field" style="max-width:180px;">

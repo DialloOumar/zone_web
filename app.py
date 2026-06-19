@@ -1074,6 +1074,7 @@ from blueprints.operators import operators_bp  # noqa: E402
 from blueprints.vehicles import vehicles_bp  # noqa: E402
 from blueprints.approvals import approvals_bp  # noqa: E402  (imports entries/maintenance)
 from blueprints.insights import insights_bp  # noqa: E402
+from blueprints.invoicing import invoicing_bp  # noqa: E402
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(vehicles_bp)
@@ -1083,6 +1084,7 @@ app.register_blueprint(expenses_bp)
 app.register_blueprint(maintenance_bp)
 app.register_blueprint(approvals_bp)
 app.register_blueprint(insights_bp)
+app.register_blueprint(invoicing_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────

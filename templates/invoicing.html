@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.invoicing'] }}{% endblock %}
+{% block page_title %}{{ t['nav.invoicing'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['nav.invoicing'] }}</h2>
+        {% if fleet %}<span class="muted small">{{ fleet.name }} · {{ month }}</span>{% endif %}
+    </div>
+
+    <form method="get" class="filter-bar">
+        <div class="field field--select" style="min-width:180px;">
+            <select name="fleet_id" onchange="this.form.submit()">
+                {% for f in fleets %}
+                <option value="{{ f.id }}" {% if fleet and f.id == fleet.id %}selected{% endif %}>{{ f.name }}</option>
+                {% endfor %}
+            </select>
+            <label>{{ t['invoicing.client'] }}</label>
+        </div>
+        <div class="field" style="min-width:135px;">
+            <input type="month" name="month" value="{{ month }}" onchange="this.form.submit()" placeholder=" ">
+            <label>{{ t['entry.month'] }}</label>
+        </div>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+    </form>
+
+    {% if not fleets %}
+    <div class="empty-state"><span class="material-symbols-outlined">workspaces</span><p>{{ t['roster.no_fleet'] }}</p></div>
+    {% elif rows %}
+
+    {% if any_missing %}
+    <div class="alert alert--error">{{ t['invoicing.missing_rate_warn'] }}</div>
+    {% endif %}
+
+    <div class="invoice-total">
+        <span class="invoice-total__label">{{ t['invoicing.total_client'] }}</span>
+        <span class="invoice-total__value">{{ '{:,.0f}'.format(total) }} <span class="stat-unit">{{ currency }}</span></span>
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['entry.vehicle'] }}</th>
+                <th>{{ t['vehicle.category'] }}</th>
+                <th style="text-align:right;">{{ t['invoicing.units'] }}</th>
+                <th style="text-align:right;">{{ t['invoicing.rate'] }}</th>
+                <th style="text-align:right;">{{ t['invoicing.amount'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td><a href="{{ url_for('vehicles.detail', vid=r.v.id) }}"><strong>{{ r.v.code }}</strong></a></td>
+                <td><span class="chip chip--{{ r.v.category.code|lower }}">{{ r.v.category.label_fr if lang == 'fr' else r.v.category.label }}</span></td>
+                <td style="text-align:right;">{{ '%.0f'|format(r.units) }} {{ t['unit.' + r.unit_type] }}</td>
+                <td style="text-align:right;">
+                    {% if r.ref_rate is not none %}{{ '{:,.0f}'.format(r.ref_rate) }}/{{ t['unit.' + r.unit_type] }}{% else %}<span class="variance--danger">{{ t['invoicing.no_rate'] }}</span>{% endif %}
+                </td>
+                <td style="text-align:right;"><strong>{{ '{:,.0f}'.format(r.amount) }}</strong>{% if r.missing %} <span class="variance--danger" title="{{ t['invoicing.missing_rate_warn'] }}">*</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" style="text-align:right;"><strong>{{ t['invoicing.total_client'] }}</strong></td>
+                <td style="text-align:right;"><strong>{{ '{:,.0f}'.format(total) }} {{ currency }}</strong></td>
+            </tr>
+        </tfoot>
+    </table>
+    <p class="muted small">{{ t['invoicing.note'] }}</p>
+
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">request_quote</span>
+        <p>{{ t['invoicing.empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

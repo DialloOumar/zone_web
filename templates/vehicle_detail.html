@@ -49,17 +49,6 @@
             </dd>
         </div>
         <div>
-            <dt>{{ t['vehicle.cost_override'] }}</dt>
-            <dd>
-                {% if vehicle.effective_cost_per_unit %}
-                    {{ '{:,}'.format(vehicle.effective_cost_per_unit) }} GNF
-                    {% if not vehicle.cost_per_unit_override %}
-                    <span class="muted small">({{ t['vehicle.from_category'] }})</span>
-                    {% endif %}
-                {% else %}—{% endif %}
-            </dd>
-        </div>
-        <div>
             <dt>{{ t['vehicle.operator_morning'] }}</dt>
             <dd>{{ vehicle.operator_morning or '—' }}</dd>
         </div>
