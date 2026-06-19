@@ -43,13 +43,9 @@
             <label>{{ t['entry.month'] }}</label>
         </div>
 
-        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
         <button type="button" class="btn btn--sm btn--outlined" id="more-filters" aria-expanded="{{ 'true' if adv_active else 'false' }}">
             <span class="material-symbols-outlined">tune</span> {{ t['entry.more_filters'] }}{% if adv_active %} <span class="filter-dot"></span>{% endif %}
         </button>
-        {% if f.fleet_id or f.vehicle_id or f.category_id or f.operator or f.month or f.date_from or f.date_to %}
-        <a href="{{ url_for('entries.index') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
-        {% endif %}
 
         <div class="filter-advanced {% if adv_active %}is-open{% endif %}" id="filter-advanced">
             <div class="field field--select filter-field">
@@ -74,6 +70,13 @@
                 <input type="date" id="f_to" name="date_to" value="{{ f.date_to }}" placeholder=" ">
                 <label>{{ t['entry.to'] }}</label>
             </div>
+        </div>
+
+        <div class="filter-actions">
+            <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+            {% if f.fleet_id or f.vehicle_id or f.category_id or f.operator or f.month or f.date_from or f.date_to %}
+            <a href="{{ url_for('entries.index') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
+            {% endif %}
         </div>
     </form>
     <script>

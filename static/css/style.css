@@ -822,6 +822,7 @@ a:hover { text-decoration: underline; }
     border-top: 1px dashed var(--md-outline-variant);
 }
 .filter-advanced.is-open { display: flex; }
+.filter-actions { display: flex; gap: 8px; align-items: flex-end; }
 .filter-dot {
     display: inline-block; width: 7px; height: 7px; border-radius: 50%;
     background: var(--c-blue); vertical-align: middle;
@@ -834,6 +835,8 @@ a:hover { text-decoration: underline; }
     .filter-field { flex-basis: 100%; max-width: none; }
     .filter-bar > .btn { flex: 1 1 auto; }
     .filter-advanced .filter-field { flex-basis: 100%; }
+    .filter-actions { flex-basis: 100%; }
+    .filter-actions .btn { flex: 1 1 auto; }
     /* Show only the important table columns on phones. */
     .data-table .col-secondary { display: none; }
 }
