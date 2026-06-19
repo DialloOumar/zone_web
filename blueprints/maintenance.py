@@ -523,19 +523,9 @@ def alert_snooze(aid):
     return redirect(url_for("maintenance.alerts"))
 
 
-@maintenance_bp.route("/alerts/<int:aid>/resolve", methods=["POST"])
-@login_required
-@require_perm("alert.resolve")
-def alert_resolve(aid):
-    a = _get_alert_or_404(aid)
-    a.status = "resolved"
-    a.resolved_at = datetime.utcnow()
-    a.resolved_by = current_user.id
-    a.resolution_note = (request.form.get("note") or "").strip() or "Résolu manuellement"
-    log_action("UPDATE", "alert", resource_id=aid, detail="Resolved alert")
-    db.session.commit()
-    flash("success|" + get_t()["maint.alert_resolved"])
-    return redirect(url_for("maintenance.alerts"))
+# An alert is only "resolved" by logging the actual maintenance (which resets
+# the rule counter); there is no manual resolve. Snooze / dismiss handle the
+# rest. The engine also auto-resolves an open alert once it's no longer due.
 
 
 @maintenance_bp.route("/alerts/<int:aid>/dismiss", methods=["POST"])

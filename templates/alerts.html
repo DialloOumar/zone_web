@@ -35,9 +35,6 @@
                 <form method="post" action="{{ url_for('maintenance.alert_snooze', aid=a.id) }}" style="display:inline">
                     <button class="btn btn--sm btn--tonal">{{ t['maint.snooze'] }}</button>
                 </form>
-                <form method="post" action="{{ url_for('maintenance.alert_resolve', aid=a.id) }}" style="display:inline">
-                    <button class="btn btn--sm btn--tonal">{{ t['maint.resolve'] }}</button>
-                </form>
                 {% endif %}
                 {% if has_perm('alert.dismiss') %}
                 <form method="post" action="{{ url_for('maintenance.alert_dismiss', aid=a.id) }}" style="display:inline">
