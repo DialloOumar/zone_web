@@ -7,7 +7,6 @@
 <section class="card">
     <div class="card-header">
         <div>
-            <h2>{{ vehicle.code }}</h2>
             <div style="margin-top: 8px; display: flex; gap: 6px; align-items: center;">
                 <span class="chip chip--{{ vehicle.category.code|lower }}">{{ vehicle.category.label_fr if lang == 'fr' else vehicle.category.label }}</span>
                 {% if vehicle.is_active %}

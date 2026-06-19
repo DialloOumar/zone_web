@@ -5,8 +5,7 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header">
-        <h2>{{ t['admin.categories'] }}</h2>
+    <div class="card-header card-header--end">
         <a href="{{ url_for('admin.category_new') }}" class="fab" data-modal-url="{{ url_for('admin.category_new') }}" data-modal-title="{{ t['vcat.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['vcat.new'] }}
         </a>

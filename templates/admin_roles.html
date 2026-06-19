@@ -5,8 +5,7 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header">
-        <h2>{{ t['admin.roles'] }}</h2>
+    <div class="card-header card-header--end">
         <a href="{{ url_for('admin.role_new') }}" class="fab">
             <span class="material-symbols-outlined">add</span> {{ t['role.new'] }}
         </a>

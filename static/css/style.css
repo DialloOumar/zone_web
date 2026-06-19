@@ -396,6 +396,9 @@ a:hover { text-decoration: underline; }
     margin-bottom: 18px;
 }
 .card-header h2 { font-size: 1.15rem; font-weight: 600; }
+/* When the page title already shows in the top bar, the card header keeps only
+   its action/subtitle — align it to the right. */
+.card-header--end { justify-content: flex-end; }
 
 /* ── Buttons ── */
 .btn {

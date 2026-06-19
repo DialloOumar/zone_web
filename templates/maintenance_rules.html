@@ -5,8 +5,7 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header">
-        <h2>{{ t['nav.maintenance_rules'] }}</h2>
+    <div class="card-header card-header--end">
         {% if has_perm('maintenance_rule.create') %}
         <a href="{{ url_for('maintenance.rule_new') }}" class="fab" data-modal-url="{{ url_for('maintenance.rule_new') }}" data-modal-title="{{ t['maint.rule_new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['maint.rule_new'] }}

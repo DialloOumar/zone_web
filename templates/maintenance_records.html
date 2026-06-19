@@ -5,8 +5,7 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header">
-        <h2>{{ t['nav.maintenance_records'] }}</h2>
+    <div class="card-header card-header--end">
         {% if has_perm('maintenance_record.create') %}
         <a href="{{ url_for('maintenance.record_new') }}" class="fab" data-modal-url="{{ url_for('maintenance.record_new') }}" data-modal-title="{{ t['maint.record_new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['maint.record_new'] }}

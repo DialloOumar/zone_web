@@ -9,10 +9,6 @@
 
 {% block content %}
 <section class="card" style="max-width: 720px;">
-    <div class="card-header">
-        <h2>{{ t['admin.settings'] }}</h2>
-    </div>
-
     <form method="post" class="entry-form">
         {% for category, items in groups.items() %}
         <fieldset class="settings-group">

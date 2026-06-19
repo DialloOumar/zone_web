@@ -5,8 +5,7 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header">
-        <h2>{{ t['nav.operators'] }}</h2>
+    <div class="card-header card-header--end">
         {% if has_perm('operator.create') %}
         <a href="{{ url_for('operators.new') }}" class="fab" data-modal-url="{{ url_for('operators.new') }}" data-modal-title="{{ t['operator.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['operator.new'] }}

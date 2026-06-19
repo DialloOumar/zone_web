@@ -5,10 +5,6 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header">
-        <h2>{{ t['nav.alerts'] }}{% if active_count %} <span class="badge badge--critical">{{ active_count }}</span>{% endif %}</h2>
-    </div>
-
     <div class="filter-chips">
         <a href="{{ url_for('maintenance.alerts', status='active') }}" class="filter-chip {% if show == 'active' %}active{% endif %}">{{ t['maint.alerts.active'] }}</a>
         <a href="{{ url_for('maintenance.alerts', status='resolved') }}" class="filter-chip {% if show == 'resolved' %}active{% endif %}">{{ t['maint.alerts.resolved'] }}</a>

@@ -5,10 +5,6 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header">
-        <h2>{{ t['nav.approvals'] }}{% if pending_count %} <span class="badge badge--warning">{{ pending_count }}</span>{% endif %}</h2>
-    </div>
-
     <div class="filter-chips">
         <a href="{{ url_for('approvals.index', status='pending') }}" class="filter-chip {% if show == 'pending' %}active{% endif %}">{{ t['approval.pending'] }}</a>
         <a href="{{ url_for('approvals.index', status='approved') }}" class="filter-chip {% if show == 'approved' %}active{% endif %}">{{ t['approval.approved_tab'] }}</a>

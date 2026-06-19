@@ -5,8 +5,7 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header">
-        <h2>{{ t['admin.audit_log'] }}</h2>
+    <div class="card-header card-header--end">
         <span class="muted small">{{ '{:,}'.format(pagination.total) }} {{ t['audit.entries'] }}</span>
     </div>
 
