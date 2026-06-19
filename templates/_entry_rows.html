@@ -16,8 +16,8 @@
             {% if e.hours is not none %}{{ e.hours }} {{ t['unit.hours'] }}{% else %}—{% endif %}
         {% endif %}
     </td>
-    <td>{% if e.kilometers is not none %}{{ e.kilometers }}{% else %}—{% endif %}</td>
-    <td>{{ e.operator or '—' }}</td>
+    <td class="col-secondary">{% if e.kilometers is not none %}{{ e.kilometers }}{% else %}—{% endif %}</td>
+    <td class="col-secondary">{{ e.operator or '—' }}</td>
     <td class="row-actions">
         {% if has_perm('entry.edit') %}
         <a href="{{ url_for('entries.edit', eid=e.id) }}" class="btn btn--sm btn--tonal"

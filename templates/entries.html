@@ -6,7 +6,7 @@
 {% block content %}
 <section class="card">
     <div class="card-header card-header--end">
-        <div style="display:flex; gap:8px; align-items:center;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
             {% if has_perm('report.export_pdf') %}
             <a href="{{ url_for('entries.export_pdf', fleet_id=f.fleet_id, vehicle_id=f.vehicle_id, category_id=f.category_id, operator=f.operator, month=f.month, date_from=f.date_from, date_to=f.date_to) }}" class="btn btn--sm btn--tonal" target="_blank">
                 <span class="material-symbols-outlined">assessment</span> {{ t['export.pdf_btn'] }}
@@ -20,9 +20,10 @@
         </div>
     </div>
 
+    {% set adv_active = f.category_id or f.operator or f.date_from or f.date_to %}
     <form method="get" class="filter-bar">
         {% if fleets|length > 1 %}
-        <div class="field field--select" style="min-width:150px;">
+        <div class="field field--select filter-field">
             <select id="filter_fleet" name="fleet_id">
                 <option value="">{{ t['entry.all_fleets'] }}</option>
                 {% for fl in fleets %}<option value="{{ fl.id }}" {% if f.fleet_id == fl.id %}selected{% endif %}>{{ fl.name }}</option>{% endfor %}
@@ -30,47 +31,62 @@
             <label for="filter_fleet">{{ t['vehicle.fleet'] }}</label>
         </div>
         {% endif %}
-        <div class="field field--select" style="min-width:140px;">
+        <div class="field field--select filter-field">
             <select id="filter_vehicle" name="vehicle_id">
                 <option value="">{{ t['entry.all_vehicles'] }}</option>
                 {% for v in vehicles %}<option value="{{ v.id }}" data-fleet="{{ v.fleet_id }}" {% if f.vehicle_id == v.id %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
             </select>
             <label for="filter_vehicle">{{ t['entry.vehicle'] }}</label>
         </div>
-        <div class="field field--select" style="min-width:150px;">
-            <select name="category_id">
-                <option value="">{{ t['entry.all_categories'] }}</option>
-                {% for c in categories %}<option value="{{ c.id }}" {% if f.category_id == c.id %}selected{% endif %}>{{ c.label_fr if lang == 'fr' else c.label }}</option>{% endfor %}
-            </select>
-            <label>{{ t['vehicle.category'] }}</label>
-        </div>
-        <div class="field field--select" style="min-width:160px;">
-            <select name="operator">
-                <option value="">{{ t['entry.all_operators'] }}</option>
-                {% for o in operators %}<option value="{{ o.name }}" {% if f.operator == o.name %}selected{% endif %}>{{ o.name }}</option>{% endfor %}
-            </select>
-            <label>{{ t['entry.operator'] }}</label>
-        </div>
-        <div class="field" style="min-width:135px;">
+        <div class="field filter-field">
             <input type="month" id="f_month" name="month" value="{{ f.month }}" placeholder=" ">
             <label>{{ t['entry.month'] }}</label>
         </div>
-        <span class="filter-or">{{ t['entry.or'] }}</span>
-        <div class="field" style="min-width:140px;">
-            <input type="date" id="f_from" name="date_from" value="{{ f.date_from }}" placeholder=" ">
-            <label>{{ t['entry.from'] }}</label>
-        </div>
-        <div class="field" style="min-width:140px;">
-            <input type="date" id="f_to" name="date_to" value="{{ f.date_to }}" placeholder=" ">
-            <label>{{ t['entry.to'] }}</label>
-        </div>
+
         <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        <button type="button" class="btn btn--sm btn--outlined" id="more-filters" aria-expanded="{{ 'true' if adv_active else 'false' }}">
+            <span class="material-symbols-outlined">tune</span> {{ t['entry.more_filters'] }}{% if adv_active %} <span class="filter-dot"></span>{% endif %}
+        </button>
         {% if f.fleet_id or f.vehicle_id or f.category_id or f.operator or f.month or f.date_from or f.date_to %}
         <a href="{{ url_for('entries.index') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
         {% endif %}
+
+        <div class="filter-advanced {% if adv_active %}is-open{% endif %}" id="filter-advanced">
+            <div class="field field--select filter-field">
+                <select name="category_id">
+                    <option value="">{{ t['entry.all_categories'] }}</option>
+                    {% for c in categories %}<option value="{{ c.id }}" {% if f.category_id == c.id %}selected{% endif %}>{{ c.label_fr if lang == 'fr' else c.label }}</option>{% endfor %}
+                </select>
+                <label>{{ t['vehicle.category'] }}</label>
+            </div>
+            <div class="field field--select filter-field">
+                <select name="operator">
+                    <option value="">{{ t['entry.all_operators'] }}</option>
+                    {% for o in operators %}<option value="{{ o.name }}" {% if f.operator == o.name %}selected{% endif %}>{{ o.name }}</option>{% endfor %}
+                </select>
+                <label>{{ t['entry.operator'] }}</label>
+            </div>
+            <div class="field filter-field">
+                <input type="date" id="f_from" name="date_from" value="{{ f.date_from }}" placeholder=" ">
+                <label>{{ t['entry.from'] }}</label>
+            </div>
+            <div class="field filter-field">
+                <input type="date" id="f_to" name="date_to" value="{{ f.date_to }}" placeholder=" ">
+                <label>{{ t['entry.to'] }}</label>
+            </div>
+        </div>
     </form>
     <script>
     (function () {
+        // "Plus de filtres" toggle for the advanced filter block.
+        var moreBtn = document.getElementById("more-filters"),
+            adv = document.getElementById("filter-advanced");
+        if (moreBtn && adv) {
+            moreBtn.addEventListener("click", function () {
+                var open = adv.classList.toggle("is-open");
+                moreBtn.setAttribute("aria-expanded", open ? "true" : "false");
+            });
+        }
         var ff = document.getElementById("filter_fleet"), vf = document.getElementById("filter_vehicle");
         if (ff && vf) {
             var narrow = function () {
@@ -97,14 +113,15 @@
     </script>
 
     {% if entries %}
+    <div class="table-wrap">
     <table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['entry.date'] }}</th>
                 <th>{{ t['entry.vehicle'] }}</th>
                 <th>{{ t['entry.activity'] }}</th>
-                <th>{{ t['entry.km'] }}</th>
-                <th>{{ t['entry.operator'] }}</th>
+                <th class="col-secondary">{{ t['entry.km'] }}</th>
+                <th class="col-secondary">{{ t['entry.operator'] }}</th>
                 <th></th>
             </tr>
         </thead>
@@ -112,6 +129,7 @@
             {% with show_vehicle = True %}{% include "_entry_rows.html" %}{% endwith %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">list_alt</span>

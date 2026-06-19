@@ -166,6 +166,10 @@
 /* ── Reset & base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Never let a stray wide element scroll the whole page sideways on mobile —
+   wide tables get their own .table-wrap scroller instead. */
+html { overflow-x: hidden; }
+
 body {
     font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
     background: var(--md-background);
@@ -805,6 +809,35 @@ a:hover { text-decoration: underline; }
 .filter-bar .btn { margin-bottom: 1px; }
 .filter-or { color: var(--md-on-surface-variant); font-size: 0.82rem; padding-bottom: 9px; }
 
+/* Filter fields flex to fit the row, then wrap; collapsible "advanced" block. */
+.filter-field { flex: 1 1 150px; min-width: 0; max-width: 220px; }
+.filter-advanced {
+    flex-basis: 100%;
+    display: none;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--md-outline-variant);
+}
+.filter-advanced.is-open { display: flex; }
+.filter-dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--c-blue); vertical-align: middle;
+}
+
+/* Horizontal scroll for wide tables instead of breaking the mobile layout. */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+@media (max-width: 768px) {
+    .filter-field { flex-basis: 100%; max-width: none; }
+    .filter-bar > .btn { flex: 1 1 auto; }
+    .filter-advanced .filter-field { flex-basis: 100%; }
+    /* Show only the important table columns on phones. */
+    .data-table .col-secondary { display: none; }
+}
+
 /* ── Filter chips (clickable) ── */
 .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
 .filter-chip {
@@ -1188,7 +1221,7 @@ a.stat-card { text-decoration: none; color: inherit; }
     .topbar { padding: 0 12px; }
     .page-title { font-size: 1.15rem; }
     .topbar .lang-toggle { display: none; }
-    .content { padding: 16px; gap: 16px; }
-    .card { padding: 18px; }
+    .content { padding: 16px; gap: 16px; overflow-x: hidden; }
+    .card { padding: 18px; min-width: 0; }
     .form-row { grid-template-columns: 1fr; }
 }
