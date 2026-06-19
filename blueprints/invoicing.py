@@ -34,7 +34,7 @@ def _valid_month(s):
 
 @invoicing_bp.route("/facturation")
 @login_required
-@require_perm("report.view")
+@require_perm("invoicing.view")
 def index():
     now = datetime.utcnow()
     month = request.args.get("month", "")

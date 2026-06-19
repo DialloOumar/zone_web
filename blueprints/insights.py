@@ -115,7 +115,7 @@ def _aggregate(vehicle_ids, month):
 
 @insights_bp.route("/insights")
 @login_required
-@require_perm("report.view")
+@require_perm("insights.view")
 def index():
     now = datetime.utcnow()
     today = now.date()

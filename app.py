@@ -385,10 +385,34 @@ def _dashboard_charts(fleet_ids, now, lang):
     }
 
 
+def _home_url():
+    """Best landing URL for the current user: their dashboard if they may see
+    it, otherwise the first page their role can open. Never strands a user on
+    a 403 after login."""
+    candidates = [
+        ("dashboard.view", "dashboard"),
+        ("vehicle.view", "vehicles.index"),
+        ("entry.view", "entries.roster_index"),
+        ("operator.view", "operators.index"),
+        ("expense.view", "expenses.index"),
+        ("insights.view", "insights.index"),
+        ("invoicing.view", "invoicing.index"),
+        ("alert.view", "maintenance.alerts"),
+        ("maintenance_record.view", "maintenance.records"),
+        ("report.view", "entries.index"),
+    ]
+    for perm, endpoint in candidates:
+        if has_perm(perm):
+            return url_for(endpoint)
+    return url_for("change_password")  # always available to a logged-in user
+
+
 @app.route("/")
 @login_required
 def dashboard():
     """Landing page with at-a-glance KPI cards, scoped to the user's fleets."""
+    if not has_perm("dashboard.view"):
+        return redirect(_home_url())
     fleet_ids = current_user_fleet_ids()  # None for super admin = no restriction
     vq = Vehicle.query
     oq = Operator.query
@@ -440,7 +464,7 @@ def dashboard():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
+        return redirect(_home_url())
     error = None
     if request.method == "POST":
         username = (request.form.get("username") or "").strip().lower()
@@ -450,7 +474,7 @@ def login():
             login_user(user)
             log_action("LOGIN", "auth", detail="Successful login")
             db.session.commit()
-            return redirect(request.args.get("next") or url_for("dashboard"))
+            return redirect(request.args.get("next") or _home_url())
         # Log the attempt without exposing the user's typed username — the
         # request log + IP suffice for forensics. Avoid leaking that an
         # unknown username was attempted, to prevent username enumeration.
@@ -519,6 +543,8 @@ def _not_found(_):
 # Master permission list — seeded into the `permissions` table.
 # Format: (key, label_en, category, resource, action)
 PERMISSIONS_CATALOG = [
+    # Dashboard
+    ("dashboard.view", "View dashboard", "Dashboard", "dashboard", "view"),
     # Vehicles
     ("vehicle.view",   "View vehicles",   "Vehicles", "vehicle", "view"),
     ("vehicle.create", "Create vehicle",  "Vehicles", "vehicle", "create"),
@@ -552,9 +578,13 @@ PERMISSIONS_CATALOG = [
     ("expense.create", "Log expense",     "Expenses", "expense", "create"),
     ("expense.edit",   "Edit expense",    "Expenses", "expense", "edit"),
     ("expense.delete", "Delete expense",  "Expenses", "expense", "delete"),
+    # Insights (analyse)
+    ("insights.view", "View insights", "Insights", "insights", "view"),
     # Reports
     ("report.view",       "View reports",            "Reports", "report", "view"),
     ("report.export_pdf", "Export reports to PDF",   "Reports", "report", "export"),
+    # Invoicing (facturation)
+    ("invoicing.view", "View invoicing", "Invoicing", "invoicing", "view"),
     # Admin (super admin only — these aren't exposed in the role grid, just here for documentation)
     ("admin.users",      "Manage users",      "Administration", "admin", "users"),
     ("admin.fleets",     "Manage fleets",     "Administration", "admin", "fleets"),
@@ -593,6 +623,7 @@ DEFAULT_SETTINGS = [
 # Map role slug → (name, can_approve, list of permission keys)
 SYSTEM_ROLES = {
     "fleet_manager": ("Fleet Manager",  True, [
+        "dashboard.view",
         "vehicle.view", "vehicle.create", "vehicle.edit", "vehicle.delete",
         "operator.view", "operator.create", "operator.edit", "operator.delete",
         "entry.view", "entry.create", "entry.edit", "entry.delete",
@@ -600,27 +631,31 @@ SYSTEM_ROLES = {
         "maintenance_rule.view", "maintenance_rule.create", "maintenance_rule.edit", "maintenance_rule.delete",
         "alert.view", "alert.resolve", "alert.dismiss",
         "expense.view", "expense.create", "expense.edit", "expense.delete",
-        "report.view", "report.export_pdf",
+        "insights.view", "report.view", "report.export_pdf",
+        "invoicing.view",
     ]),
     "supervisor":    ("Supervisor",      False, [
+        "dashboard.view",
         "vehicle.view",
         "operator.view",
         "entry.view", "entry.create", "entry.edit",
         "maintenance_record.view", "maintenance_record.create",
         "alert.view", "alert.resolve",
         "expense.view", "expense.create",
-        "report.view",
+        "insights.view", "report.view",
     ]),
     "inspector":     ("Inspector",       False, [
+        "dashboard.view",
         "vehicle.view",
         "operator.view",
         "entry.view",
         "maintenance_record.view", "maintenance_rule.view",
         "alert.view",
         "expense.view",
-        "report.view",
+        "insights.view", "report.view",
     ]),
     "external":      ("External",        False, [
+        "dashboard.view",
         "vehicle.view",
         "operator.view",
         "entry.view",
