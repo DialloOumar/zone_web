@@ -24,9 +24,9 @@ from flask_migrate import Migrate
 
 from languages import TRANSLATIONS
 from models import (Alert, AppSetting, AuditLog, DailyEntry, Expense, Fleet,
-                    MaintenanceRecord, MaintenanceRule, Operator, PendingChange,
-                    Permission, Role, RolePermission, User, UserFleet, Vehicle,
-                    VehicleCategory, db)
+                    FleetRate, MaintenanceRecord, MaintenanceRule, Operator,
+                    PendingChange, Permission, Role, RolePermission, User,
+                    UserFleet, Vehicle, VehicleCategory, db)
 
 load_dotenv()
 
@@ -1101,6 +1101,56 @@ def seed_demo_cmd(days, force):
            DailyEntry.query.count(), Expense.query.count(),
            MaintenanceRecord.query.count(), Alert.query.count())
     )
+
+
+@app.cli.command("wipe-demo")
+@click.option("--yes", is_flag=True, help="skip the confirmation prompt")
+def wipe_demo_cmd(yes):
+    """Permanently remove the demo data created by `seed-demo`.
+
+    Deletes the demo fleets (Zone Nord / Zone Sud) and everything under
+    them — vehicles, operators, daily entries, expenses, maintenance
+    rules/records, alerts, billing rates — plus the demo 'manager' user.
+    Only the demo fleets are touched; any other (real) fleet and its data
+    are left intact. This is a HARD delete, not an archive.
+    """
+    demo_slugs = [slug for _, slug, _ in DEMO_FLEETS]
+    fleets = Fleet.query.filter(Fleet.slug.in_(demo_slugs)).all()
+    fleet_ids = [f.id for f in fleets]
+    vehicle_ids = [v.id for v in Vehicle.query.filter(Vehicle.fleet_id.in_(fleet_ids)).all()] if fleet_ids else []
+    mgr = User.query.filter_by(username="manager", is_super_admin=False).first()
+
+    if not fleet_ids and not mgr:
+        click.echo("No demo data found — nothing to wipe.")
+        return
+
+    if not yes:
+        click.echo("This permanently deletes %d demo fleet(s), %d vehicle(s) and all their "
+                   "entries/expenses/records%s." %
+                   (len(fleet_ids), len(vehicle_ids),
+                    " + the demo 'manager' user" if mgr else ""))
+        click.confirm("Proceed?", abort=True)
+
+    d = lambda q: q.delete(synchronize_session=False)
+    if vehicle_ids:
+        d(DailyEntry.query.filter(DailyEntry.vehicle_id.in_(vehicle_ids)))
+        d(Alert.query.filter(Alert.vehicle_id.in_(vehicle_ids)))
+    if fleet_ids:
+        # Expenses / rules / records / rates are keyed by fleet (or its vehicles).
+        d(Expense.query.filter(Expense.fleet_id.in_(fleet_ids)))
+        if vehicle_ids:
+            d(MaintenanceRecord.query.filter(MaintenanceRecord.vehicle_id.in_(vehicle_ids)))
+        d(MaintenanceRule.query.filter(MaintenanceRule.fleet_id.in_(fleet_ids)))
+        d(FleetRate.query.filter(FleetRate.fleet_id.in_(fleet_ids)))
+        d(Vehicle.query.filter(Vehicle.fleet_id.in_(fleet_ids)))      # before operators (FK)
+        d(Operator.query.filter(Operator.fleet_id.in_(fleet_ids)))
+        d(UserFleet.query.filter(UserFleet.fleet_id.in_(fleet_ids)))
+        d(Fleet.query.filter(Fleet.id.in_(fleet_ids)))
+    if mgr:
+        d(UserFleet.query.filter_by(user_id=mgr.id))
+        db.session.delete(mgr)
+    db.session.commit()
+    click.echo("Demo data wiped.")
 
 
 # ── Blueprints ───────────────────────────────────────────────────────────────
