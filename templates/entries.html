@@ -9,7 +9,7 @@
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
             {% if has_perm('report.export_pdf') %}
             <a href="{{ url_for('entries.export_pdf', fleet_id=f.fleet_id, vehicle_id=f.vehicle_id, category_id=f.category_id, operator=f.operator, month=f.month, date_from=f.date_from, date_to=f.date_to) }}" class="btn btn--sm btn--tonal" target="_blank">
-                <span class="material-symbols-outlined">assessment</span> {{ t['export.pdf_btn'] }}
+                <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['export.pdf_btn'] }}
             </a>
             {% endif %}
             {% if has_perm('entry.create') %}

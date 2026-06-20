@@ -449,9 +449,9 @@ def _onboarding_steps():
     if has_perm("dashboard.view"):
         add("space_dashboard", "dashboard", "dashboard")
     if has_perm("insights.view"):
-        add("assessment", "insights", "insights.index")
+        add("query_stats", "insights", "insights.index")
     if has_perm("invoicing.view"):
-        add("payments", "invoicing", "invoicing.index")
+        add("request_quote", "invoicing", "invoicing.index")
     return steps
 
 
