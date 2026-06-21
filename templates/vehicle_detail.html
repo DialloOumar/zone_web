@@ -155,7 +155,6 @@
             <tr>
                 <th>{{ t['maint.date'] }}</th>
                 <th>{{ t['maint.record_type'] }}</th>
-                <th>{{ t['maint.at'] }}</th>
                 <th style="text-align:right;">{{ t['maint.cost'] }}</th>
             </tr>
         </thead>
@@ -164,11 +163,6 @@
             <tr>
                 <td>{{ m.date }}</td>
                 <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
-                <td>
-                    {% if m.kilometers_at is not none %}{{ m.kilometers_at }} km{% endif %}
-                    {% if m.hours_at is not none %}{% if m.kilometers_at is not none %} · {% endif %}{{ m.hours_at }} h{% endif %}
-                    {% if m.kilometers_at is none and m.hours_at is none %}—{% endif %}
-                </td>
                 <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} GNF{% else %}—{% endif %}</td>
             </tr>
             {% endfor %}

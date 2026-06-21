@@ -33,7 +33,6 @@
                 <th>{{ t['maint.date'] }}</th>
                 <th>{{ t['maint.vehicle'] }}</th>
                 <th>{{ t['maint.record_type'] }}</th>
-                <th>{{ t['maint.at'] }}</th>
                 <th>{{ t['maint.supplier'] }}</th>
                 <th style="text-align:right;">{{ t['maint.cost'] }}</th>
                 <th></th>
@@ -45,11 +44,6 @@
                 <td>{{ m.date }}</td>
                 <td><a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a></td>
                 <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
-                <td>
-                    {% if m.kilometers_at is not none %}{{ m.kilometers_at }} km{% endif %}
-                    {% if m.hours_at is not none %}{% if m.kilometers_at is not none %} · {% endif %}{{ m.hours_at }} h{% endif %}
-                    {% if m.kilometers_at is none and m.hours_at is none %}—{% endif %}
-                </td>
                 <td>{{ m.supplier or '—' }}</td>
                 <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} {{ currency }}{% else %}—{% endif %}</td>
                 <td class="row-actions">

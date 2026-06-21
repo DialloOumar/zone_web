@@ -16,7 +16,16 @@ from sqlalchemy import func, or_
 
 from models import Alert, DailyEntry, MaintenanceRecord, MaintenanceRule, db
 
-RECURRING_TYPES = ("km_recurring", "hours_recurring", "time_recurring")
+RECURRING_TYPES = ("km_recurring", "hours_recurring", "trips_recurring", "time_recurring")
+
+# Daily-entry metric column + display unit per usage-based rule type. The whole
+# alert calculation rides on the daily entries (saisie quotidienne) — never on a
+# meter reading typed at service time.
+_USAGE = {
+    "km_recurring":    (DailyEntry.kilometers, "km"),
+    "hours_recurring": (DailyEntry.hours,      "h"),
+    "trips_recurring": (DailyEntry.trips,      "voyages"),
+}
 
 
 def _service_filter(vehicle, rule):
@@ -40,14 +49,15 @@ def _targets(rule, vehicle):
     return False
 
 
-def _current(vehicle, column):
-    return db.session.query(func.max(column)).filter(
-        DailyEntry.vehicle_id == vehicle.id).scalar() or 0
-
-
-def _last_service_metric(vehicle, rule, attr):
-    col = getattr(MaintenanceRecord, attr)
-    return db.session.query(func.max(col)).filter(*_service_filter(vehicle, rule)).scalar() or 0
+def _accumulated(vehicle, column, upto_date=None):
+    """Running total of a daily-entry metric for a vehicle, optionally only the
+    entries up to (and including) a date. `current` = total accumulated;
+    `baseline` = total accumulated as of the last service date."""
+    q = db.session.query(func.coalesce(func.sum(column), 0)).filter(
+        DailyEntry.vehicle_id == vehicle.id)
+    if upto_date is not None:
+        q = q.filter(DailyEntry.date <= upto_date)
+    return q.scalar() or 0
 
 
 def _last_service_date(vehicle, rule):
@@ -70,28 +80,18 @@ def _assess(rule, vehicle, now):
         return None
     warn = rule.advance_warning or 0
 
-    if rule.type == "km_recurring":
-        current = _current(vehicle, DailyEntry.cumulative_km)
-        remaining = (_last_service_metric(vehicle, rule, "kilometers_at")
-                     + rule.interval) - current
+    if rule.type in _USAGE:
+        column, unit = _USAGE[rule.type]
+        current = _accumulated(vehicle, column)
+        last_date = _last_service_date(vehicle, rule)
+        baseline = _accumulated(vehicle, column, last_date) if last_date else 0
+        remaining = (baseline + rule.interval) - current
         overdue = remaining <= 0
         soon = 0 < remaining <= warn
         if not (overdue or soon):
             return (False, False, "")
-        msg = (f"{rule.name} : en retard de {abs(remaining):.0f} km" if overdue
-               else f"{rule.name} : échéance dans {remaining:.0f} km")
-        return (True, overdue, msg)
-
-    if rule.type == "hours_recurring":
-        current = _current(vehicle, DailyEntry.cumulative_hours)
-        remaining = (_last_service_metric(vehicle, rule, "hours_at")
-                     + rule.interval) - current
-        overdue = remaining <= 0
-        soon = 0 < remaining <= warn
-        if not (overdue or soon):
-            return (False, False, "")
-        msg = (f"{rule.name} : en retard de {abs(remaining):.0f} h" if overdue
-               else f"{rule.name} : échéance dans {remaining:.0f} h")
+        msg = (f"{rule.name} : en retard de {abs(remaining):.0f} {unit}" if overdue
+               else f"{rule.name} : échéance dans {remaining:.0f} {unit}")
         return (True, overdue, msg)
 
     if rule.type == "time_recurring":

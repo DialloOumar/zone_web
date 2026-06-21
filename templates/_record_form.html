@@ -39,19 +39,6 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" inputmode="decimal" id="kilometers_at" name="kilometers_at" placeholder=" "
-                   value="{{ request.form.get('kilometers_at') or (record.kilometers_at if is_edit and record.kilometers_at is not none else '') }}">
-            <label for="kilometers_at">{{ t['maint.kilometers_at'] }}</label>
-        </div>
-        <div class="field">
-            <input type="text" inputmode="decimal" id="hours_at" name="hours_at" placeholder=" "
-                   value="{{ request.form.get('hours_at') or (record.hours_at if is_edit and record.hours_at is not none else '') }}">
-            <label for="hours_at">{{ t['maint.hours_at'] }}</label>
-        </div>
-    </div>
-
-    <div class="form-row">
-        <div class="field">
             <input type="text" id="supplier" name="supplier" placeholder=" "
                    value="{{ request.form.get('supplier') or (record.supplier if is_edit and record.supplier else '') }}">
             <label for="supplier">{{ t['maint.supplier'] }}</label>

@@ -35,7 +35,7 @@
                 <td><span class="chip">{{ t['maint.ruletype.' + r.type] }}</span></td>
                 <td>
                     {{ r.interval }}
-                    {% if r.type == 'km_recurring' %}km{% elif r.type == 'hours_recurring' %}h{% else %}{{ t['maint.days'] }}{% endif %}
+                    {% if r.type == 'km_recurring' %}km{% elif r.type == 'hours_recurring' %}h{% elif r.type == 'trips_recurring' %}{{ t['maint.trips_unit'] }}{% else %}{{ t['maint.days'] }}{% endif %}
                     {% if r.advance_warning %}<span class="muted small">(−{{ r.advance_warning }})</span>{% endif %}
                 </td>
                 <td>{{ target_label(r) }}</td>

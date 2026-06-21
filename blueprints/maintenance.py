@@ -24,7 +24,7 @@ from models import (Alert, Fleet, MaintenanceRecord, MaintenanceRule, Vehicle,
 
 maintenance_bp = Blueprint("maintenance", __name__)
 
-RULE_TYPES = ["km_recurring", "hours_recurring", "time_recurring"]
+RULE_TYPES = ["km_recurring", "hours_recurring", "trips_recurring", "time_recurring"]
 RECORD_TYPES = ["oil_change", "filter", "tires", "brakes", "repair", "parts",
                 "revision", "other"]
 SEVERITIES = ["info", "warning", "critical"]
@@ -329,17 +329,15 @@ def _read_record_form(record):
     if not date_str or not _valid_date(date_str):
         return None, t["maint.err.date_required"]
 
-    km, e1 = _num(request.form.get("kilometers_at"), float)
-    hrs, e2 = _num(request.form.get("hours_at"), float)
     cost, e3 = _num(request.form.get("cost"),
                     lambda s: int(round(float(s.replace(" ", "")))))
-    if e1 or e2 or e3:
+    if e3:
         return None, t["maint.err.bad_number"]
 
     rule_id = request.form.get("rule_id", type=int) or None
     data = dict(
         vehicle_id=vehicle_id, rule_id=rule_id, type=rtype, date=date_str,
-        kilometers_at=km, hours_at=hrs, cost=cost,
+        cost=cost,
         supplier=(request.form.get("supplier") or "").strip() or None,
         description=(request.form.get("description") or "").strip() or None,
     )
