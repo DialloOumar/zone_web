@@ -27,6 +27,22 @@ _USAGE = {
     "trips_recurring": (DailyEntry.trips,      "voyages"),
 }
 
+# A trips/hours rule only fits a vehicle whose category is tracked that way.
+# km is logged on every entry regardless of tracking, and time is date-based,
+# so those types apply to any vehicle (absent from this map).
+RULE_TRACKING = {
+    "trips_recurring": ("trips",),
+    "hours_recurring": ("hours", "hours_index"),
+}
+
+
+def _metric_applies(rule, vehicle):
+    allowed = RULE_TRACKING.get(rule.type)
+    if allowed is None:
+        return True
+    cat = vehicle.category
+    return cat is not None and cat.tracking in allowed
+
 
 def _service_filter(vehicle, rule):
     """Records that count as 'this rule was serviced': either explicitly linked
@@ -38,6 +54,8 @@ def _service_filter(vehicle, rule):
 
 
 def _targets(rule, vehicle):
+    if not _metric_applies(rule, vehicle):
+        return False  # e.g. a trips rule never fires on an hours-tracked vehicle
     if rule.all_vehicles:
         return True
     if rule.vehicle_id:

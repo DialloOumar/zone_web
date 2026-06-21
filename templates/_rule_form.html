@@ -20,11 +20,12 @@
             <label for="service_type">{{ t['maint.service_type'] }}</label>
         </div>
         <div class="field field--select">
+            {% set type_track = {'trips_recurring': 'trips', 'hours_recurring': 'hours hours_index'} %}
             <select id="type" name="type" required>
                 <option value="" hidden></option>
                 {% set sel_type = request.form.get('type') or (rule.type if is_edit else '') %}
                 {% for rt in rule_types %}
-                <option value="{{ rt }}" {% if rt == sel_type %}selected{% endif %}>{{ t['maint.ruletype.' + rt] }}</option>
+                <option value="{{ rt }}" data-req="{{ type_track.get(rt, '') }}" {% if rt == sel_type %}selected{% endif %}>{{ t['maint.ruletype.' + rt] }}</option>
                 {% endfor %}
             </select>
             <label for="type">{{ t['maint.rule_type'] }}</label>
@@ -66,12 +67,12 @@
             {% endif %}
             {% if categories %}
             <optgroup label="{{ t['maint.target.category'] }}">
-                {% for c in categories %}<option value="category:{{ c.id }}" {% if tv == 'category:' ~ c.id %}selected{% endif %}>{{ c.label_fr if lang == 'fr' else c.label }}</option>{% endfor %}
+                {% for c in categories %}<option value="category:{{ c.id }}" data-track="{{ c.tracking }}" {% if tv == 'category:' ~ c.id %}selected{% endif %}>{{ c.label_fr if lang == 'fr' else c.label }}</option>{% endfor %}
             </optgroup>
             {% endif %}
             {% if vehicles %}
             <optgroup label="{{ t['maint.target.vehicle'] }}">
-                {% for v in vehicles %}<option value="vehicle:{{ v.id }}" {% if tv == 'vehicle:' ~ v.id %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
+                {% for v in vehicles %}<option value="vehicle:{{ v.id }}" data-track="{{ v.category.tracking }}" {% if tv == 'vehicle:' ~ v.id %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
             </optgroup>
             {% endif %}
         </select>
@@ -91,3 +92,32 @@
         <a href="{{ url_for('maintenance.rules') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
+
+<script>
+// Only offer rule types compatible with the chosen target's tracking mode.
+// A category/vehicle target carries data-track; a trips/hours rule type carries
+// data-req. km/time types (no data-req) and fleet/all targets (no track) allow all.
+(function () {
+    var target = document.getElementById("target");
+    var type = document.getElementById("type");
+    if (!target || !type) return;
+    function currentTrack() {
+        var o = target.options[target.selectedIndex];
+        return o ? (o.getAttribute("data-track") || "") : "";
+    }
+    function apply() {
+        var track = currentTrack();
+        Array.prototype.forEach.call(type.options, function (o) {
+            if (!o.value) return;
+            var req = (o.getAttribute("data-req") || "").trim();
+            var ok = !req || !track || req.split(" ").indexOf(track) >= 0;
+            o.hidden = !ok;
+            o.disabled = !ok;
+        });
+        var sel = type.options[type.selectedIndex];
+        if (sel && sel.disabled) type.value = "";
+    }
+    target.addEventListener("change", apply);
+    apply();
+})();
+</script>

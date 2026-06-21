@@ -169,6 +169,21 @@ def _read_rule_form(rule):
     if target is None:
         return None, t["maint.err.target"]
 
+    # A trips/hours rule must match the tracking of a category- or vehicle-scoped
+    # target (fleet/all targets span mixed tracking — the engine filters those
+    # per vehicle).
+    allowed = maintenance_engine.RULE_TRACKING.get(rtype)
+    if allowed:
+        track = None
+        if target["category_id"]:
+            c = db.session.get(VehicleCategory, target["category_id"])
+            track = c.tracking if c else None
+        elif target["vehicle_id"]:
+            v = db.session.get(Vehicle, target["vehicle_id"])
+            track = v.category.tracking if v and v.category else None
+        if track is not None and track not in allowed:
+            return None, t["maint.err.tracking_mismatch"]
+
     data = dict(
         name=name, type=rtype, service_type=service_type, interval=interval,
         advance_warning=warn, severity=severity,
