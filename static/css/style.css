@@ -653,6 +653,7 @@ a:hover { text-decoration: underline; }
     background: var(--c-red); color: #fff; border-radius: var(--shape-full);
     font-size: 0.7rem; font-weight: 700;
 }
+.chip-count--muted { background: var(--c-amber); }
 .filter-chip.active .chip-count { background: rgba(255, 255, 255, 0.3); }
 .approval-card {
     border: 1px solid var(--md-outline-variant);

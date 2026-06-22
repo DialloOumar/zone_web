@@ -409,6 +409,7 @@ TRANSLATIONS = {
         "maint.rtype.other":     "Autre",
         # Alerts
         "maint.alerts.active":   "Actives",
+        "maint.alerts.snoozed":  "Reportées",
         "maint.alerts.resolved": "Résolues",
         "maint.alerts.dismissed": "Ignorées",
         "maint.alerts_empty":    "Aucune alerte. Tout est à jour.",
@@ -1062,6 +1063,7 @@ TRANSLATIONS = {
         "maint.rtype.other":     "Other",
         # Alerts
         "maint.alerts.active":   "Active",
+        "maint.alerts.snoozed":  "Snoozed",
         "maint.alerts.resolved": "Resolved",
         "maint.alerts.dismissed": "Dismissed",
         "maint.alerts_empty":    "No alerts. All up to date.",

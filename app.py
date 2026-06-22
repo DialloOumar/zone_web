@@ -113,10 +113,11 @@ def _inject_globals():
     if current_user.is_authenticated and not current_user.is_super_admin:
         my_pending = PendingChange.query.filter_by(
             requested_by=current_user.id, status="pending").count()
-    # Active maintenance alerts (open + snoozed), scoped — for the "Alertes" badge.
+    # Active maintenance alerts (open only; snoozed are deferred), scoped — for
+    # the "Alertes" badge.
     active_alerts = 0
     if current_user.is_authenticated and has_perm("alert.view"):
-        aq = Alert.query.filter(Alert.status.in_(("open", "snoozed")))
+        aq = Alert.query.filter(Alert.status == "open")
         fids = current_user_fleet_ids()
         if fids is not None:
             aq = (aq.join(Vehicle, Alert.vehicle_id == Vehicle.id)

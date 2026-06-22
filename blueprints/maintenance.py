@@ -514,13 +514,14 @@ def alerts():
     show = request.args.get("status") or "active"
     q = _scoped_alerts()
     if show == "active":
-        q = q.filter(Alert.status.in_(("open", "snoozed")))
-    elif show in ("resolved", "dismissed"):
+        q = q.filter(Alert.status == "open")
+    elif show in ("snoozed", "resolved", "dismissed"):
         q = q.filter(Alert.status == show)
     alerts_rows = q.order_by(Alert.triggered_at.desc()).limit(300).all()
-    active_count = _scoped_alerts().filter(Alert.status.in_(("open", "snoozed"))).count()
+    active_count = _scoped_alerts().filter(Alert.status == "open").count()
+    snoozed_count = _scoped_alerts().filter(Alert.status == "snoozed").count()
     return render_template("alerts.html", alerts=alerts_rows, show=show,
-                           active_count=active_count)
+                           active_count=active_count, snoozed_count=snoozed_count)
 
 
 @maintenance_bp.route("/alerts/<int:aid>/snooze", methods=["POST"])
