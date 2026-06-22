@@ -955,6 +955,23 @@ a:hover { text-decoration: underline; }
 }
 .row-actions { display: flex; gap: 6px; white-space: nowrap; justify-content: flex-end; }
 
+/* ── Pending-approval hints (requester side) ── */
+.pending-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: var(--shape-full);
+    background: var(--c-amber-bg); color: var(--c-amber);
+    font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+}
+.pending-chip .material-symbols-outlined { font-size: 16px; }
+.row-pending { background: color-mix(in srgb, var(--c-amber-bg) 45%, transparent); }
+.row-pending td { color: var(--md-on-surface-variant); }
+.row-ghost { font-style: italic; opacity: 0.85; }
+.row-ghost td:first-child::before,
+.list-card.row-ghost .list-card__top::before { content: "+ "; color: var(--c-amber); font-weight: 700; }
+.list-card.row-pending, .list-card.row-ghost {
+    border-left: 3px solid var(--c-amber);
+}
+
 /* ── Empty state ── */
 .empty-state { text-align: center; padding: 56px 20px; color: var(--md-on-surface-variant); }
 .empty-state .material-symbols-outlined { font-size: 48px; color: var(--md-outline); }

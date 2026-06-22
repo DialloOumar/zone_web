@@ -108,6 +108,11 @@ def _inject_globals():
                     if uf.role and uf.role.can_approve]
             q = q.filter(PendingChange.fleet_id.in_(fids))
         pending_approvals = q.count()
+    # The current user's own in-flight requests, for the "Mes demandes" badge.
+    my_pending = 0
+    if current_user.is_authenticated and not current_user.is_super_admin:
+        my_pending = PendingChange.query.filter_by(
+            requested_by=current_user.id, status="pending").count()
     return {
         "t": get_t(),
         "lang": current_lang(),
@@ -116,6 +121,7 @@ def _inject_globals():
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,
+        "my_pending": my_pending,
         "currency": _get_setting("currency", "GNF"),
     }
 

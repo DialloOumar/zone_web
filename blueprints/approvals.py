@@ -73,6 +73,17 @@ def _describe_target(pc):
     return rows
 
 
+# Friendly French labels for payload keys (the whole describe layer is FR-only,
+# matching the hardcoded "véhicule"/"flotte" labels below).
+_FIELD_LABELS = {
+    "date": "date", "hours": "heures", "trips": "voyages", "kilometers": "km",
+    "operator": "conducteur", "note": "note", "index_start": "index début",
+    "index_end": "index fin", "cost": "coût", "supplier": "fournisseur",
+    "description": "description", "amount": "montant", "liters": "litres",
+    "type": "type", "name": "nom", "code": "code",
+}
+
+
 def _describe(pc):
     """Render the change as readable (label, value) rows, resolving FK ids.
     Create/update describe the proposed payload; delete summarises the target."""
@@ -82,7 +93,7 @@ def _describe(pc):
     for k, v in (pc.payload or {}).items():
         if v is None or v == "":
             continue
-        label = k.replace("_id", "").replace("_", " ")
+        label = _FIELD_LABELS.get(k, k.replace("_id", "").replace("_", " "))
         val = v
         if k == "vehicle_id":
             o = db.session.get(Vehicle, v)
@@ -165,6 +176,24 @@ def index():
         pending_q = pending_q.filter(PendingChange.fleet_id.in_(ids))
     return render_template("approvals.html", items=items, show=show,
                            pending_count=pending_q.count())
+
+
+@approvals_bp.route("/mes-demandes")
+@login_required
+def my_requests():
+    """The requester's own submissions and their status — read-only."""
+    show = request.args.get("status") or "pending"
+    q = PendingChange.query.filter_by(requested_by=current_user.id)
+    if show in ("pending", "approved", "rejected"):
+        q = q.filter(PendingChange.status == show)
+    rows = q.order_by(PendingChange.requested_at.desc()).limit(200).all()
+    fleets = {f.id: f for f in Fleet.query.all()}
+    items = [{"pc": pc, "fields": _describe(pc), "fleet": fleets.get(pc.fleet_id)}
+             for pc in rows]
+    pending_count = PendingChange.query.filter_by(
+        requested_by=current_user.id, status="pending").count()
+    return render_template("my_requests.html", items=items, show=show,
+                           pending_count=pending_count)
 
 
 @approvals_bp.route("/approvals/<int:pid>/review", methods=["POST"])

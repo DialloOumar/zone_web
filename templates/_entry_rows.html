@@ -1,7 +1,8 @@
 {# Renders <tr> rows for a set of daily entries.
    Context: entries, and show_vehicle (bool) to include the vehicle column. #}
 {% for e in entries %}
-<tr>
+{% set pa = (pending_map|default({})).get(e.id) %}
+<tr{% if pa %} class="row-pending"{% endif %}>
     <td>{{ e.date }}</td>
     {% if show_vehicle %}
     <td>
@@ -19,6 +20,9 @@
     <td class="col-secondary">{% if e.kilometers is not none %}{{ e.kilometers }}{% else %}—{% endif %}</td>
     <td class="col-secondary">{{ e.operator or '—' }}</td>
     <td class="row-actions">
+        {% if pa %}
+        <span class="pending-chip"><span class="material-symbols-outlined">pending_actions</span> {{ t['pending.' + pa] }}</span>
+        {% else %}
         {% if has_perm('entry.edit') %}
         <a href="{{ url_for('entries.edit', eid=e.id) }}" class="btn btn--sm btn--tonal"
            data-modal-url="{{ url_for('entries.edit', eid=e.id) }}" data-modal-title="{{ t['entry.edit'] }}">{{ t['btn.edit'] }}</a>
@@ -28,6 +32,7 @@
               data-confirm="{{ t['entry.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
             <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
         </form>
+        {% endif %}
         {% endif %}
     </td>
 </tr>

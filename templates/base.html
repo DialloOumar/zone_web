@@ -82,9 +82,16 @@
 
 
             {% if can_approve_any %}
-            <li><a href="{{ url_for('approvals.index') }}" class="{% if request.blueprint == 'approvals' %}active{% endif %}">
+            <li><a href="{{ url_for('approvals.index') }}" class="{% if request.endpoint == 'approvals.index' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">pending_actions</span> {{ t['nav.approvals'] }}
                 {% if pending_approvals %}<span class="nav-badge">{{ pending_approvals }}</span>{% endif %}
+            </a></li>
+            {% endif %}
+
+            {% if not is_super_admin %}
+            <li><a href="{{ url_for('approvals.my_requests') }}" class="{% if request.endpoint == 'approvals.my_requests' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">history</span> {{ t['nav.my_requests'] }}
+                {% if my_pending %}<span class="nav-badge">{{ my_pending }}</span>{% endif %}
             </a></li>
             {% endif %}
 

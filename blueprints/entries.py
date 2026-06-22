@@ -21,7 +21,8 @@ from flask_login import current_user, login_required
 import maintenance_engine
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, submit_change)
-from models import DailyEntry, Fleet, Operator, Vehicle, VehicleCategory, db
+from models import (DailyEntry, Fleet, Operator, PendingChange, Vehicle,
+                    VehicleCategory, db)
 
 entries_bp = Blueprint("entries", __name__)
 
@@ -248,16 +249,34 @@ def _apply_filters(q):
     return q
 
 
+def _ghost_create(pc):
+    """A pending-creation row preview (no DB row exists yet) from its payload."""
+    p = pc.payload or {}
+    v = db.session.get(Vehicle, p.get("vehicle_id")) if p.get("vehicle_id") else None
+    return {"date": p.get("date"), "vehicle": v, "trips": p.get("trips"),
+            "hours": p.get("hours"), "kilometers": p.get("kilometers"),
+            "operator": p.get("operator")}
+
+
 @entries_bp.route("/entries")
 @login_required
 @require_perm("entry.view")
 def index():
     entries = (_apply_filters(_scoped_entries())
                .order_by(DailyEntry.date.desc(), DailyEntry.id.desc()).limit(500).all())
+    # The requester's own in-flight changes, so rows show "… en attente" and
+    # locked actions, and pending creations appear as ghost rows on top.
+    mine = (PendingChange.query
+            .filter_by(requested_by=current_user.id, status="pending",
+                       resource_type="daily_entry").all())
+    pending_map = {pc.resource_id: pc.action for pc in mine
+                   if pc.action in ("update", "delete") and pc.resource_id}
+    ghost_creates = [_ghost_create(pc) for pc in mine if pc.action == "create"]
     return render_template("entries.html", entries=entries,
                            fleets=_accessible_fleets(), vehicles=_accessible_vehicles(),
                            categories=_accessible_categories(),
-                           operators=_accessible_operators(), f=_filter_values())
+                           operators=_accessible_operators(), f=_filter_values(),
+                           pending_map=pending_map, ghost_creates=ghost_creates)
 
 
 @entries_bp.route("/entries/export.pdf")
