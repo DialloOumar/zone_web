@@ -17,7 +17,7 @@
     <div class="alert-list">
         {% for it in items %}
         {% set pc = it.pc %}
-        <div class="approval-card approval-card--{{ pc.status }}">
+        <div class="approval-card approval-card--compact approval-card--{{ pc.status }}">
             <div class="approval-card__head">
                 <div>
                     <span class="badge badge--{{ 'warning' if pc.action == 'delete' else 'info' }}">{{ t['approval.action.' + pc.action] }}</span>
