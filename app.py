@@ -318,6 +318,19 @@ def submit_change(*, resource_type, action, fleet_id, payload, resource_id=None,
     return pc
 
 
+def pending_change_exists(resource_type, resource_id):
+    """True if an unresolved change is already queued for this exact record.
+
+    Used to block duplicate or conflicting edit/delete submissions: a record
+    stays locked until its pending change is approved or rejected.
+    """
+    if not resource_id:
+        return False
+    return db.session.query(PendingChange.id).filter_by(
+        resource_type=resource_type, resource_id=resource_id,
+        status="pending").first() is not None
+
+
 def is_modal_request():
     """True when a request originates from the modal layer (fetch + header).
 

@@ -20,7 +20,8 @@ from flask_login import current_user, login_required
 
 import maintenance_engine
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
-                 modal_ok, needs_approval, require_perm, submit_change)
+                 modal_ok, needs_approval, pending_change_exists, require_perm,
+                 submit_change)
 from models import (DailyEntry, Fleet, Operator, PendingChange, Vehicle,
                     VehicleCategory, db)
 
@@ -369,6 +370,22 @@ def roster(slug):
             by_vehicle.setdefault(e.vehicle_id, []).append(e)
 
     done = sum(1 for v in vehicles if v.id in by_vehicle)
+
+    # The requester's own in-flight changes on this sheet: lock pending edits/
+    # deletes and surface pending creations as ghost entries in the cell.
+    vids = {v.id for v in vehicles}
+    mine = (PendingChange.query
+            .filter_by(requested_by=current_user.id, status="pending",
+                       resource_type="daily_entry").all())
+    pending_map = {pc.resource_id: pc.action for pc in mine
+                   if pc.action in ("update", "delete") and pc.resource_id}
+    ghost_by_vehicle = {}
+    for pc in mine:
+        if pc.action == "create":
+            p = pc.payload or {}
+            if p.get("date") == date_str and p.get("vehicle_id") in vids:
+                ghost_by_vehicle.setdefault(p["vehicle_id"], []).append(_ghost_create(pc))
+
     d = datetime.strptime(date_str, "%Y-%m-%d").date()
     return render_template(
         "roster.html", fleet=fleet, fleets=_accessible_fleets(),
@@ -376,6 +393,7 @@ def roster(slug):
         prev_date=(d - timedelta(days=1)).isoformat(),
         next_date=(d + timedelta(days=1)).isoformat(),
         done=done, pending=len(vehicles) - done,
+        pending_map=pending_map, ghost_by_vehicle=ghost_by_vehicle,
     )
 
 
@@ -414,6 +432,8 @@ def edit(eid):
     entry = _get_entry_or_404(eid)
     t = get_t()
     if request.method == "POST":
+        if pending_change_exists("daily_entry", entry.id):
+            return _render_entry_form(entry, t["entry.err.pending_exists"])
         data, error = _read_entry_form(entry)
         if error:
             return _render_entry_form(entry, error)
@@ -446,6 +466,9 @@ def delete(eid):
     entry = _get_entry_or_404(eid)
     t = get_t()
     vid, fleet_id = entry.vehicle_id, entry.vehicle.fleet_id
+    if pending_change_exists("daily_entry", entry.id):
+        flash("error|" + t["entry.err.pending_exists"])
+        return redirect(request.referrer or url_for("entries.index"))
     if needs_approval("entry.delete", entry.created_by, entry.created_at):
         submit_change(resource_type="daily_entry", action="delete",
                       resource_id=entry.id, fleet_id=fleet_id, payload={})

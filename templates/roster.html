@@ -40,6 +40,7 @@
 <div class="roster-grid">
     {% for v in vehicles %}
     {% set ents = by_vehicle.get(v.id, []) %}
+    {% set ghosts = ghost_by_vehicle.get(v.id, []) %}
     <div class="roster-vehicle {% if ents %}is-done{% endif %}">
         <div class="roster-vehicle__head">
             <div>
@@ -55,9 +56,24 @@
             {% endif %}
         </div>
 
-        {% if ents %}
+        {% if ents or ghosts %}
         <div class="roster-entries">
             {% for e in ents %}
+            {% set pa = pending_map.get(e.id) %}
+            {% if pa %}
+            {# Locked: a change is awaiting approval — no edit, show the status. #}
+            <div class="roster-entry roster-entry--pending">
+                <span class="roster-entry__activity">
+                    {% if v.category.unit_type == 'trips' %}
+                        {% if e.trips is not none %}{{ e.trips }} {{ t['unit.trips'] }}{% if e.trips != 1 %}s{% endif %}{% else %}—{% endif %}
+                    {% else %}
+                        {% if e.hours is not none %}{{ e.hours }} {{ t['unit.hours'] }}{% else %}—{% endif %}
+                    {% endif %}
+                </span>
+                <span class="roster-entry__op">{{ e.operator or '—' }}</span>
+                <span class="pending-chip"><span class="material-symbols-outlined">pending_actions</span> {{ t['pending.' + pa] }}</span>
+            </div>
+            {% else %}
             <a class="roster-entry" href="{{ url_for('entries.edit', eid=e.id) }}"
                {% if has_perm('entry.edit') %}data-modal-url="{{ url_for('entries.edit', eid=e.id) }}" data-modal-title="{{ t['entry.edit'] }} — {{ v.code }}"{% endif %}>
                 <span class="roster-entry__activity">
@@ -70,6 +86,16 @@
                 <span class="roster-entry__op">{{ e.operator or '—' }}</span>
                 {% if e.kilometers is not none %}<span class="roster-entry__fuel">{{ e.kilometers }} km</span>{% endif %}
             </a>
+            {% endif %}
+            {% endfor %}
+            {% for g in ghosts %}
+            <div class="roster-entry roster-entry--pending roster-entry--ghost">
+                <span class="roster-entry__activity">
+                    {% if g.trips is not none %}{{ g.trips }} {{ t['unit.trips'] }}{% elif g.hours is not none %}{{ g.hours }} {{ t['unit.hours'] }}{% else %}—{% endif %}
+                </span>
+                <span class="roster-entry__op">{{ g.operator or '—' }}</span>
+                <span class="pending-chip"><span class="material-symbols-outlined">pending_actions</span> {{ t['pending.create'] }}</span>
+            </div>
             {% endfor %}
         </div>
         {% else %}

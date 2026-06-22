@@ -797,6 +797,13 @@ a:hover { text-decoration: underline; }
 .roster-entry__activity { font-weight: 600; }
 .roster-entry__op { color: var(--md-on-surface-variant); }
 .roster-entry__fuel { margin-left: auto; color: var(--md-on-surface-variant); }
+.roster-entry--pending {
+    background: var(--c-amber-bg); flex-wrap: wrap; row-gap: 4px;
+    border: 1px solid color-mix(in srgb, var(--c-amber) 40%, transparent);
+}
+.roster-entry--pending .pending-chip { margin-left: auto; background: transparent; padding: 0; }
+.roster-entry--ghost { font-style: italic; opacity: 0.9; }
+.roster-entry--ghost .roster-entry__activity::before { content: "+ "; color: var(--c-amber); font-weight: 700; }
 .roster-empty {
     display: block; text-align: center; padding: 14px;
     border: 1px dashed var(--md-outline-variant); border-radius: var(--shape-sm);
