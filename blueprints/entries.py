@@ -427,9 +427,15 @@ def delete(eid):
     entry = _get_entry_or_404(eid)
     t = get_t()
     vid, fleet_id = entry.vehicle_id, entry.vehicle.fleet_id
+    if needs_approval("entry.delete", entry.created_by, entry.created_at):
+        submit_change(resource_type="daily_entry", action="delete",
+                      resource_id=entry.id, fleet_id=fleet_id, payload={})
+        flash("success|" + t["entry.submitted"])
+        return redirect(request.referrer or url_for("entries.index"))
     db.session.delete(entry)
     db.session.flush()
     _recompute_cumulatives(vid)
+    maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, vid))
     log_action("DELETE", "daily_entry", resource_id=eid, fleet_id=fleet_id,
                detail=f"Deleted entry #{eid}")
     db.session.commit()

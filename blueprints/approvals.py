@@ -46,8 +46,38 @@ def _require_approver():
     return ids
 
 
+def _describe_target(pc):
+    """For a delete, the payload is empty — summarise the existing record that
+    would be removed so the approver can see what they're signing off on."""
+    Model, _ = RESOURCE_MODELS[pc.resource_type]
+    obj = db.session.get(Model, pc.resource_id)
+    if obj is None:
+        return []
+    rows = []
+    if pc.resource_type == "daily_entry":
+        v = db.session.get(Vehicle, obj.vehicle_id)
+        rows.append(("date", obj.date))
+        rows.append(("véhicule", v.code if v else obj.vehicle_id))
+        if obj.trips is not None:
+            rows.append(("voyages", obj.trips))
+        if obj.hours is not None:
+            rows.append(("heures", obj.hours))
+        if obj.kilometers:
+            rows.append(("km", obj.kilometers))
+        if obj.operator:
+            rows.append(("conducteur", obj.operator))
+    else:
+        for attr in ("code", "name", "date", "type"):
+            if getattr(obj, attr, None):
+                rows.append((attr, getattr(obj, attr)))
+    return rows
+
+
 def _describe(pc):
-    """Render the payload as readable (label, value) rows, resolving FK ids."""
+    """Render the change as readable (label, value) rows, resolving FK ids.
+    Create/update describe the proposed payload; delete summarises the target."""
+    if pc.action == "delete":
+        return _describe_target(pc)
     out = []
     for k, v in (pc.payload or {}).items():
         if v is None or v == "":
@@ -77,6 +107,7 @@ def _apply(pc):
     Model, creator_attr = RESOURCE_MODELS[pc.resource_type]
     payload = pc.payload or {}
     obj = None
+    vehicle_id = None  # affected vehicle for daily_entry side-effects
     if pc.action == "create":
         obj = Model(**payload)
         setattr(obj, creator_attr, pc.requested_by)
@@ -91,15 +122,20 @@ def _apply(pc):
     elif pc.action == "delete":
         target = db.session.get(Model, pc.resource_id)
         if target:
+            if pc.resource_type == "daily_entry":
+                vehicle_id = target.vehicle_id  # capture before the row is gone
             db.session.delete(target)
         db.session.flush()
     else:
         return False
 
     # Side-effects mirroring the feature blueprints.
-    if pc.resource_type == "daily_entry" and obj is not None:
-        _recompute_cumulatives(obj.vehicle_id)
-        maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, obj.vehicle_id))
+    if pc.resource_type == "daily_entry":
+        if obj is not None:
+            vehicle_id = obj.vehicle_id
+        if vehicle_id is not None:
+            _recompute_cumulatives(vehicle_id)
+            maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, vehicle_id))
     if pc.resource_type == "maintenance_record" and pc.action == "create" and obj is not None:
         _close_alert_for_record(obj)
         maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, obj.vehicle_id))
