@@ -6,7 +6,7 @@
 {% block content %}
 <section class="card">
     <div class="filter-chips">
-        <a href="{{ url_for('maintenance.alerts', status='active') }}" class="filter-chip {% if show == 'active' %}active{% endif %}">{{ t['maint.alerts.active'] }}</a>
+        <a href="{{ url_for('maintenance.alerts', status='active') }}" class="filter-chip {% if show == 'active' %}active{% endif %}">{{ t['maint.alerts.active'] }}{% if active_count %} <span class="chip-count">{{ active_count }}</span>{% endif %}</a>
         <a href="{{ url_for('maintenance.alerts', status='resolved') }}" class="filter-chip {% if show == 'resolved' %}active{% endif %}">{{ t['maint.alerts.resolved'] }}</a>
         <a href="{{ url_for('maintenance.alerts', status='dismissed') }}" class="filter-chip {% if show == 'dismissed' %}active{% endif %}">{{ t['maint.alerts.dismissed'] }}</a>
     </div>

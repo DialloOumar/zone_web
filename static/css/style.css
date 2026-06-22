@@ -646,6 +646,14 @@ a:hover { text-decoration: underline; }
     background: var(--c-amber); color: #fff; border-radius: var(--shape-full);
     font-size: 0.72rem; font-weight: 700;
 }
+.nav-badge--alert { background: var(--c-red); }
+.chip-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px;
+    background: var(--c-red); color: #fff; border-radius: var(--shape-full);
+    font-size: 0.7rem; font-weight: 700;
+}
+.filter-chip.active .chip-count { background: rgba(255, 255, 255, 0.3); }
 .approval-card {
     border: 1px solid var(--md-outline-variant);
     border-left: 4px solid var(--md-primary);

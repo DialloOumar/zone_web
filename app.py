@@ -113,6 +113,15 @@ def _inject_globals():
     if current_user.is_authenticated and not current_user.is_super_admin:
         my_pending = PendingChange.query.filter_by(
             requested_by=current_user.id, status="pending").count()
+    # Active maintenance alerts (open + snoozed), scoped — for the "Alertes" badge.
+    active_alerts = 0
+    if current_user.is_authenticated and has_perm("alert.view"):
+        aq = Alert.query.filter(Alert.status.in_(("open", "snoozed")))
+        fids = current_user_fleet_ids()
+        if fids is not None:
+            aq = (aq.join(Vehicle, Alert.vehicle_id == Vehicle.id)
+                    .filter(Vehicle.fleet_id.in_(fids)))
+        active_alerts = aq.count()
     return {
         "t": get_t(),
         "lang": current_lang(),
@@ -122,6 +131,7 @@ def _inject_globals():
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,
         "my_pending": my_pending,
+        "active_alerts": active_alerts,
         "currency": _get_setting("currency", "GNF"),
     }
 

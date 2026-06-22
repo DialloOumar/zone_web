@@ -49,6 +49,7 @@
             {% if has_perm('alert.view') %}
             <li><a href="{{ url_for('maintenance.alerts') }}" class="sidebar-sub {% if request.endpoint == 'maintenance.alerts' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">warning</span> {{ t['nav.alerts'] }}
+                {% if active_alerts %}<span class="nav-badge nav-badge--alert">{{ active_alerts }}</span>{% endif %}
             </a></li>
             {% endif %}
             {% if has_perm('maintenance_record.view') %}
