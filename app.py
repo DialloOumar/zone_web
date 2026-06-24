@@ -1124,10 +1124,10 @@ def seed_demo_cmd(days, force):
     # A few non-fuel expenses this month for the cost split.
     this_month = today.strftime("%Y-%m")
     extra = [
-        ("BUS-01",     "assurance", 1_500_000, "Assurance trimestrielle"),
+        ("BUS-01",     "autre",     1_500_000, "Assurance trimestrielle"),
         ("CAM-TSF-03", "accident",    900_000, "Pare-brise remplacé"),
         ("NAV-07",     "lavage",      150_000, None),
-        ("CIT-05",     "agent",       300_000, "Frais de mission"),
+        ("CIT-05",     "autre",       300_000, "Frais de mission"),
     ]
     for code, cat_c, amt, desc in extra:
         v = vehicles[code][0]

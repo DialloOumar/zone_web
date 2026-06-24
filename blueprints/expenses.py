@@ -21,7 +21,7 @@ expenses_bp = Blueprint("expenses", __name__)
 # Maintenance costs are NOT here — they live on the maintenance service record
 # (which has its own cost field) so a service is never counted twice.
 EXPENSE_CATEGORIES = [
-    "fuel", "assurance", "accident", "lavage", "agent", "autre",
+    "fuel", "accident", "lavage", "autre",
 ]
 
 
