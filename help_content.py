@@ -323,30 +323,155 @@ HELP_SECTIONS = [
         },
     },
     {
-        "id": "administration",
-        "icon": "settings",
+        "id": "admin_users",
+        "icon": "group",
         "gate": {"super_admin": True},
-        "title": {"fr": "Administration", "en": "Administration"},
+        "title": {"fr": "Administration — Utilisateurs",
+                  "en": "Administration — Users"},
         "intro": {
-            "fr": "Réservé au super administrateur : configurer la plateforme.",
-            "en": "Super-admin only: configure the platform.",
+            "fr": "Réservé au super administrateur. Créez les comptes et donnez "
+                  "les accès : un utilisateur reçoit un rôle par flotte, et c'est "
+                  "ce rôle qui détermine ce qu'il peut voir et faire.",
+            "en": "Super-admin only. Create accounts and grant access: a user gets "
+                  "a role per fleet, and that role determines what they can see and do.",
         },
         "steps": {
             "fr": [
-                "Utilisateurs : créer les comptes et leur attribuer un rôle par flotte.",
-                "Flottes : créer les clients / flottes et leurs tarifs de facturation.",
-                "Rôles : définir les permissions de chaque rôle (Autoriser / Validation / Interdit, action par action).",
-                "Catégories de véhicules : définir les types d'engins et leur mode de suivi (voyages / heures / index).",
-                "Paramètres : réglages généraux (devise, délai de grâce…).",
-                "Journal d'audit : la trace de toutes les actions.",
+                "Ouvrez Administration → « Utilisateurs ».",
+                "« Nouvel utilisateur » : nom complet, identifiant de connexion, mot de passe initial.",
+                "Attribuez-lui une ou plusieurs flottes et, pour chacune, un rôle. Le rôle fixe ses permissions sur cette flotte.",
+                "Enregistrez. L'utilisateur peut se connecter et changer son mot de passe.",
             ],
             "en": [
-                "Users: create accounts and assign a role per fleet.",
-                "Fleets: create clients / fleets and their invoicing rates.",
-                "Roles: set each role's permissions (Allow / Approval / Deny, action by action).",
-                "Vehicle categories: define machine types and their tracking mode (trips / hours / index).",
-                "Settings: general options (currency, grace period…).",
-                "Audit log: the trace of every action.",
+                "Open Administration → \"Users\".",
+                "\"New user\": full name, login username, initial password.",
+                "Assign one or more fleets and, for each, a role. The role sets their permissions on that fleet.",
+                "Save. The user can sign in and change their password.",
+            ],
+        },
+        "tips": {
+            "fr": ["Archiver un utilisateur le désactive sans effacer son historique."],
+            "en": ["Archiving a user disables them without erasing their history."],
+        },
+    },
+    {
+        "id": "admin_roles",
+        "icon": "admin_panel_settings",
+        "gate": {"super_admin": True},
+        "title": {"fr": "Administration — Rôles et permissions",
+                  "en": "Administration — Roles and permissions"},
+        "intro": {
+            "fr": "Un rôle est un ensemble de permissions. Pour chaque action "
+                  "(voir, créer, modifier, supprimer…), vous choisissez l'un de "
+                  "trois niveaux. C'est le cœur du contrôle d'accès.",
+            "en": "A role is a set of permissions. For each action (view, create, "
+                  "edit, delete…) you pick one of three levels. This is the core "
+                  "of access control.",
+        },
+        "steps": {
+            "fr": [
+                "Ouvrez Administration → « Rôles » puis « Nouveau rôle ».",
+                "Donnez un nom au rôle (ex. Conducteur, Superviseur).",
+                "Pour chaque action, choisissez le niveau : Interdit (aucun accès), Direct (s'applique immédiatement) ou Validation (soumise à approbation avant d'être appliquée).",
+                "Astuce : la ligne « Tout : » en haut d'un groupe règle toutes ses actions d'un coup.",
+                "(Optionnel) Cochez « Peut approuver » pour que ce rôle puisse valider les demandes de sa flotte.",
+                "Enregistrez. Le rôle devient attribuable aux utilisateurs.",
+            ],
+            "en": [
+                "Open Administration → \"Roles\" then \"New role\".",
+                "Name the role (e.g. Driver, Supervisor).",
+                "For each action, pick the level: Cannot (no access), Direct (applies immediately) or Approval (sent for approval before applying).",
+                "Tip: the \"All:\" row at the top of a group sets all its actions at once.",
+                "(Optional) Tick \"Can approve\" so this role can review its fleet's requests.",
+                "Save. The role can now be assigned to users.",
+            ],
+        },
+        "tips": {
+            "fr": ["C'est le rôle qui décide si une action part en « validation » — voir la rubrique Demandes et validations."],
+            "en": ["The role decides whether an action goes to \"approval\" — see the Requests and approvals topic."],
+        },
+    },
+    {
+        "id": "admin_fleets",
+        "icon": "workspaces",
+        "gate": {"super_admin": True},
+        "title": {"fr": "Administration — Flottes et tarifs",
+                  "en": "Administration — Fleets and rates"},
+        "intro": {
+            "fr": "Une flotte représente un client. C'est aussi là que se "
+                  "définissent les tarifs de facturation, par catégorie d'engin "
+                  "et par date.",
+            "en": "A fleet represents a client. It's also where invoicing rates "
+                  "are set, per vehicle category and per date.",
+        },
+        "steps": {
+            "fr": [
+                "Ouvrez Administration → « Flottes » puis « Nouvelle flotte ».",
+                "Saisissez le nom du client.",
+                "Cochez les catégories concernées et saisissez le tarif (GNF par voyage ou par heure) pour chacune.",
+                "Indiquez la date d'effet du tarif. L'historique est conservé : un nouveau tarif n'écrase pas l'ancien, il s'applique à partir de sa date.",
+                "Enregistrez. La facturation utilisera ces tarifs.",
+            ],
+            "en": [
+                "Open Administration → \"Fleets\" then \"New fleet\".",
+                "Enter the client name.",
+                "Tick the relevant categories and enter the rate (GNF per trip or per hour) for each.",
+                "Set the rate's effective date. History is kept: a new rate doesn't overwrite the old one, it applies from its date.",
+                "Save. Invoicing will use these rates.",
+            ],
+        },
+    },
+    {
+        "id": "admin_categories",
+        "icon": "category",
+        "gate": {"super_admin": True},
+        "title": {"fr": "Administration — Catégories de véhicules",
+                  "en": "Administration — Vehicle categories"},
+        "intro": {
+            "fr": "Une catégorie regroupe des engins du même type et fixe leur "
+                  "mode de suivi — c'est-à-dire comment on compte leur activité.",
+            "en": "A category groups machines of the same type and sets their "
+                  "tracking mode — i.e. how their activity is counted.",
+        },
+        "steps": {
+            "fr": [
+                "Ouvrez Administration → « Catégories de véhicules » puis « Nouvelle catégorie ».",
+                "Saisissez un code (ex. BUS, EXC) et les libellés.",
+                "Choisissez le mode de suivi : Voyages (on compte des rotations), Heures (on saisit directement les heures) ou Index d'horomètre (on saisit l'index début/fin, les heures sont calculées).",
+                "(Optionnel) Renseignez une consommation de référence (L/unité) pour les analyses de carburant.",
+                "Enregistrez. La catégorie devient assignable aux véhicules.",
+            ],
+            "en": [
+                "Open Administration → \"Vehicle categories\" then \"New category\".",
+                "Enter a code (e.g. BUS, EXC) and the labels.",
+                "Choose the tracking mode: Trips (count rotations), Hours (enter worked hours directly) or Hour-meter index (enter start/end index, hours are computed).",
+                "(Optional) Set a baseline consumption (L/unit) for fuel analysis.",
+                "Save. The category can now be assigned to vehicles.",
+            ],
+        },
+        "tips": {
+            "fr": ["Le mode de suivi détermine les champs du pointage et les règles d'entretien applicables (voyages / heures)."],
+            "en": ["The tracking mode drives the pointage fields and which maintenance rules apply (trips / hours)."],
+        },
+    },
+    {
+        "id": "admin_settings",
+        "icon": "settings",
+        "gate": {"super_admin": True},
+        "title": {"fr": "Administration — Paramètres et journal d'audit",
+                  "en": "Administration — Settings and audit log"},
+        "intro": {
+            "fr": "Réglages généraux de la plateforme et traçabilité des actions.",
+            "en": "General platform settings and action traceability.",
+        },
+        "steps": {
+            "fr": [
+                "« Paramètres » : devise, langue par défaut, et délai de grâce (le temps pendant lequel l'auteur d'une saisie peut la corriger sans repasser par la validation).",
+                "« Journal d'audit » : la trace horodatée de toutes les actions (qui a fait quoi, et quand) — utile pour le suivi et le contrôle.",
+            ],
+            "en": [
+                "\"Settings\": currency, default language, and grace period (the time during which an entry's author can fix it without going through approval again).",
+                "\"Audit log\": the timestamped trace of every action (who did what, and when) — useful for monitoring and control.",
             ],
         },
     },
