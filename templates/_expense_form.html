@@ -57,11 +57,28 @@
     </div>
 
     <div class="form-row">
+        <div class="field field--select">
+            {% set sel_op = request.form.get('operator') or (expense.operator if is_edit and expense.operator else '') %}
+            {% set op_names = operators|map(attribute='name')|list %}
+            <select id="operator" name="operator">
+                <option value="">{{ t['form.select'] }}</option>
+                {% for o in operators %}
+                <option value="{{ o.name }}" data-fleet="{{ o.fleet_id }}" {% if o.name == sel_op %}selected{% endif %}>{{ o.name }}</option>
+                {% endfor %}
+                {% if sel_op and sel_op not in op_names %}
+                <option value="{{ sel_op }}" selected>{{ sel_op }}</option>
+                {% endif %}
+            </select>
+            <label for="operator">{{ t['expense.operator'] }}</label>
+        </div>
         <div class="field">
             <input type="text" id="supplier" name="supplier" placeholder=" "
                    value="{{ request.form.get('supplier') or (expense.supplier if is_edit and expense.supplier else '') }}">
             <label for="supplier">{{ t['expense.supplier'] }}</label>
         </div>
+    </div>
+
+    <div class="form-row">
         <div class="field">
             <input type="text" id="description" name="description" placeholder=" "
                    value="{{ request.form.get('description') or (expense.description if is_edit and expense.description else '') }}">
@@ -83,23 +100,26 @@
 (function () {
     var fleetSel = document.getElementById("fleet_id");
     var vSel = document.getElementById("vehicle_id");
+    var opSel = document.getElementById("operator");
     var catSel = document.getElementById("category");
     var liters = document.getElementById("field-liters");
-    function refreshVehicles() {
+    function narrow(sel) {
+        if (!sel) return;
         var fid = fleetSel.value;
-        var curOk = (vSel.value === "");
-        Array.prototype.forEach.call(vSel.options, function (o) {
-            if (!o.value) return;
-            var ok = !fid || o.dataset.fleet === fid;
+        var curOk = (sel.value === "");
+        Array.prototype.forEach.call(sel.options, function (o) {
+            if (!o.value || o.dataset.fleet === undefined) return;
+            var ok = !fid || o.dataset.fleet === fid || o.dataset.fleet === "";
             o.hidden = !ok; o.disabled = !ok;
-            if (ok && o.value === vSel.value) curOk = true;
+            if (ok && o.value === sel.value) curOk = true;
         });
-        if (!curOk) vSel.value = "";
+        if (!curOk) sel.value = "";
     }
+    function refresh() { narrow(vSel); narrow(opSel); }
     function refreshLiters() { if (liters) liters.style.display = (catSel.value === "fuel") ? "" : "none"; }
-    if (fleetSel && vSel) fleetSel.addEventListener("change", refreshVehicles);
+    if (fleetSel) fleetSel.addEventListener("change", refresh);
     if (catSel) catSel.addEventListener("change", refreshLiters);
-    refreshVehicles();
+    refresh();
     refreshLiters();
 })();
 </script>

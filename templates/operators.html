@@ -47,7 +47,7 @@
             {% for op in operators %}
             <tr>
                 <td>
-                    <strong>{{ op.name }}</strong>
+                    <a href="{{ url_for('operators.detail', oid=op.id) }}"><strong>{{ op.name }}</strong></a>
                     {% if op.notes %}<div class="muted small">{{ op.notes }}</div>{% endif %}
                 </td>
                 <td class="col-secondary">{{ op.fleet.name }}</td>
@@ -89,7 +89,7 @@
         {% for op in operators %}
         <div class="list-card">
             <div class="list-card__top">
-                <strong>{{ op.name }}</strong>
+                <a href="{{ url_for('operators.detail', oid=op.id) }}"><strong>{{ op.name }}</strong></a>
                 {% if op.is_active %}
                 <span class="badge badge--active">{{ t['operator.active'] }}</span>
                 {% else %}

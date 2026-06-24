@@ -7,13 +7,17 @@ orphans historical data — no delete guard needed.
 
 Reuses the same approval+grace flow as vehicles via submit_change().
 """
+from datetime import datetime
+
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
+from sqlalchemy import func
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change)
-from models import Fleet, Operator, db
+from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Operator,
+                    Vehicle, db)
 
 operators_bp = Blueprint("operators", __name__)
 
@@ -104,6 +108,90 @@ def index():
     return render_template("operators.html", operators=operators,
                            filter_fleets=fleets, active_fleet=active_fleet,
                            show_archived=show_archived, archived_count=archived_count)
+
+
+@operators_bp.route("/operators/<int:oid>")
+@login_required
+@require_perm("operator.view")
+def detail(oid):
+    """Driver sheet — activity KPIs for a month, vehicles driven, and the
+    services he's tied to. Daily entries / records store the driver as a name,
+    so we match by name within the operator's fleet (names are unique there)."""
+    op = _get_operator_or_404(oid)
+    name, fid = op.name, op.fleet_id
+
+    month = request.args.get("month", "")
+    try:
+        datetime.strptime(month, "%Y-%m")
+    except (TypeError, ValueError):
+        month = datetime.utcnow().strftime("%Y-%m")
+
+    def _scoped_entries():
+        return (DailyEntry.query.join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+                .filter(Vehicle.fleet_id == fid, DailyEntry.operator == name))
+
+    # Activity KPIs for the selected month.
+    co = func.coalesce
+    n_pointages, tot_trips, tot_hours, tot_km = (
+        db.session.query(
+            func.count(DailyEntry.id),
+            co(func.sum(DailyEntry.trips), 0),
+            co(func.sum(DailyEntry.hours), 0.0),
+            co(func.sum(DailyEntry.kilometers), 0.0))
+        .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+        .filter(Vehicle.fleet_id == fid, DailyEntry.operator == name,
+                DailyEntry.date.like(month + "%")).one())
+    last_date = (db.session.query(func.max(DailyEntry.date))
+                 .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+                 .filter(Vehicle.fleet_id == fid, DailyEntry.operator == name).scalar())
+
+    # Vehicles driven (all-time): default-driver assignments ∪ vehicles pointed.
+    default_ids = {v.id for v in Vehicle.query.filter_by(default_operator_id=op.id).all()}
+    pointed_ids = {r[0] for r in _scoped_entries()
+                   .with_entities(DailyEntry.vehicle_id).distinct()}
+    veh_ids = default_ids | pointed_ids
+    vehicles = (Vehicle.query.filter(Vehicle.id.in_(veh_ids)).order_by(Vehicle.code).all()
+                if veh_ids else [])
+
+    # Services the driver is tied to.
+    records = (MaintenanceRecord.query
+               .join(Vehicle, MaintenanceRecord.vehicle_id == Vehicle.id)
+               .filter(Vehicle.fleet_id == fid, MaintenanceRecord.operator == name)
+               .order_by(MaintenanceRecord.date.desc()).limit(50).all())
+
+    # Expenses attributed to this driver — stacked by category over the 6 months
+    # ending at the selected month (Expense.operator is the optional driver tag).
+    from blueprints.expenses import EXPENSE_CATEGORIES
+    t = get_t()
+    y, mo = int(month[:4]), int(month[5:7])
+    months = []
+    for i in range(5, -1, -1):
+        mm, yy = mo - i, y
+        while mm <= 0:
+            mm += 12
+            yy -= 1
+        months.append("%04d-%02d" % (yy, mm))
+    series = {c: [0] * len(months) for c in EXPENSE_CATEGORIES}
+    idx = {m: i for i, m in enumerate(months)}
+    ym = func.substr(Expense.date, 1, 7)
+    rows = (db.session.query(ym, Expense.category, func.sum(Expense.amount))
+            .filter(Expense.fleet_id == fid, Expense.operator == name, ym.in_(months))
+            .group_by(ym, Expense.category).all())
+    for m, cat, amt in rows:
+        if cat in series and m in idx:
+            series[cat][idx[m]] = int(amt or 0)
+    expense_chart = {
+        "months": months,
+        "series": [{"cat": c, "label": t["expense.cat." + c], "data": series[c]}
+                   for c in EXPENSE_CATEGORIES if any(series[c])],
+    }
+
+    return render_template(
+        "operator_detail.html", op=op, month=month,
+        n_pointages=n_pointages, tot_trips=int(tot_trips or 0),
+        tot_hours=float(tot_hours or 0), tot_km=float(tot_km or 0),
+        last_date=last_date, vehicles=vehicles, default_ids=default_ids,
+        records=records, expense_chart=expense_chart)
 
 
 def _render_operator_form(operator, error=None):

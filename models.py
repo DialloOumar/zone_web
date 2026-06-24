@@ -402,6 +402,7 @@ class Expense(db.Model):
     amount                = db.Column(db.Integer,    nullable=False)                              # GNF
     liters                = db.Column(db.Float,      nullable=True)                               # for fuel category
     currency              = db.Column(db.String(5),  nullable=False, default="GNF")
+    operator              = db.Column(db.String(120), nullable=True)                              # optional driver this cost is attributed to (name, like DailyEntry.operator)
     supplier              = db.Column(db.String(120), nullable=True)
     description           = db.Column(db.String(255), nullable=True)
     photo_key             = db.Column(db.String(200), nullable=True)                              # S3 receipt

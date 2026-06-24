@@ -33,6 +33,7 @@
                 <th>{{ t['expense.date'] }}</th>
                 <th>{{ t['expense.category'] }}</th>
                 <th>{{ t['expense.target'] }}</th>
+                <th class="col-secondary">{{ t['expense.operator'] }}</th>
                 <th>{{ t['expense.supplier'] }}</th>
                 <th style="text-align:right;">{{ t['expense.amount'] }}</th>
                 <th></th>
@@ -50,6 +51,7 @@
                         <span class="muted">{{ e.fleet.name }} · {{ t['expense.fleet_wide'] }}</span>
                     {% endif %}
                 </td>
+                <td class="col-secondary">{{ e.operator or '—' }}</td>
                 <td>{{ e.supplier or '—' }}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} {{ currency }}</td>
                 <td class="row-actions">
@@ -85,6 +87,7 @@
                 {% else %}
                 <span class="muted small">· {{ e.fleet.name }}</span>
                 {% endif %}
+                {% if e.operator %}<span class="muted small">· {{ e.operator }}</span>{% endif %}
                 {% if e.supplier %}<span class="muted small">· {{ e.supplier }}</span>{% endif %}
             </div>
             {% if has_perm('expense.edit') or has_perm('expense.delete') %}

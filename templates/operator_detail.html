@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}{{ op.name }}{% endblock %}
+{% block page_title %}{{ op.name }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <div style="display:flex; gap:6px; align-items:center;">
+            {% if op.is_active %}
+            <span class="badge badge--active">{{ t['operator.active'] }}</span>
+            {% else %}
+            <span class="badge badge--inactive">{{ t['operator.inactive'] }}</span>
+            {% endif %}
+        </div>
+        <div class="row-actions">
+            {% if has_perm('operator.edit') %}
+            <a href="{{ url_for('operators.edit', oid=op.id) }}" class="btn btn--tonal"
+               data-modal-url="{{ url_for('operators.edit', oid=op.id) }}" data-modal-title="{{ t['operator.edit'] }}">
+                <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}
+            </a>
+            {% endif %}
+            <a href="{{ url_for('operators.index') }}" class="btn btn--outlined">{{ t['btn.back'] }}</a>
+        </div>
+    </div>
+
+    <dl class="detail-grid">
+        <div><dt>{{ t['operator.fleet'] }}</dt><dd>{{ op.fleet.name }}</dd></div>
+        <div><dt>{{ t['operator.phone'] }}</dt><dd>{{ op.phone or '—' }}</dd></div>
+        <div><dt>{{ t['operator.license'] }}</dt><dd>{{ op.license_number or '—' }}</dd></div>
+        <div><dt>{{ t['operator.last_activity'] }}</dt><dd>{{ last_date or '—' }}</dd></div>
+        {% if op.notes %}
+        <div style="grid-column: 1 / -1;"><dt>{{ t['operator.notes'] }}</dt><dd>{{ op.notes }}</dd></div>
+        {% endif %}
+    </dl>
+</section>
+
+<!-- ── Activity (KPIs for the selected month) ───────────────────────────── -->
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['operator.activity'] }}</h2>
+        <form method="get" class="roster-date-form">
+            <input type="month" name="month" value="{{ month }}" onchange="this.form.submit()">
+        </form>
+    </div>
+    <div class="stat-grid">
+        <div class="stat-card">
+            <span class="stat-icon stat-icon--teal material-symbols-outlined">fact_check</span>
+            <div><div class="stat-value">{{ n_pointages }}</div><div class="stat-label">{{ t['operator.kpi.pointages'] }}</div></div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon stat-icon--blue material-symbols-outlined">history</span>
+            <div><div class="stat-value">{{ '%.0f'|format(tot_hours) }}</div><div class="stat-label">{{ t['operator.kpi.hours'] }}</div></div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon stat-icon--amber material-symbols-outlined">directions_bus</span>
+            <div><div class="stat-value">{{ tot_trips }}</div><div class="stat-label">{{ t['operator.kpi.trips'] }}</div></div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon stat-icon--green material-symbols-outlined">donut_large</span>
+            <div><div class="stat-value">{{ '{:,.0f}'.format(tot_km) }}</div><div class="stat-label">{{ t['operator.kpi.km'] }}</div></div>
+        </div>
+    </div>
+</section>
+
+<!-- ── Expenses of the driver's vehicles (stacked by category) ───────────── -->
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['operator.expenses'] }}</h2>
+        <span class="muted small">{{ t['operator.expenses_hint'] }}</span>
+    </div>
+    {% if expense_chart.series %}
+    <div class="chart-box" style="height:300px;"><canvas id="chart-exp"></canvas></div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">payments</span>
+        <p>{{ t['operator.no_expenses'] }}</p>
+    </div>
+    {% endif %}
+</section>
+
+<!-- ── Vehicles driven ──────────────────────────────────────────────────── -->
+<section class="card">
+    <div class="card-header"><h2>{{ t['operator.vehicles'] }}</h2></div>
+    {% if vehicles %}
+    <div class="chip-list">
+        {% for v in vehicles %}
+        <a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="vehicle-pill">
+            <strong>{{ v.code }}</strong>
+            <span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
+            {% if v.id in default_ids %}<span class="badge badge--active">{{ t['operator.default_badge'] }}</span>{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted" style="padding:6px 0;">{{ t['operator.no_vehicles'] }}</p>
+    {% endif %}
+</section>
+
+<!-- ── Linked services ──────────────────────────────────────────────────── -->
+<section class="card">
+    <div class="card-header"><h2>{{ t['operator.records'] }}</h2></div>
+    {% if records %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['maint.date'] }}</th>
+                <th>{{ t['maint.vehicle'] }}</th>
+                <th>{{ t['maint.record_type'] }}</th>
+                <th style="text-align:right;">{{ t['maint.cost'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in records %}
+            <tr>
+                <td>{{ m.date }}</td>
+                <td><a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a></td>
+                <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
+                <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} {{ currency }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted" style="padding:6px 0;">{{ t['operator.no_records'] }}</p>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}?v={{ v }}"></script>
+<script type="application/json" id="exp-chart-data">{{ expense_chart|tojson }}</script>
+<script>
+(function () {
+    if (typeof Chart === "undefined") return;
+    var css = getComputedStyle(document.documentElement);
+    var v = function (n) { return css.getPropertyValue(n).trim(); };
+    var data = JSON.parse(document.getElementById("exp-chart-data").textContent);
+    var el = document.getElementById("chart-exp");
+    if (!el || !data.series.length) return;
+    var colors = {
+        fuel: v("--c-blue"), assurance: v("--c-teal"), accident: v("--c-red"),
+        lavage: v("--c-green"), agent: v("--c-amber"), autre: v("--c-orange"),
+    };
+    var currency = {{ currency|tojson }};
+    var textColor = v("--md-on-surface-variant") || "#666";
+    var gridColor = v("--md-outline-variant") || "#ddd";
+    Chart.defaults.font.family = "Roboto, sans-serif";
+    Chart.defaults.color = textColor;
+    var money = function (n) { return Number(n).toLocaleString() + " " + currency; };
+    new Chart(el, {
+        type: "bar",
+        data: {
+            labels: data.months,
+            datasets: data.series.map(function (s) {
+                return { label: s.label, data: s.data, backgroundColor: colors[s.cat] || v("--c-blue") };
+            }),
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: "top", labels: { color: textColor, boxWidth: 12 } },
+                tooltip: { callbacks: { label: function (c) { return c.dataset.label + ": " + money(c.parsed.y); } } },
+            },
+            scales: {
+                x: { stacked: true, grid: { display: false }, ticks: { color: textColor } },
+                y: {
+                    stacked: true, grid: { color: gridColor },
+                    ticks: {
+                        color: textColor,
+                        callback: function (x) { if (x >= 1e6) return (x / 1e6) + "M"; if (x >= 1e3) return (x / 1e3) + "k"; return x; },
+                    },
+                },
+            },
+        },
+    });
+})();
+</script>
+{% endblock %}

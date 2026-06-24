@@ -1148,6 +1148,15 @@ a.stat-card { text-decoration: none; color: inherit; }
 .dash-chart { margin: 0; }
 .chart-box { position: relative; height: 260px; }
 
+/* Driver sheet — vehicles-driven pills */
+.chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.vehicle-pill {
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border: 1px solid var(--md-outline-variant); border-radius: var(--shape-md);
+    background: var(--md-surface-container-low); color: var(--md-on-surface);
+}
+.vehicle-pill:hover { background: var(--md-surface-container); text-decoration: none; }
+
 /* ── Insights ── */
 .variance { font-weight: 700; }
 .variance--good   { color: var(--c-green); }

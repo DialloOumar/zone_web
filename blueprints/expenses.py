@@ -13,7 +13,7 @@ from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change)
-from models import Expense, Fleet, Vehicle, db
+from models import Expense, Fleet, Operator, Vehicle, db
 
 expenses_bp = Blueprint("expenses", __name__)
 
@@ -42,6 +42,14 @@ def _accessible_vehicles():
     if fids is not None:
         q = q.filter(Vehicle.fleet_id.in_(fids))
     return q.order_by(Vehicle.code).all()
+
+
+def _accessible_operators():
+    q = Operator.query.filter_by(is_active=True)
+    fids = current_user_fleet_ids()
+    if fids is not None:
+        q = q.filter(Operator.fleet_id.in_(fids))
+    return q.order_by(Operator.name).all()
 
 
 def _get_expense_or_404(xid):
@@ -115,6 +123,7 @@ def _read_expense_form(expense):
         amount=amount,
         liters=liters,
         currency="GNF",
+        operator=(request.form.get("operator") or "").strip() or None,
         supplier=(request.form.get("supplier") or "").strip() or None,
         description=(request.form.get("description") or "").strip() or None,
     )
@@ -131,6 +140,7 @@ def _form_context(expense):
     return {
         "fleets": _accessible_fleets(),
         "vehicles": _accessible_vehicles(),
+        "operators": _accessible_operators(),
         "categories": EXPENSE_CATEGORIES,
         "preset_vehicle": preset_vehicle,
         "preset_fleet": preset_fleet,
