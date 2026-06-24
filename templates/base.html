@@ -96,6 +96,10 @@
             </a></li>
             {% endif %}
 
+            <li><a href="{{ url_for('help_page') }}" class="{% if request.endpoint == 'help_page' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">help</span> {{ t['nav.help'] }}
+            </a></li>
+
             {% if is_super_admin %}
             <li class="sidebar-section">{{ t['nav.admin'] }}</li>
             <li><a href="{{ url_for('admin.users') }}" class="sidebar-sub {% if request.endpoint in ['admin.users', 'admin.user_new', 'admin.user_edit'] %}active{% endif %}">

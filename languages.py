@@ -89,6 +89,9 @@ TRANSLATIONS = {
         "nav.reports":              "Rapports",
         "nav.approvals":            "Validations en attente",
         "nav.my_requests":          "Mes demandes",
+        "nav.help":                 "Aide",
+        "help.toc":                 "Sommaire",
+        "help.note":                "À noter",
         "nav.admin":                "Administration",
         "nav.change_password":      "Changer le mot de passe",
 
@@ -761,6 +764,9 @@ TRANSLATIONS = {
         "nav.reports":              "Reports",
         "nav.approvals":            "Pending approvals",
         "nav.my_requests":          "My requests",
+        "nav.help":                 "Help",
+        "help.toc":                 "Contents",
+        "help.note":                "Note",
         "nav.admin":                "Administration",
         "nav.change_password":      "Change password",
 

@@ -502,6 +502,24 @@ def welcome_done():
     return redirect(_home_url())
 
 
+@app.route("/aide")
+@login_required
+def help_page():
+    """In-app help, filtered to the topics the current user's access unlocks."""
+    from help_content import HELP_SECTIONS
+
+    def _visible(section):
+        gate = section["gate"]
+        if gate.get("always"):
+            return True
+        if gate.get("super_admin"):
+            return current_user.is_super_admin
+        return any(has_perm(p) for p in gate.get("perms", []))
+
+    sections = [s for s in HELP_SECTIONS if _visible(s)]
+    return render_template("help.html", sections=sections)
+
+
 @app.route("/")
 @login_required
 def dashboard():

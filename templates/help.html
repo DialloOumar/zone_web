@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.help'] }}{% endblock %}
+{% block page_title %}{{ t['nav.help'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <h2 class="help-toc__title">{{ t['help.toc'] }}</h2>
+    <nav class="help-toc">
+        {% for s in sections %}
+        <a href="#help-{{ s.id }}" class="help-toc__link">
+            <span class="material-symbols-outlined">{{ s.icon }}</span>
+            <span>{{ s.title[lang] }}</span>
+        </a>
+        {% endfor %}
+    </nav>
+</section>
+
+{% for s in sections %}
+<section class="card help-section" id="help-{{ s.id }}">
+    <div class="help-section__head">
+        <span class="help-section__icon material-symbols-outlined">{{ s.icon }}</span>
+        <h2>{{ s.title[lang] }}</h2>
+    </div>
+    <p class="help-section__intro">{{ s.intro[lang] }}</p>
+    {% if s.steps %}
+    <ol class="help-steps">
+        {% for step in s.steps[lang] %}<li>{{ step }}</li>{% endfor %}
+    </ol>
+    {% endif %}
+    {% if s.tips %}
+    {% for tip in s.tips[lang] %}
+    <p class="help-tip"><strong>{{ t['help.note'] }} :</strong> {{ tip }}</p>
+    {% endfor %}
+    {% endif %}
+</section>
+{% endfor %}
+{% endblock %}
