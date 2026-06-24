@@ -1173,6 +1173,25 @@ a.stat-card { text-decoration: none; color: inherit; }
     background: var(--c-amber-bg); color: var(--md-on-surface);
     border-left: 3px solid var(--c-amber); font-size: 0.9rem; line-height: 1.5;
 }
+.help-figure { margin: 14px 0 0; }
+.help-img {
+    max-width: 100%; height: auto; display: block;
+    border: 1px solid var(--md-outline-variant); border-radius: var(--shape-md);
+    background: var(--md-surface);
+}
+.help-toc__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.help-toc__header .help-toc__title { margin: 0; }
+
+/* Print: only the page content (drop the sidebar, topbar and UI chrome). */
+@media print {
+    .sidebar, .sidebar-overlay, .topbar, .no-print { display: none !important; }
+    .main-content { margin-left: 0 !important; }
+    .content { padding: 0 !important; gap: 12px !important; }
+    .card { box-shadow: none !important; border: 1px solid #ccc; break-inside: avoid; }
+    .help-section, .help-tip { break-inside: avoid; }
+    a { color: inherit !important; text-decoration: none !important; }
+    body { background: #fff !important; }
+}
 
 /* Driver sheet — vehicles-driven pills */
 .chip-list { display: flex; flex-wrap: wrap; gap: 8px; }

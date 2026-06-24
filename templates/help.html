@@ -5,7 +5,12 @@
 
 {% block content %}
 <section class="card">
-    <h2 class="help-toc__title">{{ t['help.toc'] }}</h2>
+    <div class="help-toc__header">
+        <h2 class="help-toc__title">{{ t['help.toc'] }}</h2>
+        <button type="button" class="btn btn--sm btn--tonal no-print" onclick="window.print()">
+            <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['help.print'] }}
+        </button>
+    </div>
     <nav class="help-toc">
         {% for s in sections %}
         <a href="#help-{{ s.id }}" class="help-toc__link">
@@ -27,6 +32,12 @@
     <ol class="help-steps">
         {% for step in s.steps[lang] %}<li>{{ step }}</li>{% endfor %}
     </ol>
+    {% endif %}
+    {% if s.id in have_img %}
+    <figure class="help-figure">
+        <img class="help-img" src="{{ url_for('static', filename='images/help/' + s.id + '.png') }}?v={{ v }}"
+             alt="{{ s.title[lang] }}" loading="lazy">
+    </figure>
     {% endif %}
     {% if s.tips %}
     {% for tip in s.tips[lang] %}

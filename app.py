@@ -517,7 +517,11 @@ def help_page():
         return any(has_perm(p) for p in gate.get("perms", []))
 
     sections = [s for s in HELP_SECTIONS if _visible(s)]
-    return render_template("help.html", sections=sections)
+    # A section is illustrated when static/images/help/<id>.png exists.
+    img_dir = os.path.join(app.static_folder, "images", "help")
+    have_img = {f[:-4] for f in os.listdir(img_dir)
+                if f.endswith(".png")} if os.path.isdir(img_dir) else set()
+    return render_template("help.html", sections=sections, have_img=have_img)
 
 
 @app.route("/")

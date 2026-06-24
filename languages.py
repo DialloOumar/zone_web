@@ -92,6 +92,7 @@ TRANSLATIONS = {
         "nav.help":                 "Aide",
         "help.toc":                 "Sommaire",
         "help.note":                "À noter",
+        "help.print":               "Imprimer",
         "nav.admin":                "Administration",
         "nav.change_password":      "Changer le mot de passe",
 
@@ -767,6 +768,7 @@ TRANSLATIONS = {
         "nav.help":                 "Help",
         "help.toc":                 "Contents",
         "help.note":                "Note",
+        "help.print":               "Print",
         "nav.admin":                "Administration",
         "nav.change_password":      "Change password",
 
