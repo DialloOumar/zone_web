@@ -180,11 +180,24 @@ def detail(oid):
     for m, cat, amt in rows:
         if cat in series and m in idx:
             series[cat][idx[m]] = int(amt or 0)
-    expense_chart = {
-        "months": months,
-        "series": [{"cat": c, "label": t["expense.cat." + c], "data": series[c]}
-                   for c in EXPENSE_CATEGORIES if any(series[c])],
-    }
+    chart_series = [{"cat": c, "label": t["expense.cat." + c], "data": series[c]}
+                    for c in EXPENSE_CATEGORIES if any(series[c])]
+
+    # Maintenance is a separate (disjoint) cost stream — add it as its own
+    # category so the bar shows the driver's full cost without double counting.
+    maint_series = [0] * len(months)
+    ym2 = func.substr(MaintenanceRecord.date, 1, 7)
+    for m, cost in (db.session.query(ym2, func.sum(MaintenanceRecord.cost))
+                    .join(Vehicle, MaintenanceRecord.vehicle_id == Vehicle.id)
+                    .filter(Vehicle.fleet_id == fid, MaintenanceRecord.operator == name,
+                            ym2.in_(months)).group_by(ym2).all()):
+        if m in idx:
+            maint_series[idx[m]] = int(cost or 0)
+    if any(maint_series):
+        chart_series.append({"cat": "maintenance",
+                             "label": t["operator.exp_maintenance"], "data": maint_series})
+
+    expense_chart = {"months": months, "series": chart_series}
 
     return render_template(
         "operator_detail.html", op=op, month=month,
