@@ -155,6 +155,7 @@
             <tr>
                 <th>{{ t['maint.date'] }}</th>
                 <th>{{ t['maint.record_type'] }}</th>
+                <th class="col-secondary">{{ t['maint.operator'] }}</th>
                 <th style="text-align:right;">{{ t['maint.cost'] }}</th>
             </tr>
         </thead>
@@ -163,6 +164,7 @@
             <tr>
                 <td>{{ m.date }}</td>
                 <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
+                <td class="col-secondary">{{ m.operator or '—' }}</td>
                 <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} GNF{% else %}—{% endif %}</td>
             </tr>
             {% endfor %}

@@ -351,6 +351,7 @@ class MaintenanceRecord(db.Model):
     kilometers_at = db.Column(db.Float,       nullable=True)
     hours_at      = db.Column(db.Float,       nullable=True)
     cost          = db.Column(db.Integer,     nullable=True)
+    operator      = db.Column(db.String(120), nullable=True)   # driver linked to the service (name, like DailyEntry.operator)
     supplier      = db.Column(db.String(120), nullable=True)
     description   = db.Column(db.String(255), nullable=True)
     photo_key     = db.Column(db.String(200), nullable=True)

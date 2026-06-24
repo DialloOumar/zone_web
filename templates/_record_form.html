@@ -38,11 +38,28 @@
     </div>
 
     <div class="form-row">
+        <div class="field field--select">
+            {% set sel_op = request.form.get('operator') or (record.operator if is_edit and record.operator else '') %}
+            {% set op_names = operators|map(attribute='name')|list %}
+            <select id="operator" name="operator">
+                <option value="">{{ t['form.select'] }}</option>
+                {% for o in operators %}
+                <option value="{{ o.name }}" {% if o.name == sel_op %}selected{% endif %}>{{ o.name }}</option>
+                {% endfor %}
+                {% if sel_op and sel_op not in op_names %}
+                <option value="{{ sel_op }}" selected>{{ sel_op }}</option>
+                {% endif %}
+            </select>
+            <label for="operator">{{ t['maint.operator'] }}</label>
+        </div>
         <div class="field">
             <input type="text" id="supplier" name="supplier" placeholder=" "
                    value="{{ request.form.get('supplier') or (record.supplier if is_edit and record.supplier else '') }}">
             <label for="supplier">{{ t['maint.supplier'] }}</label>
         </div>
+    </div>
+
+    <div class="form-row">
         <div class="field">
             <input type="text" id="description" name="description" placeholder=" "
                    value="{{ request.form.get('description') or (record.description if is_edit and record.description else '') }}">

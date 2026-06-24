@@ -33,6 +33,7 @@
                 <th>{{ t['maint.date'] }}</th>
                 <th>{{ t['maint.vehicle'] }}</th>
                 <th>{{ t['maint.record_type'] }}</th>
+                <th class="col-secondary">{{ t['maint.operator'] }}</th>
                 <th>{{ t['maint.supplier'] }}</th>
                 <th style="text-align:right;">{{ t['maint.cost'] }}</th>
                 <th></th>
@@ -44,6 +45,7 @@
                 <td>{{ m.date }}</td>
                 <td><a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a></td>
                 <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
+                <td class="col-secondary">{{ m.operator or '—' }}</td>
                 <td>{{ m.supplier or '—' }}</td>
                 <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} {{ currency }}{% else %}—{% endif %}</td>
                 <td class="row-actions">
@@ -75,6 +77,7 @@
             <div class="list-card__meta">
                 <span class="chip">{{ t['maint.rtype.' + m.type] }}</span>
                 <span class="muted small">{{ m.date }}</span>
+                {% if m.operator %}<span class="muted small">· {{ m.operator }}</span>{% endif %}
                 {% if m.supplier %}<span class="muted small">· {{ m.supplier }}</span>{% endif %}
             </div>
             {% if has_perm('maintenance_record.edit') or has_perm('maintenance_record.delete') %}

@@ -19,8 +19,8 @@ import maintenance_engine
 from app import (current_user_categories, current_user_fleet_ids, get_t,
                  is_modal_request, log_action, modal_ok, needs_approval,
                  require_perm, scoped, submit_change)
-from models import (Alert, Fleet, MaintenanceRecord, MaintenanceRule, Vehicle,
-                    VehicleCategory, db)
+from models import (Alert, Fleet, MaintenanceRecord, MaintenanceRule, Operator,
+                    Vehicle, VehicleCategory, db)
 
 maintenance_bp = Blueprint("maintenance", __name__)
 
@@ -48,6 +48,14 @@ def _accessible_vehicles():
     if fids is not None:
         q = q.filter(Vehicle.fleet_id.in_(fids))
     return q.order_by(Vehicle.code).all()
+
+
+def _accessible_operators():
+    q = Operator.query.filter_by(is_active=True)
+    fids = current_user_fleet_ids()
+    if fids is not None:
+        q = q.filter(Operator.fleet_id.in_(fids))
+    return q.order_by(Operator.name).all()
 
 
 def _accessible_categories():
@@ -353,6 +361,7 @@ def _read_record_form(record):
     data = dict(
         vehicle_id=vehicle_id, rule_id=rule_id, type=rtype, date=date_str,
         cost=cost,
+        operator=(request.form.get("operator") or "").strip() or None,
         supplier=(request.form.get("supplier") or "").strip() or None,
         description=(request.form.get("description") or "").strip() or None,
     )
@@ -369,6 +378,7 @@ def _record_form_ctx(record):
     return {
         "record_types": RECORD_TYPES,
         "vehicles": _accessible_vehicles(),
+        "operators": _accessible_operators(),
         "preset_vehicle": request.args.get("vehicle_id", type=int),
         "preset_rule": preset_rule,
         "preset_type": preset_type,
