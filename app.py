@@ -968,6 +968,59 @@ def reset_super_admin_password_cmd(password):
     click.echo(f"Super admin password reset for {u.username}.")
 
 
+# Hard cap: the primary admin + one more (e.g. the client's manager). No more.
+MAX_SUPER_ADMINS = 2
+
+
+@app.cli.command("grant-super-admin")
+@click.option("--username", required=True, help="existing user to promote")
+def grant_super_admin_cmd(username):
+    """Promote an existing user to super admin (e.g. a backup admin account).
+
+    Create the account first via Administration → Users, then promote it here.
+    """
+    uname = username.strip().lower()
+    u = User.query.filter_by(username=uname).first()
+    if not u:
+        click.echo(f"No user '{uname}'. Create the account first, then promote it.", err=True)
+        raise SystemExit(1)
+    if u.is_super_admin:
+        click.echo(f"'{uname}' is already a super admin.")
+        return
+    if User.query.filter_by(is_super_admin=True).count() >= MAX_SUPER_ADMINS:
+        click.echo(f"Refusing: the maximum of {MAX_SUPER_ADMINS} super admins is already reached. "
+                   "Revoke one first.", err=True)
+        raise SystemExit(1)
+    u.is_super_admin = True
+    db.session.commit()
+    click.echo(f"'{uname}' is now a super admin.")
+
+
+@app.cli.command("revoke-super-admin")
+@click.option("--username", required=True, help="super admin to demote")
+def revoke_super_admin_cmd(username):
+    """Remove super-admin status from a user. Refuses to remove the last one.
+
+    The demoted user keeps their account but reverts to a normal user — assign
+    them a role per fleet in Administration → Users if they still need access.
+    """
+    uname = username.strip().lower()
+    u = User.query.filter_by(username=uname).first()
+    if not u or not u.is_super_admin:
+        click.echo(f"'{uname}' is not a super admin.", err=True)
+        raise SystemExit(1)
+    primary = os.environ.get("ADMIN_USERNAME", "admin").strip().lower()
+    if uname == primary:
+        click.echo(f"Refusing: '{uname}' is the primary super admin and is permanently protected.", err=True)
+        raise SystemExit(1)
+    if User.query.filter_by(is_super_admin=True).count() <= 1:
+        click.echo("Refusing: this is the last super admin. Promote another account first.", err=True)
+        raise SystemExit(1)
+    u.is_super_admin = False
+    db.session.commit()
+    click.echo(f"'{uname}' is no longer a super admin.")
+
+
 @app.cli.command("grant-fleet")
 @click.option("--user",  required=True, help="username of the user")
 @click.option("--fleet", required=True, help="slug of the fleet")
