@@ -25,6 +25,7 @@
 </form>
 
 <div class="stat-grid">
+    {% if finance_enabled %}
     <div class="stat-card">
         <span class="stat-icon stat-icon--green material-symbols-outlined">payments</span>
         <div>
@@ -32,6 +33,7 @@
             <div class="stat-label">{{ t['insights.fleet_total'] }}</div>
         </div>
     </div>
+    {% endif %}
     <div class="stat-card">
         <span class="stat-icon {{ 'stat-icon--red' if over_count else 'stat-icon--teal' }} material-symbols-outlined">local_gas_station</span>
         <div>
@@ -93,7 +95,8 @@
     {% endif %}
 </section>
 
-<!-- ── 2. Cost per vehicle ──────────────────────────────────────────── -->
+<!-- ── 2. Cost per vehicle (Premium — hidden for now) ───────────────── -->
+{% if finance_enabled %}
 <section class="card">
     <div class="card-header">
         <h2>{{ t['insights.cost_title'] }}</h2>
@@ -136,6 +139,7 @@
     </div>
     {% endif %}
 </section>
+{% endif %}
 
 <!-- ── 3. Idle / under-utilised ─────────────────────────────────────── -->
 <section class="card">
@@ -178,7 +182,7 @@
 </section>
 
 <script id="fuel-chart-data" type="application/json">{{ fuel_chart|tojson }}</script>
-<script id="cost-chart-data" type="application/json">{{ cost_chart|tojson }}</script>
+{% if finance_enabled %}<script id="cost-chart-data" type="application/json">{{ cost_chart|tojson }}</script>{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -222,6 +226,7 @@
         });
     }
 
+    {% if finance_enabled %}
     // 2. Cost per vehicle — stacked fuel / maintenance / other.
     var cd = JSON.parse(document.getElementById("cost-chart-data").textContent);
     var cEl = document.getElementById("chart-cost");
@@ -255,6 +260,7 @@
             },
         });
     }
+    {% endif %}
 })();
 </script>
 {% endblock %}

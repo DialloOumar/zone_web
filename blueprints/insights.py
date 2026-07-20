@@ -27,6 +27,11 @@ IDLE_DAYS = 7          # no activity for this many days → flagged idle
 OVER_WARN = 10.0       # fuel variance % over baseline → warning
 OVER_DANGER = 25.0     # … → danger
 
+# Financial lens (cost per vehicle, fleet total in currency) — kept but HIDDEN
+# for now. It's the seed for the future paid "profitabilité / analyse financière"
+# module; flip to True (or gate per plan) to surface it again.
+PREMIUM_FINANCE = False
+
 
 def _accessible_vehicles():
     q = Vehicle.query
@@ -211,4 +216,5 @@ def index():
         fleet_total=fleet_total, over_count=over_count, idle_count=idle_count,
         idle_days=IDLE_DAYS, over_warn=OVER_WARN, over_danger=OVER_DANGER,
         fuel_chart=fuel_chart, cost_chart=cost_chart,
+        finance_enabled=PREMIUM_FINANCE,
     )
