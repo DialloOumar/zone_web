@@ -163,11 +163,21 @@ def current_user_fleet_ids():
     return [uf.fleet_id for uf in current_user.user_fleets]
 
 
+# Modules kept in the code but hidden from everyone for now — the seed for the
+# future paid tier. A permission listed here reads as "not held" for every user
+# (super admin included), which hides its nav entry, onboarding step and help
+# section, and 403s its routes. Roles and seed data are left untouched, so
+# dropping a key from this set brings the module straight back.
+HIDDEN_PERMS = {"invoicing.view"}
+
+
 def has_perm(perm_key):
     """True if the current user holds the given permission via any of their
     fleet assignments. Super admin always passes. Cached per request.
     """
     if not current_user.is_authenticated:
+        return False
+    if perm_key in HIDDEN_PERMS:
         return False
     if current_user.is_super_admin:
         return True

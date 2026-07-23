@@ -13,8 +13,8 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
-from app import (get_t, is_modal_request, log_action, modal_ok, slugify,
-                 super_admin_required)
+from app import (HIDDEN_PERMS, get_t, is_modal_request, log_action, modal_ok,
+                 slugify, super_admin_required)
 from billing import current_rates
 from models import (AppSetting, AuditLog, Fleet, FleetRate, Operator,
                     Permission, Role, RolePermission, User, UserFleet, Vehicle,
@@ -221,8 +221,10 @@ ACTION_ORDER = ["view", "create", "edit", "delete", "export", "resolve", "dismis
 
 
 def _permission_groups():
-    """[(resource, [permissions ordered by action])] excluding admin perms."""
-    perms = Permission.query.filter(Permission.category != "Administration").all()
+    """[(resource, [permissions ordered by action])] excluding admin perms and
+    the ones for modules currently hidden app-wide (see app.HIDDEN_PERMS)."""
+    perms = [p for p in Permission.query.filter(Permission.category != "Administration").all()
+             if p.key not in HIDDEN_PERMS]
     by_res = {}
     for p in perms:
         by_res.setdefault(p.resource, []).append(p)
@@ -359,9 +361,18 @@ def _save_role(role):
         role.description = description or None
         role.can_approve = can_approve
 
-    # Rebuild the role's permissions from the tri-state grid.
+    # Rebuild the role's permissions from the tri-state grid. Grants for hidden
+    # modules have no checkbox, so carry them over instead of dropping them.
+    kept = [(rp.permission_id, rp.requires_approval)
+            for rp in role.role_permissions
+            if rp.permission.key in HIDDEN_PERMS]
     RolePermission.query.filter_by(role_id=role.id).delete()
+    for pid, approval in kept:
+        db.session.add(RolePermission(role_id=role.id, permission_id=pid,
+                                      requires_approval=approval))
     for p in Permission.query.filter(Permission.category != "Administration").all():
+        if p.key in HIDDEN_PERMS:
+            continue
         v = request.form.get("perm_%d" % p.id)
         if v == "direct":
             db.session.add(RolePermission(role_id=role.id, permission_id=p.id, requires_approval=False))
