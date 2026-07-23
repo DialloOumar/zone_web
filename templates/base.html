@@ -108,20 +108,32 @@
                 <span class="nav-icon material-symbols-outlined">help</span> {{ t['nav.help'] }}
             </a></li>
 
-            {% if is_super_admin %}
+            {# Categories, fleets and roles are delegatable — a role can carry
+               admin.categories / admin.fleets / admin.roles. Users, settings
+               and the audit log stay super-admin-only. #}
+            {% set show_admin = is_super_admin or has_perm('admin.categories')
+                                or has_perm('admin.fleets') or has_perm('admin.roles') %}
+            {% if show_admin %}
             {# Setup order, not alphabetical: a flotte is created by picking
                vehicle categories, and a user is created by assigning a role —
                so each entry comes after what it depends on. #}
             <li class="sidebar-section">{{ t['nav.admin'] }}</li>
+            {% if has_perm('admin.categories') %}
             <li><a href="{{ url_for('admin.categories') }}" class="sidebar-sub {% if request.endpoint in ['admin.categories', 'admin.category_new', 'admin.category_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">category</span> {{ t['admin.categories'] }}
             </a></li>
+            {% endif %}
+            {% if has_perm('admin.fleets') %}
             <li><a href="{{ url_for('admin.fleets') }}" class="sidebar-sub {% if request.endpoint in ['admin.fleets', 'admin.fleet_new', 'admin.fleet_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">workspaces</span> {{ t['admin.fleets'] }}
             </a></li>
+            {% endif %}
+            {% if has_perm('admin.roles') %}
             <li><a href="{{ url_for('admin.roles') }}" class="sidebar-sub {% if request.endpoint in ['admin.roles', 'admin.role_new', 'admin.role_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">admin_panel_settings</span> {{ t['admin.roles'] }}
             </a></li>
+            {% endif %}
+            {% if is_super_admin %}
             <li><a href="{{ url_for('admin.users') }}" class="sidebar-sub {% if request.endpoint in ['admin.users', 'admin.user_new', 'admin.user_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">group</span> {{ t['admin.users'] }}
             </a></li>
@@ -131,6 +143,7 @@
             <li><a href="{{ url_for('admin.audit') }}" class="sidebar-sub {% if request.endpoint == 'admin.audit' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">history</span> {{ t['admin.audit_log'] }}
             </a></li>
+            {% endif %}
             {% endif %}
         </ul>
 

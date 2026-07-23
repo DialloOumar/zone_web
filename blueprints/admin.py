@@ -1,11 +1,17 @@
-"""Admin blueprint — super-admin-only configuration pages.
+"""Admin blueprint — the configuration pages.
 
-Currently implements Fleets. Users, roles, vehicle categories, settings, and
-the audit log follow as further route groups in this same blueprint.
+Two tiers of access live here:
 
-Helpers (super_admin_required, log_action, slugify, get_t) are imported from
-app.py; this module is imported at the bottom of app.py once those exist, so
-there is no circular-import problem.
+  * Fleets, roles and vehicle categories are *delegatable*: they are guarded by
+    the `admin.fleets` / `admin.roles` / `admin.categories` permissions, so the
+    super admin can hand them to a role (a Manager, typically) instead of doing
+    every setup change themselves. See ASSIGNABLE_ADMIN_PERMS below.
+  * Users, settings and the audit log stay super-admin-only — they are the keys
+    to the house, not day-to-day setup.
+
+Helpers (require_perm, super_admin_required, log_action, slugify, get_t) are
+imported from app.py; this module is imported at the bottom of app.py once
+those exist, so there is no circular-import problem.
 """
 from datetime import date, datetime, timedelta
 
@@ -13,14 +19,22 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
-from app import (HIDDEN_PERMS, get_t, is_modal_request, log_action, modal_ok,
-                 slugify, super_admin_required)
+from app import (HIDDEN_PERMS, get_t, has_perm, is_modal_request, log_action,
+                 modal_ok, require_perm, slugify, super_admin_required)
 from billing import current_rates
 from models import (AppSetting, AuditLog, Fleet, FleetRate, Operator,
                     Permission, Role, RolePermission, User, UserFleet, Vehicle,
                     VehicleCategory, db)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+# The Administration permissions the super admin may hand to a role. Everything
+# else in that category (admin.users, admin.settings) stays super-admin-only and
+# is never rendered in the role grid.
+ASSIGNABLE_ADMIN_PERMS = ("admin.fleets", "admin.roles", "admin.categories")
+
+OWN_ROLE_MSG = ("Vous ne pouvez pas modifier votre propre rôle. "
+                "Demandez au super administrateur.")
 
 
 def _valid_iso_date(s):
@@ -36,7 +50,7 @@ def _valid_iso_date(s):
 
 @admin_bp.route("/fleets")
 @login_required
-@super_admin_required
+@require_perm("admin.fleets")
 def fleets():
     show_archived = request.args.get("archived") == "1"
     rows = (Fleet.query.filter(Fleet.is_active.is_(not show_archived))
@@ -74,7 +88,7 @@ def _render_fleet_form(fleet, error=None):
 
 @admin_bp.route("/fleets/new", methods=["GET", "POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.fleets")
 def fleet_new():
     if request.method == "POST":
         error = _save_fleet(None)
@@ -87,7 +101,7 @@ def fleet_new():
 
 @admin_bp.route("/fleets/<int:fleet_id>/edit", methods=["GET", "POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.fleets")
 def fleet_edit(fleet_id):
     fleet = db.session.get(Fleet, fleet_id)
     if not fleet:
@@ -103,7 +117,7 @@ def fleet_edit(fleet_id):
 
 @admin_bp.route("/fleets/<int:fleet_id>/delete", methods=["POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.fleets")
 def fleet_delete(fleet_id):
     """Soft delete: archive the fleet (preserves its vehicles/history)."""
     fleet = db.session.get(Fleet, fleet_id)
@@ -120,7 +134,7 @@ def fleet_delete(fleet_id):
 
 @admin_bp.route("/fleets/<int:fleet_id>/reactivate", methods=["POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.fleets")
 def fleet_reactivate(fleet_id):
     fleet = db.session.get(Fleet, fleet_id)
     if not fleet:
@@ -216,15 +230,49 @@ def _save_fleet(fleet):
 
 # Permission grid layout: resources (rows grouped) × actions.
 RES_ORDER = ["dashboard", "vehicle", "operator", "entry", "maintenance_record",
-             "maintenance_rule", "alert", "expense", "insights", "invoicing", "report"]
-ACTION_ORDER = ["view", "create", "edit", "delete", "export", "resolve", "dismiss"]
+             "maintenance_rule", "alert", "expense", "insights", "invoicing",
+             "report", "admin"]
+ACTION_ORDER = ["view", "create", "edit", "delete", "export", "resolve",
+                "dismiss", "fleets", "roles", "categories"]
+
+
+def _editable_perms():
+    """The permissions the *current* user is allowed to grant to a role.
+
+    Three filters, in order:
+      1. modules hidden app-wide (app.HIDDEN_PERMS) are never grantable;
+      2. of the Administration category only ASSIGNABLE_ADMIN_PERMS shows up —
+         user management and settings are not delegatable;
+      3. you can only delegate downwards: a non-super-admin sees exactly the
+         permissions they hold themselves, so nobody can grant more power than
+         they have. Grants outside this list are carried over untouched on save.
+    """
+    perms = [p for p in Permission.query.all()
+             if p.key not in HIDDEN_PERMS
+             and (p.category != "Administration" or p.key in ASSIGNABLE_ADMIN_PERMS)]
+    if not current_user.is_super_admin:
+        perms = [p for p in perms if has_perm(p.key)]
+    return perms
+
+
+def _can_delegate_approval():
+    """Only someone who can approve may hand approval authority to a role."""
+    return (current_user.is_super_admin
+            or any(uf.role and uf.role.can_approve for uf in current_user.user_fleets))
+
+
+def _owns_role(role):
+    """True if the current user is assigned this role — you cannot edit the
+    role you sit on (that is how you lock yourself out, or quietly promote
+    yourself). The super admin is exempt: they hold no role."""
+    if not role or current_user.is_super_admin:
+        return False
+    return any(uf.role_id == role.id for uf in current_user.user_fleets)
 
 
 def _permission_groups():
-    """[(resource, [permissions ordered by action])] excluding admin perms and
-    the ones for modules currently hidden app-wide (see app.HIDDEN_PERMS)."""
-    perms = [p for p in Permission.query.filter(Permission.category != "Administration").all()
-             if p.key not in HIDDEN_PERMS]
+    """[(resource, [permissions ordered by action])] over _editable_perms()."""
+    perms = _editable_perms()
     by_res = {}
     for p in perms:
         by_res.setdefault(p.resource, []).append(p)
@@ -256,20 +304,22 @@ def _submitted_state():
 
 @admin_bp.route("/roles")
 @login_required
-@super_admin_required
+@require_perm("admin.roles")
 def roles():
     show_archived = request.args.get("archived") == "1"
     rows = (Role.query.filter(Role.is_active.is_(not show_archived))
             .order_by(Role.is_system.desc(), Role.name).all())
     counts = {r.id: len(r.role_permissions) for r in rows}
     archived_count = Role.query.filter(Role.is_active.is_(False)).count()
+    own_ids = {uf.role_id for uf in current_user.user_fleets} if not current_user.is_super_admin else set()
     return render_template("admin_roles.html", roles=rows, counts=counts,
-                           show_archived=show_archived, archived_count=archived_count)
+                           show_archived=show_archived, archived_count=archived_count,
+                           own_role_ids=own_ids)
 
 
 @admin_bp.route("/roles/new", methods=["GET", "POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.roles")
 def role_new():
     if request.method == "POST":
         error = _save_role(None)
@@ -280,16 +330,20 @@ def role_new():
             return redirect(url_for("admin.roles"))
     state = _submitted_state() if request.method == "POST" else {}
     return render_template("admin_role_form.html", role=None,
-                           groups=_permission_groups(), state=state)
+                           groups=_permission_groups(), state=state,
+                           can_delegate_approval=_can_delegate_approval())
 
 
 @admin_bp.route("/roles/<int:role_id>/edit", methods=["GET", "POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.roles")
 def role_edit(role_id):
     role = db.session.get(Role, role_id)
     if not role:
         abort(404)
+    if _owns_role(role):
+        flash("error|" + get_t().get("role.err.own_role", OWN_ROLE_MSG))
+        return redirect(url_for("admin.roles"))
     if request.method == "POST":
         error = _save_role(role)
         if error:
@@ -299,12 +353,13 @@ def role_edit(role_id):
             return redirect(url_for("admin.roles"))
     state = _submitted_state() if request.method == "POST" else _role_state_map(role)
     return render_template("admin_role_form.html", role=role,
-                           groups=_permission_groups(), state=state)
+                           groups=_permission_groups(), state=state,
+                           can_delegate_approval=_can_delegate_approval())
 
 
 @admin_bp.route("/roles/<int:role_id>/delete", methods=["POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.roles")
 def role_delete(role_id):
     """Soft delete: archive the role (assignments are kept; reversible)."""
     role = db.session.get(Role, role_id)
@@ -313,6 +368,9 @@ def role_delete(role_id):
     t = get_t()
     if role.is_system:
         flash("error|" + t.get("role.err.system", "Les rôles système ne peuvent pas être supprimés."))
+        return redirect(url_for("admin.roles"))
+    if _owns_role(role):
+        flash("error|" + t.get("role.err.own_role", OWN_ROLE_MSG))
         return redirect(url_for("admin.roles"))
     role.is_active = False
     log_action("ARCHIVE", "role", resource_id=role_id,
@@ -324,7 +382,7 @@ def role_delete(role_id):
 
 @admin_bp.route("/roles/<int:role_id>/reactivate", methods=["POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.roles")
 def role_reactivate(role_id):
     role = db.session.get(Role, role_id)
     if not role:
@@ -339,6 +397,8 @@ def role_reactivate(role_id):
 
 def _save_role(role):
     t = get_t()
+    if _owns_role(role):
+        return t.get("role.err.own_role", OWN_ROLE_MSG)
     name = (request.form.get("name") or "").strip()
     description = (request.form.get("description") or "").strip()
     can_approve = request.form.get("can_approve") is not None
@@ -349,6 +409,9 @@ def _save_role(role):
         clash = clash.filter(Role.id != role.id)
     if clash.first():
         return t.get("role.err.name_taken", "Un rôle porte déjà ce nom.")
+
+    if not _can_delegate_approval():
+        can_approve = role.can_approve if role else False
 
     creating = role is None
     if creating:
@@ -361,20 +424,24 @@ def _save_role(role):
         role.description = description or None
         role.can_approve = can_approve
 
-    # Rebuild the role's permissions from the tri-state grid. Grants for hidden
-    # modules have no checkbox, so carry them over instead of dropping them.
+    # Rebuild the role's permissions from the tri-state grid. Anything outside
+    # the editor's reach (hidden modules, non-delegatable admin perms, powers
+    # the editor doesn't hold) has no radio on the form, so carry it over
+    # instead of silently dropping it.
+    editable = _editable_perms()
+    editable_ids = {p.id for p in editable}
     kept = [(rp.permission_id, rp.requires_approval)
             for rp in role.role_permissions
-            if rp.permission.key in HIDDEN_PERMS]
+            if rp.permission_id not in editable_ids]
     RolePermission.query.filter_by(role_id=role.id).delete()
     for pid, approval in kept:
         db.session.add(RolePermission(role_id=role.id, permission_id=pid,
                                       requires_approval=approval))
-    for p in Permission.query.filter(Permission.category != "Administration").all():
-        if p.key in HIDDEN_PERMS:
-            continue
+    for p in editable:
         v = request.form.get("perm_%d" % p.id)
-        if v == "direct":
+        # Admin permissions gate a config screen outright — there is no
+        # "submit for approval" path behind them, so they are grant-or-not.
+        if v == "direct" or (v == "approval" and p.category == "Administration"):
             db.session.add(RolePermission(role_id=role.id, permission_id=p.id, requires_approval=False))
         elif v == "approval":
             db.session.add(RolePermission(role_id=role.id, permission_id=p.id, requires_approval=True))
@@ -595,7 +662,7 @@ def _cat_num(raw, cast):
 
 @admin_bp.route("/categories")
 @login_required
-@super_admin_required
+@require_perm("admin.categories")
 def categories():
     show_archived = request.args.get("archived") == "1"
     rows = (VehicleCategory.query.filter(VehicleCategory.is_active.is_(not show_archived))
@@ -654,7 +721,7 @@ def _render_category_form(cat, error=None):
 
 @admin_bp.route("/categories/new", methods=["GET", "POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.categories")
 def category_new():
     if request.method == "POST":
         error = _save_category(None)
@@ -667,7 +734,7 @@ def category_new():
 
 @admin_bp.route("/categories/<int:cat_id>/edit", methods=["GET", "POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.categories")
 def category_edit(cat_id):
     cat = db.session.get(VehicleCategory, cat_id)
     if not cat:
@@ -683,7 +750,7 @@ def category_edit(cat_id):
 
 @admin_bp.route("/categories/<int:cat_id>/delete", methods=["POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.categories")
 def category_delete(cat_id):
     """Soft delete: archive the category (vehicles/fleets keep referencing it)."""
     cat = db.session.get(VehicleCategory, cat_id)
@@ -699,7 +766,7 @@ def category_delete(cat_id):
 
 @admin_bp.route("/categories/<int:cat_id>/reactivate", methods=["POST"])
 @login_required
-@super_admin_required
+@require_perm("admin.categories")
 def category_reactivate(cat_id):
     cat = db.session.get(VehicleCategory, cat_id)
     if not cat:

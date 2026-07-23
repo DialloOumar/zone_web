@@ -357,7 +357,7 @@ HELP_SECTIONS = [
     {
         "id": "admin_roles",
         "icon": "admin_panel_settings",
-        "gate": {"super_admin": True},
+        "gate": {"perms": ["admin.roles"]},
         "title": {"fr": "Administration — Rôles et permissions",
                   "en": "Administration — Roles and permissions"},
         "intro": {
@@ -394,7 +394,7 @@ HELP_SECTIONS = [
     {
         "id": "admin_fleets",
         "icon": "workspaces",
-        "gate": {"super_admin": True},
+        "gate": {"perms": ["admin.fleets"]},
         "title": {"fr": "Administration — Flottes et tarifs",
                   "en": "Administration — Fleets and rates"},
         "intro": {
@@ -424,7 +424,7 @@ HELP_SECTIONS = [
     {
         "id": "admin_categories",
         "icon": "category",
-        "gate": {"super_admin": True},
+        "gate": {"perms": ["admin.categories"]},
         "title": {"fr": "Administration — Catégories de véhicules",
                   "en": "Administration — Vehicle categories"},
         "intro": {
