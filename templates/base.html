@@ -64,36 +64,41 @@
             {% endif %}
             {% endif %}
 
+            {# Own section: these are not maintenance. Without a heading here they
+               read as items of the Maintenance group above. #}
+            {% if has_perm('expense.view') or has_perm('insights.view') or has_perm('invoicing.view') %}
+            <li class="sidebar-section">{{ t['nav.management'] }}</li>
             {% if has_perm('expense.view') %}
-            <li><a href="{{ url_for('expenses.index') }}" class="{% if request.blueprint == 'expenses' %}active{% endif %}">
+            <li><a href="{{ url_for('expenses.index') }}" class="sidebar-sub {% if request.blueprint == 'expenses' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">payments</span> {{ t['nav.expenses'] }}
             </a></li>
             {% endif %}
-
             {% if has_perm('insights.view') %}
-            <li><a href="{{ url_for('insights.index') }}" class="{% if request.blueprint == 'insights' %}active{% endif %}">
+            <li><a href="{{ url_for('insights.index') }}" class="sidebar-sub {% if request.blueprint == 'insights' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">query_stats</span> {{ t['nav.insights'] }}
             </a></li>
             {% endif %}
             {% if has_perm('invoicing.view') %}
-            <li><a href="{{ url_for('invoicing.index') }}" class="{% if request.blueprint == 'invoicing' %}active{% endif %}">
+            <li><a href="{{ url_for('invoicing.index') }}" class="sidebar-sub {% if request.blueprint == 'invoicing' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">request_quote</span> {{ t['nav.invoicing'] }}
             </a></li>
             {% endif %}
+            {% endif %}
 
-
+            {% if can_approve_any or not is_super_admin %}
+            <li class="sidebar-section">{{ t['nav.validation'] }}</li>
             {% if can_approve_any %}
-            <li><a href="{{ url_for('approvals.index') }}" class="{% if request.endpoint == 'approvals.index' %}active{% endif %}">
+            <li><a href="{{ url_for('approvals.index') }}" class="sidebar-sub {% if request.endpoint == 'approvals.index' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">pending_actions</span> {{ t['nav.approvals'] }}
                 {% if pending_approvals %}<span class="nav-badge">{{ pending_approvals }}</span>{% endif %}
             </a></li>
             {% endif %}
-
             {% if not is_super_admin %}
-            <li><a href="{{ url_for('approvals.my_requests') }}" class="{% if request.endpoint == 'approvals.my_requests' %}active{% endif %}">
+            <li><a href="{{ url_for('approvals.my_requests') }}" class="sidebar-sub {% if request.endpoint == 'approvals.my_requests' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">history</span> {{ t['nav.my_requests'] }}
                 {% if my_pending %}<span class="nav-badge">{{ my_pending }}</span>{% endif %}
             </a></li>
+            {% endif %}
             {% endif %}
 
             <li><a href="{{ url_for('help_page') }}" class="{% if request.endpoint == 'help_page' %}active{% endif %}">
