@@ -466,6 +466,7 @@ HELP_SECTIONS = [
                 "Le dernier bloc, « Administration » (encadré en orange), donne accès aux écrans de configuration : gérer les flottes, gérer les catégories de véhicules, gérer les rôles. C'est ainsi qu'on délègue la configuration sans donner le compte super administrateur.",
                 "Enregistrez. Le rôle devient attribuable aux utilisateurs.",
                 "Pour retirer un rôle : « Archiver » le met de côté sans rien casser (réversible, les attributions sont conservées), « Supprimer » l'efface définitivement. La suppression n'est proposée que si personne ne porte le rôle — la colonne « Utilisateurs » vous le dit. Pour supprimer un rôle attribué, réattribuez d'abord ses utilisateurs.",
+                "Les rôles livrés avec la plateforme (marqués « Système ») peuvent eux aussi être supprimés si vous ne les utilisez pas, et ils ne réapparaîtront pas à la prochaine mise à jour. Leur restauration demande en revanche une intervention technique.",
             ],
             "en": [
                 "Open Administration → \"Roles\" then \"New role\".",
@@ -476,6 +477,7 @@ HELP_SECTIONS = [
                 "The last block, \"Administration\" (outlined in orange), opens the configuration screens: manage fleets, manage vehicle categories, manage roles. This is how you delegate setup without handing over the super-admin account.",
                 "Save. The role can now be assigned to users.",
                 "To remove a role: \"Archive\" sets it aside without breaking anything (reversible, assignments are kept), \"Delete\" erases it for good. Delete is only offered when nobody holds the role — the \"Users\" column tells you. To delete an assigned role, reassign its users first.",
+                "The roles shipped with the platform (marked \"System\") can be deleted too if you don't use them, and they will not reappear on the next update. Restoring one, however, needs a technical intervention.",
             ],
         },
         "tips": {

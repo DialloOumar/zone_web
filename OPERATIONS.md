@@ -72,6 +72,21 @@ docker compose exec web flask grant-fleet --user mamadou \
 Useful if the super admin is unavailable and a fleet needs an urgent role
 change.
 
+### Restore a deleted system role
+
+System roles (Fleet Manager, Supervisor, Inspector, External) can be deleted
+from /admin/roles. Because `entrypoint.sh` runs `flask seed` on every boot,
+the deletion is remembered in the `deleted_system_roles` app setting so the
+seeder does not bring the role back. To undo that:
+
+```bash
+docker compose exec web flask restore-system-roles
+```
+
+This clears the record and re-seeds every deleted system role with its
+original permissions. `flask seed-system-roles` prints which roles are
+currently held back.
+
 ### Transfer super admin to another user
 
 Run SQL on the production DB:

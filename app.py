@@ -881,14 +881,40 @@ SYSTEM_ROLES = {
 }
 
 
+# Deleting a system role has to survive the next boot: entrypoint.sh runs
+# `flask seed` every start, which would otherwise re-create it. Deleted slugs
+# are remembered here (category "internal", so /admin/settings ignores them).
+SYSTEM_ROLES_TOMBSTONE = "deleted_system_roles"
+
+
+def tombstoned_system_roles():
+    """Slugs of system roles an admin deleted — never re-seed these."""
+    row = db.session.get(AppSetting, SYSTEM_ROLES_TOMBSTONE)
+    return {s for s in (row.value or "").split(",") if s} if row else set()
+
+
+def tombstone_system_role(slug):
+    """Remember that this system role was deleted on purpose. Caller commits."""
+    row = db.session.get(AppSetting, SYSTEM_ROLES_TOMBSTONE)
+    slugs = tombstoned_system_roles() | {slug}
+    if row:
+        row.value = ",".join(sorted(slugs))
+    else:
+        db.session.add(AppSetting(
+            key=SYSTEM_ROLES_TOMBSTONE, value=slug, category="internal",
+            label="System roles deleted by an admin (not re-seeded)"))
+
+
 def _seed_system_roles_data():
     """Insert any missing system roles + their RolePermission rows. Idempotent.
     Never overwrites existing role config — admins can re-tune permissions
-    via the UI without losing their changes on next deploy.
+    via the UI without losing their changes on next deploy, and roles they
+    deleted outright stay deleted.
     """
     created = 0
+    deleted = tombstoned_system_roles()
     for slug, (name, can_approve, perm_keys) in SYSTEM_ROLES.items():
-        if Role.query.filter_by(slug=slug).first():
+        if slug in deleted or Role.query.filter_by(slug=slug).first():
             continue
         role = Role(name=name, slug=slug, is_system=True, can_approve=can_approve)
         db.session.add(role)
@@ -951,6 +977,28 @@ def seed_system_roles_cmd():
     """
     created = _seed_system_roles_data()
     click.echo(f"System roles: {created} created (idempotent — existing ones left untouched).")
+    gone = tombstoned_system_roles()
+    if gone:
+        click.echo("  not re-seeded (deleted by an admin): " + ", ".join(sorted(gone)))
+        click.echo("  run `flask restore-system-roles` to bring them back.")
+
+
+@app.cli.command("restore-system-roles")
+def restore_system_roles_cmd():
+    """Undo system-role deletions: forget the tombstones and re-seed them.
+
+    The escape hatch for `flask seed` deliberately not re-creating a system
+    role an admin deleted from /admin/roles.
+    """
+    row = db.session.get(AppSetting, SYSTEM_ROLES_TOMBSTONE)
+    gone = tombstoned_system_roles()
+    if not gone:
+        click.echo("Nothing to restore — no system role has been deleted.")
+        return
+    db.session.delete(row)
+    db.session.commit()
+    created = _seed_system_roles_data()
+    click.echo(f"Restored {created} system role(s): {', '.join(sorted(gone))}")
 
 
 def _seed_super_admin_from_env():

@@ -20,7 +20,8 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 from app import (HIDDEN_PERMS, get_t, has_perm, is_modal_request, log_action,
-                 modal_ok, require_perm, slugify, super_admin_required)
+                 modal_ok, require_perm, slugify, super_admin_required,
+                 tombstone_system_role)
 from billing import current_rates
 from models import (AppSetting, AuditLog, Fleet, FleetRate, Operator,
                     Permission, Role, RolePermission, User, UserFleet, Vehicle,
@@ -368,9 +369,6 @@ def role_delete(role_id):
     if not role:
         abort(404)
     t = get_t()
-    if role.is_system:
-        flash("error|" + t.get("role.err.system", "Les rôles système ne peuvent pas être supprimés."))
-        return redirect(url_for("admin.roles"))
     if _owns_role(role):
         flash("error|" + t.get("role.err.own_role", OWN_ROLE_MSG))
         return redirect(url_for("admin.roles"))
@@ -411,9 +409,6 @@ def role_destroy(role_id):
     if not role:
         abort(404)
     t = get_t()
-    if role.is_system:
-        flash("error|" + t.get("role.err.system", "Les rôles système ne peuvent pas être supprimés."))
-        return redirect(url_for("admin.roles"))
     if _owns_role(role):
         flash("error|" + t.get("role.err.own_role", OWN_ROLE_MSG))
         return redirect(url_for("admin.roles"))
@@ -424,6 +419,10 @@ def role_destroy(role_id):
         return redirect(url_for("admin.roles"))
     name = role.name
     log_action("DELETE", "role", resource_id=role_id, detail=f"Deleted role '{name}'")
+    # `flask seed` runs on every boot and would re-create a system role, so
+    # record that this deletion was deliberate.
+    if role.is_system:
+        tombstone_system_role(role.slug)
     db.session.delete(role)
     db.session.commit()
     flash("success|" + t.get("role.deleted", "Rôle supprimé.") + " — " + name)
@@ -890,7 +889,8 @@ SETTINGS_SCHEMA = {
 @super_admin_required
 def settings():
     t = get_t()
-    rows = AppSetting.query.order_by(AppSetting.category, AppSetting.key).all()
+    rows = (AppSetting.query.filter(AppSetting.category != "internal")
+            .order_by(AppSetting.category, AppSetting.key).all())
 
     if request.method == "POST":
         errors = {}

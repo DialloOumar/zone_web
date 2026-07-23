@@ -49,7 +49,6 @@
                     <span class="muted small">{{ t['role.your_role'] }}</span>
                     {% else %}
                     <a href="{{ url_for('admin.role_edit', role_id=r.id) }}" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
-                    {% if not r.is_system %}
                         {% if r.is_active %}
                         <form method="post" action="{{ url_for('admin.role_delete', role_id=r.id) }}"
                               data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
@@ -61,16 +60,16 @@
                         </form>
                         {% endif %}
                         {# Deleting for good is only offered while nobody holds the
-                           role: its users would otherwise be left without access. #}
+                           role: its users would otherwise be left without access.
+                           A system role warns that it won't come back on deploy. #}
                         {% if not held[r.id] %}
                         <form method="post" action="{{ url_for('admin.role_destroy', role_id=r.id) }}"
-                              data-confirm="{{ t['role.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
+                              data-confirm="{{ t['role.delete_system_confirm'] if r.is_system else t['role.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
                             <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                         </form>
                         {% else %}
                         <span class="muted small" title="{{ t['role.err.in_use'] }}">{{ t['role.delete_blocked'] }}</span>
                         {% endif %}
-                    {% endif %}
                     {% endif %}
                 </td>
             </tr>
