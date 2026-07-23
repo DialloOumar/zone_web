@@ -140,9 +140,9 @@ TRANSLATIONS = {
         "admin.roles":      "Rôles",
         "admin.categories": "Catégories de véhicules",
         "admin.settings":   "Paramètres",
-        "admin.audit_log":  "Journal d'audit",
+        "admin.audit_log":  "Journal d'activité",
 
-        # Audit log viewer
+        # Activity log viewer
         "audit.entries":       "entrées",
         "audit.timestamp":     "Horodatage",
         "audit.user":          "Utilisateur",
@@ -856,9 +856,9 @@ TRANSLATIONS = {
         "admin.roles":      "Roles",
         "admin.categories": "Vehicle categories",
         "admin.settings":   "Settings",
-        "admin.audit_log":  "Audit log",
+        "admin.audit_log":  "Activity log",
 
-        # Audit log viewer
+        # Activity log viewer
         "audit.entries":       "entries",
         "audit.timestamp":     "Timestamp",
         "audit.user":          "User",

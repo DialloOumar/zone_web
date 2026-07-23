@@ -458,8 +458,8 @@ HELP_SECTIONS = [
         "id": "admin_settings",
         "icon": "settings",
         "gate": {"super_admin": True},
-        "title": {"fr": "Administration — Paramètres et journal d'audit",
-                  "en": "Administration — Settings and audit log"},
+        "title": {"fr": "Administration — Paramètres et journal d'activité",
+                  "en": "Administration — Settings and activity log"},
         "intro": {
             "fr": "Réglages généraux de la plateforme et traçabilité des actions.",
             "en": "General platform settings and action traceability.",
@@ -467,11 +467,11 @@ HELP_SECTIONS = [
         "steps": {
             "fr": [
                 "« Paramètres » : devise, langue par défaut, et délai de grâce (le temps pendant lequel l'auteur d'une saisie peut la corriger sans repasser par la validation).",
-                "« Journal d'audit » : la trace horodatée de toutes les actions (qui a fait quoi, et quand) — utile pour le suivi et le contrôle.",
+                "« Journal d'activité » : la trace horodatée de toutes les actions (qui a fait quoi, et quand) — utile pour le suivi et le contrôle.",
             ],
             "en": [
                 "\"Settings\": currency, default language, and grace period (the time during which an entry's author can fix it without going through approval again).",
-                "\"Audit log\": the timestamped trace of every action (who did what, and when) — useful for monitoring and control.",
+                "\"Activity log\": the timestamped trace of every action (who did what, and when) — useful for monitoring and control.",
             ],
         },
     },
