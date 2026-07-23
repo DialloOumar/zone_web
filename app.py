@@ -404,48 +404,94 @@ MONTH_ABBR = {
 }
 
 
-def _scoped_expense_sum(prefix, fleet_ids):
-    """Sum of scoped Expense.amount whose date string starts with `prefix`."""
-    q = Expense.query.filter(Expense.date.like(prefix + "%"))
-    if fleet_ids is not None:
-        q = q.filter(Expense.fleet_id.in_(fleet_ids))
-    return int(q.with_entities(db.func.coalesce(db.func.sum(Expense.amount), 0)).scalar() or 0)
-
-
-def _dashboard_charts(fleet_ids, now, lang):
-    """Build the two dashboard chart series, fleet-scoped.
-
-    1. spend_trend  — total spend per month over the last 6 months.
-    2. spend_by_cat — this month's spend grouped by expense category.
-    """
-    abbr = MONTH_ABBR.get(lang, MONTH_ABBR["en"])
-    t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
-
-    # Last 6 months ending with the current one, oldest first.
-    trend_labels, trend_values = [], []
+def _months_back(now, n=6):
+    """The last n months as 'YYYY-MM', oldest first."""
+    out = []
     y, m = now.year, now.month
-    for i in range(5, -1, -1):
+    for i in range(n - 1, -1, -1):
         yy, mm = y, m - i
         while mm <= 0:
             mm += 12
             yy -= 1
-        trend_labels.append(abbr[mm - 1])
-        trend_values.append(_scoped_expense_sum("%04d-%02d" % (yy, mm), fleet_ids))
+        out.append("%04d-%02d" % (yy, mm))
+    return out
 
-    # This-month spend by category (descending), labels translated.
-    prefix = now.strftime("%Y-%m")
-    cq = db.session.query(
-        Expense.category, db.func.coalesce(db.func.sum(Expense.amount), 0)
-    ).filter(Expense.date.like(prefix + "%"))
-    if fleet_ids is not None:
-        cq = cq.filter(Expense.fleet_id.in_(fleet_ids))
-    cat_rows = cq.group_by(Expense.category).order_by(db.func.sum(Expense.amount).desc()).all()
+
+def _dashboard_charts(fleet_ids, now, lang):
+    """Build the operational dashboard series, fleet-scoped.
+
+    1. activity_trend — worked hours & trips per month over the last 6 months.
+    2. daily_entries  — entries logged per day over the last 30 days, which is
+       where gaps in the daily logging discipline show up.
+    3. top_vehicles   — the busiest machines this month, each in its own unit.
+    4. fuel_trend     — litres filled per month over the last 6 months.
+    """
+    abbr = MONTH_ABBR.get(lang, MONTH_ABBR["en"])
+    co = db.func.coalesce
+
+    def scope(q, model=Vehicle):
+        return q.filter(model.fleet_id.in_(fleet_ids)) if fleet_ids is not None else q
+
+    months = _months_back(now, 6)
+    month_labels = [abbr[int(mo[5:]) - 1] for mo in months]
+
+    # 1. Hours & trips per month.
+    ym = db.func.substr(DailyEntry.date, 1, 7)
+    q = (db.session.query(ym, co(db.func.sum(DailyEntry.hours), 0.0),
+                          co(db.func.sum(DailyEntry.trips), 0))
+         .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+         .filter(ym.in_(months)))
+    per_month = {mo: (float(h or 0), int(tr or 0)) for mo, h, tr in scope(q).group_by(ym).all()}
+
+    # 2. Entries per day over the last 30 days.
+    days = [(now.date() - timedelta(days=i)).isoformat() for i in range(29, -1, -1)]
+    q = (db.session.query(DailyEntry.date, db.func.count(DailyEntry.id))
+         .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+         .filter(DailyEntry.date.in_(days)))
+    per_day = dict(scope(q).group_by(DailyEntry.date).all())
+
+    # 3. Busiest machines this month — ranked on each one's own unit, and kept
+    #    in two series so hours and trips are never drawn as the same thing.
+    like = now.strftime("%Y-%m") + "%"
+    q = (db.session.query(Vehicle.code, VehicleCategory.unit_type,
+                          co(db.func.sum(DailyEntry.hours), 0.0),
+                          co(db.func.sum(DailyEntry.trips), 0))
+         .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+         .join(VehicleCategory, Vehicle.category_id == VehicleCategory.id)
+         .filter(DailyEntry.date.like(like)))
+    ranked = []
+    for code, unit, hrs, trp in scope(q).group_by(Vehicle.id, Vehicle.code,
+                                                  VehicleCategory.unit_type).all():
+        value = float(hrs or 0) if unit == "hours" else float(trp or 0)
+        if value > 0:
+            ranked.append((code, unit, value))
+    ranked.sort(key=lambda r: r[2], reverse=True)
+    ranked = ranked[:10]
+
+    # 4. Litres filled per month (Expense carries its own fleet_id).
+    yme = db.func.substr(Expense.date, 1, 7)
+    q = (db.session.query(yme, co(db.func.sum(Expense.liters), 0.0))
+         .filter(Expense.category == "fuel", yme.in_(months)))
+    per_month_fuel = dict(scope(q, Expense).group_by(yme).all())
 
     return {
-        "spend_trend": {"labels": trend_labels, "values": trend_values},
-        "spend_by_cat": {
-            "labels": [t.get("expense.cat." + code, code) for code, _ in cat_rows],
-            "values": [int(total or 0) for _, total in cat_rows],
+        "activity_trend": {
+            "labels": month_labels,
+            "hours": [round(per_month.get(mo, (0, 0))[0], 1) for mo in months],
+            "trips": [per_month.get(mo, (0, 0))[1] for mo in months],
+        },
+        "daily_entries": {
+            "labels": [d[5:] for d in days],
+            "values": [int(per_day.get(d, 0)) for d in days],
+        },
+        "top_vehicles": {
+            "labels": [code for code, _, _ in ranked],
+            "hours": [round(val, 1) if unit == "hours" else 0 for _, unit, val in ranked],
+            "trips": [int(val) if unit == "trips" else 0 for _, unit, val in ranked],
+        },
+        "fuel_trend": {
+            "labels": month_labels,
+            "values": [round(float(per_month_fuel.get(mo, 0) or 0), 1) for mo in months],
         },
     }
 
@@ -568,26 +614,40 @@ def dashboard():
     fleet_ids = current_user_fleet_ids()  # None for super admin = no restriction
     vq = Vehicle.query
     oq = Operator.query
-    fq = Fleet.query
     aq = Alert.query.filter(Alert.status == "open")
     if fleet_ids is not None:
         vq = vq.filter(Vehicle.fleet_id.in_(fleet_ids))
         oq = oq.filter(Operator.fleet_id.in_(fleet_ids))
-        fq = fq.filter(Fleet.id.in_(fleet_ids))
         aq = aq.join(Vehicle, Alert.vehicle_id == Vehicle.id).filter(Vehicle.fleet_id.in_(fleet_ids))
-    # This-month spend (Expense carries its own fleet_id — no join needed).
-    month_prefix = datetime.utcnow().strftime("%Y-%m")
-    eq = Expense.query.filter(Expense.date.like(month_prefix + "%"))
+    # This month's operational activity, straight from the daily entries.
+    now = datetime.utcnow()
+    like = now.strftime("%Y-%m") + "%"
+    co = db.func.coalesce
+    act = (db.session.query(co(db.func.sum(DailyEntry.hours), 0.0),
+                            co(db.func.sum(DailyEntry.trips), 0),
+                            co(db.func.sum(DailyEntry.kilometers), 0.0),
+                            db.func.count(db.distinct(DailyEntry.vehicle_id)))
+           .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+           .filter(DailyEntry.date.like(like)))
     if fleet_ids is not None:
-        eq = eq.filter(Expense.fleet_id.in_(fleet_ids))
-    month_spend = eq.with_entities(db.func.coalesce(db.func.sum(Expense.amount), 0)).scalar()
+        act = act.filter(Vehicle.fleet_id.in_(fleet_ids))
+    hours, trips, km, active_vehicles = act.one()
+
+    # Litres filled this month (Expense carries its own fleet_id — no join).
+    fq_l = db.session.query(co(db.func.sum(Expense.liters), 0.0)).filter(
+        Expense.category == "fuel", Expense.date.like(like))
+    if fleet_ids is not None:
+        fq_l = fq_l.filter(Expense.fleet_id.in_(fleet_ids))
 
     stats = {
-        "fleets": fq.count(),
+        "hours": float(hours or 0),
+        "trips": int(trips or 0),
+        "km": float(km or 0),
+        "liters": float(fq_l.scalar() or 0),
+        "active_vehicles": int(active_vehicles or 0),
         "vehicles": vq.count(),
         "operators": oq.count(),
         "alerts_open": aq.count(),
-        "month_spend": month_spend,
     }
 
     # Open alerts — newest first, scoped via the vehicle's fleet.

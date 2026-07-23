@@ -38,6 +38,19 @@ TRANSLATIONS = {
         "dash.spend_trend":      "Évolution des dépenses",
         "dash.last_6_months":    "6 derniers mois",
         "dash.spend_by_cat":     "Dépenses par catégorie",
+        # Tableau de bord opérationnel
+        "dash.month_hours":      "Heures travaillées (mois)",
+        "dash.month_trips":      "Voyages (mois)",
+        "dash.month_km":         "Kilomètres (mois)",
+        "dash.month_liters":     "Carburant (mois)",
+        "dash.active_vehicles":  "Véhicules actifs ce mois",
+        "dash.activity_trend":   "Activité mensuelle",
+        "dash.top_vehicles":     "Véhicules les plus actifs",
+        "dash.daily_entries":    "Saisies par jour",
+        "dash.fuel_trend":       "Consommation de carburant",
+        "dash.entries":          "Saisies",
+        "dash.this_month":       "Ce mois",
+        "dash.last_30_days":     "30 derniers jours",
 
         # First-login welcome guide
         "tour.title":   "Guide de démarrage",
@@ -784,6 +797,19 @@ TRANSLATIONS = {
         "dash.spend_trend":      "Spend trend",
         "dash.last_6_months":    "Last 6 months",
         "dash.spend_by_cat":     "Spend by category",
+        # Operational dashboard
+        "dash.month_hours":      "Hours worked (month)",
+        "dash.month_trips":      "Trips (month)",
+        "dash.month_km":         "Kilometers (month)",
+        "dash.month_liters":     "Fuel (month)",
+        "dash.active_vehicles":  "Vehicles active this month",
+        "dash.activity_trend":   "Monthly activity",
+        "dash.top_vehicles":     "Busiest vehicles",
+        "dash.daily_entries":    "Entries per day",
+        "dash.fuel_trend":       "Fuel consumption",
+        "dash.entries":          "Entries",
+        "dash.this_month":       "This month",
+        "dash.last_30_days":     "Last 30 days",
 
         # First-login welcome guide
         "tour.title":   "Getting started",

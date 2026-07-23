@@ -7,40 +7,47 @@
 
 <div class="stat-grid">
     <div class="stat-card">
-        <span class="stat-icon stat-icon--indigo material-symbols-outlined">workspaces</span>
+        <span class="stat-icon stat-icon--blue material-symbols-outlined">history</span>
         <div>
-            <div class="stat-value">{{ stats.fleets }}</div>
-            <div class="stat-label">{{ t['admin.fleets'] }}</div>
+            <div class="stat-value">{{ '{:,.0f}'.format(stats.hours) }}<span class="stat-unit"> h</span></div>
+            <div class="stat-label">{{ t['dash.month_hours'] }}</div>
         </div>
     </div>
     <div class="stat-card">
-        <span class="stat-icon stat-icon--blue material-symbols-outlined">directions_bus</span>
+        <span class="stat-icon stat-icon--indigo material-symbols-outlined">directions_bus</span>
         <div>
-            <div class="stat-value">{{ stats.vehicles }}</div>
-            <div class="stat-label">{{ t['nav.vehicles'] }}</div>
+            <div class="stat-value">{{ '{:,}'.format(stats.trips) }}</div>
+            <div class="stat-label">{{ t['dash.month_trips'] }}</div>
         </div>
     </div>
     <div class="stat-card">
-        <span class="stat-icon stat-icon--teal material-symbols-outlined">badge</span>
+        <span class="stat-icon stat-icon--teal material-symbols-outlined">donut_large</span>
         <div>
-            <div class="stat-value">{{ stats.operators }}</div>
-            <div class="stat-label">{{ t['nav.operators'] }}</div>
+            <div class="stat-value">{{ '{:,.0f}'.format(stats.km) }}<span class="stat-unit"> km</span></div>
+            <div class="stat-label">{{ t['dash.month_km'] }}</div>
         </div>
     </div>
     <div class="stat-card">
-        <span class="stat-icon {{ 'stat-icon--red' if stats.alerts_open else 'stat-icon--amber' }} material-symbols-outlined">warning</span>
+        <span class="stat-icon stat-icon--amber material-symbols-outlined">local_gas_station</span>
+        <div>
+            <div class="stat-value">{{ '{:,.0f}'.format(stats.liters) }}<span class="stat-unit"> L</span></div>
+            <div class="stat-label">{{ t['dash.month_liters'] }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--green material-symbols-outlined">task_alt</span>
+        <div>
+            <div class="stat-value">{{ stats.active_vehicles }}<span class="stat-unit"> / {{ stats.vehicles }}</span></div>
+            <div class="stat-label">{{ t['dash.active_vehicles'] }}</div>
+        </div>
+    </div>
+    <a class="stat-card" href="{{ url_for('maintenance.alerts') }}">
+        <span class="stat-icon {{ 'stat-icon--red' if stats.alerts_open else 'stat-icon--teal' }} material-symbols-outlined">warning</span>
         <div>
             <div class="stat-value">{{ stats.alerts_open }}</div>
             <div class="stat-label">{{ t['nav.alerts'] }}</div>
         </div>
-    </div>
-    <div class="stat-card">
-        <span class="stat-icon stat-icon--green material-symbols-outlined">payments</span>
-        <div>
-            <div class="stat-value">{{ '{:,}'.format(stats.month_spend) }}<span class="stat-unit"> {{ currency }}</span></div>
-            <div class="stat-label">{{ t['dash.month_spend'] }}</div>
-        </div>
-    </div>
+    </a>
     {% if can_approve_any %}
     <a class="stat-card" href="{{ url_for('approvals.index') }}">
         <span class="stat-icon {{ 'stat-icon--amber' if pending_approvals else 'stat-icon--teal' }} material-symbols-outlined">pending_actions</span>
@@ -55,24 +62,41 @@
 <div class="dash-charts">
     <section class="card dash-chart">
         <div class="card-header">
-            <h2>{{ t['dash.spend_trend'] }}</h2>
+            <h2>{{ t['dash.activity_trend'] }}</h2>
             <span class="muted small">{{ t['dash.last_6_months'] }}</span>
         </div>
-        <div class="chart-box"><canvas id="chart-spend-trend"></canvas></div>
+        <div class="chart-box"><canvas id="chart-activity"></canvas></div>
     </section>
 
     <section class="card dash-chart">
         <div class="card-header">
-            <h2>{{ t['dash.spend_by_cat'] }}</h2>
+            <h2>{{ t['dash.top_vehicles'] }}</h2>
+            <span class="muted small">{{ t['dash.this_month'] }}</span>
         </div>
-        {% if charts.spend_by_cat.values %}
-        <div class="chart-box"><canvas id="chart-spend-cat"></canvas></div>
+        {% if charts.top_vehicles.labels %}
+        <div class="chart-box"><canvas id="chart-top-vehicles"></canvas></div>
         {% else %}
         <div class="empty-state empty-state--soft">
-            <span class="material-symbols-outlined">donut_large</span>
+            <span class="material-symbols-outlined">directions_bus</span>
             <p>{{ t['dash.no_activity'] }}</p>
         </div>
         {% endif %}
+    </section>
+
+    <section class="card dash-chart">
+        <div class="card-header">
+            <h2>{{ t['dash.daily_entries'] }}</h2>
+            <span class="muted small">{{ t['dash.last_30_days'] }}</span>
+        </div>
+        <div class="chart-box"><canvas id="chart-daily"></canvas></div>
+    </section>
+
+    <section class="card dash-chart">
+        <div class="card-header">
+            <h2>{{ t['dash.fuel_trend'] }}</h2>
+            <span class="muted small">{{ t['dash.last_6_months'] }}</span>
+        </div>
+        <div class="chart-box"><canvas id="chart-fuel-trend"></canvas></div>
     </section>
 </div>
 
@@ -146,83 +170,120 @@
     var el = document.getElementById("dash-chart-data");
     if (!el || typeof Chart === "undefined") return;
     var data = JSON.parse(el.textContent);
-    var currency = {{ currency|tojson }};
 
     var css = getComputedStyle(document.documentElement);
     var v = function (name) { return css.getPropertyValue(name).trim(); };
     var textColor = v("--md-on-surface-variant") || "#666";
     var gridColor = v("--md-outline-variant") || "#ddd";
-    var palette = ["--c-blue", "--c-green", "--c-orange", "--c-teal", "--c-indigo",
-                   "--c-red", "--c-purple", "--c-cyan", "--c-amber", "--c-pink"].map(v);
+    var blue = v("--c-blue"), indigo = v("--c-indigo"), teal = v("--c-teal"),
+        amber = v("--c-amber"), green = v("--c-green");
 
     Chart.defaults.font.family = "Roboto, sans-serif";
     Chart.defaults.color = textColor;
 
-    var fmt = function (n) { return Number(n).toLocaleString() + " " + currency; };
+    var L = {
+        hours: {{ t['unit.hours']|tojson }},
+        trips: {{ t['unit.trips']|tojson }},
+        entries: {{ t['dash.entries']|tojson }},
+        liters: {{ t['fuel.liters']|tojson }}
+    };
+    var xAxis = { grid: { display: false }, ticks: { color: textColor } };
+    var yAxis = function (extra) {
+        return Object.assign({ beginAtZero: true, grid: { color: gridColor },
+                               ticks: { color: textColor } }, extra || {});
+    };
 
-    // ── Spend trend (line) ──
-    var trend = document.getElementById("chart-spend-trend");
-    if (trend) {
-        new Chart(trend, {
+    // ── Hours & trips per month — two units, so two axes ──
+    var act = document.getElementById("chart-activity");
+    if (act) {
+        new Chart(act, {
+            type: "bar",
+            data: {
+                labels: data.activity_trend.labels,
+                datasets: [
+                    { label: L.hours, data: data.activity_trend.hours, backgroundColor: blue,
+                      yAxisID: "y", borderRadius: 4 },
+                    { label: L.trips, data: data.activity_trend.trips, backgroundColor: indigo,
+                      yAxisID: "y1", borderRadius: 4 },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: "top", labels: { color: textColor, boxWidth: 12 } } },
+                scales: {
+                    x: xAxis,
+                    y: yAxis({ position: "left", title: { display: true, text: L.hours, color: textColor } }),
+                    y1: yAxis({ position: "right", grid: { drawOnChartArea: false },
+                                title: { display: true, text: L.trips, color: textColor } }),
+                },
+            },
+        });
+    }
+
+    // ── Busiest machines this month (horizontal, one series per unit) ──
+    var top = document.getElementById("chart-top-vehicles");
+    if (top && data.top_vehicles.labels.length) {
+        new Chart(top, {
+            type: "bar",
+            data: {
+                labels: data.top_vehicles.labels,
+                datasets: [
+                    { label: L.hours, data: data.top_vehicles.hours, backgroundColor: blue, borderRadius: 4 },
+                    { label: L.trips, data: data.top_vehicles.trips, backgroundColor: indigo, borderRadius: 4 },
+                ],
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: "top", labels: { color: textColor, boxWidth: 12 } },
+                    // A machine only has one unit, so hide the empty series in the tooltip.
+                    tooltip: { filter: function (c) { return c.parsed.x > 0; } },
+                },
+                scales: { x: yAxis({ stacked: true }), y: Object.assign({ stacked: true }, xAxis) },
+            },
+        });
+    }
+
+    // ── Entries logged per day — gaps show where logging slipped ──
+    var daily = document.getElementById("chart-daily");
+    if (daily) {
+        new Chart(daily, {
+            type: "bar",
+            data: {
+                labels: data.daily_entries.labels,
+                datasets: [{ label: L.entries, data: data.daily_entries.values,
+                             backgroundColor: teal, borderRadius: 3 }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: xAxis, y: yAxis({ ticks: { color: textColor, precision: 0 } }) },
+            },
+        });
+    }
+
+    // ── Litres filled per month ──
+    var fuel = document.getElementById("chart-fuel-trend");
+    if (fuel) {
+        new Chart(fuel, {
             type: "line",
             data: {
-                labels: data.spend_trend.labels,
+                labels: data.fuel_trend.labels,
                 datasets: [{
-                    data: data.spend_trend.values,
-                    borderColor: palette[0],
-                    backgroundColor: (v("--c-blue-bg") || palette[0]),
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 3,
-                    pointBackgroundColor: palette[0],
-                    borderWidth: 2,
+                    label: L.liters, data: data.fuel_trend.values,
+                    borderColor: amber, backgroundColor: (v("--c-amber-bg") || amber),
+                    fill: true, tension: 0.3, pointRadius: 3,
+                    pointBackgroundColor: amber, borderWidth: 2,
                 }],
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    tooltip: { callbacks: { label: function (c) { return fmt(c.parsed.y); } } },
+                    tooltip: { callbacks: { label: function (c) { return c.parsed.y + " L"; } } },
                 },
-                scales: {
-                    x: { grid: { display: false }, ticks: { color: textColor } },
-                    y: {
-                        beginAtZero: true, grid: { color: gridColor },
-                        ticks: {
-                            color: textColor,
-                            callback: function (val) {
-                                if (val >= 1e6) return (val / 1e6) + "M";
-                                if (val >= 1e3) return (val / 1e3) + "k";
-                                return val;
-                            },
-                        },
-                    },
-                },
-            },
-        });
-    }
-
-    // ── Spend by category (doughnut) ──
-    var cat = document.getElementById("chart-spend-cat");
-    if (cat && data.spend_by_cat.values.length) {
-        new Chart(cat, {
-            type: "doughnut",
-            data: {
-                labels: data.spend_by_cat.labels,
-                datasets: [{
-                    data: data.spend_by_cat.values,
-                    backgroundColor: palette,
-                    borderWidth: 2,
-                    borderColor: v("--md-surface-container-low") || "#fff",
-                }],
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                cutout: "62%",
-                plugins: {
-                    legend: { position: "right", labels: { color: textColor, boxWidth: 12, padding: 10 } },
-                    tooltip: { callbacks: { label: function (c) { return c.label + ": " + fmt(c.parsed); } } },
-                },
+                scales: { x: xAxis, y: yAxis() },
             },
         });
     }
