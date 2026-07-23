@@ -15,7 +15,8 @@ from flask_login import current_user, login_required
 import maintenance_engine
 from app import current_user_fleet_ids, get_t, log_action
 from blueprints.entries import _recompute_cumulatives
-from blueprints.maintenance import _close_alert_for_record
+from blueprints.maintenance import (MONEY_KEYS, _close_alert_for_record,
+                                    sync_service_expense)
 from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Operator,
                     PendingChange, User, Vehicle, VehicleCategory, db)
 
@@ -116,9 +117,13 @@ def _describe(pc):
 def _apply(pc):
     """Replay an approved change. Returns True on success."""
     Model, creator_attr = RESOURCE_MODELS[pc.resource_type]
-    payload = pc.payload or {}
+    payload = dict(pc.payload or {})
     obj = None
     vehicle_id = None  # affected vehicle for daily_entry side-effects
+    # A service's cost rides along in the payload but belongs to the ledger, so
+    # it is set aside here and re-applied once the record itself exists.
+    money = ({k: payload.pop(k, None) for k in MONEY_KEYS}
+             if pc.resource_type == "maintenance_record" else None)
     if pc.action == "create":
         obj = Model(**payload)
         setattr(obj, creator_attr, pc.requested_by)
@@ -147,8 +152,11 @@ def _apply(pc):
         if vehicle_id is not None:
             _recompute_cumulatives(vehicle_id)
             maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, vehicle_id))
-    if pc.resource_type == "maintenance_record" and pc.action == "create" and obj is not None:
-        _close_alert_for_record(obj)
+    if pc.resource_type == "maintenance_record" and obj is not None:
+        db.session.flush()
+        sync_service_expense(obj, money or {})
+        if pc.action == "create":
+            _close_alert_for_record(obj)
         maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, obj.vehicle_id))
     return True
 

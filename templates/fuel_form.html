@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = expense is not none %}
+{% block title %}{{ t['expense.edit'] if is_edit else t['fuel.new'] }}{% endblock %}
+{% block page_title %}{{ t['expense.edit'] if is_edit else t['fuel.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_fuel_form.html" %}
+</section>
+{% endblock %}

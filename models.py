@@ -350,7 +350,6 @@ class MaintenanceRecord(db.Model):
     date          = db.Column(db.String(10),  nullable=False)
     kilometers_at = db.Column(db.Float,       nullable=True)
     hours_at      = db.Column(db.Float,       nullable=True)
-    cost          = db.Column(db.Integer,     nullable=True)
     operator      = db.Column(db.String(120), nullable=True)   # driver linked to the service (name, like DailyEntry.operator)
     supplier      = db.Column(db.String(120), nullable=True)
     description   = db.Column(db.String(255), nullable=True)
@@ -360,6 +359,19 @@ class MaintenanceRecord(db.Model):
 
     vehicle = db.relationship("Vehicle")
     rule    = db.relationship("MaintenanceRule")
+    # The service's cost lives in the money ledger, not here — one row per
+    # record, created/updated/removed alongside it by the maintenance blueprint.
+    expense = db.relationship(
+        "Expense", uselist=False,
+        primaryjoin="Expense.maintenance_record_id == MaintenanceRecord.id",
+        foreign_keys="Expense.maintenance_record_id",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def cost(self):
+        """Read-through to the linked expense, so templates keep using `.cost`."""
+        return self.expense.amount if self.expense else None
 
 
 class Alert(db.Model):
@@ -387,21 +399,32 @@ class Alert(db.Model):
 
 
 class Expense(db.Model):
-    """All cost-bearing events. Fuel entries can also live here when fuel
-    is purchased separately from a daily log — the daily-entry liters and
-    expense liters should not be double-counted on the dashboard
-    (handled in the aggregation layer).
+    """THE single money ledger — every cost lands here, whatever the screen it
+    was entered from:
+
+      • Carburant page   → category "fuel"      (always tied to a vehicle)
+      • Dépenses page    → accident / lavage / autre, tied to a vehicle or not
+      • Fiche d'entretien → category "entretien", created automatically and
+        linked back through maintenance_record_id (a service's cost lives here,
+        never on MaintenanceRecord, so nothing is ever counted twice)
+
+    Scope rules: fleet_id set = a client's cost, visible to that fleet's users;
+    fleet_id null = a company cost, visible to anyone who may see expenses.
+    A cost with no vehicle must carry a `label` naming it.
     """
     __tablename__ = "expenses"
 
     id                    = db.Column(db.Integer, primary_key=True)
-    vehicle_id            = db.Column(db.Integer, db.ForeignKey("vehicles.id"), nullable=True)  # null = fleet-wide
-    fleet_id              = db.Column(db.Integer, db.ForeignKey("fleets.id"),   nullable=False)  # denormalized for scoping
-    category              = db.Column(db.String(40), nullable=False)                              # fuel | vidange | pneus_changement | assurance | …
+    vehicle_id            = db.Column(db.Integer, db.ForeignKey("vehicles.id"), nullable=True)  # null = not tied to a vehicle
+    fleet_id              = db.Column(db.Integer, db.ForeignKey("fleets.id"),   nullable=True)  # null = company-wide cost (no client)
+    label                 = db.Column(db.String(120), nullable=True)                              # name of the cost — required when there is no vehicle
+    category              = db.Column(db.String(40), nullable=False)                              # fuel | accident | lavage | autre | entretien (system)
     date                  = db.Column(db.String(10), nullable=False)
     amount                = db.Column(db.Integer,    nullable=False)                              # GNF
     liters                = db.Column(db.Float,      nullable=True)                               # for fuel category
     currency              = db.Column(db.String(5),  nullable=False, default="GNF")
+    payment_method        = db.Column(db.String(20),  nullable=True)                              # mobile_money | cash | transfer | cheque | other
+    payment_reference     = db.Column(db.String(60),  nullable=True)                              # cheque no., transfer ref., transaction id…
     operator              = db.Column(db.String(120), nullable=True)                              # optional driver this cost is attributed to (name, like DailyEntry.operator)
     supplier              = db.Column(db.String(120), nullable=True)
     description           = db.Column(db.String(255), nullable=True)

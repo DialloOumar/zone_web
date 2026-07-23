@@ -1,0 +1,83 @@
+{% set is_edit = expense is not none %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('expenses.fuel_edit', xid=expense.id) if is_edit else url_for('expenses.fuel_new') }}">
+
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="vehicle_id" name="vehicle_id" required>
+                <option value="" hidden></option>
+                {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else preset_vehicle or 0) %}
+                {% for v in vehicles %}
+                <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }} — {{ v.fleet.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="vehicle_id">{{ t['expense.vehicle'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or (expense.date if is_edit else today) }}">
+            <label for="date">{{ t['expense.date'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" inputmode="decimal" id="liters" name="liters" placeholder="{{ t['ph.expense.liters'] }}"
+                   value="{{ request.form.get('liters') or (expense.liters if is_edit and expense.liters is not none else '') }}">
+            <label for="liters">{{ t['fuel.liters'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+                   value="{{ request.form.get('amount') or (expense.amount if is_edit else '') }}">
+            <label for="amount">{{ t['expense.amount'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="payment_method" name="payment_method" required>
+                <option value="" hidden></option>
+                {% set sel_pm = request.form.get('payment_method') or (expense.payment_method if is_edit else '') %}
+                {% for p in payment_methods %}
+                <option value="{{ p }}" {% if p == sel_pm %}selected{% endif %}>{{ t['pay.' + p] }}</option>
+                {% endfor %}
+            </select>
+            <label for="payment_method">{{ t['expense.payment_method'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="payment_reference" name="payment_reference" placeholder=" "
+                   value="{{ request.form.get('payment_reference') or (expense.payment_reference if is_edit and expense.payment_reference else '') }}">
+            <label for="payment_reference">{{ t['expense.payment_reference'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field field--select">
+            {% set sel_op = request.form.get('operator') or (expense.operator if is_edit and expense.operator else '') %}
+            {% set op_names = operators|map(attribute='name')|list %}
+            <select id="operator" name="operator">
+                <option value="">{{ t['form.select'] }}</option>
+                {% for o in operators %}
+                <option value="{{ o.name }}" {% if o.name == sel_op %}selected{% endif %}>{{ o.name }}</option>
+                {% endfor %}
+                {% if sel_op and sel_op not in op_names %}
+                <option value="{{ sel_op }}" selected>{{ sel_op }}</option>
+                {% endif %}
+            </select>
+            <label for="operator">{{ t['expense.operator'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="supplier" name="supplier" placeholder=" "
+                   value="{{ request.form.get('supplier') or (expense.supplier if is_edit and expense.supplier else '') }}">
+            <label for="supplier">{{ t['fuel.station'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('expenses.fuel_index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

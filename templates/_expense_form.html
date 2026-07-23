@@ -1,7 +1,64 @@
 {% set is_edit = expense is not none %}
+{% set posted = request.method == 'POST' %}
+{# Vehicle mode by default; on edit follow the record, on redisplay the checkbox. #}
+{% set veh_mode = (request.form.get('is_vehicle') is not none) if posted
+                  else ((expense.vehicle_id is not none) if is_edit else True) %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('expenses.edit', xid=expense.id) if is_edit else url_for('expenses.new') }}">
+
+    <label class="checkbox-item expense-scope">
+        <input type="checkbox" id="is_vehicle" name="is_vehicle" {% if veh_mode %}checked{% endif %}>
+        <span>{{ t['expense.is_vehicle'] }}</span>
+    </label>
+
+    {# ── Vehicle cost: the fleet always follows the vehicle ── #}
+    <div id="block-vehicle" class="form-row">
+        <div class="field field--select">
+            <select id="vehicle_id" name="vehicle_id">
+                <option value="" hidden></option>
+                {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else preset_vehicle or 0) %}
+                {% for v in vehicles %}
+                <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }} — {{ v.fleet.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="vehicle_id">{{ t['expense.vehicle'] }}</label>
+        </div>
+        <div class="field field--select">
+            {% set sel_op = request.form.get('operator') or (expense.operator if is_edit and expense.operator else '') %}
+            {% set op_names = operators|map(attribute='name')|list %}
+            <select id="operator" name="operator">
+                <option value="">{{ t['form.select'] }}</option>
+                {% for o in operators %}
+                <option value="{{ o.name }}" {% if o.name == sel_op %}selected{% endif %}>{{ o.name }}</option>
+                {% endfor %}
+                {% if sel_op and sel_op not in op_names %}
+                <option value="{{ sel_op }}" selected>{{ sel_op }}</option>
+                {% endif %}
+            </select>
+            <label for="operator">{{ t['expense.operator'] }}</label>
+        </div>
+    </div>
+
+    {# ── Free-standing cost: named, fleet optional (none = company) ── #}
+    <div id="block-general" class="form-row">
+        <div class="field">
+            <input type="text" id="label" name="label" placeholder=" "
+                   value="{{ request.form.get('label') or (expense.label if is_edit and expense.label else '') }}">
+            <label for="label">{{ t['expense.label'] }}</label>
+        </div>
+        <div class="field field--select">
+            <select id="fleet_id" name="fleet_id">
+                <option value="">{{ t['expense.company'] }}</option>
+                {% set sel_fleet = request.form.get('fleet_id')|int(0) or (expense.fleet_id if is_edit else 0) %}
+                {% for f in fleets %}
+                <option value="{{ f.id }}" {% if f.id == sel_fleet %}selected{% endif %}>{{ f.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="fleet_id">{{ t['expense.fleet'] }}</label>
+        </div>
+    </div>
+
     <div class="form-row">
         <div class="field field--select">
             <select id="category" name="category" required>
@@ -21,55 +78,28 @@
     </div>
 
     <div class="form-row">
-        <div class="field field--select">
-            <select id="fleet_id" name="fleet_id" required>
-                <option value="" hidden></option>
-                {% set sel_fleet = request.form.get('fleet_id')|int(0) or (expense.fleet_id if is_edit else preset_fleet or 0) %}
-                {% for f in fleets %}
-                <option value="{{ f.id }}" {% if f.id == sel_fleet %}selected{% endif %}>{{ f.name }}</option>
-                {% endfor %}
-            </select>
-            <label for="fleet_id">{{ t['expense.fleet'] }}</label>
-        </div>
-        <div class="field field--select">
-            <select id="vehicle_id" name="vehicle_id">
-                <option value="">{{ t['expense.fleet_wide'] }}</option>
-                {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else preset_vehicle or 0) %}
-                {% for v in vehicles %}
-                <option value="{{ v.id }}" data-fleet="{{ v.fleet_id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>
-                {% endfor %}
-            </select>
-            <label for="vehicle_id">{{ t['expense.vehicle'] }}</label>
-        </div>
-    </div>
-
-    <div class="form-row">
         <div class="field">
             <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
                    value="{{ request.form.get('amount') or (expense.amount if is_edit else '') }}">
             <label for="amount">{{ t['expense.amount'] }}</label>
         </div>
-        <div class="field" id="field-liters">
-            <input type="text" inputmode="decimal" id="liters" name="liters" placeholder="{{ t['ph.expense.liters'] }}"
-                   value="{{ request.form.get('liters') or (expense.liters if is_edit and expense.liters is not none else '') }}">
-            <label for="liters">{{ t['expense.liters'] }}</label>
+        <div class="field field--select">
+            <select id="payment_method" name="payment_method" required>
+                <option value="" hidden></option>
+                {% set sel_pm = request.form.get('payment_method') or (expense.payment_method if is_edit else '') %}
+                {% for p in payment_methods %}
+                <option value="{{ p }}" {% if p == sel_pm %}selected{% endif %}>{{ t['pay.' + p] }}</option>
+                {% endfor %}
+            </select>
+            <label for="payment_method">{{ t['expense.payment_method'] }}</label>
         </div>
     </div>
 
     <div class="form-row">
-        <div class="field field--select">
-            {% set sel_op = request.form.get('operator') or (expense.operator if is_edit and expense.operator else '') %}
-            {% set op_names = operators|map(attribute='name')|list %}
-            <select id="operator" name="operator">
-                <option value="">{{ t['form.select'] }}</option>
-                {% for o in operators %}
-                <option value="{{ o.name }}" data-fleet="{{ o.fleet_id }}" {% if o.name == sel_op %}selected{% endif %}>{{ o.name }}</option>
-                {% endfor %}
-                {% if sel_op and sel_op not in op_names %}
-                <option value="{{ sel_op }}" selected>{{ sel_op }}</option>
-                {% endif %}
-            </select>
-            <label for="operator">{{ t['expense.operator'] }}</label>
+        <div class="field">
+            <input type="text" id="payment_reference" name="payment_reference" placeholder=" "
+                   value="{{ request.form.get('payment_reference') or (expense.payment_reference if is_edit and expense.payment_reference else '') }}">
+            <label for="payment_reference">{{ t['expense.payment_reference'] }}</label>
         </div>
         <div class="field">
             <input type="text" id="supplier" name="supplier" placeholder="{{ t['ph.expense.supplier'] }}"
@@ -95,31 +125,21 @@
 </form>
 
 <script>
-// Narrow vehicle options to the chosen fleet, and show the litres field only
-// for fuel expenses.
+// Show the vehicle block or the "named cost" block, never both.
 (function () {
-    var fleetSel = document.getElementById("fleet_id");
-    var vSel = document.getElementById("vehicle_id");
-    var opSel = document.getElementById("operator");
-    var catSel = document.getElementById("category");
-    var liters = document.getElementById("field-liters");
-    function narrow(sel) {
-        if (!sel) return;
-        var fid = fleetSel.value;
-        var curOk = (sel.value === "");
-        Array.prototype.forEach.call(sel.options, function (o) {
-            if (!o.value || o.dataset.fleet === undefined) return;
-            var ok = !fid || o.dataset.fleet === fid || o.dataset.fleet === "";
-            o.hidden = !ok; o.disabled = !ok;
-            if (ok && o.value === sel.value) curOk = true;
-        });
-        if (!curOk) sel.value = "";
+    var box = document.getElementById("is_vehicle");
+    var veh = document.getElementById("block-vehicle");
+    var gen = document.getElementById("block-general");
+    if (!box || !veh || !gen) return;
+    function apply() {
+        var on = box.checked;
+        veh.style.display = on ? "" : "none";
+        gen.style.display = on ? "none" : "";
+        // Only the visible branch is required, so the browser never blocks on a hidden field.
+        document.getElementById("vehicle_id").required = on;
+        document.getElementById("label").required = !on;
     }
-    function refresh() { narrow(vSel); narrow(opSel); }
-    function refreshLiters() { if (liters) liters.style.display = (catSel.value === "fuel") ? "" : "none"; }
-    if (fleetSel) fleetSel.addEventListener("change", refresh);
-    if (catSel) catSel.addEventListener("change", refreshLiters);
-    refresh();
-    refreshLiters();
+    box.addEventListener("change", apply);
+    apply();
 })();
 </script>

@@ -19,8 +19,9 @@ import maintenance_engine
 from app import (current_user_categories, current_user_fleet_ids, get_t,
                  is_modal_request, log_action, modal_ok, needs_approval,
                  require_perm, scoped, submit_change)
-from models import (Alert, Fleet, MaintenanceRecord, MaintenanceRule, Operator,
-                    Vehicle, VehicleCategory, db)
+from blueprints.expenses import MAINTENANCE_CATEGORY, PAYMENT_METHODS
+from models import (Alert, Expense, Fleet, MaintenanceRecord, MaintenanceRule,
+                    Operator, Vehicle, VehicleCategory, db)
 
 maintenance_bp = Blueprint("maintenance", __name__)
 
@@ -357,15 +358,63 @@ def _read_record_form(record):
     if e3:
         return None, t["maint.err.bad_number"]
 
+    # A cost has to say how it was paid, since it becomes a ledger row.
+    method = (request.form.get("payment_method") or "").strip() or None
+    if cost is not None and method not in PAYMENT_METHODS:
+        return None, t["expense.err.payment_required"]
+
     rule_id = request.form.get("rule_id", type=int) or None
     data = dict(
         vehicle_id=vehicle_id, rule_id=rule_id, type=rtype, date=date_str,
-        cost=cost,
         operator=(request.form.get("operator") or "").strip() or None,
         supplier=(request.form.get("supplier") or "").strip() or None,
         description=(request.form.get("description") or "").strip() or None,
+        # Not columns of MaintenanceRecord — split out by the caller and carried
+        # through the approval payload so a replay rebuilds the ledger row too.
+        cost=cost,
+        payment_method=method,
+        payment_reference=(request.form.get("payment_reference") or "").strip() or None,
     )
     return data, None
+
+
+# Keys in the form payload that belong to the ledger row, not the service record.
+MONEY_KEYS = ("cost", "payment_method", "payment_reference")
+
+
+def split_money(data):
+    """Pop the ledger fields out of a record payload. Returns (data, money)."""
+    return data, {k: data.pop(k, None) for k in MONEY_KEYS}
+
+
+def sync_service_expense(record, money):
+    """Mirror a service's cost into the money ledger as its single 'entretien'
+    row: created, updated, or removed so the two can never disagree."""
+    cost = money.get("cost")
+    existing = record.expense
+    if cost is None:
+        if existing:
+            db.session.delete(existing)
+        return
+    fields = dict(
+        vehicle_id=record.vehicle_id,
+        fleet_id=record.vehicle.fleet_id if record.vehicle else None,
+        category=MAINTENANCE_CATEGORY,
+        date=record.date,
+        amount=cost,
+        currency="GNF",
+        payment_method=money.get("payment_method"),
+        payment_reference=money.get("payment_reference"),
+        operator=record.operator,
+        supplier=record.supplier,
+        description=record.description,
+    )
+    if existing:
+        for k, v in fields.items():
+            setattr(existing, k, v)
+    else:
+        db.session.add(Expense(maintenance_record_id=record.id,
+                               created_by=getattr(current_user, "id", None), **fields))
 
 
 def _record_form_ctx(record):
@@ -379,6 +428,7 @@ def _record_form_ctx(record):
         "record_types": RECORD_TYPES,
         "vehicles": _accessible_vehicles(),
         "operators": _accessible_operators(),
+        "payment_methods": PAYMENT_METHODS,
         "preset_vehicle": request.args.get("vehicle_id", type=int),
         "preset_rule": preset_rule,
         "preset_type": preset_type,
@@ -435,9 +485,11 @@ def record_new():
                           fleet_id=vehicle.fleet_id, payload=data)
             flash("success|" + t["maint.record_submitted"])
             return modal_ok() if is_modal_request() else redirect(url_for("maintenance.records"))
+        data, money = split_money(data)
         rec = MaintenanceRecord(recorded_by=current_user.id, **data)
         db.session.add(rec)
         db.session.flush()
+        sync_service_expense(rec, money)
         _close_alert_for_record(rec)
         maintenance_engine.evaluate_vehicle(vehicle)
         log_action("CREATE", "maintenance_record", resource_id=rec.id,
@@ -464,8 +516,11 @@ def record_edit(mid):
                           resource_id=record.id, fleet_id=vehicle.fleet_id, payload=data)
             flash("success|" + t["maint.record_submitted"])
             return modal_ok() if is_modal_request() else redirect(url_for("maintenance.records"))
+        data, money = split_money(data)
         for k, v in data.items():
             setattr(record, k, v)
+        db.session.flush()
+        sync_service_expense(record, money)
         maintenance_engine.evaluate_vehicle(vehicle)
         log_action("UPDATE", "maintenance_record", resource_id=record.id,
                    fleet_id=vehicle.fleet_id, detail=f"Edited record #{record.id}")

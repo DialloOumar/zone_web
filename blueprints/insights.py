@@ -8,10 +8,9 @@ Three lenses, all fleet-scoped to the current user and filtered by month:
      fuel / maintenance / other.
   3. Idle / under-utilised vehicles — days since last activity + units logged.
 
-Costs are the sum of two DISJOINT streams — Expense.amount (fuel, insurance,
-…) and MaintenanceRecord.cost (services). Maintenance categories were removed
-from the expense catalogue, so nothing is counted twice; the IS NULL guard on
-Expense.maintenance_record_id future-proofs against an auto-link feature.
+Costs all come from the one ledger (Expense): "fuel", "entretien" (written from
+a service record) and everything else. Splitting by category is what keeps the
+three cost columns disjoint — nothing is ever counted twice.
 """
 from datetime import datetime
 
@@ -19,7 +18,7 @@ from flask import Blueprint, render_template, request
 from flask_login import login_required
 
 from app import current_user_fleet_ids, require_perm
-from models import DailyEntry, Expense, Fleet, MaintenanceRecord, Vehicle, db
+from models import DailyEntry, Expense, Fleet, Vehicle, db
 
 insights_bp = Blueprint("insights", __name__)
 
@@ -89,25 +88,27 @@ def _aggregate(vehicle_ids, month):
     ):
         fuel[vid] = {"liters": float(liters or 0), "amount": int(amount or 0)}
 
+    # Everything that is neither fuel nor a service — services are counted below.
     other = {}
     for vid, amount in (
         db.session.query(Expense.vehicle_id, co(db.func.sum(Expense.amount), 0))
         .filter(Expense.vehicle_id.in_(vehicle_ids))
-        .filter(Expense.category != "fuel")
-        .filter(Expense.maintenance_record_id.is_(None))
+        .filter(Expense.category.notin_(["fuel", "entretien"]))
         .filter(Expense.date.like(like))
         .group_by(Expense.vehicle_id).all()
     ):
         other[vid] = int(amount or 0)
 
+    # Service costs now live in the ledger too, as "entretien" rows.
     maint = {}
-    for vid, cost in (
-        db.session.query(MaintenanceRecord.vehicle_id, co(db.func.sum(MaintenanceRecord.cost), 0))
-        .filter(MaintenanceRecord.vehicle_id.in_(vehicle_ids))
-        .filter(MaintenanceRecord.date.like(like))
-        .group_by(MaintenanceRecord.vehicle_id).all()
+    for vid, amount in (
+        db.session.query(Expense.vehicle_id, co(db.func.sum(Expense.amount), 0))
+        .filter(Expense.vehicle_id.in_(vehicle_ids))
+        .filter(Expense.category == "entretien")
+        .filter(Expense.date.like(like))
+        .group_by(Expense.vehicle_id).all()
     ):
-        maint[vid] = int(cost or 0)
+        maint[vid] = int(amount or 0)
 
     # All-time last activity (idle detection is "as of today", not period-bound).
     last = dict(

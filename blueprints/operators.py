@@ -159,9 +159,10 @@ def detail(oid):
                .filter(Vehicle.fleet_id == fid, MaintenanceRecord.operator == name)
                .order_by(MaintenanceRecord.date.desc()).limit(50).all())
 
-    # Expenses attributed to this driver — stacked by category over the 6 months
-    # ending at the selected month (Expense.operator is the optional driver tag).
-    from blueprints.expenses import EXPENSE_CATEGORIES
+    # Costs attributed to this driver — stacked by category over the 6 months
+    # ending at the selected month (Expense.operator is the driver tag). Fuel and
+    # services are ordinary ledger categories, so one query covers them all.
+    from blueprints.expenses import ALL_CATEGORIES
     t = get_t()
     y, mo = int(month[:4]), int(month[5:7])
     months = []
@@ -171,7 +172,7 @@ def detail(oid):
             mm += 12
             yy -= 1
         months.append("%04d-%02d" % (yy, mm))
-    series = {c: [0] * len(months) for c in EXPENSE_CATEGORIES}
+    series = {c: [0] * len(months) for c in ALL_CATEGORIES}
     idx = {m: i for i, m in enumerate(months)}
     ym = func.substr(Expense.date, 1, 7)
     rows = (db.session.query(ym, Expense.category, func.sum(Expense.amount))
@@ -181,21 +182,7 @@ def detail(oid):
         if cat in series and m in idx:
             series[cat][idx[m]] = int(amt or 0)
     chart_series = [{"cat": c, "label": t["expense.cat." + c], "data": series[c]}
-                    for c in EXPENSE_CATEGORIES if any(series[c])]
-
-    # Maintenance is a separate (disjoint) cost stream — add it as its own
-    # category so the bar shows the driver's full cost without double counting.
-    maint_series = [0] * len(months)
-    ym2 = func.substr(MaintenanceRecord.date, 1, 7)
-    for m, cost in (db.session.query(ym2, func.sum(MaintenanceRecord.cost))
-                    .join(Vehicle, MaintenanceRecord.vehicle_id == Vehicle.id)
-                    .filter(Vehicle.fleet_id == fid, MaintenanceRecord.operator == name,
-                            ym2.in_(months)).group_by(ym2).all()):
-        if m in idx:
-            maint_series[idx[m]] = int(cost or 0)
-    if any(maint_series):
-        chart_series.append({"cat": "maintenance",
-                             "label": t["operator.exp_maintenance"], "data": maint_series})
+                    for c in ALL_CATEGORIES if any(series[c])]
 
     expense_chart = {"months": months, "series": chart_series}
 

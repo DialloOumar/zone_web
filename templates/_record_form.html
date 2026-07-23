@@ -37,6 +37,25 @@
         </div>
     </div>
 
+    {# The cost is booked in the expense ledger, so it says how it was paid. #}
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="payment_method" name="payment_method">
+                <option value="">{{ t['form.select'] }}</option>
+                {% set sel_pm = request.form.get('payment_method') or (record.expense.payment_method if is_edit and record.expense else '') %}
+                {% for p in payment_methods %}
+                <option value="{{ p }}" {% if p == sel_pm %}selected{% endif %}>{{ t['pay.' + p] }}</option>
+                {% endfor %}
+            </select>
+            <label for="payment_method">{{ t['expense.payment_method'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="payment_reference" name="payment_reference" placeholder=" "
+                   value="{{ request.form.get('payment_reference') or (record.expense.payment_reference if is_edit and record.expense and record.expense.payment_reference else '') }}">
+            <label for="payment_reference">{{ t['expense.payment_reference'] }}</label>
+        </div>
+    </div>
+
     <div class="form-row">
         <div class="field field--select">
             {% set sel_op = request.form.get('operator') or (record.operator if is_edit and record.operator else '') %}
