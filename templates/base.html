@@ -106,9 +106,12 @@
             </a></li>
 
             {% if is_super_admin %}
+            {# Setup order, not alphabetical: a flotte is created by picking
+               vehicle categories, and a user is created by assigning a role —
+               so each entry comes after what it depends on. #}
             <li class="sidebar-section">{{ t['nav.admin'] }}</li>
-            <li><a href="{{ url_for('admin.users') }}" class="sidebar-sub {% if request.endpoint in ['admin.users', 'admin.user_new', 'admin.user_edit'] %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">group</span> {{ t['admin.users'] }}
+            <li><a href="{{ url_for('admin.categories') }}" class="sidebar-sub {% if request.endpoint in ['admin.categories', 'admin.category_new', 'admin.category_edit'] %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">category</span> {{ t['admin.categories'] }}
             </a></li>
             <li><a href="{{ url_for('admin.fleets') }}" class="sidebar-sub {% if request.endpoint in ['admin.fleets', 'admin.fleet_new', 'admin.fleet_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">workspaces</span> {{ t['admin.fleets'] }}
@@ -116,8 +119,8 @@
             <li><a href="{{ url_for('admin.roles') }}" class="sidebar-sub {% if request.endpoint in ['admin.roles', 'admin.role_new', 'admin.role_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">admin_panel_settings</span> {{ t['admin.roles'] }}
             </a></li>
-            <li><a href="{{ url_for('admin.categories') }}" class="sidebar-sub {% if request.endpoint in ['admin.categories', 'admin.category_new', 'admin.category_edit'] %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">category</span> {{ t['admin.categories'] }}
+            <li><a href="{{ url_for('admin.users') }}" class="sidebar-sub {% if request.endpoint in ['admin.users', 'admin.user_new', 'admin.user_edit'] %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">group</span> {{ t['admin.users'] }}
             </a></li>
             <li><a href="{{ url_for('admin.settings') }}" class="sidebar-sub {% if request.endpoint == 'admin.settings' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">settings</span> {{ t['admin.settings'] }}
