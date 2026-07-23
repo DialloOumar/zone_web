@@ -56,13 +56,13 @@
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} {{ currency }}</td>
                 <td class="row-actions">
                     {% if has_perm('expense.edit') %}
-                    <a href="{{ url_for('expenses.edit', xid=e.id) }}" class="btn btn--sm btn--tonal"
-                       data-modal-url="{{ url_for('expenses.edit', xid=e.id) }}" data-modal-title="{{ t['expense.edit'] }}">{{ t['btn.edit'] }}</a>
+                    <a href="{{ url_for('expenses.edit', xid=e.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('expenses.edit', xid=e.id) }}" data-modal-title="{{ t['expense.edit'] }}" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% endif %}
                     {% if has_perm('expense.delete') %}
                     <form method="post" action="{{ url_for('expenses.delete', xid=e.id) }}"
                           data-confirm="{{ t['expense.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                     </form>
                     {% endif %}
                 </td>

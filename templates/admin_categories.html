@@ -39,16 +39,16 @@
                 <td style="text-align:right;">{% if c.default_baseline_l_per_unit is not none %}{{ c.default_baseline_l_per_unit }} L/{{ t['unit.' + c.unit_type] }}{% else %}—{% endif %}</td>
                 <td style="text-align:right;">{{ counts[c.id] }}</td>
                 <td class="row-actions">
-                    <a href="{{ url_for('admin.category_edit', cat_id=c.id) }}" class="btn btn--sm btn--tonal"
-                       data-modal-url="{{ url_for('admin.category_edit', cat_id=c.id) }}" data-modal-title="{{ t['vcat.edit'] }}">{{ t['btn.edit'] }}</a>
+                    <a href="{{ url_for('admin.category_edit', cat_id=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('admin.category_edit', cat_id=c.id) }}" data-modal-title="{{ t['vcat.edit'] }}" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% if c.is_active %}
                     <form method="post" action="{{ url_for('admin.category_delete', cat_id=c.id) }}"
                           data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.archive'] }}</button>
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
                     </form>
                     {% else %}
                     <form method="post" action="{{ url_for('admin.category_reactivate', cat_id=c.id) }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--primary">{{ t['btn.reactivate'] }}</button>
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
                     </form>
                     {% endif %}
                 </td>

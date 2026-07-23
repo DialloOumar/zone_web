@@ -1,10 +1,10 @@
 {# The printable pointage document itself.
    Expects: entries, subtitle, generated, truncated, total_trips/hours/km. #}
     <div class="print-header">
-        <div>
-            <div class="brand-name">ZONE WEB</div>
-            <div class="brand-tag">{{ t['app.tagline'] }}</div>
-        </div>
+        {# The logo carries the wordmark and the tagline strip, so no text
+           beside it — that would print the tagline twice. #}
+        <img class="brand-logo" src="{{ url_for('static', filename='images/logo.svg') }}"
+             alt="{{ t['app.title'] }}">
         <div class="print-header-right">
             <div class="print-report-title">{{ t['export.title'] }}</div>
             <div class="print-meta">

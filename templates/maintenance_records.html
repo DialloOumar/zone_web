@@ -50,13 +50,13 @@
                 <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} {{ currency }}{% else %}—{% endif %}</td>
                 <td class="row-actions">
                     {% if has_perm('maintenance_record.edit') %}
-                    <a href="{{ url_for('maintenance.record_edit', mid=m.id) }}" class="btn btn--sm btn--tonal"
-                       data-modal-url="{{ url_for('maintenance.record_edit', mid=m.id) }}" data-modal-title="{{ t['maint.record_edit'] }}">{{ t['btn.edit'] }}</a>
+                    <a href="{{ url_for('maintenance.record_edit', mid=m.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('maintenance.record_edit', mid=m.id) }}" data-modal-title="{{ t['maint.record_edit'] }}" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% endif %}
                     {% if has_perm('maintenance_record.delete') %}
                     <form method="post" action="{{ url_for('maintenance.record_delete', mid=m.id) }}"
                           data-confirm="{{ t['maint.record_delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                     </form>
                     {% endif %}
                 </td>

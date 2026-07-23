@@ -42,13 +42,13 @@
                 <td><span class="badge badge--{{ r.severity }}">{{ t['maint.sev.' + r.severity] }}</span></td>
                 <td class="row-actions">
                     {% if has_perm('maintenance_rule.edit') %}
-                    <a href="{{ url_for('maintenance.rule_edit', rid=r.id) }}" class="btn btn--sm btn--tonal"
-                       data-modal-url="{{ url_for('maintenance.rule_edit', rid=r.id) }}" data-modal-title="{{ t['maint.rule_edit'] }}">{{ t['btn.edit'] }}</a>
+                    <a href="{{ url_for('maintenance.rule_edit', rid=r.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('maintenance.rule_edit', rid=r.id) }}" data-modal-title="{{ t['maint.rule_edit'] }}" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% endif %}
                     {% if has_perm('maintenance_rule.delete') %}
                     <form method="post" action="{{ url_for('maintenance.rule_delete', rid=r.id) }}"
                           data-confirm="{{ t['maint.rule_delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                     </form>
                     {% endif %}
                 </td>

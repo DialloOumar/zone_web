@@ -24,13 +24,13 @@
         <span class="pending-chip"><span class="material-symbols-outlined">pending_actions</span> {{ t['pending.' + pa] }}</span>
         {% else %}
         {% if has_perm('entry.edit') %}
-        <a href="{{ url_for('entries.edit', eid=e.id) }}" class="btn btn--sm btn--tonal"
-           data-modal-url="{{ url_for('entries.edit', eid=e.id) }}" data-modal-title="{{ t['entry.edit'] }}">{{ t['btn.edit'] }}</a>
+        <a href="{{ url_for('entries.edit', eid=e.id) }}" class="btn btn--sm btn--tonal btn--icon"
+           data-modal-url="{{ url_for('entries.edit', eid=e.id) }}" data-modal-title="{{ t['entry.edit'] }}" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
         {% endif %}
         {% if has_perm('entry.delete') %}
         <form method="post" action="{{ url_for('entries.delete', eid=e.id) }}"
               data-confirm="{{ t['entry.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
-            <button type="submit" class="btn btn--sm btn--danger">{{ t['btn.delete'] }}</button>
+            <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
         </form>
         {% endif %}
         {% endif %}

@@ -49,7 +49,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2?v=2") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=3") format("woff2");
 }
 
 /* ── Design tokens (light) ── */
@@ -464,6 +464,12 @@ a:hover { text-decoration: underline; }
 .btn--block { width: 100%; }
 /* Small (table row actions) */
 .btn--sm { height: 34px; padding: 0 16px; font-size: 0.8rem; }
+/* Icon-only (table row actions): square, no label. The action name lives in
+   title/aria-label — never drop it, it is the only thing a screen reader or an
+   unsure user has to go on. */
+.btn--icon { width: 34px; padding: 0; border-radius: var(--shape-full); }
+.btn--icon.btn--sm { width: 34px; }
+.btn--icon .material-symbols-outlined { font-size: 19px; }
 
 /* Floating action button */
 .fab {
@@ -1380,6 +1386,9 @@ a.stat-card { text-decoration: none; color: inherit; }
    fleet-management UI. Kept as one block so sizing is easy to tune. */
 .btn { height: 36px; padding: 0 18px; font-size: 0.84rem; }
 .btn--sm { height: 30px; padding: 0 13px; font-size: 0.78rem; }
+/* Square at the compact height. Must come after .btn--sm above, which would
+   otherwise re-apply its horizontal padding to icon buttons. */
+.btn--icon, .btn--icon.btn--sm { width: 30px; padding: 0; }
 .fab { height: 42px; padding: 0 18px; border-radius: var(--shape-md); font-size: 0.85rem; box-shadow: var(--elev-1); }
 .fab:hover { box-shadow: var(--elev-2); }
 .fab .material-symbols-outlined { font-size: 20px; }

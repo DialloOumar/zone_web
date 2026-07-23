@@ -8,8 +8,13 @@
         display: flex; align-items: center; justify-content: space-between;
         padding-bottom: 12px; margin-bottom: 6px; border-bottom: 3px solid #1a1a2e;
     }
-    .brand-name { font-size: 22px; font-weight: 800; color: #4f46e5; letter-spacing: -0.01em; }
-    .brand-tag { font-size: 10px; color: #777; }
+    /* The logo is an SVG (436×203), so height alone scales it correctly.
+       print-color-adjust keeps its red/blue when the browser is set to save
+       ink — without it the wordmark can come out grey. */
+    .brand-logo {
+        height: 52px; width: auto; display: block;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
     .print-header-right { text-align: right; }
     .print-report-title {
         font-size: 16px; font-weight: 700; color: #1a1a2e;

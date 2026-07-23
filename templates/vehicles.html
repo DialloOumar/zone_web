@@ -67,18 +67,18 @@
                 </td>
                 <td class="row-actions">
                     {% if has_perm('vehicle.edit') %}
-                    <a href="{{ url_for('vehicles.edit', vid=v.id) }}" class="btn btn--sm btn--tonal"
-                       data-modal-url="{{ url_for('vehicles.edit', vid=v.id) }}" data-modal-title="{{ t['vehicle.edit'] }}">{{ t['btn.edit'] }}</a>
+                    <a href="{{ url_for('vehicles.edit', vid=v.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('vehicles.edit', vid=v.id) }}" data-modal-title="{{ t['vehicle.edit'] }}" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% endif %}
                     {% if has_perm('vehicle.delete') %}
                         {% if v.is_active %}
                         <form method="post" action="{{ url_for('vehicles.delete', vid=v.id) }}"
                               data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
-                            <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.archive'] }}</button>
+                            <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
                         </form>
                         {% else %}
                         <form method="post" action="{{ url_for('vehicles.reactivate', vid=v.id) }}" style="display:inline">
-                            <button type="submit" class="btn btn--sm btn--primary">{{ t['btn.reactivate'] }}</button>
+                            <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
                         </form>
                         {% endif %}
                     {% endif %}

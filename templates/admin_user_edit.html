@@ -50,7 +50,7 @@
                 <td class="row-actions">
                     <form method="post" action="{{ url_for('admin.user_unassign', user_id=user.id) }}" style="display:inline">
                         <input type="hidden" name="fleet_id" value="{{ fleet.id if fleet else '' }}">
-                        <button type="submit" class="btn btn--sm btn--danger">{{ t['user.remove'] }}</button>
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['user.remove'] }}" aria-label="{{ t['user.remove'] }}"><span class="material-symbols-outlined">close</span></button>
                     </form>
                 </td>
             </tr>
