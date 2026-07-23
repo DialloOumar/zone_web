@@ -11,17 +11,17 @@
     <form method="post" action="{{ url_for('admin.user_edit', user_id=user.id) }}" class="entry-form">
         <div class="form-row">
             <div class="field">
-                <input type="text" id="username" name="username" placeholder=" " required
+                <input type="text" id="username" name="username" placeholder="{{ t['ph.user.username'] }}" required
                        autocapitalize="none" spellcheck="false" value="{{ user.username }}">
                 <label for="username">{{ t['user.username'] }}</label>
             </div>
             <div class="field">
-                <input type="text" id="full_name" name="full_name" placeholder=" " required value="{{ user.full_name }}">
+                <input type="text" id="full_name" name="full_name" placeholder="{{ t['ph.user.full_name'] }}" required value="{{ user.full_name }}">
                 <label for="full_name">{{ t['user.full_name'] }}</label>
             </div>
         </div>
         <div class="field">
-            <input type="email" id="email" name="email" placeholder=" " autocapitalize="none" value="{{ user.email or '' }}">
+            <input type="email" id="email" name="email" placeholder="{{ t['ph.user.email'] }}" autocapitalize="none" value="{{ user.email or '' }}">
             <label for="email">{{ t['user.email'] }}</label>
         </div>
         <label class="checkbox-item" style="max-width: 220px;">

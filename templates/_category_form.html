@@ -7,7 +7,7 @@
             {% if is_edit %}
             <input type="text" id="code" value="{{ category.code }}" disabled>
             {% else %}
-            <input type="text" id="code" name="code" placeholder=" " required autocapitalize="characters"
+            <input type="text" id="code" name="code" placeholder="{{ t['ph.vcat.code'] }}" required autocapitalize="characters"
                    value="{{ request.form.get('code', '') }}">
             {% endif %}
             <label for="code">{{ t['vcat.code'] }}</label>
@@ -26,12 +26,12 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" id="label_fr" name="label_fr" placeholder=" " required
+            <input type="text" id="label_fr" name="label_fr" placeholder="{{ t['ph.vcat.label'] }}" required
                    value="{{ request.form.get('label_fr') or (category.label_fr if is_edit else '') }}">
             <label for="label_fr">{{ t['vcat.label_fr'] }}</label>
         </div>
         <div class="field">
-            <input type="text" id="label" name="label" placeholder=" " required
+            <input type="text" id="label" name="label" placeholder="{{ t['ph.vcat.label'] }}" required
                    value="{{ request.form.get('label') or (category.label if is_edit else '') }}">
             <label for="label">{{ t['vcat.label'] }}</label>
         </div>
@@ -39,7 +39,7 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" inputmode="decimal" id="default_baseline_l_per_unit" name="default_baseline_l_per_unit" placeholder=" "
+            <input type="text" inputmode="decimal" id="default_baseline_l_per_unit" name="default_baseline_l_per_unit" placeholder="{{ t['ph.vcat.baseline'] }}"
                    value="{{ request.form.get('default_baseline_l_per_unit') or (category.default_baseline_l_per_unit if is_edit and category.default_baseline_l_per_unit is not none else '') }}">
             <label for="default_baseline_l_per_unit">{{ t['vcat.baseline'] }}</label>
             <div class="field-hint">{{ t['vcat.baseline_hint'] }}</div>
@@ -47,7 +47,7 @@
     </div>
 
     <div class="field" style="max-width:180px;">
-        <input type="text" inputmode="numeric" id="sort_order" name="sort_order" placeholder=" "
+        <input type="text" inputmode="numeric" id="sort_order" name="sort_order" placeholder="{{ t['ph.vcat.sort'] }}"
                value="{{ request.form.get('sort_order') or (category.sort_order if is_edit else '') }}">
         <label for="sort_order">{{ t['vcat.sort_order'] }}</label>
     </div>

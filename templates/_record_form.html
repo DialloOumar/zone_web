@@ -31,7 +31,7 @@
             <label for="date">{{ t['maint.date'] }}</label>
         </div>
         <div class="field">
-            <input type="text" inputmode="numeric" id="cost" name="cost" placeholder=" "
+            <input type="text" inputmode="numeric" id="cost" name="cost" placeholder="{{ t['ph.record.cost'] }}"
                    value="{{ request.form.get('cost') or (record.cost if is_edit and record.cost is not none else '') }}">
             <label for="cost">{{ t['maint.cost'] }}</label>
         </div>
@@ -53,7 +53,7 @@
             <label for="operator">{{ t['maint.operator'] }}</label>
         </div>
         <div class="field">
-            <input type="text" id="supplier" name="supplier" placeholder=" "
+            <input type="text" id="supplier" name="supplier" placeholder="{{ t['ph.record.supplier'] }}"
                    value="{{ request.form.get('supplier') or (record.supplier if is_edit and record.supplier else '') }}">
             <label for="supplier">{{ t['maint.supplier'] }}</label>
         </div>
@@ -61,7 +61,7 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" id="description" name="description" placeholder=" "
+            <input type="text" id="description" name="description" placeholder="{{ t['ph.record.description'] }}"
                    value="{{ request.form.get('description') or (record.description if is_edit and record.description else '') }}">
             <label for="description">{{ t['maint.description'] }}</label>
         </div>

@@ -9,12 +9,12 @@
     <section class="card" style="max-width: 720px;">
         <div class="form-row">
             <div class="field">
-                <input type="text" id="name" name="name" placeholder=" " required
+                <input type="text" id="name" name="name" placeholder="{{ t['ph.role.name'] }}" required
                        value="{{ request.form.get('name') or (role.name if is_edit else '') }}">
                 <label for="name">{{ t['role.name'] }}</label>
             </div>
             <div class="field">
-                <input type="text" id="description" name="description" placeholder=" "
+                <input type="text" id="description" name="description" placeholder="{{ t['ph.role.description'] }}"
                        value="{{ request.form.get('description') or (role.description if is_edit and role.description else '') }}">
                 <label for="description">{{ t['role.description'] }}</label>
             </div>

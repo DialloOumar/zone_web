@@ -45,12 +45,12 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder=" " required
+            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
                    value="{{ request.form.get('amount') or (expense.amount if is_edit else '') }}">
             <label for="amount">{{ t['expense.amount'] }}</label>
         </div>
         <div class="field" id="field-liters">
-            <input type="text" inputmode="decimal" id="liters" name="liters" placeholder=" "
+            <input type="text" inputmode="decimal" id="liters" name="liters" placeholder="{{ t['ph.expense.liters'] }}"
                    value="{{ request.form.get('liters') or (expense.liters if is_edit and expense.liters is not none else '') }}">
             <label for="liters">{{ t['expense.liters'] }}</label>
         </div>
@@ -72,7 +72,7 @@
             <label for="operator">{{ t['expense.operator'] }}</label>
         </div>
         <div class="field">
-            <input type="text" id="supplier" name="supplier" placeholder=" "
+            <input type="text" id="supplier" name="supplier" placeholder="{{ t['ph.expense.supplier'] }}"
                    value="{{ request.form.get('supplier') or (expense.supplier if is_edit and expense.supplier else '') }}">
             <label for="supplier">{{ t['expense.supplier'] }}</label>
         </div>
@@ -80,7 +80,7 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" id="description" name="description" placeholder=" "
+            <input type="text" id="description" name="description" placeholder="{{ t['ph.expense.description'] }}"
                    value="{{ request.form.get('description') or (expense.description if is_edit and expense.description else '') }}">
             <label for="description">{{ t['expense.description'] }}</label>
         </div>

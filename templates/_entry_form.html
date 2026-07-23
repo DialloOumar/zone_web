@@ -24,12 +24,12 @@
 
     <div class="form-row">
         <div class="field" id="field-trips">
-            <input type="text" inputmode="numeric" id="trips" name="trips" placeholder=" "
+            <input type="text" inputmode="numeric" id="trips" name="trips" placeholder="{{ t['ph.entry.trips'] }}"
                    value="{{ request.form.get('trips') or (entry.trips if is_edit and entry.trips is not none else '') }}">
             <label for="trips">{{ t['entry.trips'] }}</label>
         </div>
         <div class="field" id="field-hours">
-            <input type="text" inputmode="decimal" id="hours" name="hours" placeholder=" "
+            <input type="text" inputmode="decimal" id="hours" name="hours" placeholder="{{ t['ph.entry.hours'] }}"
                    value="{{ request.form.get('hours') or (entry.hours if is_edit and entry.hours is not none else '') }}">
             <label for="hours">{{ t['entry.hours'] }}</label>
         </div>
@@ -37,12 +37,12 @@
 
     <div class="form-row" id="field-index">
         <div class="field">
-            <input type="text" inputmode="decimal" id="index_start" name="index_start" placeholder=" "
+            <input type="text" inputmode="decimal" id="index_start" name="index_start" placeholder="{{ t['ph.entry.index'] }}"
                    value="{{ request.form.get('index_start') or (entry.index_start if is_edit and entry.index_start is not none else '') }}">
             <label for="index_start">{{ t['entry.index_start'] }}</label>
         </div>
         <div class="field">
-            <input type="text" inputmode="decimal" id="index_end" name="index_end" placeholder=" "
+            <input type="text" inputmode="decimal" id="index_end" name="index_end" placeholder="{{ t['ph.entry.index'] }}"
                    value="{{ request.form.get('index_end') or (entry.index_end if is_edit and entry.index_end is not none else '') }}">
             <label for="index_end">{{ t['entry.index_end'] }}</label>
         </div>
@@ -54,7 +54,7 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" inputmode="decimal" id="kilometers" name="kilometers" placeholder=" "
+            <input type="text" inputmode="decimal" id="kilometers" name="kilometers" placeholder="{{ t['ph.entry.km'] }}"
                    value="{{ request.form.get('kilometers') or (entry.kilometers if is_edit and entry.kilometers is not none else '') }}">
             <label for="kilometers">{{ t['entry.km'] }}</label>
         </div>
@@ -75,7 +75,7 @@
     </div>
 
     <div class="field">
-        <textarea id="note" name="note" placeholder=" " rows="1">{{ request.form.get('note') or (entry.note if is_edit else '') }}</textarea>
+        <textarea id="note" name="note" placeholder="{{ t['ph.entry.note'] }}" rows="1">{{ request.form.get('note') or (entry.note if is_edit else '') }}</textarea>
         <label for="note">{{ t['entry.note'] }}</label>
     </div>
 

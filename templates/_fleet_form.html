@@ -3,20 +3,20 @@
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('admin.fleet_edit', fleet_id=fleet.id) if is_edit else url_for('admin.fleet_new') }}">
     <div class="field">
-        <input type="text" id="name" name="name" placeholder=" " required
+        <input type="text" id="name" name="name" placeholder="{{ t['ph.fleet.name'] }}" required
                value="{{ request.form.get('name') or (fleet.name if is_edit else '') }}">
         <label for="name">{{ t['fleet.name'] }}</label>
     </div>
 
     <div class="field">
-        <input type="text" id="slug" name="slug" placeholder=" "
+        <input type="text" id="slug" name="slug" placeholder="{{ t['ph.fleet.slug'] }}"
                value="{{ request.form.get('slug') or (fleet.slug if is_edit else '') }}">
         <label for="slug">{{ t['fleet.slug'] }}</label>
         <div class="field-hint">{{ t['fleet.slug_hint'] }}</div>
     </div>
 
     <div class="field">
-        <textarea id="description" name="description" placeholder=" " rows="2">{{ request.form.get('description') or (fleet.description if is_edit and fleet.description else '') }}</textarea>
+        <textarea id="description" name="description" placeholder="{{ t['ph.fleet.description'] }}" rows="2">{{ request.form.get('description') or (fleet.description if is_edit and fleet.description else '') }}</textarea>
         <label for="description">{{ t['fleet.description'] }}</label>
     </div>
 

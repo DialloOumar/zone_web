@@ -3,7 +3,7 @@
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('maintenance.rule_edit', rid=rule.id) if is_edit else url_for('maintenance.rule_new') }}">
     <div class="field">
-        <input type="text" id="name" name="name" placeholder=" " required
+        <input type="text" id="name" name="name" placeholder="{{ t['ph.rule.name'] }}" required
                value="{{ request.form.get('name') or (rule.name if is_edit else '') }}">
         <label for="name">{{ t['maint.rule_name'] }}</label>
     </div>
@@ -34,13 +34,13 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" inputmode="numeric" id="interval" name="interval" placeholder=" " required
+            <input type="text" inputmode="numeric" id="interval" name="interval" placeholder="{{ t['ph.rule.interval'] }}" required
                    value="{{ request.form.get('interval') or (rule.interval if is_edit else '') }}">
             <label for="interval">{{ t['maint.interval'] }}</label>
             <div class="field-hint">{{ t['maint.interval_hint'] }}</div>
         </div>
         <div class="field">
-            <input type="text" inputmode="numeric" id="advance_warning" name="advance_warning" placeholder=" "
+            <input type="text" inputmode="numeric" id="advance_warning" name="advance_warning" placeholder="{{ t['ph.rule.warning'] }}"
                    value="{{ request.form.get('advance_warning') or (rule.advance_warning if is_edit and rule.advance_warning is not none else '') }}">
             <label for="advance_warning">{{ t['maint.advance_warning'] }}</label>
         </div>

@@ -4,7 +4,7 @@
       action="{{ url_for('operators.edit', oid=operator.id) if is_edit else url_for('operators.new') }}">
     <div class="form-row">
         <div class="field">
-            <input type="text" id="name" name="name" placeholder=" " required
+            <input type="text" id="name" name="name" placeholder="{{ t['ph.operator.name'] }}" required
                    value="{{ request.form.get('name') or (operator.name if is_edit else '') }}">
             <label for="name">{{ t['operator.name'] }}</label>
         </div>
@@ -22,19 +22,19 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" id="phone" name="phone" placeholder=" " inputmode="tel"
+            <input type="text" id="phone" name="phone" placeholder="{{ t['ph.operator.phone'] }}" inputmode="tel"
                    value="{{ request.form.get('phone') or (operator.phone if is_edit and operator.phone else '') }}">
             <label for="phone">{{ t['operator.phone'] }}</label>
         </div>
         <div class="field">
-            <input type="text" id="license_number" name="license_number" placeholder=" "
+            <input type="text" id="license_number" name="license_number" placeholder="{{ t['ph.operator.license'] }}"
                    value="{{ request.form.get('license_number') or (operator.license_number if is_edit and operator.license_number else '') }}">
             <label for="license_number">{{ t['operator.license'] }}</label>
         </div>
     </div>
 
     <div class="field">
-        <textarea id="notes" name="notes" placeholder=" " rows="2">{{ request.form.get('notes') or (operator.notes if is_edit else '') }}</textarea>
+        <textarea id="notes" name="notes" placeholder="{{ t['ph.operator.notes'] }}" rows="2">{{ request.form.get('notes') or (operator.notes if is_edit else '') }}</textarea>
         <label for="notes">{{ t['operator.notes'] }}</label>
     </div>
 

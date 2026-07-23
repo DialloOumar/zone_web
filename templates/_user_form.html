@@ -2,19 +2,19 @@
 <form method="post" class="entry-form" data-modal-form action="{{ url_for('admin.user_new') }}">
     <div class="form-row">
         <div class="field">
-            <input type="text" id="username" name="username" placeholder=" " required
+            <input type="text" id="username" name="username" placeholder="{{ t['ph.user.username'] }}" required
                    autocapitalize="none" spellcheck="false" value="{{ request.form.get('username', '') }}">
             <label for="username">{{ t['user.username'] }}</label>
         </div>
         <div class="field">
-            <input type="text" id="full_name" name="full_name" placeholder=" " required
+            <input type="text" id="full_name" name="full_name" placeholder="{{ t['ph.user.full_name'] }}" required
                    value="{{ request.form.get('full_name', '') }}">
             <label for="full_name">{{ t['user.full_name'] }}</label>
         </div>
     </div>
     <div class="form-row">
         <div class="field">
-            <input type="email" id="email" name="email" placeholder=" "
+            <input type="email" id="email" name="email" placeholder="{{ t['ph.user.email'] }}"
                    autocapitalize="none" value="{{ request.form.get('email', '') }}">
             <label for="email">{{ t['user.email'] }}</label>
         </div>

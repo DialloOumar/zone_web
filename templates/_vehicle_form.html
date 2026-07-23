@@ -3,7 +3,7 @@
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('vehicles.edit', vid=vehicle.id) if is_edit else url_for('vehicles.new') }}">
     <div class="field">
-        <input type="text" id="code" name="code" placeholder=" " required
+        <input type="text" id="code" name="code" placeholder="{{ t['ph.vehicle.code'] }}" required
                value="{{ request.form.get('code') or (vehicle.code if is_edit else '') }}">
         <label for="code">{{ t['vehicle.code'] }}</label>
     </div>
@@ -36,12 +36,12 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" id="site" name="site" placeholder=" "
+            <input type="text" id="site" name="site" placeholder="{{ t['ph.vehicle.site'] }}"
                    value="{{ request.form.get('site') or (vehicle.site if is_edit else '') }}">
             <label for="site">{{ t['vehicle.site'] }}</label>
         </div>
         <div class="field">
-            <input type="text" id="baseline_l_per_unit_override" name="baseline_l_per_unit_override" placeholder=" " inputmode="decimal"
+            <input type="text" id="baseline_l_per_unit_override" name="baseline_l_per_unit_override" placeholder="{{ t['ph.vehicle.baseline'] }}" inputmode="decimal"
                    value="{{ request.form.get('baseline_l_per_unit_override') or (vehicle.baseline_l_per_unit_override if is_edit and vehicle.baseline_l_per_unit_override is not none else '') }}">
             <label for="baseline_l_per_unit_override">{{ t['vehicle.baseline_override'] }}</label>
             <div class="field-hint">{{ t['vehicle.baseline_hint'] }}</div>
@@ -61,7 +61,7 @@
             <div class="field-hint">{{ t['vehicle.default_operator_hint'] }}</div>
         </div>
         <div class="field">
-            <textarea id="description" name="description" placeholder=" " rows="1">{{ request.form.get('description') or (vehicle.description if is_edit else '') }}</textarea>
+            <textarea id="description" name="description" placeholder="{{ t['ph.vehicle.description'] }}" rows="1">{{ request.form.get('description') or (vehicle.description if is_edit else '') }}</textarea>
             <label for="description">{{ t['vehicle.description'] }}</label>
         </div>
     </div>
