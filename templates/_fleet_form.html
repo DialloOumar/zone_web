@@ -20,9 +20,14 @@
         <label for="description">{{ t['fleet.description'] }}</label>
     </div>
 
+    {# Rates are hidden with facturation (billing_visible). The category picker
+       stays either way — it defines what the fleet operates, not what it
+       charges. Rates already recorded are untouched: the save only ever
+       appends a dated row, and skips a category whose field is absent. #}
     <div>
         <span class="field-label">{{ t['fleet.categories'] }}</span>
-        <div class="field-hint">{{ t['fleet.rates_hint'] }}</div>
+        <div class="field-hint">{{ t['fleet.rates_hint'] if billing_visible else t['fleet.categories_hint'] }}</div>
+        {% if billing_visible %}
         <div class="rate-grid">
             {% for c in categories %}
             {% set rate_val = request.form.get('rate_' + c.code) or (rates.get(c.code, '') if rates else '') %}
@@ -41,14 +46,27 @@
             </div>
             {% endfor %}
         </div>
+        {% else %}
+        <div class="checkbox-grid">
+            {% for c in categories %}
+            <label class="checkbox-item">
+                <input type="checkbox" name="categories" value="{{ c.code }}"
+                       {% if c.code in selected_codes %}checked{% endif %}>
+                <span>{{ c.label_fr if lang == 'fr' else c.label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 
+    {% if billing_visible %}
     <div class="field" style="max-width:220px;">
         <input type="date" id="rate_effective_from" name="rate_effective_from" placeholder=" "
                value="{{ request.form.get('rate_effective_from') or today }}">
         <label for="rate_effective_from">{{ t['fleet.rate_effective_from'] }}</label>
         <div class="field-hint">{{ t['fleet.rate_effective_hint'] }}</div>
     </div>
+    {% endif %}
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
@@ -58,6 +76,7 @@
     </div>
 </form>
 
+{% if billing_visible %}
 <script>
 // Enable a category's billing-rate input only while its category is checked.
 (function () {
@@ -71,3 +90,4 @@
     });
 })();
 </script>
+{% endif %}
