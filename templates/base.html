@@ -44,28 +44,6 @@
             </a></li>
             {% endif %}
 
-            {% if has_perm('maintenance_rule.view') or has_perm('maintenance_record.view') or has_perm('alert.view') %}
-            <li class="sidebar-section">{{ t['nav.maintenance'] }}</li>
-            {% if has_perm('alert.view') %}
-            <li><a href="{{ url_for('maintenance.alerts') }}" class="sidebar-sub {% if request.endpoint == 'maintenance.alerts' %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">warning</span> {{ t['nav.alerts'] }}
-                {% if active_alerts %}<span class="nav-badge nav-badge--alert">{{ active_alerts }}</span>{% endif %}
-            </a></li>
-            {% endif %}
-            {% if has_perm('maintenance_record.view') %}
-            <li><a href="{{ url_for('maintenance.records') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.records', 'maintenance.record_new', 'maintenance.record_edit'] %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">handyman</span> {{ t['nav.maintenance_records'] }}
-            </a></li>
-            {% endif %}
-            {% if has_perm('maintenance_rule.view') %}
-            <li><a href="{{ url_for('maintenance.rules') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.rules', 'maintenance.rule_new', 'maintenance.rule_edit'] %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">rule</span> {{ t['nav.maintenance_rules'] }}
-            </a></li>
-            {% endif %}
-            {% endif %}
-
-            {# Own section: these are not maintenance. Without a heading here they
-               read as items of the Maintenance group above. #}
             {% if has_perm('expense.view') or has_perm('insights.view') or has_perm('invoicing.view') %}
             <li class="sidebar-section">{{ t['nav.management'] }}</li>
             {% if has_perm('expense.view') %}
@@ -97,6 +75,28 @@
             <li><a href="{{ url_for('approvals.my_requests') }}" class="sidebar-sub {% if request.endpoint == 'approvals.my_requests' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">history</span> {{ t['nav.my_requests'] }}
                 {% if my_pending %}<span class="nav-badge">{{ my_pending }}</span>{% endif %}
+            </a></li>
+            {% endif %}
+            {% endif %}
+
+            {# Sits last before Administration: like admin, it is configuration
+               and history rather than day-to-day operations. #}
+            {% if has_perm('maintenance_rule.view') or has_perm('maintenance_record.view') or has_perm('alert.view') %}
+            <li class="sidebar-section">{{ t['nav.maintenance'] }}</li>
+            {% if has_perm('alert.view') %}
+            <li><a href="{{ url_for('maintenance.alerts') }}" class="sidebar-sub {% if request.endpoint == 'maintenance.alerts' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">warning</span> {{ t['nav.alerts'] }}
+                {% if active_alerts %}<span class="nav-badge nav-badge--alert">{{ active_alerts }}</span>{% endif %}
+            </a></li>
+            {% endif %}
+            {% if has_perm('maintenance_record.view') %}
+            <li><a href="{{ url_for('maintenance.records') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.records', 'maintenance.record_new', 'maintenance.record_edit'] %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">handyman</span> {{ t['nav.maintenance_records'] }}
+            </a></li>
+            {% endif %}
+            {% if has_perm('maintenance_rule.view') %}
+            <li><a href="{{ url_for('maintenance.rules') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.rules', 'maintenance.rule_new', 'maintenance.rule_edit'] %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">rule</span> {{ t['nav.maintenance_rules'] }}
             </a></li>
             {% endif %}
             {% endif %}

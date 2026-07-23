@@ -1,9 +1,8 @@
 <!DOCTYPE html>
-{# Browser print view (entries.export_print) — the same document as the PDF
-   export, laid out by the reader's own browser instead of by WeasyPrint on the
-   server. Standalone page (no base.html): nothing to load but this HTML, which
-   gzips well over a slow link. Ctrl+P / the toolbar button prints it; the
-   browser's "Save as PDF" produces a file when one is needed. #}
+{# Browser print view (entries.export_print). Standalone page (no base.html):
+   nothing to load but this HTML, which gzips well over a slow link. Opens the
+   print dialog on load; the toolbar button reprints, and "Save as PDF" in the
+   dialog produces a file when one is needed. #}
 <html lang="{{ lang }}">
 <head>
 <meta charset="utf-8">
@@ -46,6 +45,14 @@
 </div>
 
 {% include '_export_body.html' %}
+
+<script>
+// Open the print dialog by itself, so the button is only ever needed to print
+// a second copy. Waits for `load` — firing earlier can print before the font
+// and the table layout have settled. Cancelling the dialog leaves the page up
+// as a plain preview.
+window.addEventListener("load", function () { window.print(); });
+</script>
 
 </body>
 </html>

@@ -9,7 +9,20 @@
 /* ── Self-hosted fonts ──
    Served from /static/fonts so there are no render-blocking requests to
    Google Fonts on every page (the cause of the earlier sluggish feel).
-   Material Symbols is subset to only the ~27 icons this app uses (~4 KB). */
+
+   Material Symbols is subset to just the icons this app uses (~6 KB). An icon
+   whose name is not in the subset renders as nothing at all — no tofu, no
+   fallback — so ADDING AN ICON MEANS REGENERATING THE FONT:
+
+     https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined
+       :opsz,wght,FILL,GRAD@24,400,0,0&icon_names=<comma-separated list>
+
+   fetched with a modern browser UA, then save the woff2 it points at over
+   fonts/material-symbols.woff2 and bump the ?v= below. The list must cover
+   icon names injected from JavaScript (main.js builds the modal close button)
+   and from Python (help_content.py, _onboarding_steps) as well as the ones
+   grepped out of the templates — missing those is exactly how `close` ended
+   up invisible. */
 @font-face {
     font-family: "Roboto";
     font-style: normal;
@@ -36,7 +49,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=2") format("woff2");
 }
 
 /* ── Design tokens (light) ── */
@@ -981,6 +994,15 @@ a:hover { text-decoration: underline; }
     font-size: 0.82rem;
 }
 .row-actions { display: flex; gap: 6px; white-space: nowrap; justify-content: flex-end; }
+/* …but not on a <td>: display:flex takes the cell out of the table layout, so
+   it stops stretching to the row's height and its border-bottom hugs its own
+   content instead. On a row where another cell wraps (a fleet with several
+   category chips) the separator under the actions column then sits higher than
+   the rest of the line. Keep the cell a table-cell and space the buttons with
+   margins, since `gap` needs a flex/grid container. */
+td.row-actions { display: table-cell; text-align: right; white-space: nowrap; }
+td.row-actions > * { vertical-align: middle; }
+td.row-actions > * + * { margin-left: 6px; }
 
 /* ── Pending-approval hints (requester side) ── */
 .pending-chip {

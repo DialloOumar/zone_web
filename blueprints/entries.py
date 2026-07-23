@@ -14,8 +14,8 @@ Reuses the shared permission, approval/grace, audit, and modal machinery.
 """
 from datetime import date, datetime, timedelta
 
-from flask import (Blueprint, abort, flash, make_response, redirect,
-                   render_template, request, url_for)
+from flask import (Blueprint, abort, flash, redirect, render_template, request,
+                   url_for)
 from flask_login import current_user, login_required
 from sqlalchemy.orm import joinedload
 
@@ -27,14 +27,6 @@ from models import (DailyEntry, Fleet, Operator, PendingChange, Vehicle,
                     VehicleCategory, db)
 
 entries_bp = Blueprint("entries", __name__)
-
-# Loaded once at import: WeasyPrint pulls in Pango/cairo through native bindings,
-# which costs a second or two the first time. Paying it at boot keeps it off the
-# first user to hit the export. None = not installed → the route says so.
-try:
-    import weasyprint
-except Exception:  # pragma: no cover - depends on the host's native libs
-    weasyprint = None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -297,11 +289,7 @@ EXPORT_LIMIT = 1000   # hard cap on rows in one export; flagged on the document
 
 
 def _export_context():
-    """Rows + headings for a printable export, from the current filters.
-
-    Shared by the PDF export and the browser print view so the two documents
-    can never disagree about what a given filter set contains.
-    """
+    """Rows + headings for the printable pointage, from the current filters."""
     t = get_t()
     # Eager-load vehicle + category: the template touches both on every row, so
     # without this a 1000-row export fires ~2000 extra queries.
@@ -332,7 +320,7 @@ def _export_context():
         parts.append("%s → %s" % (f["date_from"] or "…", f["date_to"] or "…"))
     subtitle = " · ".join(parts) if parts else t["export.all_vehicles"]
 
-    return f, dict(
+    return dict(
         entries=entries, subtitle=subtitle,
         truncated=len(entries) >= EXPORT_LIMIT,
         total_km=sum(e.kilometers or 0 for e in entries),
@@ -345,32 +333,16 @@ def _export_context():
 @login_required
 @require_perm("report.export_pdf")
 def export_print():
-    """The same document as export_pdf, rendered as HTML for the browser to
-    print. No WeasyPrint pass and a payload that gzips — which is what makes it
-    usable on a slow link. Filters come from the query string, so what prints
-    never depends on what the data page happens to be showing."""
-    _f, ctx = _export_context()
+    """The printable pointage, rendered as HTML for the browser to print.
+
+    Replaced a server-side WeasyPrint PDF, which spent seconds laying the
+    document out and then shipped a few hundred KB that gzip can't touch — too
+    slow over the link from Guinea. Filters come from the query string, so what
+    prints never depends on what the data page happens to be showing.
+    """
     return render_template("entries_print.html",
                            back_url=url_for("entries.index", **request.args.to_dict()),
-                           **ctx)
-
-
-@entries_bp.route("/entries/export.pdf")
-@login_required
-@require_perm("report.export_pdf")
-def export_pdf():
-    """Export the filtered daily entries as a printable PDF (batmex-style)."""
-    t = get_t()
-    if weasyprint is None:
-        flash("error|" + t["export.unavailable"])
-        return redirect(url_for("entries.index", **request.args.to_dict()))
-    f, ctx = _export_context()
-    html = render_template("entries_pdf.html", **ctx)
-    resp = make_response(weasyprint.HTML(string=html).write_pdf())
-    resp.headers["Content-Type"] = "application/pdf"
-    stamp = f["month"] or f["date_from"] or f["date_to"] or datetime.utcnow().strftime("%Y-%m-%d")
-    resp.headers["Content-Disposition"] = "inline; filename=saisie_%s.pdf" % stamp
-    return resp
+                           **_export_context())
 
 
 @entries_bp.route("/roster")

@@ -59,7 +59,29 @@ def _load_user(user_id):
 # ── i18n helper ──────────────────────────────────────────────────────────────
 
 
-APP_VERSION = "0.2.0"  # bumped manually on releases; appended to static asset URLs
+APP_VERSION = "0.2.1"  # release number, shown to humans
+
+
+def _static_version():
+    """Cache-busting stamp for /static URLs: the newest mtime under static/.
+
+    Derived, not hand-maintained. A manually bumped constant is only as good as
+    the memory of whoever edits a stylesheet — forget it once and every browser
+    keeps serving the old CSS/JS with no sign anything is wrong. Computed once
+    at import (a few ms), so it changes whenever the app restarts on a deploy
+    with modified assets.
+    """
+    newest = 0
+    for root, _dirs, files in os.walk(app.static_folder):
+        for name in files:
+            try:
+                newest = max(newest, os.stat(os.path.join(root, name)).st_mtime)
+            except OSError:      # file vanished mid-walk; it just misses the stamp
+                pass
+    return str(int(newest)) if newest else APP_VERSION
+
+
+STATIC_VERSION = _static_version()
 
 
 def current_lang():
@@ -126,7 +148,7 @@ def _inject_globals():
     return {
         "t": get_t(),
         "lang": current_lang(),
-        "v": APP_VERSION,
+        "v": STATIC_VERSION,
         "has_perm": has_perm,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
         "can_approve_any": can_approve_any,
@@ -712,7 +734,9 @@ PERMISSIONS_CATALOG = [
     ("insights.view", "View insights", "Insights", "insights", "view"),
     # Reports
     ("report.view",       "View reports",            "Reports", "report", "view"),
-    ("report.export_pdf", "Export reports to PDF",   "Reports", "report", "export"),
+    # Key kept as-is (it is seeded into the DB and granted to roles); the PDF
+    # export it was named for is now a browser print view.
+    ("report.export_pdf", "Print / export reports",   "Reports", "report", "export"),
     # Invoicing (facturation)
     ("invoicing.view", "View invoicing", "Invoicing", "invoicing", "view"),
     # Admin (super admin only — these aren't exposed in the role grid, just here for documentation)

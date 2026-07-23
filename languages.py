@@ -538,7 +538,6 @@ TRANSLATIONS = {
         "approval.res.maintenance_record": "Entretien",
 
         # Export (saisie quotidienne)
-        "export.pdf_btn":      "Exporter PDF",
         "export.print_btn":    "Imprimer",
         "export.print_hint":   "Aperçu avant impression — utilisez « Enregistrer au format PDF » dans la fenêtre d'impression pour obtenir un fichier.",
         "export.truncated":    "Document limité aux 1000 lignes les plus récentes — affinez les filtres.",
@@ -554,7 +553,6 @@ TRANSLATIONS = {
         "export.validated":    "Validé par",
         "export.name_date":    "Nom / Date",
         "export.confidential": "Document interne — confidentiel",
-        "export.unavailable":  "Export PDF indisponible sur ce serveur.",
 
         # Roles admin
         "role.new":            "Nouveau rôle",
@@ -595,7 +593,7 @@ TRANSLATIONS = {
         "perm.action.create":  "Créer",
         "perm.action.edit":    "Modifier",
         "perm.action.delete":  "Supprimer",
-        "perm.action.export":  "Exporter (PDF)",
+        "perm.action.export":  "Imprimer / exporter",
         "perm.action.resolve": "Résoudre",
         "perm.action.dismiss": "Ignorer",
         "perm.state.cannot":   "Interdit",
@@ -1218,7 +1216,6 @@ TRANSLATIONS = {
         "approval.res.maintenance_record": "Service record",
 
         # Export (daily entries)
-        "export.pdf_btn":      "Export PDF",
         "export.print_btn":    "Print",
         "export.print_hint":   "Print preview — use “Save as PDF” in the print dialog to get a file.",
         "export.truncated":    "Limited to the 1000 most recent rows — narrow the filters.",
@@ -1234,7 +1231,6 @@ TRANSLATIONS = {
         "export.validated":    "Approved by",
         "export.name_date":    "Name / Date",
         "export.confidential": "Internal document — confidential",
-        "export.unavailable":  "PDF export is unavailable on this server.",
 
         # Roles admin
         "role.new":            "New role",
@@ -1275,7 +1271,7 @@ TRANSLATIONS = {
         "perm.action.create":  "Create",
         "perm.action.edit":    "Edit",
         "perm.action.delete":  "Delete",
-        "perm.action.export":  "Export (PDF)",
+        "perm.action.export":  "Print / export",
         "perm.action.resolve": "Resolve",
         "perm.action.dismiss": "Dismiss",
         "perm.state.cannot":   "Cannot",

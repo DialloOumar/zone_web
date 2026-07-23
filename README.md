@@ -36,7 +36,7 @@ maintenance rules, and a unified expense view.
 - **Auth**: Flask-Login + bcrypt
 - **i18n**: Server-side French / English (`languages.py`)
 - **Storage**: Linode Object Storage via `boto3`, slip / receipt photos compressed client-side
-- **PDF**: WeasyPrint for monthly reports
+- **Printing**: browser print view (`/entries/export.print`); "Save as PDF" in the print dialog when a file is needed
 - **Frontend**: server-rendered Jinja, vanilla JS for interactions
 - **Container**: Docker Compose for local dev + prod parity
 

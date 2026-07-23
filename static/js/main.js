@@ -84,8 +84,15 @@
         overlay.innerHTML =
             '<div class="modal" role="dialog" aria-modal="true">' +
             '<div class="modal__header"><h2></h2>' +
+            // Inline SVG, not a Material Symbols ligature: the icon font is
+            // subset to the names found in the templates, so this JS-injected
+            // one was silently dropped and the button rendered empty. Drawing
+            // the X here keeps the only way out of a modal independent of the
+            // font loading, being subset correctly, or being cached.
             '<button class="modal__close" type="button" aria-label="Close">' +
-            '<span class="material-symbols-outlined">close</span></button></div>' +
+            '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" ' +
+            'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+            '<path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
             '<div class="modal__body"><div class="modal__loading">…</div></div></div>';
         overlay.querySelector(".modal__header h2").textContent = title || "";
         document.body.appendChild(overlay);

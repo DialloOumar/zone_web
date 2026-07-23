@@ -21,6 +21,3 @@ typing_extensions==4.15.0
 # Storage + image handling
 boto3==1.40.65
 Pillow==12.0.0
-
-# PDF reports
-weasyprint==68.1
