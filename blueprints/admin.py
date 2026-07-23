@@ -310,9 +310,11 @@ def roles():
     rows = (Role.query.filter(Role.is_active.is_(not show_archived))
             .order_by(Role.is_system.desc(), Role.name).all())
     counts = {r.id: len(r.role_permissions) for r in rows}
+    # How many people hold each role — decides whether it can be deleted at all.
+    held = {r.id: UserFleet.query.filter_by(role_id=r.id).count() for r in rows}
     archived_count = Role.query.filter(Role.is_active.is_(False)).count()
     own_ids = {uf.role_id for uf in current_user.user_fleets} if not current_user.is_super_admin else set()
-    return render_template("admin_roles.html", roles=rows, counts=counts,
+    return render_template("admin_roles.html", roles=rows, counts=counts, held=held,
                            show_archived=show_archived, archived_count=archived_count,
                            own_role_ids=own_ids)
 
@@ -392,6 +394,39 @@ def role_reactivate(role_id):
                detail=f"Reactivated role '{role.name}'")
     db.session.commit()
     flash("success|" + get_t().get("role.reactivated", "Rôle réactivé."))
+    return redirect(url_for("admin.roles"))
+
+
+@admin_bp.route("/roles/<int:role_id>/destroy", methods=["POST"])
+@login_required
+@require_perm("admin.roles")
+def role_destroy(role_id):
+    """Delete a role for good, unlike archiving.
+
+    Only safe while nobody holds it: user_fleets.role_id is NOT NULL, so
+    deleting an assigned role would strand its users without access. The
+    role's permission rows go with it (cascade on the relationship).
+    """
+    role = db.session.get(Role, role_id)
+    if not role:
+        abort(404)
+    t = get_t()
+    if role.is_system:
+        flash("error|" + t.get("role.err.system", "Les rôles système ne peuvent pas être supprimés."))
+        return redirect(url_for("admin.roles"))
+    if _owns_role(role):
+        flash("error|" + t.get("role.err.own_role", OWN_ROLE_MSG))
+        return redirect(url_for("admin.roles"))
+    held = UserFleet.query.filter_by(role_id=role.id).count()
+    if held:
+        flash("error|" + t.get("role.err.in_use", "Ce rôle est attribué à des utilisateurs.")
+              + " (%d)" % held)
+        return redirect(url_for("admin.roles"))
+    name = role.name
+    log_action("DELETE", "role", resource_id=role_id, detail=f"Deleted role '{name}'")
+    db.session.delete(role)
+    db.session.commit()
+    flash("success|" + t.get("role.deleted", "Rôle supprimé.") + " — " + name)
     return redirect(url_for("admin.roles"))
 
 
