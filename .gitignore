@@ -34,9 +34,11 @@ bash.exe.stackdump
 # Generated artifacts
 test_report.pdf
 
-# Local dev scratch: screenshot/render temp files and throwaway browser profiles
-_*.html
-_*.png
-_*.db
+# Local dev scratch: screenshot/render temp files and throwaway browser profiles.
+# Anchored to the repo root — unanchored these also swallowed templates/_*.html,
+# i.e. every Jinja partial.
+/_*.html
+/_*.png
+/_*.db
 _et/
 _edge_tmp/

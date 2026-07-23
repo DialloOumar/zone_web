@@ -1,0 +1,55 @@
+    /* Shared by the WeasyPrint export (entries_pdf.html) and the browser print
+       view (entries_print.html) — keep both documents byte-identical on paper. */
+    @page { size: A4 landscape; margin: 1.5cm 1.8cm; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #000; margin: 0; }
+
+    /* ── Header ── */
+    .print-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding-bottom: 12px; margin-bottom: 6px; border-bottom: 3px solid #1a1a2e;
+    }
+    .brand-name { font-size: 22px; font-weight: 800; color: #4f46e5; letter-spacing: -0.01em; }
+    .brand-tag { font-size: 10px; color: #777; }
+    .print-header-right { text-align: right; }
+    .print-report-title {
+        font-size: 16px; font-weight: 700; color: #1a1a2e;
+        letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 4px;
+    }
+    .print-meta { font-size: 9.5px; color: #555; line-height: 1.6; }
+
+    /* ── Summary boxes ── */
+    .print-summary { display: flex; gap: 12px; margin: 12px 0; }
+    .print-summary-box { flex: 1; border: 1px solid #ccc; border-radius: 4px; padding: 8px 12px; text-align: center; }
+    .ps-label { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #666; display: block; margin-bottom: 2px; }
+    .ps-value { font-size: 16px; font-weight: 700; color: #1a1a2e; }
+    .ps-blue   { background: #e3f2fd; border-color: #1565c0; } .ps-blue   .ps-label, .ps-blue   .ps-value { color: #1565c0; }
+    .ps-green  { background: #e8f5e9; border-color: #2e7d32; } .ps-green  .ps-label, .ps-green  .ps-value { color: #2e7d32; }
+    .ps-purple { background: #f3e5f5; border-color: #6a1b9a; } .ps-purple .ps-label, .ps-purple .ps-value { color: #6a1b9a; }
+    .ps-navy   { background: #eef0f7; border-color: #1a1a2e; } .ps-navy   .ps-label, .ps-navy   .ps-value { color: #1a1a2e; }
+
+    /* ── Table ── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 8.5px; margin-top: 4px; }
+    .data-table th {
+        padding: 5px 6px; font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.03em; color: #fff; background: #1a1a2e; border: none; text-align: left;
+    }
+    .data-table th.r, .data-table td.r { text-align: right; }
+    .data-table td { padding: 4px 6px; border-bottom: 1px solid #e0e0e0; color: #000; }
+    .data-table tbody tr:nth-child(even) td { background: #f7f7f7; }
+    .data-table tfoot td { font-weight: 700; background: #1a1a2e; color: #fff; border: none; }
+    .tag { border-radius: 999px; padding: 1px 7px; font-weight: 700; font-size: 7.5px; white-space: nowrap; }
+    /* Repeat the header on every sheet and never split a row across two. */
+    .data-table thead { display: table-header-group; }
+    .data-table tr { break-inside: avoid; page-break-inside: avoid; }
+
+    /* ── Signatories ── */
+    .print-bottom-block { margin-top: 36px; break-inside: avoid; page-break-inside: avoid; }
+    .print-signatories { display: flex; justify-content: space-around; align-items: flex-end; }
+    .print-signatory { text-align: center; width: 38%; }
+    .print-signatory-line { border-top: 1px solid #333; margin-bottom: 6px; height: 36px; }
+    .print-signatory-name { font-size: 9px; font-weight: 700; text-transform: uppercase; }
+    .print-signatory-title { font-size: 8.5px; color: #555; margin-top: 6px; }
+    .print-footer-note {
+        display: flex; justify-content: space-between; margin-top: 18px; padding-top: 8px;
+        border-top: 1px solid #ccc; font-size: 8.5px; color: #888;
+    }

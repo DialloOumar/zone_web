@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+{# Browser print view (entries.export_print) — the same document as the PDF
+   export, laid out by the reader's own browser instead of by WeasyPrint on the
+   server. Standalone page (no base.html): nothing to load but this HTML, which
+   gzips well over a slow link. Ctrl+P / the toolbar button prints it; the
+   browser's "Save as PDF" produces a file when one is needed. #}
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ t['export.title'] }} — {{ subtitle }}</title>
+<style>
+{% include '_export_style.html' %}
+
+/* ── Screen-only chrome; none of this reaches the paper ── */
+@media screen {
+    html { background: #e8e8ee; }
+    body {
+        max-width: 29.7cm; margin: 16px auto 40px; padding: 1.5cm 1.8cm;
+        background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.18);
+    }
+    /* Pulled out to the sheet's edges — body already carries the print margin. */
+    .print-toolbar {
+        position: sticky; top: 0; z-index: 10; display: flex; gap: 10px;
+        align-items: center; justify-content: flex-end; flex-wrap: wrap;
+        margin: -1.5cm -1.8cm 20px; padding: 10px 1.8cm;
+        background: #1a1a2e; color: #fff; font-family: Arial, sans-serif; font-size: 13px;
+    }
+    .print-toolbar__hint { margin-right: auto; font-size: 12px; color: #c9c9d6; }
+    .print-toolbar a, .print-toolbar button {
+        font: inherit; cursor: pointer; border-radius: 4px; padding: 7px 14px;
+        border: 1px solid rgba(255,255,255,.45); background: transparent;
+        color: #fff; text-decoration: none;
+    }
+    .print-toolbar button { background: #4f46e5; border-color: #4f46e5; font-weight: 700; }
+}
+@media print { .print-toolbar { display: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="print-toolbar">
+    <span class="print-toolbar__hint">{{ t['export.print_hint'] }}</span>
+    <a href="{{ back_url }}">{{ t['btn.cancel'] }}</a>
+    <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
+</div>
+
+{% include '_export_body.html' %}
+
+</body>
+</html>

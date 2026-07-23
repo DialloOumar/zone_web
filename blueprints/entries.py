@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta
 from flask import (Blueprint, abort, flash, make_response, redirect,
                    render_template, request, url_for)
 from flask_login import current_user, login_required
+from sqlalchemy.orm import joinedload
 
 import maintenance_engine
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
@@ -26,6 +27,14 @@ from models import (DailyEntry, Fleet, Operator, PendingChange, Vehicle,
                     VehicleCategory, db)
 
 entries_bp = Blueprint("entries", __name__)
+
+# Loaded once at import: WeasyPrint pulls in Pango/cairo through native bindings,
+# which costs a second or two the first time. Paying it at boot keeps it off the
+# first user to hit the export. None = not installed → the route says so.
+try:
+    import weasyprint
+except Exception:  # pragma: no cover - depends on the host's native libs
+    weasyprint = None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -170,6 +179,10 @@ def _read_entry_form(entry):
         hours, bad = _num(request.form.get("hours"), float)
     if e1 or bad:
         return None, t["entry.err.bad_number"]
+    # A negative count parses fine but is never a real saisie.
+    if any(v is not None and v < 0
+           for v in (km, trips, hours, index_start, index_end)):
+        return None, t["entry.err.negative"]
 
     data = dict(
         vehicle_id=vehicle_id,
@@ -280,19 +293,22 @@ def index():
                            pending_map=pending_map, ghost_creates=ghost_creates)
 
 
-@entries_bp.route("/entries/export.pdf")
-@login_required
-@require_perm("report.export_pdf")
-def export_pdf():
-    """Export the filtered daily entries as a printable PDF (batmex-style)."""
+EXPORT_LIMIT = 1000   # hard cap on rows in one export; flagged on the document
+
+
+def _export_context():
+    """Rows + headings for a printable export, from the current filters.
+
+    Shared by the PDF export and the browser print view so the two documents
+    can never disagree about what a given filter set contains.
+    """
     t = get_t()
-    try:
-        import weasyprint
-    except Exception:
-        flash("error|" + t["export.unavailable"])
-        return redirect(url_for("entries.index", **request.args.to_dict()))
+    # Eager-load vehicle + category: the template touches both on every row, so
+    # without this a 1000-row export fires ~2000 extra queries.
     entries = (_apply_filters(_scoped_entries())
-               .order_by(DailyEntry.date.desc(), DailyEntry.id.desc()).limit(1000).all())
+               .options(joinedload(DailyEntry.vehicle).joinedload(Vehicle.category))
+               .order_by(DailyEntry.date.desc(), DailyEntry.id.desc())
+               .limit(EXPORT_LIMIT).all())
 
     f = _filter_values()
     parts = []
@@ -316,12 +332,40 @@ def export_pdf():
         parts.append("%s → %s" % (f["date_from"] or "…", f["date_to"] or "…"))
     subtitle = " · ".join(parts) if parts else t["export.all_vehicles"]
 
-    html = render_template(
-        "entries_pdf.html", entries=entries, subtitle=subtitle,
+    return f, dict(
+        entries=entries, subtitle=subtitle,
+        truncated=len(entries) >= EXPORT_LIMIT,
         total_km=sum(e.kilometers or 0 for e in entries),
         total_trips=sum(e.trips or 0 for e in entries),
         total_hours=sum(e.hours or 0 for e in entries),
         generated=datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+
+
+@entries_bp.route("/entries/export.print")
+@login_required
+@require_perm("report.export_pdf")
+def export_print():
+    """The same document as export_pdf, rendered as HTML for the browser to
+    print. No WeasyPrint pass and a payload that gzips — which is what makes it
+    usable on a slow link. Filters come from the query string, so what prints
+    never depends on what the data page happens to be showing."""
+    _f, ctx = _export_context()
+    return render_template("entries_print.html",
+                           back_url=url_for("entries.index", **request.args.to_dict()),
+                           **ctx)
+
+
+@entries_bp.route("/entries/export.pdf")
+@login_required
+@require_perm("report.export_pdf")
+def export_pdf():
+    """Export the filtered daily entries as a printable PDF (batmex-style)."""
+    t = get_t()
+    if weasyprint is None:
+        flash("error|" + t["export.unavailable"])
+        return redirect(url_for("entries.index", **request.args.to_dict()))
+    f, ctx = _export_context()
+    html = render_template("entries_pdf.html", **ctx)
     resp = make_response(weasyprint.HTML(string=html).write_pdf())
     resp.headers["Content-Type"] = "application/pdf"
     stamp = f["month"] or f["date_from"] or f["date_to"] or datetime.utcnow().strftime("%Y-%m-%d")

@@ -87,6 +87,8 @@ TRANSLATIONS = {
         "nav.insights":             "Analyse",
         "nav.invoicing":            "Facturation",
         "nav.reports":              "Rapports",
+        "nav.management":           "Gestion",
+        "nav.validation":           "Validation",
         "nav.approvals":            "Validations en attente",
         "nav.my_requests":          "Mes demandes",
         "nav.help":                 "Aide",
@@ -321,6 +323,7 @@ TRANSLATIONS = {
         "entry.err.vehicle_required": "Veuillez choisir un véhicule.",
         "entry.err.date_required":    "Date invalide.",
         "entry.err.bad_number":       "Valeur numérique invalide.",
+        "entry.err.negative":         "Les valeurs ne peuvent pas être négatives.",
 
         # Roster (pointage)
         "roster.prev_day":   "Jour précédent",
@@ -536,6 +539,9 @@ TRANSLATIONS = {
 
         # Export (saisie quotidienne)
         "export.pdf_btn":      "Exporter PDF",
+        "export.print_btn":    "Imprimer",
+        "export.print_hint":   "Aperçu avant impression — utilisez « Enregistrer au format PDF » dans la fenêtre d'impression pour obtenir un fichier.",
+        "export.truncated":    "Document limité aux 1000 lignes les plus récentes — affinez les filtres.",
         "export.title":        "Saisie quotidienne",
         "export.all_vehicles": "Tous les véhicules",
         "export.recent":       "Saisies récentes",
@@ -763,6 +769,8 @@ TRANSLATIONS = {
         "nav.insights":             "Insights",
         "nav.invoicing":            "Invoicing",
         "nav.reports":              "Reports",
+        "nav.management":           "Management",
+        "nav.validation":           "Validation",
         "nav.approvals":            "Pending approvals",
         "nav.my_requests":          "My requests",
         "nav.help":                 "Help",
@@ -996,6 +1004,7 @@ TRANSLATIONS = {
         "entry.err.vehicle_required": "Please choose a vehicle.",
         "entry.err.date_required":    "Invalid date.",
         "entry.err.bad_number":       "Invalid numeric value.",
+        "entry.err.negative":         "Values cannot be negative.",
 
         # Roster
         "roster.prev_day":   "Previous day",
@@ -1210,6 +1219,9 @@ TRANSLATIONS = {
 
         # Export (daily entries)
         "export.pdf_btn":      "Export PDF",
+        "export.print_btn":    "Print",
+        "export.print_hint":   "Print preview — use “Save as PDF” in the print dialog to get a file.",
+        "export.truncated":    "Limited to the 1000 most recent rows — narrow the filters.",
         "export.title":        "Daily entries",
         "export.all_vehicles": "All vehicles",
         "export.recent":       "Recent entries",

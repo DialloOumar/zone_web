@@ -1,0 +1,88 @@
+{# The printable document itself — shared by the PDF export and the print view.
+   Expects: entries, subtitle, generated, total_trips, total_hours, total_km. #}
+    <div class="print-header">
+        <div>
+            <div class="brand-name">ZONE WEB</div>
+            <div class="brand-tag">{{ t['app.tagline'] }}</div>
+        </div>
+        <div class="print-header-right">
+            <div class="print-report-title">{{ t['export.title'] }}</div>
+            <div class="print-meta">
+                {{ subtitle }}<br>
+                {{ t['export.generated'] }} {{ generated }} · {{ entries|length }} {{ t['export.count'] }}
+                {% if truncated %}<br><strong>{{ t['export.truncated'] }}</strong>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="print-summary">
+        <div class="print-summary-box ps-blue"><span class="ps-label">{{ t['export.voyages'] }}</span><span class="ps-value">{{ '{:,}'.format(total_trips|round|int) }}</span></div>
+        <div class="print-summary-box ps-green"><span class="ps-label">{{ t['export.heures'] }}</span><span class="ps-value">{{ total_hours }} h</span></div>
+        <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['export.km'] }}</span><span class="ps-value">{{ '{:,}'.format(total_km|round|int) }} km</span></div>
+        <div class="print-summary-box ps-navy"><span class="ps-label">{{ t['export.count'] }}</span><span class="ps-value">{{ entries|length }}</span></div>
+    </div>
+
+    {% set tagcolors = {'BUS':('#e3f2fd','#1565c0'),'MINIBUS':('#e0f7fa','#00838f'),'NAVETTE':('#e0f2f1','#00695c'),
+                        'CAMION_TSF':('#fff3e0','#e65100'),'MACHINE_TSF':('#ffebee','#c62828'),'CITERNE':('#e8eaf6','#3949ab'),
+                        'SERVICE':('#e8f5e9','#2e7d32'),'AUTRE':('#f0f0f0','#555')} %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['entry.date'] }}</th>
+                <th>{{ t['entry.vehicle'] }}</th>
+                <th>{{ t['vehicle.category'] }}</th>
+                <th>{{ t['entry.activity'] }}</th>
+                <th class="r">{{ t['entry.km'] }}</th>
+                <th>{{ t['entry.operator'] }}</th>
+                <th>{{ t['entry.note'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in entries %}
+            {% set c = e.vehicle.category %}
+            {% set col = tagcolors.get(c.code, ('#f0f0f0', '#555')) %}
+            <tr>
+                <td>{{ e.date }}</td>
+                <td><strong>{{ e.vehicle.code }}</strong></td>
+                <td><span class="tag" style="background:{{ col[0] }};color:{{ col[1] }};">{{ c.label_fr if lang == 'fr' else c.label }}</span></td>
+                <td>
+                    {% if c.unit_type == 'trips' %}{% if e.trips is not none %}{{ e.trips }} {{ t['unit.trips'] }}{% if e.trips != 1 %}s{% endif %}{% else %}—{% endif %}
+                    {% else %}{% if e.hours is not none %}{{ e.hours }} {{ t['unit.hours'] }}{% else %}—{% endif %}{% endif %}
+                </td>
+                <td class="r">{{ e.kilometers if e.kilometers is not none else '—' }}</td>
+                <td>{{ e.operator or '—' }}</td>
+                <td>{{ e.note or '' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="text-align:center;color:#999;padding:14px;">{{ t['entry.empty'] }}</td></tr>
+            {% endfor %}
+        </tbody>
+        {% if entries %}
+        <tfoot>
+            <tr>
+                <td colspan="4">{{ entries|length }} {{ t['export.count']|lower }}</td>
+                <td class="r">{{ '{:,}'.format(total_km|round|int) }} km</td>
+                <td colspan="2"></td>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+
+    <div class="print-bottom-block">
+        <div class="print-signatories">
+            <div class="print-signatory">
+                <div class="print-signatory-line"></div>
+                <div class="print-signatory-name">{{ t['export.responsible'] }}</div>
+                <div class="print-signatory-title">{{ t['export.name_date'] }}</div>
+            </div>
+            <div class="print-signatory">
+                <div class="print-signatory-line"></div>
+                <div class="print-signatory-name">{{ t['export.validated'] }}</div>
+                <div class="print-signatory-title">{{ t['export.name_date'] }}</div>
+            </div>
+        </div>
+        <div class="print-footer-note">
+            <span>{{ t['export.confidential'] }}</span>
+            <span>Zone Web · {{ t['app.tagline'] }}</span>
+        </div>
+    </div>

@@ -104,6 +104,28 @@
     var opSel = document.getElementById("operator");
     if (!vSel) return;
 
+    // The numeric fields are type=text on purpose (keeps the floating label and
+    // lets a saisie typed as "12,5" through), but that also lets the browser
+    // accept letters. Strip anything that isn't part of a positive number as
+    // it's typed or pasted, so the field can never hold text.
+    function numericOnly(el, decimals) {
+        if (!el) return;
+        el.addEventListener("input", function () {
+            var clean = el.value.replace(decimals ? /[^0-9.,]/g : /[^0-9]/g, "");
+            // keep only the first decimal separator
+            if (decimals) clean = clean.replace(/([.,])(?=.*[.,])/g, "");
+            if (clean === el.value) return;
+            var pos = Math.max(0, el.selectionStart - (el.value.length - clean.length));
+            el.value = clean;
+            try { el.setSelectionRange(pos, pos); } catch (e) {}
+        });
+    }
+    numericOnly(document.getElementById("trips"), false);   // voyages = whole number
+    numericOnly(document.getElementById("hours"), true);
+    numericOnly(document.getElementById("kilometers"), true);
+    numericOnly(iStart, true);
+    numericOnly(iEnd, true);
+
     function computeIndex() {
         if (!iPrev) return;
         var d = parseFloat(iEnd.value) - parseFloat(iStart.value);
