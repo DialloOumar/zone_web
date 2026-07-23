@@ -25,6 +25,8 @@
     {% set tagcolors = {'BUS':('#e3f2fd','#1565c0'),'MINIBUS':('#e0f7fa','#00838f'),'NAVETTE':('#e0f2f1','#00695c'),
                         'CAMION_TSF':('#fff3e0','#e65100'),'MACHINE_TSF':('#ffebee','#c62828'),'CITERNE':('#e8eaf6','#3949ab'),
                         'SERVICE':('#e8f5e9','#2e7d32'),'AUTRE':('#f0f0f0','#555')} %}
+    {# .doc-table is the phone-only horizontal scroller; on paper it is inert. #}
+    <div class="doc-table">
     <table class="data-table">
         <thead>
             <tr>
@@ -67,6 +69,7 @@
         </tfoot>
         {% endif %}
     </table>
+    </div>
 
     <div class="print-bottom-block">
         <div class="print-signatories">

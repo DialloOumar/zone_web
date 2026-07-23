@@ -13,27 +13,56 @@
 
 /* ── Screen-only chrome; none of this reaches the paper ── */
 @media screen {
-    html { background: #e8e8ee; }
+    html { background: #eef1f6; overflow-x: hidden; }
     body {
         max-width: 29.7cm; margin: 16px auto 40px; padding: 1.5cm 1.8cm;
-        background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.18);
+        background: #fff; border-radius: 12px;
+        box-shadow: 0 1px 2px rgba(0,0,0,.28), 0 1px 3px 1px rgba(0,0,0,.10);
     }
     /* Pulled out to the sheet's edges — body already carries the print margin. */
     .print-toolbar {
         position: sticky; top: 0; z-index: 10; display: flex; gap: 10px;
         align-items: center; justify-content: flex-end; flex-wrap: wrap;
-        margin: -1.5cm -1.8cm 20px; padding: 10px 1.8cm;
-        background: #1a1a2e; color: #fff; font-family: Arial, sans-serif; font-size: 13px;
+        margin: -1.5cm -1.8cm 20px; padding: 12px 1.8cm;
+        border-radius: 12px 12px 0 0;
+        /* App palette (--md-primary / Roboto), so the print view doesn't look
+           like a different product from the page it was opened from. This file
+           is standalone and can't @import style.css, hence the literals. */
+        background: #0F74BC; color: #fff; font-size: 13px;
+        font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
     }
-    .print-toolbar__hint { margin-right: auto; font-size: 12px; color: #c9c9d6; }
+    .print-toolbar__hint { margin-right: auto; font-size: 12px; color: #d4e9fb; }
     .print-toolbar a, .print-toolbar button {
-        font: inherit; cursor: pointer; border-radius: 4px; padding: 7px 14px;
-        border: 1px solid rgba(255,255,255,.45); background: transparent;
-        color: #fff; text-decoration: none;
+        font: inherit; font-weight: 500; cursor: pointer; border-radius: 999px;
+        padding: 7px 16px; border: 1px solid rgba(255,255,255,.55);
+        background: transparent; color: #fff; text-decoration: none;
     }
-    .print-toolbar button { background: #4f46e5; border-color: #4f46e5; font-weight: 700; }
+    .print-toolbar button { background: #fff; border-color: #fff; color: #0F74BC; font-weight: 700; }
+
+    /* The document is laid out for a 29.7cm sheet. On a phone that geometry
+       overflows the viewport, so drop the paper margins and let the wide table
+       scroll inside its own box instead of pushing the page sideways. */
+    @media (max-width: 820px) {
+        body { margin: 0; padding: 12px 14px 32px; border-radius: 0; box-shadow: none; }
+        .print-toolbar { margin: -12px -14px 16px; padding: 10px 14px; border-radius: 0; }
+        .print-toolbar__hint { flex-basis: 100%; margin: 0 0 2px; }
+        .print-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+        .print-header-right { text-align: left; }
+        .print-summary { flex-wrap: wrap; gap: 8px; }
+        .print-summary-box { flex: 1 1 42%; }
+        .doc-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .doc-table .data-table { min-width: 700px; }
+        .print-signatories { flex-direction: column; align-items: stretch; gap: 24px; }
+        .print-signatory { width: 100%; }
+        .print-footer-note { flex-direction: column; gap: 4px; }
+    }
 }
-@media print { .print-toolbar { display: none !important; } }
+@media print {
+    .print-toolbar { display: none !important; }
+    /* The scroller is screen-only: on paper the table must lay out in full. */
+    .doc-table { overflow: visible !important; }
+    .doc-table .data-table { min-width: 0 !important; }
+}
 </style>
 </head>
 <body>
@@ -48,10 +77,22 @@
 
 <script>
 // Open the print dialog by itself, so the button is only ever needed to print
-// a second copy. Waits for `load` — firing earlier can print before the font
-// and the table layout have settled. Cancelling the dialog leaves the page up
-// as a plain preview.
-window.addEventListener("load", function () { window.print(); });
+// a second copy. Cancelling the dialog leaves the page up as a plain preview.
+//
+// Printing from inside the load handler makes the browser think the document
+// is still loading ("cette page n'a pas fini de charger — imprimer quand
+// même ?"), so wait for load, then let a frame paint and yield the tick before
+// asking. readyState is checked too: a cached page can be complete before this
+// script runs, and then `load` never fires again.
+(function () {
+    function printNow() {
+        requestAnimationFrame(function () {
+            setTimeout(function () { window.print(); }, 120);
+        });
+    }
+    if (document.readyState === "complete") printNow();
+    else window.addEventListener("load", printNow);
+})();
 </script>
 
 </body>
