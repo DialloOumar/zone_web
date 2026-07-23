@@ -1323,19 +1323,28 @@ def seed_demo_cmd(days, force):
         rules[name] = r
     db.session.flush()
 
-    # Maintenance records (past services) — these carry the maintenance cost.
+    # Maintenance records (past services). The cost itself lives in the money
+    # ledger as the record's linked 'entretien' expense — same as what the
+    # service form does — so `record.cost` reads back through it.
     rec_specs = [
-        ("BUS-02",     "oil_change", 18, 1_050_000, "Vidange + filtre"),
-        ("MAC-TSF-01", "inspection", 30, 2_400_000, "Révision 250h"),
-        ("CIT-05",     "tires",      45, 1_800_000, "2 pneus avant"),
+        ("BUS-02",     "oil_change", 18, 1_050_000, "Vidange + filtre",  "cash"),
+        ("MAC-TSF-01", "inspection", 30, 2_400_000, "Révision 250h",     "transfer"),
+        ("CIT-05",     "tires",      45, 1_800_000, "2 pneus avant",     "mobile_money"),
     ]
-    for code, rtype, days_ago, cost, desc in rec_specs:
+    for code, rtype, days_ago, cost, desc, pay in rec_specs:
         v = vehicles[code][0]
-        db.session.add(MaintenanceRecord(
+        rec = MaintenanceRecord(
             vehicle_id=v.id, type=rtype,
             date=(today - timedelta(days=days_ago)).strftime("%Y-%m-%d"),
-            cost=cost, description=desc, supplier="Garage Central",
+            description=desc, supplier="Garage Central",
             kilometers_at=round(cum_km.get(code, 0), 0),
+        )
+        db.session.add(rec)
+        db.session.flush()
+        db.session.add(Expense(
+            maintenance_record_id=rec.id, vehicle_id=v.id, fleet_id=v.fleet_id,
+            category="entretien", date=rec.date, amount=cost, currency="GNF",
+            payment_method=pay, supplier=rec.supplier, description=desc,
         ))
 
     # Open alerts — the forward-looking "needs attention" list.

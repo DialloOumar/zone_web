@@ -149,37 +149,95 @@ HELP_SECTIONS = [
         },
     },
     {
+        "id": "carburant",
+        "icon": "local_gas_station",
+        "gate": {"perms": ["expense.view"]},
+        "title": {"fr": "Enregistrer un plein de carburant",
+                  "en": "Record a fuel fill-up"},
+        "intro": {
+            "fr": "Le carburant a sa propre page parce que c'est la dépense la "
+                  "plus fréquente et la seule qui se compte aussi en litres. Un "
+                  "plein est toujours rattaché à un véhicule.",
+            "en": "Fuel has its own page because it is the most frequent expense "
+                  "and the only one also counted in litres. A fill-up is always "
+                  "tied to a vehicle.",
+        },
+        "steps": {
+            "fr": [
+                "Ouvrez « Carburant » puis « Nouveau plein ».",
+                "Choisissez le véhicule et la date.",
+                "Saisissez le montant (GNF) et les litres. Le prix au litre s'affiche tout seul dans la liste — c'est un bon contrôle de cohérence.",
+                "(Optionnel) Indiquez le conducteur qui a fait le plein.",
+                "Choisissez le moyen de paiement (mobile money, espèces, virement, chèque, autre) et, si vous en avez une, la référence (numéro de transaction, de reçu…).",
+                "Enregistrez.",
+            ],
+            "en": [
+                "Open \"Fuel\" then \"New fill-up\".",
+                "Pick the vehicle and the date.",
+                "Enter the amount (GNF) and the litres. The price per litre is computed for you in the list — a handy sanity check.",
+                "(Optional) Name the driver who filled up.",
+                "Pick the payment method (mobile money, cash, transfer, cheque, other) and, if you have one, the reference (transaction or receipt number).",
+                "Save.",
+            ],
+        },
+        "tips": {
+            "fr": [
+                "Le total du mois et le total des litres sont rappelés en haut de la liste.",
+                "Les pleins alimentent l'analyse carburant (consommation réelle comparée à la consommation de référence de la catégorie).",
+            ],
+            "en": [
+                "The month's total and total litres are shown at the top of the list.",
+                "Fill-ups feed the fuel analysis (actual consumption against the category's baseline).",
+            ],
+        },
+    },
+    {
         "id": "depenses",
         "icon": "payments",
         "gate": {"perms": ["expense.view"]},
         "title": {"fr": "Enregistrer une dépense", "en": "Record an expense"},
         "intro": {
-            "fr": "Une dépense est un coût d'exploitation qui n'est PAS un "
-                  "entretien (carburant, accident, lavage, autre). Elle est "
-                  "rattachée à une flotte et, en option, à un véhicule et à un conducteur.",
-            "en": "An expense is an operating cost that is NOT a service (fuel, "
-                  "accident, washing, other). It belongs to a fleet and, "
-                  "optionally, to a vehicle and a driver.",
+            "fr": "« Dépenses » est le registre unique de tous les coûts : ce que "
+                  "vous saisissez ici, plus les pleins de carburant et les coûts "
+                  "d'entretien, qui y arrivent automatiquement. Une dépense peut "
+                  "concerner un véhicule précis ou non.",
+            "en": "\"Expenses\" is the single ledger for every cost: what you enter "
+                  "here, plus fuel fill-ups and service costs, which land in it "
+                  "automatically. An expense may or may not concern a vehicle.",
         },
         "steps": {
             "fr": [
                 "Ouvrez « Dépenses » puis « Nouvelle dépense ».",
-                "Choisissez la catégorie, la flotte et le véhicule (laisser vide = dépense de flotte).",
-                "Entrez la date et le montant. Pour le carburant, vous pouvez préciser les litres.",
+                "Première question, tout en haut : « Dépense liée à un véhicule ? ». C'est elle qui change le reste du formulaire.",
+                "Si OUI : choisissez le véhicule (la flotte en découle) et la catégorie — accident, lavage ou autre.",
+                "Si NON : donnez un nom libre à la dépense (ex. « Loyer du bureau », « Fournitures ») et, en option, une description.",
+                "Pour une dépense sans véhicule, la flotte est facultative : si vous n'en choisissez aucune, c'est une dépense de société, visible par toute personne ayant accès à la page.",
+                "Entrez la date et le montant, puis le moyen de paiement et la référence.",
                 "(Optionnel) Choisissez le conducteur à qui imputer la dépense.",
                 "Enregistrez.",
             ],
             "en": [
                 "Open \"Expenses\" then \"New expense\".",
-                "Pick the category, fleet and vehicle (leave empty = fleet-wide cost).",
-                "Enter the date and amount. For fuel you can also enter the liters.",
+                "First question, right at the top: \"Expense tied to a vehicle?\". It decides what the rest of the form looks like.",
+                "If YES: pick the vehicle (the fleet follows from it) and the category — accident, washing or other.",
+                "If NO: give the expense a free-text name (e.g. \"Office rent\", \"Supplies\") and, optionally, a description.",
+                "For an expense without a vehicle the fleet is optional: leave it empty and it becomes a company expense, visible to anyone with access to the page.",
+                "Enter the date and amount, then the payment method and reference.",
                 "(Optional) Pick the driver the cost is attributed to.",
                 "Save.",
             ],
         },
         "tips": {
-            "fr": ["Les coûts d'entretien ne se saisissent PAS ici : ils ont leur propre fiche dans « Historique entretien »."],
-            "en": ["Maintenance costs are NOT entered here: they have their own record under \"Service history\"."],
+            "fr": [
+                "Les coûts d'entretien ne se saisissent PAS ici : ils se saisissent sur la fiche d'entretien et apparaissent ensuite dans cette liste, catégorie « Entretien », en lecture seule. Pour corriger un tel montant, passez par la fiche d'entretien.",
+                "Le carburant a sa propre page — voir la rubrique précédente. Il apparaît aussi dans cette liste si vous filtrez dessus.",
+                "Le filtre en haut permet d'isoler une catégorie, ou les dépenses générales (sans véhicule).",
+            ],
+            "en": [
+                "Service costs are NOT entered here: you enter them on the service record and they then appear in this list under \"Maintenance\", read-only. To fix such an amount, go through the service record.",
+                "Fuel has its own page — see the previous topic. It also shows in this list if you filter for it.",
+                "The filter at the top isolates a category, or the general (vehicle-less) expenses.",
+            ],
         },
     },
     {
@@ -200,19 +258,31 @@ HELP_SECTIONS = [
             "fr": [
                 "Règles d'entretien : définissez quand alerter (ex. vidange toutes les 250 h, ou tous les 5000 km, ou tous les X voyages, ou tous les N jours). Une règle cible un véhicule, une catégorie, une flotte ou tous.",
                 "Alertes : quand le cumul (issu des pointages) approche ou dépasse l'intervalle, une alerte apparaît dans « Alertes » (un badge sur le menu indique le nombre d'alertes actives).",
-                "Sur une alerte : « Enregistrer l'entretien » (l'intervention a été faite → l'alerte se résout et le compteur repart à zéro), « Reporter » (la masquer 7 jours, elle revient ensuite) ou « Ignorer ».",
+                "Sur une alerte : « Enregistrer l'entretien » (l'intervention a été faite → l'alerte se résout et le compteur repart à zéro), « Reporter » ou « Ignorer ».",
+                "« Reporter » range vraiment l'alerte de côté : elle quitte l'onglet « Actives » et le badge du menu, et attend dans l'onglet « Reportées » avec sa date de retour. Utile quand la pièce est commandée mais pas encore arrivée.",
                 "Historique entretien : la liste de toutes les interventions (type, date, coût, conducteur).",
+                "Sur la fiche d'entretien, vous pouvez associer le conducteur concerné, et saisir le coût avec son moyen de paiement.",
             ],
             "en": [
                 "Maintenance rules: define when to alert (e.g. oil change every 250 h, or every 5000 km, or every X trips, or every N days). A rule targets a vehicle, a category, a fleet or all.",
                 "Alerts: when the running total (from the entries) nears or passes the interval, an alert shows under \"Alerts\" (a menu badge shows the active count).",
-                "On an alert: \"Log the service\" (it was done → the alert resolves and the counter resets), \"Snooze\" (hide it for 7 days, then it returns) or \"Dismiss\".",
+                "On an alert: \"Log the service\" (it was done → the alert resolves and the counter resets), \"Snooze\" or \"Dismiss\".",
+                "\"Snooze\" genuinely puts the alert aside: it leaves the \"Active\" tab and the menu badge, and waits under \"Snoozed\" with its return date. Handy when the part is ordered but hasn't arrived.",
                 "Service history: the list of all interventions (type, date, cost, driver).",
+                "On the service record you can link the driver involved, and enter the cost with its payment method.",
             ],
         },
         "tips": {
-            "fr": ["Une alerte ne se résout QUE par un entretien enregistré (ou automatiquement si elle n'est plus due)."],
-            "en": ["An alert only resolves by logging a service (or automatically once it's no longer due)."],
+            "fr": [
+                "Une alerte ne se résout QUE par un entretien enregistré (ou automatiquement si elle n'est plus due).",
+                "Le coût saisi sur une fiche d'entretien part automatiquement dans « Dépenses », catégorie « Entretien ». Vous n'avez rien à ressaisir.",
+                "Les règles en heures ne s'appliquent qu'aux engins suivis en heures, et les règles en voyages qu'aux engins suivis en voyages — c'est le mode de suivi de la catégorie qui décide.",
+            ],
+            "en": [
+                "An alert only resolves by logging a service (or automatically once it's no longer due).",
+                "The cost entered on a service record automatically lands in \"Expenses\" under \"Maintenance\". Nothing to re-enter.",
+                "Hour-based rules only apply to machines tracked in hours, and trip-based rules only to machines tracked in trips — the category's tracking mode decides.",
+            ],
         },
     },
     {
@@ -222,24 +292,36 @@ HELP_SECTIONS = [
         "title": {"fr": "Comprendre le tableau de bord",
                   "en": "Understand the dashboard"},
         "intro": {
-            "fr": "Le tableau de bord donne une vue d'ensemble : indicateurs "
-                  "clés, alertes ouvertes et activité récente.",
-            "en": "The dashboard gives an overview: key figures, open alerts and "
-                  "recent activity.",
+            "fr": "Le tableau de bord répond à une seule question : est-ce que "
+                  "les machines ont travaillé ce mois-ci, et est-ce que tout est "
+                  "sous contrôle ? Il est purement opérationnel.",
+            "en": "The dashboard answers one question: did the machines work this "
+                  "month, and is everything under control? It is purely "
+                  "operational.",
         },
         "steps": {
             "fr": [
                 "Ouvrez « Tableau de bord ».",
-                "Les cartes du haut résument les chiffres importants.",
-                "Les graphiques montrent les tendances.",
-                "Les alertes d'entretien ouvertes sont rappelées ici.",
+                "Les cartes du haut donnent le mois en cours : heures travaillées, voyages, kilomètres, carburant, véhicules actifs (combien ont tourné sur le total), alertes ouvertes et demandes à valider.",
+                "« Activité mensuelle » : heures et voyages des 6 derniers mois. Deux unités, donc deux axes — les heures à gauche, les voyages à droite.",
+                "« Véhicules les plus actifs » : les machines qui ont le plus tourné ce mois-ci, chacune dans son unité.",
+                "« Saisies par jour » (30 derniers jours) : c'est le contrôle de la saisie elle-même. Un trou dans ce graphique = un jour où personne n'a pointé.",
+                "« Consommation de carburant » : les litres par mois sur 6 mois.",
+                "En bas : les alertes d'entretien ouvertes et les dernières saisies, avec un lien « Tout voir ».",
             ],
             "en": [
                 "Open \"Dashboard\".",
-                "The top cards summarise the key numbers.",
-                "The charts show the trends.",
-                "Open maintenance alerts are surfaced here too.",
+                "The top cards cover the current month: worked hours, trips, kilometres, fuel, active vehicles (how many ran, out of the total), open alerts and requests to approve.",
+                "\"Monthly activity\": hours and trips over the last 6 months. Two units, so two axes — hours on the left, trips on the right.",
+                "\"Busiest vehicles\": the machines that ran the most this month, each in its own unit.",
+                "\"Entries per day\" (last 30 days): this one checks the logging itself. A gap in this chart is a day nobody logged.",
+                "\"Fuel consumption\": litres per month over 6 months.",
+                "At the bottom: open maintenance alerts and the latest entries, each with a \"View all\" link.",
             ],
+        },
+        "tips": {
+            "fr": ["Chaque carte ne compte que les flottes auxquelles vous avez accès. Deux personnes peuvent donc voir des chiffres différents — c'est normal."],
+            "en": ["Every card only counts the fleets you have access to. Two people can therefore see different numbers — that is expected."],
         },
     },
     {
@@ -248,22 +330,28 @@ HELP_SECTIONS = [
         "gate": {"perms": ["insights.view"]},
         "title": {"fr": "Analyse des opérations", "en": "Operations analysis"},
         "intro": {
-            "fr": "L'analyse aide à repérer les anomalies : surconsommation de "
-                  "carburant, coût par véhicule, machines sous-utilisées.",
-            "en": "Analysis helps spot anomalies: fuel overconsumption, cost per "
-                  "vehicle, under-used machines.",
+            "fr": "L'analyse sert à repérer deux anomalies : les machines qui "
+                  "consomment plus que prévu, et celles qui ne travaillent pas.",
+            "en": "Analysis is there to spot two anomalies: machines burning more "
+                  "fuel than expected, and machines not working at all.",
         },
         "steps": {
             "fr": [
                 "Ouvrez « Analyse ».",
                 "Choisissez le mois (et la flotte si vous en avez plusieurs).",
-                "Lisez les trois volets : carburant vs référence, coût par véhicule, véhicules inactifs.",
+                "« Carburant vs référence » compare la consommation réelle de chaque véhicule à la consommation de référence de sa catégorie. Un écart important, répété d'un mois sur l'autre, mérite une vérification (fuite, réglage, ou pointage incomplet).",
+                "« Véhicules inactifs » liste les machines sans aucune saisie sur la période — soit elles sont réellement à l'arrêt, soit on a oublié de les pointer.",
             ],
             "en": [
                 "Open \"Analysis\".",
                 "Pick the month (and the fleet if you have several).",
-                "Read the three panels: fuel vs baseline, cost per vehicle, idle vehicles.",
+                "\"Fuel vs baseline\" compares each vehicle's actual consumption against its category's baseline. A large gap, repeated month after month, is worth checking (leak, tuning, or incomplete logging).",
+                "\"Idle vehicles\" lists machines with no entry over the period — either they really are stopped, or someone forgot to log them.",
             ],
+        },
+        "tips": {
+            "fr": ["La consommation de référence se règle par catégorie (Administration → Catégories de véhicules). Sans référence, la comparaison carburant reste vide."],
+            "en": ["The baseline consumption is set per category (Administration → Vehicle categories). Without a baseline the fuel comparison stays empty."],
         },
     },
     {
@@ -375,6 +463,7 @@ HELP_SECTIONS = [
                 "Pour chaque action, choisissez le niveau : Interdit (aucun accès), Direct (s'applique immédiatement) ou Validation (soumise à approbation avant d'être appliquée).",
                 "Astuce : la ligne « Tout : » en haut d'un groupe règle toutes ses actions d'un coup.",
                 "(Optionnel) Cochez « Peut approuver » pour que ce rôle puisse valider les demandes de sa flotte.",
+                "Le dernier bloc, « Administration » (encadré en orange), donne accès aux écrans de configuration : gérer les flottes, gérer les catégories de véhicules, gérer les rôles. C'est ainsi qu'on délègue la configuration sans donner le compte super administrateur.",
                 "Enregistrez. Le rôle devient attribuable aux utilisateurs.",
             ],
             "en": [
@@ -383,42 +472,58 @@ HELP_SECTIONS = [
                 "For each action, pick the level: Cannot (no access), Direct (applies immediately) or Approval (sent for approval before applying).",
                 "Tip: the \"All:\" row at the top of a group sets all its actions at once.",
                 "(Optional) Tick \"Can approve\" so this role can review its fleet's requests.",
+                "The last block, \"Administration\" (outlined in orange), opens the configuration screens: manage fleets, manage vehicle categories, manage roles. This is how you delegate setup without handing over the super-admin account.",
                 "Save. The role can now be assigned to users.",
             ],
         },
         "tips": {
-            "fr": ["C'est le rôle qui décide si une action part en « validation » — voir la rubrique Demandes et validations."],
-            "en": ["The role decides whether an action goes to \"approval\" — see the Requests and approvals topic."],
+            "fr": [
+                "C'est le rôle qui décide si une action part en « validation » — voir la rubrique Demandes et validations.",
+                "Les permissions du bloc Administration n'ont que deux états (Interdit / Direct) : un écran de configuration s'ouvre ou ne s'ouvre pas, il n'y a pas de validation derrière.",
+                "Trois règles vous protègent d'une escalade de privilèges : vous ne pouvez accorder que des permissions que vous détenez vous-même ; vous ne pouvez pas modifier votre propre rôle (demandez au super administrateur) ; et « Peut approuver » ne se transmet que par quelqu'un qui l'a.",
+                "La gestion des utilisateurs, les paramètres et le journal d'activité restent réservés au super administrateur et ne sont pas délégables.",
+            ],
+            "en": [
+                "The role decides whether an action goes to \"approval\" — see the Requests and approvals topic.",
+                "Administration permissions only have two states (Cannot / Direct): a configuration screen either opens or it doesn't; there is no approval step behind it.",
+                "Three rules protect you from privilege escalation: you can only grant permissions you hold yourself; you cannot edit your own role (ask the super admin); and \"Can approve\" can only be passed on by someone who has it.",
+                "User management, settings and the activity log stay super-admin-only and cannot be delegated.",
+            ],
         },
     },
     {
         "id": "admin_fleets",
         "icon": "workspaces",
         "gate": {"perms": ["admin.fleets"]},
-        "title": {"fr": "Administration — Flottes et tarifs",
-                  "en": "Administration — Fleets and rates"},
+        "title": {"fr": "Administration — Flottes",
+                  "en": "Administration — Fleets"},
         "intro": {
-            "fr": "Une flotte représente un client. C'est aussi là que se "
-                  "définissent les tarifs de facturation, par catégorie d'engin "
-                  "et par date.",
-            "en": "A fleet represents a client. It's also where invoicing rates "
-                  "are set, per vehicle category and per date.",
+            "fr": "Une flotte est un regroupement de véhicules — un site, un "
+                  "client. C'est l'unité de base des accès : un utilisateur "
+                  "reçoit un rôle par flotte, et ne voit que ses flottes.",
+            "en": "A fleet is a group of vehicles — a site, a client. It is the "
+                  "unit access is built on: a user gets a role per fleet, and only "
+                  "ever sees their own fleets.",
         },
         "steps": {
             "fr": [
                 "Ouvrez Administration → « Flottes » puis « Nouvelle flotte ».",
-                "Saisissez le nom du client.",
-                "Cochez les catégories concernées et saisissez le tarif (GNF par voyage ou par heure) pour chacune.",
-                "Indiquez la date d'effet du tarif. L'historique est conservé : un nouveau tarif n'écrase pas l'ancien, il s'applique à partir de sa date.",
-                "Enregistrez. La facturation utilisera ces tarifs.",
+                "Saisissez le nom (l'identifiant court est proposé tout seul, vous pouvez le corriger).",
+                "Cochez les catégories d'engins que cette flotte exploite. Cela détermine ce qu'on pourra y rattacher.",
+                "Enregistrez.",
+                "Pour retirer une flotte du service, utilisez « Archiver » : elle disparaît des listes mais son historique reste intact, et vous pouvez la réactiver.",
             ],
             "en": [
                 "Open Administration → \"Fleets\" then \"New fleet\".",
-                "Enter the client name.",
-                "Tick the relevant categories and enter the rate (GNF per trip or per hour) for each.",
-                "Set the rate's effective date. History is kept: a new rate doesn't overwrite the old one, it applies from its date.",
-                "Save. Invoicing will use these rates.",
+                "Enter the name (the short identifier is proposed for you; you can adjust it).",
+                "Tick the vehicle categories this fleet operates. That decides what can be attached to it.",
+                "Save.",
+                "To take a fleet out of service use \"Archive\": it leaves the lists but its history stays intact, and you can reactivate it.",
             ],
+        },
+        "tips": {
+            "fr": ["Cet écran n'est plus réservé au super administrateur : la permission « Gérer les flottes » peut être donnée à un rôle (voir Rôles et permissions)."],
+            "en": ["This screen is no longer super-admin-only: the \"Manage fleets\" permission can be granted to a role (see Roles and permissions)."],
         },
     },
     {
