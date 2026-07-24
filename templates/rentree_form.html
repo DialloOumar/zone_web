@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['rentree.new'] }}{% endblock %}
+{% block page_title %}{{ t['rentree.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px;">
+    {% include "_rentree_form.html" %}
+</section>
+{% endblock %}

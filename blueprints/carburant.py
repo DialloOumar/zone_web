@@ -92,7 +92,7 @@ def index():
     if cids:
         recent = (FuelMovement.query
                   .filter(FuelMovement.citerne_id.in_(cids),
-                          FuelMovement.kind == "distribution")
+                          FuelMovement.kind.in_(("rentree", "distribution")))
                   .order_by(FuelMovement.date.desc(), FuelMovement.id.desc())
                   .limit(50).all())
     return render_template(
@@ -297,20 +297,87 @@ def distribution_new():
     return _render_distribution_form()
 
 
-@carburant_bp.route("/distributions/<int:mid>/delete", methods=["POST"])
+# ── Rentrée (the citerne fills up at the client) ──────────────────────────────
+
+
+def _read_rentree_form():
+    t = get_t()
+    date_str = (request.form.get("date") or "").strip()
+    if not _valid_date(date_str):
+        return None, t.get("rentree.err.date", "Date invalide.")
+
+    c = db.session.get(Citerne, request.form.get("citerne_id", type=int) or 0)
+    if not c or not c.is_active:
+        return None, t.get("rentree.err.citerne", "Choisissez une citerne active.")
+    fids = current_user_fleet_ids()
+    if fids is not None and c.fleet_id not in fids:
+        return None, t.get("error.forbidden", "Action non autorisée.")
+
+    liters = request.form.get("liters", type=int)
+    if not liters or liters <= 0:
+        return None, t.get("rentree.err.liters", "Litres invalides.")
+    if c.stock + liters > c.capacity_liters:
+        return None, t.get("rentree.err.over_capacity",
+                           "Cette rentrée dépasse la capacité (%d L max, %d L déjà en cuve)."
+                           % (c.capacity_liters, c.stock))
+
+    return dict(citerne_id=c.id, date=date_str, liters=liters,
+                note=(request.form.get("reference") or "").strip() or None), None
+
+
+def _render_rentree_form(error=None):
+    tpl = "_rentree_form.html" if is_modal_request() else "rentree_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(
+        tpl, error=error,
+        citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
+                  .order_by(Citerne.code).all()),
+        today=date.today().isoformat()), status
+
+
+@carburant_bp.route("/rentrees/new", methods=["GET", "POST"])
 @login_required
 @require_perm("carburant.create")
-def distribution_delete(mid):
+def rentree_new():
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_rentree_form()
+        if error:
+            return _render_rentree_form(error)
+        c = db.session.get(Citerne, data["citerne_id"])
+        mv = FuelMovement(kind="rentree", created_by=current_user.id, **data)
+        db.session.add(mv)
+        db.session.flush()
+        log_action("CREATE", "fuel_movement", resource_id=mv.id, fleet_id=c.fleet_id,
+                   detail=f"Rentrée {mv.liters} L into '{c.code}'")
+        db.session.commit()
+        flash("success|" + t.get("rentree.created", "Rentrée enregistrée."))
+        return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
+    return _render_rentree_form()
+
+
+# ── Delete a movement (rentrée or distribution) ───────────────────────────────
+
+
+@carburant_bp.route("/movements/<int:mid>/delete", methods=["POST"])
+@login_required
+@require_perm("carburant.create")
+def movement_delete(mid):
     mv = db.session.get(FuelMovement, mid)
-    if not mv or mv.kind != "distribution":
+    if not mv or mv.kind not in ("rentree", "distribution"):
         abort(404)
     c = db.session.get(Citerne, mv.citerne_id)
     fids = current_user_fleet_ids()
     if fids is not None and c and c.fleet_id not in fids:
         abort(403)
+    # Removing a rentrée must not push the tank below zero.
+    if mv.kind == "rentree" and c and c.stock - mv.liters < 0:
+        flash("error|" + get_t().get("rentree.err.delete_negative",
+              "Suppression impossible : le stock deviendrait négatif."))
+        return redirect(request.referrer or url_for("carburant.index"))
     db.session.delete(mv)
     log_action("DELETE", "fuel_movement", resource_id=mid,
-               fleet_id=(c.fleet_id if c else None), detail="Deleted distribution")
+               fleet_id=(c.fleet_id if c else None), detail=f"Deleted {mv.kind}")
     db.session.commit()
-    flash("success|" + get_t().get("distribution.deleted", "Prise supprimée."))
+    flash("success|" + get_t().get("movement.deleted", "Mouvement supprimé."))
     return redirect(request.referrer or url_for("carburant.index"))
