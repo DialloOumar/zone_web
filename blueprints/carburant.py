@@ -92,11 +92,17 @@ def index():
     active_citernes = (_scoped_citernes().filter(Citerne.is_active.is_(True))
                        .order_by(Citerne.code).all())
     cids = [c.id for c in _scoped_citernes().all()]
-    recent = []
+    vids = [v.id for v in _accessible_vehicles()]
+    conds = []
     if cids:
-        recent = (FuelMovement.query
-                  .filter(FuelMovement.citerne_id.in_(cids),
-                          FuelMovement.kind.in_(("rentree", "distribution", "releve", "conso")))
+        conds.append(db.and_(FuelMovement.citerne_id.in_(cids),
+                             FuelMovement.kind.in_(("rentree", "distribution", "releve", "conso"))))
+    if vids:  # direct fills have no citerne — scope them by the vehicle's fleet
+        conds.append(db.and_(FuelMovement.kind == "direct",
+                             FuelMovement.vehicle_id.in_(vids)))
+    recent = []
+    if conds:
+        recent = (FuelMovement.query.filter(db.or_(*conds))
                   .order_by(FuelMovement.date.desc(), FuelMovement.id.desc())
                   .limit(50).all())
     return render_template(
@@ -239,34 +245,48 @@ def citerne_reactivate(cid):
 
 
 def _read_distribution_form():
+    """A machine takes fuel — either from a citerne (kind 'distribution') or
+    straight at the client with no citerne (kind 'direct', the bus's normal
+    case). The 'source' field decides which."""
     t = get_t()
+    source = (request.form.get("source") or "citerne").strip()
+    fids = current_user_fleet_ids()
+
     date_str = (request.form.get("date") or "").strip()
     if not _valid_date(date_str):
         return None, t.get("distribution.err.date", "Date invalide.")
 
-    c = db.session.get(Citerne, request.form.get("citerne_id", type=int) or 0)
-    if not c or not c.is_active:
-        return None, t.get("distribution.err.citerne", "Choisissez une citerne active.")
-    fids = current_user_fleet_ids()
-    if fids is not None and c.fleet_id not in fids:
-        return None, t.get("error.forbidden", "Action non autorisée.")
-
     v = db.session.get(Vehicle, request.form.get("vehicle_id", type=int) or 0)
     if not v:
         return None, t.get("distribution.err.vehicle", "Choisissez une machine.")
-    if v.fleet_id != c.fleet_id:
-        return None, t.get("distribution.err.fleet_mismatch",
-                           "La machine et la citerne doivent être de la même flotte.")
+    if fids is not None and v.fleet_id not in fids:
+        return None, t.get("error.forbidden", "Action non autorisée.")
 
     liters = request.form.get("liters", type=int)
     if not liters or liters <= 0:
         return None, t.get("distribution.err.liters", "Litres invalides.")
+
+    operator = (request.form.get("operator") or "").strip() or None
+
+    if source == "direct":
+        # Straight at the client — no citerne, no reservoir to draw down.
+        return dict(kind="direct", citerne_id=None, vehicle_id=v.id, date=date_str,
+                    liters=liters, operator=operator), None
+
+    c = db.session.get(Citerne, request.form.get("citerne_id", type=int) or 0)
+    if not c or not c.is_active:
+        return None, t.get("distribution.err.citerne", "Choisissez une citerne active.")
+    if fids is not None and c.fleet_id not in fids:
+        return None, t.get("error.forbidden", "Action non autorisée.")
+    if v.fleet_id != c.fleet_id:
+        return None, t.get("distribution.err.fleet_mismatch",
+                           "La machine et la citerne doivent être de la même flotte.")
     if liters > c.stock:
         return None, t.get("distribution.err.stock",
                            "Stock insuffisant dans la citerne (%d L disponibles)." % c.stock)
 
-    return dict(citerne_id=c.id, vehicle_id=v.id, date=date_str, liters=liters,
-                operator=(request.form.get("operator") or "").strip() or None), None
+    return dict(kind="distribution", citerne_id=c.id, vehicle_id=v.id, date=date_str,
+                liters=liters, operator=operator), None
 
 
 def _render_distribution_form(error=None):
@@ -289,12 +309,16 @@ def distribution_new():
         data, error = _read_distribution_form()
         if error:
             return _render_distribution_form(error)
-        c = db.session.get(Citerne, data["citerne_id"])
-        mv = FuelMovement(kind="distribution", created_by=current_user.id, **data)
+        kind = data.pop("kind")
+        c = db.session.get(Citerne, data["citerne_id"]) if data["citerne_id"] else None
+        v = db.session.get(Vehicle, data["vehicle_id"])
+        mv = FuelMovement(kind=kind, created_by=current_user.id, **data)
         db.session.add(mv)
         db.session.flush()
-        log_action("CREATE", "fuel_movement", resource_id=mv.id, fleet_id=c.fleet_id,
-                   detail=f"Distribution {mv.liters} L from '{c.code}'")
+        detail = (f"Distribution {mv.liters} L from '{c.code}'" if c
+                  else f"Direct fill {mv.liters} L for '{v.code}' at the client")
+        log_action("CREATE", "fuel_movement", resource_id=mv.id,
+                   fleet_id=(c.fleet_id if c else v.fleet_id), detail=detail)
         db.session.commit()
         flash("success|" + t.get("distribution.created", "Prise de carburant enregistrée."))
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))

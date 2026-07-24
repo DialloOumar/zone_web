@@ -552,8 +552,9 @@ class FuelMovement(db.Model):
     __tablename__ = "fuel_movements"
 
     id          = db.Column(db.Integer,     primary_key=True)
-    citerne_id  = db.Column(db.Integer,     db.ForeignKey("citernes.id"), nullable=False)
-    kind        = db.Column(db.String(20),  nullable=False)                  # initial | distribution
+    # null for a "direct" fill — a bus takes fuel straight at the client, no citerne
+    citerne_id  = db.Column(db.Integer,     db.ForeignKey("citernes.id"), nullable=True)
+    kind        = db.Column(db.String(20),  nullable=False)                  # initial|rentree|distribution|releve|conso|direct
     date        = db.Column(db.String(10),  nullable=False)                  # YYYY-MM-DD
     liters      = db.Column(db.Integer,     nullable=False)                  # positive; sign from kind
     vehicle_id  = db.Column(db.Integer,     db.ForeignKey("vehicles.id"), nullable=True)  # the machine, for distributions

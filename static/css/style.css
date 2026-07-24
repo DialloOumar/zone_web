@@ -812,7 +812,8 @@ a:hover { text-decoration: underline; }
 .mv-chip--in    { background: var(--md-success-container); color: var(--md-on-success-container); }
 .mv-chip--out   { background: #f8e2c4; color: #8a4b06; }
 .mv-chip--gauge { background: var(--md-surface-container-high); color: var(--md-on-surface-variant); }
-.mv-chip--conso { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+.mv-chip--conso  { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+.mv-chip--direct { background: var(--md-primary-container); color: var(--md-on-primary-container); }
 .lit-in  { color: var(--md-success); }
 .lit-out { color: #b06a08; }
 .ecart-ok  { color: var(--md-success); font-weight: 600; }

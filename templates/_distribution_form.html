@@ -4,14 +4,12 @@
 
     <div class="form-row">
         <div class="field field--select">
-            <select id="citerne_id" name="citerne_id" required>
-                <option value="" hidden></option>
-                {% set sel_c = request.form.get('citerne_id')|int(0) %}
-                {% for c in citernes %}
-                <option value="{{ c.id }}" {% if c.id == sel_c %}selected{% endif %}>{{ c.code }} — {{ '{:,}'.format(c.stock) }} L {{ t['distribution.available'] }}</option>
-                {% endfor %}
+            {% set sel_src = request.form.get('source') or 'citerne' %}
+            <select id="source" name="source">
+                <option value="citerne" {% if sel_src == 'citerne' %}selected{% endif %}>{{ t['distribution.source_citerne'] }}</option>
+                <option value="direct" {% if sel_src == 'direct' %}selected{% endif %}>{{ t['distribution.source_direct'] }}</option>
             </select>
-            <label for="citerne_id">{{ t['distribution.citerne'] }}</label>
+            <label for="source">{{ t['distribution.source'] }}</label>
         </div>
         <div class="field">
             <input type="date" id="date" name="date" placeholder=" " required
@@ -20,13 +18,24 @@
         </div>
     </div>
 
+    <div class="field field--select" id="citerne-block">
+        <select id="citerne_id" name="citerne_id">
+            <option value="" hidden></option>
+            {% set sel_c = request.form.get('citerne_id')|int(0) %}
+            {% for c in citernes %}
+            <option value="{{ c.id }}" {% if c.id == sel_c %}selected{% endif %}>{{ c.code }} — {{ '{:,}'.format(c.stock) }} L {{ t['distribution.available'] }}</option>
+            {% endfor %}
+        </select>
+        <label for="citerne_id">{{ t['distribution.citerne'] }}</label>
+    </div>
+
     <div class="form-row">
         <div class="field field--select">
             <select id="vehicle_id" name="vehicle_id" required>
                 <option value="" hidden></option>
                 {% set sel_v = request.form.get('vehicle_id')|int(0) %}
                 {% for v in vehicles %}
-                <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }} — {{ v.fleet.name }}</option>
+                <option value="{{ v.id }}" data-source="{{ 'direct' if v.category and v.category.unit_type == 'trips' else 'citerne' }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }} — {{ v.fleet.name }}</option>
                 {% endfor %}
             </select>
             <label for="vehicle_id">{{ t['distribution.machine'] }}</label>
@@ -56,3 +65,27 @@
         <a href="{{ url_for('carburant.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
+
+<script>
+(function () {
+    var src = document.getElementById('source'),
+        block = document.getElementById('citerne-block'),
+        citsel = document.getElementById('citerne_id'),
+        mach = document.getElementById('vehicle_id');
+    function apply() {
+        var direct = src.value === 'direct';
+        block.style.display = direct ? 'none' : '';
+        citsel.required = !direct;
+        if (direct) citsel.value = '';
+    }
+    // Picking a machine pre-sets the source from its category (bus → direct,
+    // engin → citerne); still overridable by hand.
+    mach.addEventListener('change', function () {
+        var o = mach.options[mach.selectedIndex];
+        if (o && o.dataset.source) src.value = o.dataset.source;
+        apply();
+    });
+    src.addEventListener('change', apply);
+    apply();
+})();
+</script>

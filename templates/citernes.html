@@ -166,6 +166,12 @@
                 <td><span class="muted">—</span></td>
                 <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ '{:,}'.format(m.liters) }} L</td>
                 <td class="col-secondary muted">{{ m.operator or t['conso.own'] }}</td>
+                {% elif m.kind == 'direct' %}
+                <td><span class="mv-chip mv-chip--direct">{{ t['movement.direct'] }}</span></td>
+                <td><span class="muted">{{ t['distribution.client'] }}</span></td>
+                <td>{% if m.vehicle %}<strong>{{ m.vehicle.code }}</strong>{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ '{:,}'.format(m.liters) }} L</td>
+                <td class="col-secondary muted">{{ m.operator or '—' }}</td>
                 {% else %}
                 {% set is_in = m.kind == 'rentree' %}
                 <td><span class="mv-chip {{ 'mv-chip--in' if is_in else 'mv-chip--out' }}">{{ t['movement.rentree'] if is_in else t['movement.distribution'] }}</span></td>
