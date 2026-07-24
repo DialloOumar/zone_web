@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['movement.history'] }}{% endblock %}
+{% block page_title %}{{ t['movement.history'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header card-header--end">
+        <form method="get" class="carbu-filters">
+            <label class="carbu-filter"><span>{{ t['movement.period'] }}</span>
+                <select name="period" onchange="this.form.submit()">
+                    {% for mo in months %}<option value="{{ mo }}" {% if mo == period %}selected{% endif %}>{{ mo }}</option>{% endfor %}
+                    <option value="all" {% if period == 'all' %}selected{% endif %}>{{ t['movement.all_periods'] }}</option>
+                </select>
+            </label>
+            <label class="carbu-filter"><span>{{ t['distribution.citerne'] }}</span>
+                <select name="citerne" onchange="this.form.submit()">
+                    <option value="">{{ t['movement.all_citernes'] }}</option>
+                    {% for c in citernes %}<option value="{{ c.id }}" {% if c.id == fciterne %}selected{% endif %}>{{ c.code }}</option>{% endfor %}
+                </select>
+            </label>
+            <label class="carbu-filter"><span>{{ t['movement.type'] }}</span>
+                <select name="type" onchange="this.form.submit()">
+                    <option value="all">{{ t['movement.all_types'] }}</option>
+                    {% for k in kinds %}<option value="{{ k }}" {% if k == ftype %}selected{% endif %}>{{ t['movement.' + k] }}</option>{% endfor %}
+                </select>
+            </label>
+            <a href="{{ url_for('carburant.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+        </form>
+    </div>
+
+    <div class="mv-totals">
+        <div class="mv-total">
+            <span class="mv-total__val">{{ '{:,}'.format(totals.distribution) }} <small>L</small></span>
+            <span class="mv-total__lbl">{{ t['movement.total_distributed'] }}</span>
+        </div>
+        <div class="mv-total mv-total--client">
+            <span class="mv-total__val">{{ '{:,}'.format(client_total) }} <small>L</small></span>
+            <span class="mv-total__lbl">{{ t['movement.total_client'] }}</span>
+            <span class="mv-total__sub">{{ t['movement.rentree'] }} {{ '{:,}'.format(totals.rentree) }} · {{ t['movement.direct'] }} {{ '{:,}'.format(totals.direct) }} · {{ t['movement.conso'] }} {{ '{:,}'.format(totals.conso) }}</span>
+        </div>
+    </div>
+
+    {% if movements %}
+    {% include "_movement_table.html" %}
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">history</span>
+        <p>{{ t['movement.none'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

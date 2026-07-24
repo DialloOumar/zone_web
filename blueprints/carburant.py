@@ -11,7 +11,7 @@ the same movement table in a later step.
 Helpers (require_perm, current_user_fleet_ids, log_action, get_t, modal helpers)
 come from app.py; this module is imported at the bottom of app.py.
 """
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
@@ -110,6 +110,61 @@ def index():
         recent=recent, show_archived=show_archived, archived_count=archived_count,
         vehicles=_accessible_vehicles(), operators=_accessible_operators(),
         seuil=SEUIL_ECART, today=date.today().isoformat())
+
+
+MOVEMENT_KINDS = ("rentree", "distribution", "direct", "conso", "releve")
+
+
+@carburant_bp.route("/mouvements")
+@login_required
+@require_perm("carburant.view")
+def history():
+    """The filterable fuel ledger — every movement, by period / citerne / type,
+    with the period totals that make months of data usable."""
+    cids = [c.id for c in _scoped_citernes().all()]
+    vids = [v.id for v in _accessible_vehicles()]
+    conds = []
+    if cids:
+        conds.append(db.and_(FuelMovement.citerne_id.in_(cids),
+                             FuelMovement.kind.in_(("rentree", "distribution", "releve", "conso"))))
+    if vids:
+        conds.append(db.and_(FuelMovement.kind == "direct",
+                             FuelMovement.vehicle_id.in_(vids)))
+
+    ftype = request.args.get("type") or "all"
+    fciterne = request.args.get("citerne", type=int)
+    period = request.args.get("period") or date.today().strftime("%Y-%m")
+
+    rows = []
+    if conds:
+        q = FuelMovement.query.filter(db.or_(*conds))
+        if ftype in MOVEMENT_KINDS:
+            q = q.filter(FuelMovement.kind == ftype)
+        if fciterne:
+            q = q.filter(FuelMovement.citerne_id == fciterne)
+        if period != "all":
+            q = q.filter(FuelMovement.date.like(period + "-%"))
+        rows = q.order_by(FuelMovement.date.desc(), FuelMovement.id.desc()).limit(1000).all()
+
+    totals = {"rentree": 0, "distribution": 0, "direct": 0, "conso": 0}
+    for m in rows:
+        if m.kind in totals:
+            totals[m.kind] += m.liters
+    # What the client billed (everything taken at the client) vs what was
+    # dispensed to machines from the citernes.
+    client_total = totals["rentree"] + totals["direct"] + totals["conso"]
+
+    # Period picker: the last 12 months, plus "all".
+    months, d = [], date.today().replace(day=1)
+    for _ in range(12):
+        months.append(d.strftime("%Y-%m"))
+        d = (d - timedelta(days=1)).replace(day=1)
+
+    return render_template(
+        "history.html", movements=rows, totals=totals, client_total=client_total,
+        seuil=SEUIL_ECART, months=months, period=period, ftype=ftype, fciterne=fciterne,
+        kinds=MOVEMENT_KINDS,
+        citernes=_scoped_citernes().order_by(Citerne.code).all())
 
 
 # ── Citerne CRUD ──────────────────────────────────────────────────────────────
