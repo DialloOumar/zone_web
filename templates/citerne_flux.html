@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}{{ citerne.code }}{% endblock %}
+{% block page_title %}{{ t['flux.title'] }} · {{ citerne.code }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header card-header--end">
+        <form method="get" class="carbu-filters">
+            <label class="carbu-filter"><span>{{ t['movement.period'] }}</span>
+                <select name="period" onchange="this.form.submit()">
+                    {% for mo in months %}<option value="{{ mo }}" {% if mo == period %}selected{% endif %}>{{ mo }}</option>{% endfor %}
+                    <option value="all" {% if period == 'all' %}selected{% endif %}>{{ t['movement.all_periods'] }}</option>
+                </select>
+            </label>
+            <a href="{{ url_for('carburant.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+        </form>
+    </div>
+
+    <div class="flux-stage" id="flux">
+        <svg id="flux-pipes"></svg>
+
+        <div class="flux-client" id="flux-client">
+            <span class="material-symbols-outlined" aria-hidden="true">local_gas_station</span>
+            <div class="flux-client__name">{{ t['flux.client'] }}</div>
+            <div class="flux-client__sub">{{ t['flux.taken'] }} <b>{{ '{:,}'.format(rentree_total + conso_total) }}</b> L</div>
+        </div>
+
+        <div class="flux-tank-row">
+            <div class="flux-tank-wrap" id="flux-tank">
+                <svg viewBox="0 0 220 264" role="img" aria-label="{{ t['flux.title'] }} {{ citerne.code }}">
+                    <defs>
+                        <linearGradient id="fluxfuel" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#FBB43C"/><stop offset="1" stop-color="#E07C0A"/>
+                        </linearGradient>
+                        <clipPath id="fluxint"><rect x="32" y="52" width="156" height="174" rx="16"/></clipPath>
+                    </defs>
+                    <rect x="94" y="22" width="32" height="26" rx="6" class="tank-shell"/>
+                    <rect x="90" y="18" width="40" height="10" rx="4" class="tank-cap"/>
+                    <rect x="24" y="44" width="172" height="190" rx="22" class="tank-body"/>
+                    <g clip-path="url(#fluxint)">
+                        <g id="flux-liquid" class="liquid">
+                            <rect x="32" y="52" width="156" height="320" fill="url(#fluxfuel)"/>
+                            <g class="wave" transform="translate(32,52)"><g class="wave-x">
+                                <path d="M-104,0 q26,-9 52,0 t52,0 t52,0 t52,0 t52,0 t52,0 t52,0 V320 H-104 Z" fill="#FCD98A"/>
+                            </g></g>
+                        </g>
+                    </g>
+                    <rect x="24" y="44" width="172" height="190" rx="22" class="tank-outline"/>
+                    <rect x="40" y="60" width="26" height="150" rx="13" class="tank-gloss"/>
+                    <rect x="103" y="232" width="14" height="16" rx="3" class="tank-shell"/>
+                    <rect x="99" y="246" width="22" height="7" rx="3" class="tank-cap"/>
+                </svg>
+            </div>
+            <div class="flux-readout">
+                <div class="flux-name">{{ citerne.name }} · {{ citerne.code }}</div>
+                <div class="flux-stock">{{ '{:,}'.format(citerne.stock) }} <small>/ {{ '{:,}'.format(citerne.capacity_liters) }} L</small></div>
+                <div class="flux-bar"><span id="flux-bar-fill"></span></div>
+                <div class="flux-line">{{ t['flux.distributed'] }} : <b>{{ '{:,}'.format(distributed_total) }}</b> L</div>
+                {% if conso_total %}
+                <div class="flux-engine"><span class="material-symbols-outlined" aria-hidden="true">directions_bus</span>
+                    {{ t['flux.conso'] }} : <b>{{ '{:,}'.format(conso_total) }}</b> L</div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if machines %}
+        <div class="flux-machines" id="flux-machines">
+            {% for v, liters in machines %}
+            <div class="flux-machine" data-liters="{{ liters }}">
+                <div class="flux-machine__head">
+                    <span class="material-symbols-outlined" aria-hidden="true">directions_bus</span>
+                    <div>
+                        <div class="flux-machine__code">{{ v.code }}</div>
+                        <div class="flux-machine__cat">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</div>
+                    </div>
+                </div>
+                <div class="flux-machine__litres"><b>{{ '{:,}'.format(liters) }}</b> L</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="flux-empty muted">{{ t['flux.no_machines'] }}</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var stage = document.getElementById('flux');
+    if (!stage) return;
+    var svg = document.getElementById('flux-pipes'),
+        client = document.getElementById('flux-client'),
+        tank = document.getElementById('flux-tank'),
+        liquid = document.getElementById('flux-liquid'),
+        bar = document.getElementById('flux-bar-fill'),
+        machines = Array.prototype.slice.call(document.querySelectorAll('.flux-machine')),
+        SVGNS = 'http://www.w3.org/2000/svg', IH = 174,
+        fill = Math.max(0, Math.min(1, {{ fill_pct }} / 100)),
+        rentree = {{ rentree_total }};
+
+    if (liquid) liquid.style.transform = 'translateY(' + ((1 - fill) * IH) + 'px)';
+    if (bar) requestAnimationFrame(function () { bar.style.width = (fill * 100) + '%'; });
+
+    var badges = [];
+    function path(d, cls) {
+        var p = document.createElementNS(SVGNS, 'path');
+        p.setAttribute('d', d); p.setAttribute('class', cls); svg.appendChild(p);
+    }
+    function bez(sx, sy, tx, ty) {
+        var k = Math.max(36, (ty - sy) * 0.55);
+        return ['M' + sx + ',' + sy + ' C' + sx + ',' + (sy + k) + ' ' + tx + ',' + (ty - k) + ' ' + tx + ',' + ty,
+                [0.5 * (sx + tx), 0.125 * sy + 0.375 * (sy + k) + 0.375 * (ty - k) + 0.125 * ty]];
+    }
+    function badge(pt, text, src) {
+        var b = document.createElement('div');
+        b.className = 'flux-badge' + (src ? ' flux-badge--src' : '');
+        b.textContent = text; b.style.left = pt[0] + 'px'; b.style.top = pt[1] + 'px';
+        stage.appendChild(b); badges.push(b);
+    }
+    function ctr(el, sr) {
+        var r = el.getBoundingClientRect();
+        return [r.left - sr.left + r.width / 2, r.top - sr.top];
+    }
+    function draw() {
+        var sr = stage.getBoundingClientRect();
+        svg.setAttribute('viewBox', '0 0 ' + sr.width + ' ' + sr.height);
+        svg.innerHTML = ''; badges.forEach(function (b) { b.remove(); }); badges = [];
+        var cr = client.getBoundingClientRect(),
+            cx = cr.left - sr.left + cr.width / 2, cy = cr.bottom - sr.top - 2;
+        var tr = tank.getBoundingClientRect(),
+            ttx = tr.left - sr.left + tr.width / 2, tty = tr.top - sr.top + 8,
+            tby = tr.bottom - sr.top - 6;
+        var rc = bez(cx, cy, ttx, tty);
+        path(rc[0], 'pipe-bg'); path(rc[0], 'pipe-flow pipe-flow--src');
+        if (rentree > 0) badge(rc[1], '+' + rentree.toLocaleString('fr-FR') + ' L', true);
+        machines.forEach(function (card) {
+            var t = ctr(card, sr), r = bez(ttx, tby, t[0], t[1]);
+            path(r[0], 'pipe-bg'); path(r[0], 'pipe-flow');
+            badge(r[1], (+card.dataset.liters).toLocaleString('fr-FR') + ' L', false);
+        });
+    }
+    window.addEventListener('resize', draw);
+    window.addEventListener('load', draw); draw(); setTimeout(draw, 300);
+})();
+</script>
+{% endblock %}

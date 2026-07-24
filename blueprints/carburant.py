@@ -115,6 +115,50 @@ def index():
 MOVEMENT_KINDS = ("rentree", "distribution", "direct", "conso", "releve")
 
 
+def _last_12_months():
+    months, d = [], date.today().replace(day=1)
+    for _ in range(12):
+        months.append(d.strftime("%Y-%m"))
+        d = (d - timedelta(days=1)).replace(day=1)
+    return months
+
+
+@carburant_bp.route("/citernes/<int:cid>/vue")
+@login_required
+@require_perm("carburant.view")
+def citerne_flux(cid):
+    """The animated flow of one citerne for a period: the client fills it
+    (rentrée), it burns a little for itself (conso), and it dispenses to the
+    machines — the tank level and every figure are the real aggregates."""
+    c = _get_citerne_or_404(cid)
+    period = request.args.get("period") or date.today().strftime("%Y-%m")
+
+    q = FuelMovement.query.filter_by(citerne_id=cid)
+    if period != "all":
+        q = q.filter(FuelMovement.date.like(period + "-%"))
+
+    per_vehicle = {}          # vehicle_id -> [vehicle, litres]
+    rentree_total = conso_total = distributed_total = 0
+    for m in q.all():
+        if m.kind == "distribution":
+            distributed_total += m.liters
+            if m.vehicle:
+                row = per_vehicle.setdefault(m.vehicle_id, [m.vehicle, 0])
+                row[1] += m.liters
+        elif m.kind == "rentree":
+            rentree_total += m.liters
+        elif m.kind == "conso":
+            conso_total += m.liters
+
+    machines = sorted(per_vehicle.values(), key=lambda r: -r[1])
+    fill_pct = round(c.stock / c.capacity_liters * 100, 1) if c.capacity_liters else 0
+
+    return render_template(
+        "citerne_flux.html", citerne=c, machines=machines, fill_pct=fill_pct,
+        rentree_total=rentree_total, conso_total=conso_total,
+        distributed_total=distributed_total, period=period, months=_last_12_months())
+
+
 @carburant_bp.route("/mouvements")
 @login_required
 @require_perm("carburant.view")
@@ -154,16 +198,10 @@ def history():
     # dispensed to machines from the citernes.
     client_total = totals["rentree"] + totals["direct"] + totals["conso"]
 
-    # Period picker: the last 12 months, plus "all".
-    months, d = [], date.today().replace(day=1)
-    for _ in range(12):
-        months.append(d.strftime("%Y-%m"))
-        d = (d - timedelta(days=1)).replace(day=1)
-
     return render_template(
         "history.html", movements=rows, totals=totals, client_total=client_total,
-        seuil=SEUIL_ECART, months=months, period=period, ftype=ftype, fciterne=fciterne,
-        kinds=MOVEMENT_KINDS,
+        seuil=SEUIL_ECART, months=_last_12_months(), period=period, ftype=ftype,
+        fciterne=fciterne, kinds=MOVEMENT_KINDS,
         citernes=_scoped_citernes().order_by(Citerne.code).all())
 
 
