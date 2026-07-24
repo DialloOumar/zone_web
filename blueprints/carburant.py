@@ -399,7 +399,8 @@ def _render_distribution_form(error=None):
         citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
                   .order_by(Citerne.code).all()),
         vehicles=_accessible_vehicles(), operators=_accessible_operators(),
-        today=date.today().isoformat()), status
+        today=date.today().isoformat(),
+        preset_citerne=request.args.get("citerne", type=int)), status
 
 
 @carburant_bp.route("/distributions/new", methods=["GET", "POST"])
@@ -462,7 +463,8 @@ def _render_rentree_form(error=None):
         tpl, error=error,
         citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
                   .order_by(Citerne.code).all()),
-        today=date.today().isoformat()), status
+        today=date.today().isoformat(),
+        preset_citerne=request.args.get("citerne", type=int)), status
 
 
 @carburant_bp.route("/rentrees/new", methods=["GET", "POST"])
@@ -517,7 +519,8 @@ def _render_releve_form(error=None):
         tpl, error=error,
         citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
                   .order_by(Citerne.code).all()),
-        today=date.today().isoformat()), status
+        today=date.today().isoformat(),
+        preset_citerne=request.args.get("citerne", type=int)), status
 
 
 @carburant_bp.route("/releves/new", methods=["GET", "POST"])
@@ -580,7 +583,8 @@ def _render_conso_form(error=None):
         tpl, error=error,
         citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
                   .order_by(Citerne.code).all()),
-        operators=_accessible_operators(), today=date.today().isoformat()), status
+        operators=_accessible_operators(), today=date.today().isoformat(),
+        preset_citerne=request.args.get("citerne", type=int)), status
 
 
 @carburant_bp.route("/conso/new", methods=["GET", "POST"])

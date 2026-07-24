@@ -6,7 +6,7 @@
         <div class="field field--select">
             <select id="citerne_id" name="citerne_id" required>
                 <option value="" hidden></option>
-                {% set sel_c = request.form.get('citerne_id')|int(0) %}
+                {% set sel_c = request.form.get('citerne_id')|int(0) or preset_citerne %}
                 {% for c in citernes %}
                 <option value="{{ c.id }}" {% if c.id == sel_c %}selected{% endif %}>{{ c.code }} — {{ '{:,}'.format(c.stock) }} / {{ '{:,}'.format(c.capacity_liters) }} L</option>
                 {% endfor %}
