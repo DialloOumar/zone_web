@@ -96,7 +96,7 @@ def index():
     if cids:
         recent = (FuelMovement.query
                   .filter(FuelMovement.citerne_id.in_(cids),
-                          FuelMovement.kind.in_(("rentree", "distribution", "releve")))
+                          FuelMovement.kind.in_(("rentree", "distribution", "releve", "conso")))
                   .order_by(FuelMovement.date.desc(), FuelMovement.id.desc())
                   .limit(50).all())
     return render_template(
@@ -423,7 +423,62 @@ def releve_new():
     return _render_releve_form()
 
 
-# ── Delete a movement (rentrée / distribution / relevé) ───────────────────────
+# ── Conso propre (the citerne takes fuel at the client, for its own engine) ──
+
+
+def _read_conso_form():
+    t = get_t()
+    date_str = (request.form.get("date") or "").strip()
+    if not _valid_date(date_str):
+        return None, t.get("conso.err.date", "Date invalide.")
+
+    c = db.session.get(Citerne, request.form.get("citerne_id", type=int) or 0)
+    if not c or not c.is_active:
+        return None, t.get("conso.err.citerne", "Choisissez une citerne active.")
+    fids = current_user_fleet_ids()
+    if fids is not None and c.fleet_id not in fids:
+        return None, t.get("error.forbidden", "Action non autorisée.")
+
+    liters = request.form.get("liters", type=int)
+    if not liters or liters <= 0:
+        return None, t.get("conso.err.liters", "Litres invalides.")
+
+    return dict(citerne_id=c.id, date=date_str, liters=liters,
+                operator=(request.form.get("operator") or "").strip() or None), None
+
+
+def _render_conso_form(error=None):
+    tpl = "_conso_form.html" if is_modal_request() else "conso_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(
+        tpl, error=error,
+        citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
+                  .order_by(Citerne.code).all()),
+        operators=_accessible_operators(), today=date.today().isoformat()), status
+
+
+@carburant_bp.route("/conso/new", methods=["GET", "POST"])
+@login_required
+@require_perm("carburant.create")
+def conso_new():
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_conso_form()
+        if error:
+            return _render_conso_form(error)
+        c = db.session.get(Citerne, data["citerne_id"])
+        mv = FuelMovement(kind="conso", created_by=current_user.id, **data)
+        db.session.add(mv)
+        db.session.flush()
+        log_action("CREATE", "fuel_movement", resource_id=mv.id, fleet_id=c.fleet_id,
+                   detail=f"Conso propre {mv.liters} L for '{c.code}'")
+        db.session.commit()
+        flash("success|" + t.get("conso.created", "Consommation propre enregistrée."))
+        return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
+    return _render_conso_form()
+
+
+# ── Delete a movement (rentrée / distribution / relevé / conso) ───────────────
 
 
 @carburant_bp.route("/movements/<int:mid>/delete", methods=["POST"])
@@ -431,7 +486,7 @@ def releve_new():
 @require_perm("carburant.create")
 def movement_delete(mid):
     mv = db.session.get(FuelMovement, mid)
-    if not mv or mv.kind not in ("rentree", "distribution", "releve"):
+    if not mv or mv.kind not in ("rentree", "distribution", "releve", "conso"):
         abort(404)
     c = db.session.get(Citerne, mv.citerne_id)
     fids = current_user_fleet_ids()

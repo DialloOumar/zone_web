@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['conso.new'] }}{% endblock %}
+{% block page_title %}{{ t['conso.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px;">
+    {% include "_conso_form.html" %}
+</section>
+{% endblock %}

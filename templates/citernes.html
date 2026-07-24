@@ -25,6 +25,10 @@
                data-modal-url="{{ url_for('carburant.releve_new') }}" data-modal-title="{{ t['releve.new'] }}">
                 <span class="material-symbols-outlined">donut_large</span> {{ t['releve.new'] }}
             </a>
+            <a href="{{ url_for('carburant.conso_new') }}" class="btn btn--tonal"
+               data-modal-url="{{ url_for('carburant.conso_new') }}" data-modal-title="{{ t['conso.new'] }}">
+                <span class="material-symbols-outlined">directions_bus</span> {{ t['conso.new'] }}
+            </a>
             {% endif %}
             {% if has_perm('carburant.manage') %}
             <a href="{{ url_for('carburant.citerne_new') }}" class="fab"
@@ -156,6 +160,12 @@
                     {% else %}<span class="{{ 'ecart-bad' if bad else 'muted' }}">{{ '{:,}'.format(-ec) }} L {{ t['releve.surplus'] }}</span>{% endif %}
                     {% if bad %} <span class="material-symbols-outlined ecart-bad" style="font-size:16px; vertical-align:-3px;">warning</span>{% endif %}
                 </td>
+                {% elif m.kind == 'conso' %}
+                <td><span class="mv-chip mv-chip--conso">{{ t['movement.conso'] }}</span></td>
+                <td>{{ m.citerne.code }}</td>
+                <td><span class="muted">—</span></td>
+                <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ '{:,}'.format(m.liters) }} L</td>
+                <td class="col-secondary muted">{{ m.operator or t['conso.own'] }}</td>
                 {% else %}
                 {% set is_in = m.kind == 'rentree' %}
                 <td><span class="mv-chip {{ 'mv-chip--in' if is_in else 'mv-chip--out' }}">{{ t['movement.rentree'] if is_in else t['movement.distribution'] }}</span></td>
