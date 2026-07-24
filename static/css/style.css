@@ -793,6 +793,17 @@ a:hover { text-decoration: underline; }
 }
 .expense-total strong { font-size: 1.15rem; color: var(--md-on-surface); }
 
+/* Citerne stock level bar */
+.stock-bar {
+    height: 6px; border-radius: 99px; overflow: hidden; margin-top: 5px;
+    max-width: 170px; margin-left: auto; background: var(--md-outline-variant);
+}
+.list-card .stock-bar { max-width: none; margin: 6px 0; }
+.stock-bar span {
+    display: block; height: 100%; border-radius: 99px;
+    background: var(--md-primary); transition: width 0.3s;
+}
+
 /* ── Roster (daily pointage sheet) ── */
 .roster-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
 .roster-nav-btn {

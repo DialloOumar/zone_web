@@ -505,6 +505,7 @@ def _home_url():
         ("vehicle.view", "vehicles.index"),
         ("entry.view", "entries.roster_index"),
         ("operator.view", "operators.index"),
+        ("carburant.view", "carburant.index"),
         ("expense.view", "expenses.index"),
         ("insights.view", "insights.index"),
         ("invoicing.view", "invoicing.index"),
@@ -549,6 +550,8 @@ def _onboarding_steps():
     # Phase 2 — daily operations
     if has_perm("entry.create"):
         add("fact_check", "entry", "entries.roster_index")
+    if has_perm("carburant.create"):
+        add("local_gas_station", "carburant", "carburant.index")
     if has_perm("expense.create"):
         add("payments", "expense", "expenses.index")
     if has_perm("maintenance_record.create"):
@@ -793,6 +796,10 @@ PERMISSIONS_CATALOG = [
     ("expense.create", "Log expense",     "Expenses", "expense", "create"),
     ("expense.edit",   "Edit expense",    "Expenses", "expense", "edit"),
     ("expense.delete", "Delete expense",  "Expenses", "expense", "delete"),
+    # Carburant (fuel tankers / distribution)
+    ("carburant.view",   "View fuel & citernes",    "Carburant", "carburant", "view"),
+    ("carburant.create", "Log a fuel distribution", "Carburant", "carburant", "create"),
+    ("carburant.manage", "Manage citernes",         "Carburant", "carburant", "manage"),
     # Insights (analyse)
     ("insights.view", "View insights", "Insights", "insights", "view"),
     # Reports
@@ -848,6 +855,7 @@ SYSTEM_ROLES = {
         "maintenance_rule.view", "maintenance_rule.create", "maintenance_rule.edit", "maintenance_rule.delete",
         "alert.view", "alert.resolve", "alert.dismiss",
         "expense.view", "expense.create", "expense.edit", "expense.delete",
+        "carburant.view", "carburant.create", "carburant.manage",
         "insights.view", "report.view", "report.export_pdf",
         "invoicing.view",
     ]),
@@ -1496,6 +1504,7 @@ def wipe_demo_cmd(yes):
 from blueprints.admin import admin_bp  # noqa: E402
 from blueprints.entries import entries_bp  # noqa: E402
 from blueprints.expenses import expenses_bp  # noqa: E402
+from blueprints.carburant import carburant_bp  # noqa: E402
 from blueprints.maintenance import maintenance_bp  # noqa: E402
 from blueprints.operators import operators_bp  # noqa: E402
 from blueprints.vehicles import vehicles_bp  # noqa: E402
@@ -1508,6 +1517,7 @@ app.register_blueprint(vehicles_bp)
 app.register_blueprint(operators_bp)
 app.register_blueprint(entries_bp)
 app.register_blueprint(expenses_bp)
+app.register_blueprint(carburant_bp)
 app.register_blueprint(maintenance_bp)
 app.register_blueprint(approvals_bp)
 app.register_blueprint(insights_bp)

@@ -484,6 +484,76 @@ class AuditLog(db.Model):
     ip_address    = db.Column(db.String(45),  nullable=True)
 
 
+# ── Fuel — citernes & movements ───────────────────────────────────────────────
+
+
+class Citerne(db.Model):
+    """A ZONE fuel tanker (citerne à carburant): a mobile reservoir that fills
+    up at the client, parks, and dispenses fuel to the engins. Its live stock
+    is computed from its movements (never stored), so there is one source of
+    truth. Soft-deleted via is_active; only active citernes appear in the
+    daily fuel saisie.
+    """
+    __tablename__ = "citernes"
+    __table_args__ = (db.UniqueConstraint("code", name="uq_citernes_code"),)
+
+    id              = db.Column(db.Integer,     primary_key=True)
+    code            = db.Column(db.String(30),  nullable=False)               # e.g. CIT-GO
+    name            = db.Column(db.String(120), nullable=False)
+    capacity_liters = db.Column(db.Integer,     nullable=False)
+    fleet_id        = db.Column(db.Integer,     db.ForeignKey("fleets.id"), nullable=False)
+    is_active       = db.Column(db.Boolean,     nullable=False, default=True)  # soft delete = archive
+    created_at      = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+    created_by      = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+
+    fleet     = db.relationship("Fleet")
+    movements = db.relationship("FuelMovement", back_populates="citerne",
+                                cascade="all, delete-orphan")
+
+    @property
+    def stock(self):
+        """Litres currently in the tank = opening + rentrées − distributions,
+        computed from the movement log."""
+        total = 0
+        for m in self.movements:
+            total += m.liters if m.kind in ("initial", "rentree") else -m.liters
+        return total
+
+    @property
+    def opening_stock(self):
+        """The opening balance (the 'initial' movement), what the citerne form
+        edits — distinct from `stock`, which distributions have since reduced."""
+        for m in self.movements:
+            if m.kind == "initial":
+                return m.liters
+        return 0
+
+
+class FuelMovement(db.Model):
+    """One dated fuel movement of a citerne. `liters` is always positive; the
+    sign is carried by `kind`:
+        initial       — opening stock, set when the citerne is created (+)
+        distribution  — an engin drew fuel from the citerne (−)
+    (rentree / conso / releve arrive in a later step; the column already
+    allows them so no migration is needed then.)
+    """
+    __tablename__ = "fuel_movements"
+
+    id          = db.Column(db.Integer,     primary_key=True)
+    citerne_id  = db.Column(db.Integer,     db.ForeignKey("citernes.id"), nullable=False)
+    kind        = db.Column(db.String(20),  nullable=False)                  # initial | distribution
+    date        = db.Column(db.String(10),  nullable=False)                  # YYYY-MM-DD
+    liters      = db.Column(db.Integer,     nullable=False)                  # positive; sign from kind
+    vehicle_id  = db.Column(db.Integer,     db.ForeignKey("vehicles.id"), nullable=True)  # the machine, for distributions
+    operator    = db.Column(db.String(120), nullable=True)                  # driver who took the fuel
+    note        = db.Column(db.String(255), nullable=True)
+    created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    citerne = db.relationship("Citerne", back_populates="movements")
+    vehicle = db.relationship("Vehicle")
+
+
 # ── Config & system ───────────────────────────────────────────────────────────
 
 

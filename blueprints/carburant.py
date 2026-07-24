@@ -1,0 +1,316 @@
+"""Carburant blueprint — fuel tankers (citernes) and their daily movements.
+
+First slice of the fuel rework:
+  • create / activate / archive citernes (their own reservoir with a capacity);
+  • log a distribution — an engin draws fuel from a citerne on a given day.
+
+Stock is computed from FuelMovement (never stored), so a distribution simply
+appends a movement and the tank level follows. Rentrées / conso / relevés reuse
+the same movement table in a later step.
+
+Helpers (require_perm, current_user_fleet_ids, log_action, get_t, modal helpers)
+come from app.py; this module is imported at the bottom of app.py.
+"""
+from datetime import date, datetime
+
+from flask import (Blueprint, abort, flash, redirect, render_template,
+                   request, url_for)
+from flask_login import current_user, login_required
+
+from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
+                 modal_ok, require_perm)
+from models import Citerne, Fleet, FuelMovement, Operator, Vehicle, db
+
+carburant_bp = Blueprint("carburant", __name__, url_prefix="/carburant")
+
+
+def _valid_date(s):
+    try:
+        datetime.strptime(s, "%Y-%m-%d")
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _accessible_fleets():
+    fids = current_user_fleet_ids()
+    q = Fleet.query.filter(Fleet.is_active.is_(True)).order_by(Fleet.name)
+    if fids is not None:
+        q = q.filter(Fleet.id.in_(fids))
+    return q.all()
+
+
+def _scoped_citernes():
+    q = Citerne.query
+    fids = current_user_fleet_ids()
+    if fids is not None:
+        q = q.filter(Citerne.fleet_id.in_(fids))
+    return q
+
+
+def _get_citerne_or_404(cid):
+    c = db.session.get(Citerne, cid)
+    if not c:
+        abort(404)
+    fids = current_user_fleet_ids()
+    if fids is not None and c.fleet_id not in fids:
+        abort(403)
+    return c
+
+
+def _accessible_vehicles():
+    q = Vehicle.query.filter(Vehicle.is_active.is_(True))
+    fids = current_user_fleet_ids()
+    if fids is not None:
+        q = q.filter(Vehicle.fleet_id.in_(fids))
+    return q.order_by(Vehicle.code).all()
+
+
+def _accessible_operators():
+    q = Operator.query.filter(Operator.is_active.is_(True))
+    fids = current_user_fleet_ids()
+    if fids is not None:
+        q = q.filter(Operator.fleet_id.in_(fids))
+    return q.order_by(Operator.name).all()
+
+
+# ── Overview ──────────────────────────────────────────────────────────────────
+
+
+@carburant_bp.route("/citernes")
+@login_required
+@require_perm("carburant.view")
+def index():
+    show_archived = request.args.get("archived") == "1"
+    rows = (_scoped_citernes().filter(Citerne.is_active.is_(not show_archived))
+            .order_by(Citerne.code).all())
+    archived_count = _scoped_citernes().filter(Citerne.is_active.is_(False)).count()
+    active_citernes = (_scoped_citernes().filter(Citerne.is_active.is_(True))
+                       .order_by(Citerne.code).all())
+    cids = [c.id for c in _scoped_citernes().all()]
+    recent = []
+    if cids:
+        recent = (FuelMovement.query
+                  .filter(FuelMovement.citerne_id.in_(cids),
+                          FuelMovement.kind == "distribution")
+                  .order_by(FuelMovement.date.desc(), FuelMovement.id.desc())
+                  .limit(50).all())
+    return render_template(
+        "citernes.html", citernes=rows, active_citernes=active_citernes,
+        recent=recent, show_archived=show_archived, archived_count=archived_count,
+        vehicles=_accessible_vehicles(), operators=_accessible_operators(),
+        today=date.today().isoformat())
+
+
+# ── Citerne CRUD ──────────────────────────────────────────────────────────────
+
+
+def _read_citerne_form(citerne):
+    t = get_t()
+    code = (request.form.get("code") or "").strip()
+    name = (request.form.get("name") or "").strip()
+    cap = request.form.get("capacity_liters", type=int)
+    fleet_id = request.form.get("fleet_id", type=int)
+    initial = request.form.get("initial_liters", type=int) or 0
+
+    if not code:
+        return None, t.get("citerne.err.code", "Le code est obligatoire.")
+    if not name:
+        return None, t.get("citerne.err.name", "Le nom est obligatoire.")
+    if not cap or cap <= 0:
+        return None, t.get("citerne.err.capacity", "La capacité doit être positive.")
+    if not fleet_id:
+        return None, t.get("citerne.err.fleet", "La flotte est obligatoire.")
+    fids = current_user_fleet_ids()
+    if (fids is not None and fleet_id not in fids) or not db.session.get(Fleet, fleet_id):
+        return None, t.get("citerne.err.fleet", "La flotte est obligatoire.")
+    if initial < 0:
+        initial = 0
+    if initial > cap:
+        return None, t.get("citerne.err.over_capacity", "Le stock dépasse la capacité.")
+
+    clash = Citerne.query.filter(db.func.lower(Citerne.code) == code.lower())
+    if citerne:
+        clash = clash.filter(Citerne.id != citerne.id)
+    if clash.first():
+        return None, t.get("citerne.err.code_taken", "Ce code est déjà utilisé.")
+
+    return dict(code=code, name=name, capacity_liters=cap, fleet_id=fleet_id,
+                initial=initial), None
+
+
+def _set_initial_stock(citerne, liters, today):
+    """The citerne's opening stock is a single 'initial' movement, so editing
+    it just adjusts (or removes) that one row."""
+    mv = next((m for m in citerne.movements if m.kind == "initial"), None)
+    if liters > 0:
+        if mv:
+            mv.liters = liters
+        else:
+            db.session.add(FuelMovement(
+                citerne_id=citerne.id, kind="initial", date=today,
+                liters=liters, created_by=current_user.id))
+    elif mv:
+        db.session.delete(mv)
+
+
+def _render_citerne_form(citerne, error=None):
+    tpl = "_citerne_form.html" if is_modal_request() else "citerne_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, citerne=citerne, error=error,
+                           fleets=_accessible_fleets()), status
+
+
+@carburant_bp.route("/citernes/new", methods=["GET", "POST"])
+@login_required
+@require_perm("carburant.manage")
+def citerne_new():
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_citerne_form(None)
+        if error:
+            return _render_citerne_form(None, error)
+        initial = data.pop("initial")
+        c = Citerne(created_by=current_user.id, **data)
+        db.session.add(c)
+        db.session.flush()
+        _set_initial_stock(c, initial, date.today().isoformat())
+        log_action("CREATE", "citerne", resource_id=c.id, fleet_id=c.fleet_id,
+                   detail=f"Created citerne '{c.code}'")
+        db.session.commit()
+        flash("success|" + t.get("citerne.created", "Citerne créée."))
+        return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
+    return _render_citerne_form(None)
+
+
+@carburant_bp.route("/citernes/<int:cid>/edit", methods=["GET", "POST"])
+@login_required
+@require_perm("carburant.manage")
+def citerne_edit(cid):
+    citerne = _get_citerne_or_404(cid)
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_citerne_form(citerne)
+        if error:
+            return _render_citerne_form(citerne, error)
+        initial = data.pop("initial")
+        for k, v in data.items():
+            setattr(citerne, k, v)
+        _set_initial_stock(citerne, initial, date.today().isoformat())
+        log_action("UPDATE", "citerne", resource_id=citerne.id, fleet_id=citerne.fleet_id,
+                   detail=f"Updated citerne '{citerne.code}'")
+        db.session.commit()
+        flash("success|" + t.get("citerne.updated", "Citerne mise à jour."))
+        return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
+    return _render_citerne_form(citerne)
+
+
+@carburant_bp.route("/citernes/<int:cid>/archive", methods=["POST"])
+@login_required
+@require_perm("carburant.manage")
+def citerne_archive(cid):
+    citerne = _get_citerne_or_404(cid)
+    citerne.is_active = False
+    log_action("ARCHIVE", "citerne", resource_id=cid, fleet_id=citerne.fleet_id,
+               detail=f"Archived citerne '{citerne.code}'")
+    db.session.commit()
+    flash("success|" + get_t().get("citerne.archived", "Citerne archivée."))
+    return redirect(url_for("carburant.index"))
+
+
+@carburant_bp.route("/citernes/<int:cid>/reactivate", methods=["POST"])
+@login_required
+@require_perm("carburant.manage")
+def citerne_reactivate(cid):
+    citerne = _get_citerne_or_404(cid)
+    citerne.is_active = True
+    log_action("REACTIVATE", "citerne", resource_id=cid, fleet_id=citerne.fleet_id,
+               detail=f"Reactivated citerne '{citerne.code}'")
+    db.session.commit()
+    flash("success|" + get_t().get("citerne.reactivated", "Citerne réactivée."))
+    return redirect(url_for("carburant.index", archived=1))
+
+
+# ── Distribution (an engin draws fuel from a citerne) ─────────────────────────
+
+
+def _read_distribution_form():
+    t = get_t()
+    date_str = (request.form.get("date") or "").strip()
+    if not _valid_date(date_str):
+        return None, t.get("distribution.err.date", "Date invalide.")
+
+    c = db.session.get(Citerne, request.form.get("citerne_id", type=int) or 0)
+    if not c or not c.is_active:
+        return None, t.get("distribution.err.citerne", "Choisissez une citerne active.")
+    fids = current_user_fleet_ids()
+    if fids is not None and c.fleet_id not in fids:
+        return None, t.get("error.forbidden", "Action non autorisée.")
+
+    v = db.session.get(Vehicle, request.form.get("vehicle_id", type=int) or 0)
+    if not v:
+        return None, t.get("distribution.err.vehicle", "Choisissez une machine.")
+    if v.fleet_id != c.fleet_id:
+        return None, t.get("distribution.err.fleet_mismatch",
+                           "La machine et la citerne doivent être de la même flotte.")
+
+    liters = request.form.get("liters", type=int)
+    if not liters or liters <= 0:
+        return None, t.get("distribution.err.liters", "Litres invalides.")
+    if liters > c.stock:
+        return None, t.get("distribution.err.stock",
+                           "Stock insuffisant dans la citerne (%d L disponibles)." % c.stock)
+
+    return dict(citerne_id=c.id, vehicle_id=v.id, date=date_str, liters=liters,
+                operator=(request.form.get("operator") or "").strip() or None), None
+
+
+def _render_distribution_form(error=None):
+    tpl = "_distribution_form.html" if is_modal_request() else "distribution_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(
+        tpl, error=error,
+        citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
+                  .order_by(Citerne.code).all()),
+        vehicles=_accessible_vehicles(), operators=_accessible_operators(),
+        today=date.today().isoformat()), status
+
+
+@carburant_bp.route("/distributions/new", methods=["GET", "POST"])
+@login_required
+@require_perm("carburant.create")
+def distribution_new():
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_distribution_form()
+        if error:
+            return _render_distribution_form(error)
+        c = db.session.get(Citerne, data["citerne_id"])
+        mv = FuelMovement(kind="distribution", created_by=current_user.id, **data)
+        db.session.add(mv)
+        db.session.flush()
+        log_action("CREATE", "fuel_movement", resource_id=mv.id, fleet_id=c.fleet_id,
+                   detail=f"Distribution {mv.liters} L from '{c.code}'")
+        db.session.commit()
+        flash("success|" + t.get("distribution.created", "Prise de carburant enregistrée."))
+        return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
+    return _render_distribution_form()
+
+
+@carburant_bp.route("/distributions/<int:mid>/delete", methods=["POST"])
+@login_required
+@require_perm("carburant.create")
+def distribution_delete(mid):
+    mv = db.session.get(FuelMovement, mid)
+    if not mv or mv.kind != "distribution":
+        abort(404)
+    c = db.session.get(Citerne, mv.citerne_id)
+    fids = current_user_fleet_ids()
+    if fids is not None and c and c.fleet_id not in fids:
+        abort(403)
+    db.session.delete(mv)
+    log_action("DELETE", "fuel_movement", resource_id=mid,
+               fleet_id=(c.fleet_id if c else None), detail="Deleted distribution")
+    db.session.commit()
+    flash("success|" + get_t().get("distribution.deleted", "Prise supprimée."))
+    return redirect(request.referrer or url_for("carburant.index"))

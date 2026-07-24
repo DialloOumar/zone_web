@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.fuel'] }}{% endblock %}
+{% block page_title %}{{ t['nav.fuel'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header card-header--end">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+            {% if show_archived %}
+            <a href="{{ url_for('carburant.index') }}" class="btn btn--sm btn--outlined">{{ t['archive.show_active'] }}</a>
+            {% elif archived_count %}
+            <a href="{{ url_for('carburant.index', archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
+            {% endif %}
+            {% if has_perm('carburant.create') and active_citernes %}
+            <a href="{{ url_for('carburant.distribution_new') }}" class="btn btn--tonal"
+               data-modal-url="{{ url_for('carburant.distribution_new') }}" data-modal-title="{{ t['distribution.new'] }}">
+                <span class="material-symbols-outlined">local_gas_station</span> {{ t['distribution.new'] }}
+            </a>
+            {% endif %}
+            {% if has_perm('carburant.manage') %}
+            <a href="{{ url_for('carburant.citerne_new') }}" class="fab"
+               data-modal-url="{{ url_for('carburant.citerne_new') }}" data-modal-title="{{ t['citerne.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['citerne.new'] }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if citernes %}
+    <div class="table-desktop">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['citerne.code'] }}</th>
+                <th>{{ t['citerne.fleet'] }}</th>
+                <th style="text-align:right;">{{ t['citerne.stock'] }}</th>
+                <th class="col-secondary">{{ t['citerne.capacity'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in citernes %}
+            {% set pct = (c.stock / c.capacity_liters * 100) if c.capacity_liters else 0 %}
+            <tr>
+                <td><strong>{{ c.code }}</strong><div class="muted small">{{ c.name }}</div></td>
+                <td>{{ c.fleet.name }}</td>
+                <td style="text-align:right; white-space:nowrap;">
+                    <strong>{{ '{:,}'.format(c.stock) }}</strong> <span class="muted small">L</span>
+                    <div class="stock-bar"><span style="width:{{ [pct, 100]|min }}%;"></span></div>
+                </td>
+                <td class="col-secondary">{{ '{:,}'.format(c.capacity_liters) }} L</td>
+                <td class="row-actions">
+                    {% if has_perm('carburant.manage') %}
+                    <a href="{{ url_for('carburant.citerne_edit', cid=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('carburant.citerne_edit', cid=c.id) }}" data-modal-title="{{ t['citerne.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% if c.is_active %}
+                    <form method="post" action="{{ url_for('carburant.citerne_archive', cid=c.id) }}"
+                          data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('carburant.citerne_reactivate', cid=c.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    <div class="list-cards">
+        {% for c in citernes %}
+        {% set pct = (c.stock / c.capacity_liters * 100) if c.capacity_liters else 0 %}
+        <div class="list-card">
+            <div class="list-card__top">
+                <strong>{{ c.code }}</strong>
+                <span class="list-card__amount">{{ '{:,}'.format(c.stock) }} <span class="muted small">/ {{ '{:,}'.format(c.capacity_liters) }} L</span></span>
+            </div>
+            <div class="stock-bar"><span style="width:{{ [pct, 100]|min }}%;"></span></div>
+            <div class="list-card__meta"><span class="muted small">{{ c.name }} · {{ c.fleet.name }}</span></div>
+            {% if has_perm('carburant.manage') %}
+            <div class="list-card__actions">
+                <a href="{{ url_for('carburant.citerne_edit', cid=c.id) }}" class="btn btn--sm btn--tonal"
+                   data-modal-url="{{ url_for('carburant.citerne_edit', cid=c.id) }}" data-modal-title="{{ t['citerne.edit'] }}">{{ t['btn.edit'] }}</a>
+                {% if c.is_active %}
+                <form method="post" action="{{ url_for('carburant.citerne_archive', cid=c.id) }}"
+                      data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="flex:1;">
+                    <button type="submit" class="btn btn--sm btn--tonal" style="width:100%;">{{ t['btn.archive'] }}</button>
+                </form>
+                {% else %}
+                <form method="post" action="{{ url_for('carburant.citerne_reactivate', cid=c.id) }}" style="flex:1;">
+                    <button type="submit" class="btn btn--sm btn--primary" style="width:100%;">{{ t['btn.reactivate'] }}</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">propane_tank</span>
+        <p>{{ t['citerne.empty'] }}</p>
+        {% if has_perm('carburant.manage') %}
+        <a href="{{ url_for('carburant.citerne_new') }}" class="fab"
+           data-modal-url="{{ url_for('carburant.citerne_new') }}" data-modal-title="{{ t['citerne.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['citerne.new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+
+{% if recent %}
+<section class="card">
+    <div class="card-header"><h2>{{ t['distribution.recent'] }}</h2></div>
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['distribution.date'] }}</th>
+                <th>{{ t['distribution.machine'] }}</th>
+                <th>{{ t['distribution.citerne'] }}</th>
+                <th style="text-align:right;">{{ t['distribution.liters'] }}</th>
+                <th class="col-secondary">{{ t['distribution.driver'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in recent %}
+            <tr>
+                <td>{{ m.date }}</td>
+                <td><strong>{{ m.vehicle.code if m.vehicle else '—' }}</strong></td>
+                <td>{{ m.citerne.code }}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">−{{ '{:,}'.format(m.liters) }} L</td>
+                <td class="col-secondary">{{ m.operator or '—' }}</td>
+                <td class="row-actions">
+                    {% if has_perm('carburant.create') %}
+                    <form method="post" action="{{ url_for('carburant.distribution_delete', mid=m.id) }}"
+                          data-confirm="{{ t['distribution.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+</section>
+{% endif %}
+{% endblock %}

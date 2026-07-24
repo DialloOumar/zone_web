@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = citerne is not none %}
+{% block title %}{{ t['citerne.edit'] if is_edit else t['citerne.new'] }}{% endblock %}
+{% block page_title %}{{ t['citerne.edit'] if is_edit else t['citerne.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px;">
+    {% include "_citerne_form.html" %}
+</section>
+{% endblock %}

@@ -44,13 +44,15 @@
             </a></li>
             {% endif %}
 
-            {% if has_perm('expense.view') or has_perm('insights.view') or has_perm('invoicing.view') %}
+            {% if has_perm('carburant.view') or has_perm('expense.view') or has_perm('insights.view') or has_perm('invoicing.view') %}
             <li class="sidebar-section">{{ t['nav.management'] }}</li>
-            {% if has_perm('expense.view') %}
-            <li><a href="{{ url_for('expenses.fuel_index') }}" class="sidebar-sub {% if request.endpoint and request.endpoint.startswith('expenses.fuel') %}active{% endif %}">
+            {% if has_perm('carburant.view') %}
+            <li><a href="{{ url_for('carburant.index') }}" class="sidebar-sub {% if request.blueprint == 'carburant' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">local_gas_station</span> {{ t['nav.fuel'] }}
             </a></li>
-            <li><a href="{{ url_for('expenses.index') }}" class="sidebar-sub {% if request.blueprint == 'expenses' and not (request.endpoint or '').startswith('expenses.fuel') %}active{% endif %}">
+            {% endif %}
+            {% if has_perm('expense.view') %}
+            <li><a href="{{ url_for('expenses.index') }}" class="sidebar-sub {% if request.blueprint == 'expenses' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">payments</span> {{ t['nav.expenses'] }}
             </a></li>
             {% endif %}

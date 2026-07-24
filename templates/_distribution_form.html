@@ -1,0 +1,58 @@
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('carburant.distribution_new') }}">
+
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="citerne_id" name="citerne_id" required>
+                <option value="" hidden></option>
+                {% set sel_c = request.form.get('citerne_id')|int(0) %}
+                {% for c in citernes %}
+                <option value="{{ c.id }}" {% if c.id == sel_c %}selected{% endif %}>{{ c.code }} — {{ '{:,}'.format(c.stock) }} L {{ t['distribution.available'] }}</option>
+                {% endfor %}
+            </select>
+            <label for="citerne_id">{{ t['distribution.citerne'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or today }}">
+            <label for="date">{{ t['distribution.date'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="vehicle_id" name="vehicle_id" required>
+                <option value="" hidden></option>
+                {% set sel_v = request.form.get('vehicle_id')|int(0) %}
+                {% for v in vehicles %}
+                <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }} — {{ v.fleet.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="vehicle_id">{{ t['distribution.machine'] }}</label>
+        </div>
+        <div class="field">
+            <input type="number" id="liters" name="liters" placeholder=" " min="1" required
+                   value="{{ request.form.get('liters') or '' }}">
+            <label for="liters">{{ t['distribution.liters'] }}</label>
+        </div>
+    </div>
+
+    <div class="field field--select">
+        <select id="operator" name="operator">
+            <option value=""></option>
+            {% set sel_o = request.form.get('operator') %}
+            {% for o in operators %}
+            <option value="{{ o.name }}" {% if o.name == sel_o %}selected{% endif %}>{{ o.name }}</option>
+            {% endfor %}
+        </select>
+        <label for="operator">{{ t['distribution.driver'] }}</label>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('carburant.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
