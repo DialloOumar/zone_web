@@ -513,10 +513,22 @@ class Citerne(db.Model):
     @property
     def stock(self):
         """Litres currently in the tank = opening + rentrées − distributions,
-        computed from the movement log."""
+        computed from the movement log. Relevés and conso do NOT move the
+        reservoir stock (a relevé is a measurement; conso is fuel the citerne
+        took at the client for its own engine, never from its reservoir)."""
+        return self.stock_as_of(None)
+
+    def stock_as_of(self, date_str):
+        """Reservoir stock counting only movements dated on/before `date_str`
+        (None = all). Used both for the live stock and for a relevé's écart."""
         total = 0
         for m in self.movements:
-            total += m.liters if m.kind in ("initial", "rentree") else -m.liters
+            if date_str is not None and m.date > date_str:
+                continue
+            if m.kind in ("initial", "rentree"):
+                total += m.liters
+            elif m.kind == "distribution":
+                total -= m.liters
         return total
 
     @property
@@ -552,6 +564,15 @@ class FuelMovement(db.Model):
 
     citerne = db.relationship("Citerne", back_populates="movements")
     vehicle = db.relationship("Vehicle")
+
+    @property
+    def ecart(self):
+        """For a relevé: theoretical stock as of its date minus the physical
+        reading. Positive = fuel missing (leak/theft/unlogged draw); negative =
+        surplus. None for non-relevé movements."""
+        if self.kind != "releve" or not self.citerne:
+            return None
+        return self.citerne.stock_as_of(self.date) - self.liters
 
 
 # ── Config & system ───────────────────────────────────────────────────────────

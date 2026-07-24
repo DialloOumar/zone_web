@@ -15,11 +15,15 @@
             {% if has_perm('carburant.create') and active_citernes %}
             <a href="{{ url_for('carburant.rentree_new') }}" class="btn btn--tonal"
                data-modal-url="{{ url_for('carburant.rentree_new') }}" data-modal-title="{{ t['rentree.new'] }}">
-                <span class="material-symbols-outlined">water_drop</span> {{ t['rentree.new'] }}
+                <span class="material-symbols-outlined">local_gas_station</span> {{ t['rentree.new'] }}
             </a>
             <a href="{{ url_for('carburant.distribution_new') }}" class="btn btn--tonal"
                data-modal-url="{{ url_for('carburant.distribution_new') }}" data-modal-title="{{ t['distribution.new'] }}">
-                <span class="material-symbols-outlined">local_gas_station</span> {{ t['distribution.new'] }}
+                <span class="material-symbols-outlined">directions_bus</span> {{ t['distribution.new'] }}
+            </a>
+            <a href="{{ url_for('carburant.releve_new') }}" class="btn btn--tonal"
+               data-modal-url="{{ url_for('carburant.releve_new') }}" data-modal-title="{{ t['releve.new'] }}">
+                <span class="material-symbols-outlined">donut_large</span> {{ t['releve.new'] }}
             </a>
             {% endif %}
             {% if has_perm('carburant.manage') %}
@@ -108,7 +112,7 @@
     </div>
     {% else %}
     <div class="empty-state">
-        <span class="material-symbols-outlined">propane_tank</span>
+        <span class="material-symbols-outlined">local_gas_station</span>
         <p>{{ t['citerne.empty'] }}</p>
         {% if has_perm('carburant.manage') %}
         <a href="{{ url_for('carburant.citerne_new') }}" class="fab"
@@ -137,9 +141,23 @@
         </thead>
         <tbody>
             {% for m in recent %}
-            {% set is_in = m.kind == 'rentree' %}
             <tr>
                 <td>{{ m.date }}</td>
+                {% if m.kind == 'releve' %}
+                {% set ec = m.ecart %}
+                {% set bad = ec is not none and (ec > seuil or ec < -seuil) %}
+                <td><span class="mv-chip mv-chip--gauge">{{ t['movement.releve'] }}</span></td>
+                <td>{{ m.citerne.code }}</td>
+                <td><span class="muted">—</span></td>
+                <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ '{:,}'.format(m.liters) }} L</td>
+                <td class="col-secondary">
+                    {% if ec is none or ec == 0 %}<span class="ecart-ok">{{ t['releve.consistent'] }}</span>
+                    {% elif ec > 0 %}<span class="{{ 'ecart-bad' if bad else 'muted' }}">{{ '{:,}'.format(ec) }} L {{ t['releve.missing'] }}</span>
+                    {% else %}<span class="{{ 'ecart-bad' if bad else 'muted' }}">{{ '{:,}'.format(-ec) }} L {{ t['releve.surplus'] }}</span>{% endif %}
+                    {% if bad %} <span class="material-symbols-outlined ecart-bad" style="font-size:16px; vertical-align:-3px;">warning</span>{% endif %}
+                </td>
+                {% else %}
+                {% set is_in = m.kind == 'rentree' %}
                 <td><span class="mv-chip {{ 'mv-chip--in' if is_in else 'mv-chip--out' }}">{{ t['movement.rentree'] if is_in else t['movement.distribution'] }}</span></td>
                 <td>{{ m.citerne.code }}</td>
                 <td>{% if m.vehicle %}<strong>{{ m.vehicle.code }}</strong>{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -147,6 +165,7 @@
                     {{ '+' if is_in else '−' }}{{ '{:,}'.format(m.liters) }} L
                 </td>
                 <td class="col-secondary muted">{{ m.operator or m.note or '—' }}</td>
+                {% endif %}
                 <td class="row-actions">
                     {% if has_perm('carburant.create') %}
                     <form method="post" action="{{ url_for('carburant.movement_delete', mid=m.id) }}"

@@ -1,0 +1,36 @@
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('carburant.releve_new') }}">
+
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="citerne_id" name="citerne_id" required>
+                <option value="" hidden></option>
+                {% set sel_c = request.form.get('citerne_id')|int(0) %}
+                {% for c in citernes %}
+                <option value="{{ c.id }}" {% if c.id == sel_c %}selected{% endif %}>{{ c.code }} — {{ t['releve.theoretical'] }} {{ '{:,}'.format(c.stock) }} L</option>
+                {% endfor %}
+            </select>
+            <label for="citerne_id">{{ t['releve.citerne'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or today }}">
+            <label for="date">{{ t['releve.date'] }}</label>
+        </div>
+    </div>
+
+    <div class="field">
+        <input type="number" id="liters" name="liters" placeholder=" " min="0" required
+               value="{{ request.form.get('liters') or '' }}">
+        <label for="liters">{{ t['releve.liters'] }}</label>
+    </div>
+    <div class="field-hint">{{ t['releve.hint'] }}</div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('carburant.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

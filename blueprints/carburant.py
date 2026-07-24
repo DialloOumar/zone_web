@@ -23,6 +23,10 @@ from models import Citerne, Fleet, FuelMovement, Operator, Vehicle, db
 
 carburant_bp = Blueprint("carburant", __name__, url_prefix="/carburant")
 
+# Tolerance (litres) beyond which a gauge écart is flagged as an anomaly.
+# A flat value for now; can become a per-citerne / setting later.
+SEUIL_ECART = 100
+
 
 def _valid_date(s):
     try:
@@ -92,14 +96,14 @@ def index():
     if cids:
         recent = (FuelMovement.query
                   .filter(FuelMovement.citerne_id.in_(cids),
-                          FuelMovement.kind.in_(("rentree", "distribution")))
+                          FuelMovement.kind.in_(("rentree", "distribution", "releve")))
                   .order_by(FuelMovement.date.desc(), FuelMovement.id.desc())
                   .limit(50).all())
     return render_template(
         "citernes.html", citernes=rows, active_citernes=active_citernes,
         recent=recent, show_archived=show_archived, archived_count=archived_count,
         vehicles=_accessible_vehicles(), operators=_accessible_operators(),
-        today=date.today().isoformat())
+        seuil=SEUIL_ECART, today=date.today().isoformat())
 
 
 # ── Citerne CRUD ──────────────────────────────────────────────────────────────
@@ -356,7 +360,70 @@ def rentree_new():
     return _render_rentree_form()
 
 
-# ── Delete a movement (rentrée or distribution) ───────────────────────────────
+# ── Relevé de jauge (physical reading → anomaly check) ────────────────────────
+
+
+def _read_releve_form():
+    t = get_t()
+    date_str = (request.form.get("date") or "").strip()
+    if not _valid_date(date_str):
+        return None, t.get("releve.err.date", "Date invalide.")
+
+    c = db.session.get(Citerne, request.form.get("citerne_id", type=int) or 0)
+    if not c or not c.is_active:
+        return None, t.get("releve.err.citerne", "Choisissez une citerne active.")
+    fids = current_user_fleet_ids()
+    if fids is not None and c.fleet_id not in fids:
+        return None, t.get("error.forbidden", "Action non autorisée.")
+
+    measured = request.form.get("liters", type=int)
+    if measured is None or measured < 0:
+        return None, t.get("releve.err.liters", "Relevé invalide.")
+
+    return dict(citerne_id=c.id, date=date_str, liters=measured,
+                note=(request.form.get("note") or "").strip() or None), None
+
+
+def _render_releve_form(error=None):
+    tpl = "_releve_form.html" if is_modal_request() else "releve_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(
+        tpl, error=error,
+        citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
+                  .order_by(Citerne.code).all()),
+        today=date.today().isoformat()), status
+
+
+@carburant_bp.route("/releves/new", methods=["GET", "POST"])
+@login_required
+@require_perm("carburant.create")
+def releve_new():
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_releve_form()
+        if error:
+            return _render_releve_form(error)
+        c = db.session.get(Citerne, data["citerne_id"])
+        theoretical = c.stock_as_of(data["date"])
+        ecart = theoretical - data["liters"]
+        mv = FuelMovement(kind="releve", created_by=current_user.id, **data)
+        db.session.add(mv)
+        db.session.flush()
+        log_action("CREATE", "fuel_movement", resource_id=mv.id, fleet_id=c.fleet_id,
+                   detail=f"Relevé {mv.liters} L on '{c.code}', écart {ecart:+d} L")
+        db.session.commit()
+        # Tell the user right away whether the tank reconciles.
+        if abs(ecart) > SEUIL_ECART:
+            word = t.get("releve.missing", "manquants") if ecart > 0 else t.get("releve.surplus", "en trop")
+            flash("error|" + t.get("releve.flag", "Relevé enregistré — écart de %(n)d L %(w)s à vérifier.")
+                  % {"n": abs(ecart), "w": word})
+        else:
+            flash("success|" + t.get("releve.ok", "Relevé enregistré — citerne cohérente."))
+        return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
+    return _render_releve_form()
+
+
+# ── Delete a movement (rentrée / distribution / relevé) ───────────────────────
 
 
 @carburant_bp.route("/movements/<int:mid>/delete", methods=["POST"])
@@ -364,7 +431,7 @@ def rentree_new():
 @require_perm("carburant.create")
 def movement_delete(mid):
     mv = db.session.get(FuelMovement, mid)
-    if not mv or mv.kind not in ("rentree", "distribution"):
+    if not mv or mv.kind not in ("rentree", "distribution", "releve"):
         abort(404)
     c = db.session.get(Citerne, mv.citerne_id)
     fids = current_user_fleet_ids()

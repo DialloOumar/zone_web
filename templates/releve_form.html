@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['releve.new'] }}{% endblock %}
+{% block page_title %}{{ t['releve.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px;">
+    {% include "_releve_form.html" %}
+</section>
+{% endblock %}

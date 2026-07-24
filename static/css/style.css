@@ -809,10 +809,13 @@ a:hover { text-decoration: underline; }
     display: inline-flex; align-items: center; font-size: 0.75rem; font-weight: 600;
     padding: 3px 10px; border-radius: 999px;
 }
-.mv-chip--in  { background: var(--md-success-container); color: var(--md-on-success-container); }
-.mv-chip--out { background: #f8e2c4; color: #8a4b06; }
+.mv-chip--in    { background: var(--md-success-container); color: var(--md-on-success-container); }
+.mv-chip--out   { background: #f8e2c4; color: #8a4b06; }
+.mv-chip--gauge { background: var(--md-surface-container-high); color: var(--md-on-surface-variant); }
 .lit-in  { color: var(--md-success); }
 .lit-out { color: #b06a08; }
+.ecart-ok  { color: var(--md-success); font-weight: 600; }
+.ecart-bad { color: var(--md-error); font-weight: 700; }
 
 /* ── Roster (daily pointage sheet) ── */
 .roster-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
