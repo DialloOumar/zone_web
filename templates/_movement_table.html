@@ -31,7 +31,7 @@
             {% elif m.kind == 'conso' %}
             <td><span class="mv-chip mv-chip--conso">{{ t['movement.conso'] }}</span></td>
             <td>{{ m.citerne.code }}</td>
-            <td><span class="muted">—</span></td>
+            <td>{% if m.vehicle %}<strong>{{ m.vehicle.code }}</strong>{% else %}<span class="muted">—</span>{% endif %}</td>
             <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ '{:,}'.format(m.liters) }} L</td>
             <td class="col-secondary muted">{{ m.operator or t['conso.own'] }}</td>
             {% elif m.kind == 'direct' %}

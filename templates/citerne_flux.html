@@ -59,7 +59,7 @@
                 <div class="flux-line">{{ t['flux.distributed'] }} : <b>{{ '{:,}'.format(distributed_total) }}</b> L</div>
                 {% if conso_total %}
                 <div class="flux-engine"><span class="material-symbols-outlined" aria-hidden="true">directions_bus</span>
-                    {{ t['flux.conso'] }} : <b>{{ '{:,}'.format(conso_total) }}</b> L</div>
+                    {{ t['flux.conso'] }}{% if citerne.vehicle %} ({{ citerne.vehicle.code }}){% endif %} : <b>{{ '{:,}'.format(conso_total) }}</b> L</div>
                 {% endif %}
             </div>
         </div>

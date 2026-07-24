@@ -34,6 +34,18 @@
         </div>
     </div>
 
+    <div class="field field--select">
+        <select id="vehicle_id" name="vehicle_id">
+            <option value="">{{ t['citerne.vehicle_none'] }}</option>
+            {% set sel_veh = request.form.get('vehicle_id')|int(0) or (citerne.vehicle_id if is_edit else 0) %}
+            {% for v in vehicles %}
+            <option value="{{ v.id }}" {% if v.id == sel_veh %}selected{% endif %}>{{ v.code }} — {{ v.fleet.name }}</option>
+            {% endfor %}
+        </select>
+        <label for="vehicle_id">{{ t['citerne.vehicle'] }}</label>
+    </div>
+    <div class="field-hint">{{ t['citerne.vehicle_hint'] }}</div>
+
     <div class="field">
         <input type="number" id="initial_liters" name="initial_liters" placeholder=" " min="0"
                value="{{ request.form.get('initial_liters') or (citerne.opening_stock if is_edit else '') }}">

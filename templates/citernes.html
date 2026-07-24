@@ -55,7 +55,7 @@
             {% for c in citernes %}
             {% set pct = (c.stock / c.capacity_liters * 100) if c.capacity_liters else 0 %}
             <tr>
-                <td><a href="{{ url_for('carburant.citerne_flux', cid=c.id) }}" title="{{ t['flux.title'] }}"><strong>{{ c.code }}</strong></a><div class="muted small">{{ c.name }}</div></td>
+                <td><a href="{{ url_for('carburant.citerne_flux', cid=c.id) }}" title="{{ t['flux.title'] }}"><strong>{{ c.code }}</strong></a><div class="muted small">{{ c.name }}{% if c.vehicle %} · {{ c.vehicle.code }}{% endif %}</div></td>
                 <td>{{ c.fleet.name }}</td>
                 <td style="text-align:right; white-space:nowrap;">
                     <strong>{{ '{:,}'.format(c.stock) }}</strong> <span class="muted small">L</span>

@@ -238,8 +238,16 @@ def _read_citerne_form(citerne):
     if clash.first():
         return None, t.get("citerne.err.code_taken", "Ce code est déjà utilisé.")
 
+    # Optional link to the tanker's own vehicle (must be in the same fleet).
+    vehicle_id = request.form.get("vehicle_id", type=int) or None
+    if vehicle_id:
+        v = db.session.get(Vehicle, vehicle_id)
+        if not v or v.fleet_id != fleet_id:
+            return None, t.get("citerne.err.vehicle",
+                               "Le camion-citerne doit être un véhicule de la même flotte.")
+
     return dict(code=code, name=name, capacity_liters=cap, fleet_id=fleet_id,
-                initial=initial), None
+                vehicle_id=vehicle_id, initial=initial), None
 
 
 def _set_initial_stock(citerne, liters, today):
@@ -261,7 +269,8 @@ def _render_citerne_form(citerne, error=None):
     tpl = "_citerne_form.html" if is_modal_request() else "citerne_form.html"
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, citerne=citerne, error=error,
-                           fleets=_accessible_fleets()), status
+                           fleets=_accessible_fleets(),
+                           vehicles=_accessible_vehicles()), status
 
 
 @carburant_bp.route("/citernes/new", methods=["GET", "POST"])
@@ -585,6 +594,10 @@ def conso_new():
             return _render_conso_form(error)
         c = db.session.get(Citerne, data["citerne_id"])
         mv = FuelMovement(kind="conso", created_by=current_user.id, **data)
+        # If the citerne is tied to a tanker vehicle, the conso is that
+        # vehicle's own fuel — attribute it so it lands on the vehicle too.
+        if c.vehicle_id:
+            mv.vehicle_id = c.vehicle_id
         db.session.add(mv)
         db.session.flush()
         log_action("CREATE", "fuel_movement", resource_id=mv.id, fleet_id=c.fleet_id,

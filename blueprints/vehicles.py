@@ -11,8 +11,8 @@ from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change)
-from models import (Alert, DailyEntry, Expense, Fleet, MaintenanceRecord,
-                    Operator, Vehicle, VehicleCategory, db)
+from models import (Alert, Citerne, DailyEntry, Expense, Fleet,
+                    MaintenanceRecord, Operator, Vehicle, VehicleCategory, db)
 
 vehicles_bp = Blueprint("vehicles", __name__)
 
@@ -178,9 +178,11 @@ def detail(vid):
     alerts = (Alert.query.filter_by(vehicle_id=vid)
               .filter(Alert.status.in_(("open", "snoozed")))
               .order_by(Alert.triggered_at.desc()).all())
+    # If this vehicle is a citerne's tanker, surface the link back to its flow.
+    citerne = Citerne.query.filter_by(vehicle_id=vid).first()
     return render_template("vehicle_detail.html", vehicle=vehicle,
                            entries=entries, expenses=expenses,
-                           records=records, alerts=alerts)
+                           records=records, alerts=alerts, citerne=citerne)
 
 
 def _render_vehicle_form(vehicle, error=None):

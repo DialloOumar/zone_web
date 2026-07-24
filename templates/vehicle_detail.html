@@ -14,6 +14,11 @@
                 {% else %}
                 <span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>
                 {% endif %}
+                {% if citerne and has_perm('carburant.view') %}
+                <a href="{{ url_for('carburant.citerne_flux', cid=citerne.id) }}" class="badge badge--info" title="{{ t['flux.title'] }}">
+                    <span class="material-symbols-outlined" style="font-size:15px; vertical-align:-2px;">local_gas_station</span> {{ t['vehicle.is_citerne'] }} {{ citerne.code }}
+                </a>
+                {% endif %}
             </div>
         </div>
         <div class="row-actions">
