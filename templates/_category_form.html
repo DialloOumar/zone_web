@@ -46,12 +46,6 @@
         </div>
     </div>
 
-    <div class="field" style="max-width:180px;">
-        <input type="text" inputmode="numeric" id="sort_order" name="sort_order" placeholder="{{ t['ph.vcat.sort'] }}"
-               value="{{ request.form.get('sort_order') or (category.sort_order if is_edit else '') }}">
-        <label for="sort_order">{{ t['vcat.sort_order'] }}</label>
-    </div>
-
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}

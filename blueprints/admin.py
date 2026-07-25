@@ -734,19 +734,20 @@ def _save_category(cat):
             return t.get("vcat.err.code_taken", "Ce code existe deja.")
 
     baseline, e1 = _cat_num(request.form.get("default_baseline_l_per_unit"), float)
-    order, e3 = _cat_num(request.form.get("sort_order"), lambda s: int(round(float(s))))
-    if e1 or e3:
+    if e1:
         return t.get("vcat.err.bad_number", "Valeur numerique invalide.")
 
     if creating:
-        cat = VehicleCategory(code=code)
+        # No manual order field: a new category just appends to the end.
+        # Read the max before add() so the half-built row isn't autoflushed.
+        next_order = (db.session.query(db.func.max(VehicleCategory.sort_order)).scalar() or 0) + 1
+        cat = VehicleCategory(code=code, sort_order=next_order)
         db.session.add(cat)
     cat.label = label
     cat.label_fr = label_fr
     cat.tracking = tracking
     cat.unit_type = unit_type
     cat.default_baseline_l_per_unit = baseline
-    cat.sort_order = order if order is not None else 0
     db.session.flush()
     log_action("CREATE" if creating else "UPDATE", "vehicle_category", resource_id=cat.id,
                detail="%s category '%s'" % ("Created" if creating else "Updated", cat.code))
