@@ -148,6 +148,20 @@ def fleet_reactivate(fleet_id):
     return redirect(url_for("admin.fleets"))
 
 
+def _fleet_admin_role_for(user):
+    """The role this user already holds that lets them manage fleets — reused
+    to give a fleet's creator the same control on the fleet they just made.
+    Prefers a role carrying admin.fleets; falls back to any role they hold."""
+    fallback = None
+    for uf in user.user_fleets:
+        if not uf.role:
+            continue
+        fallback = fallback or uf.role
+        if any(rp.permission.key == "admin.fleets" for rp in uf.role.role_permissions):
+            return uf.role
+    return fallback
+
+
 def _save_fleet(fleet):
     """Create (fleet=None) or update a fleet from request.form.
 
@@ -192,6 +206,15 @@ def _save_fleet(fleet):
         fleet.description = description or None
         fleet.categories = categories
     db.session.flush()  # assign id for the audit log on create
+
+    # A delegated (non-super) admin who creates a fleet gets access to it right
+    # away — otherwise the fleet they just made would be scoped out of their own
+    # selectors (invisible). Super admins already see every fleet, so skip them.
+    if creating and not current_user.is_super_admin:
+        role = _fleet_admin_role_for(current_user)
+        if role:
+            db.session.add(UserFleet(user_id=current_user.id, fleet_id=fleet.id,
+                                     role_id=role.id, assigned_by=current_user.id))
 
     # Billing rates — append a dated FleetRate row only where the entered rate
     # differs from the one currently in force (history is never overwritten).

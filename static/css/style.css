@@ -396,6 +396,8 @@ a:hover { text-decoration: underline; }
 .alert--error::before { content: "error"; }
 .alert--success { background: var(--md-success-container); color: var(--md-on-success-container); }
 .alert--success::before { content: "check_circle"; }
+.alert--warning { background: var(--c-amber-bg); color: var(--c-amber); }
+.alert--warning::before { content: "warning"; }
 
 /* ── Cards ── */
 .card {
