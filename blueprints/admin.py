@@ -585,7 +585,9 @@ def user_edit(user_id):
             db.session.commit()
             flash("success|" + t.get("user.updated", "Utilisateur mis a jour."))
             return redirect(url_for("admin.users"))
-    fleets = Fleet.query.order_by(Fleet.name).all()
+    # Only active fleets can be newly assigned; existing assignments (below)
+    # still show archived fleets so access already granted is preserved.
+    fleets = Fleet.query.filter(Fleet.is_active.is_(True)).order_by(Fleet.name).all()
     roles = Role.query.order_by(Role.is_system.desc(), Role.name).all()
     assignments = [
         (db.session.get(Fleet, uf.fleet_id), db.session.get(Role, uf.role_id), uf)
@@ -625,7 +627,12 @@ def user_assign(user_id):
     if not fleet or not role:
         flash("error|" + t.get("user.err.assign", "Choisissez une flotte et un role."))
         return redirect(url_for("admin.user_edit", user_id=user.id))
-    uf = UserFleet.query.filter_by(user_id=user.id, fleet_id=fleet.id).first()
+    # Can't newly assign someone to an archived fleet (unless it's already theirs).
+    already = UserFleet.query.filter_by(user_id=user.id, fleet_id=fleet.id).first()
+    if not fleet.is_active and not already:
+        flash("error|" + t.get("user.err.fleet_archived", "Cette flotte est archivée."))
+        return redirect(url_for("admin.user_edit", user_id=user.id))
+    uf = already
     if uf:
         uf.role_id = role.id
     else:

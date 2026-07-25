@@ -42,7 +42,8 @@ def _scoped_entries():
 
 
 def _accessible_vehicles(active_only=False):
-    q = Vehicle.query
+    # Entry picker: only vehicles on a live fleet (archived fleet = no new saisie).
+    q = Vehicle.query.filter(Vehicle.fleet.has(Fleet.is_active.is_(True)))
     if active_only:
         q = q.filter_by(is_active=True)
     fids = current_user_fleet_ids()
@@ -54,7 +55,9 @@ def _accessible_vehicles(active_only=False):
 def _accessible_fleets():
     """Fleets the current user may point on (all, for super admin)."""
     fids = current_user_fleet_ids()
-    q = Fleet.query.order_by(Fleet.name)
+    # Archived fleets drop out of the pickers (no new data on a mothballed
+    # fleet); existing data stays visible, scoped by current_user_fleet_ids.
+    q = Fleet.query.filter(Fleet.is_active.is_(True)).order_by(Fleet.name)
     if fids is not None:
         q = q.filter(Fleet.id.in_(fids))
     return q.all()
@@ -369,6 +372,11 @@ def roster(slug):
     fids = current_user_fleet_ids()
     if fids is not None and fleet.id not in fids:
         abort(403)
+    if not fleet.is_active:
+        # Archived fleet: no pointing. Its past entries stay in "Saisies".
+        flash("info|" + get_t().get("roster.fleet_archived",
+              "Cette flotte est archivée — saisie impossible. Son historique reste dans les saisies."))
+        return redirect(url_for("entries.roster_index"))
 
     date_str = request.args.get("date") or date.today().isoformat()
     if not _valid_date(date_str):
@@ -422,7 +430,11 @@ def new():
         data, error = _read_entry_form(None)
         if error:
             return _render_entry_form(None, error)
-        fleet_id = db.session.get(Vehicle, data["vehicle_id"]).fleet_id
+        veh = db.session.get(Vehicle, data["vehicle_id"])
+        if veh and veh.fleet and not veh.fleet.is_active:
+            return _render_entry_form(None, t.get("roster.fleet_archived",
+                "Cette flotte est archivée — saisie impossible. Son historique reste dans les saisies."))
+        fleet_id = veh.fleet_id
         if needs_approval("entry.create"):
             submit_change(resource_type="daily_entry", action="create",
                           fleet_id=fleet_id, payload=data)

@@ -188,6 +188,16 @@ def current_user_fleet_ids():
     return [uf.fleet_id for uf in current_user.user_fleets]
 
 
+def with_current_fleet(fleets, current_fleet):
+    """Add a record's own fleet to a form's active-fleet list when that fleet
+    is archived — so editing a record that lives on a mothballed fleet keeps
+    its fleet selectable (you can't newly assign to an archived fleet, but you
+    won't silently move an existing record off it either)."""
+    if current_fleet and not current_fleet.is_active and current_fleet not in fleets:
+        return fleets + [current_fleet]
+    return fleets
+
+
 # Modules kept in the code but hidden from everyone for now — the seed for the
 # future paid tier. A permission listed here reads as "not held" for every user
 # (super admin included), which hides its nav entry, onboarding step and help

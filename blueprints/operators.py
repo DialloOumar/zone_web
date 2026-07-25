@@ -15,7 +15,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import func
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
-                 modal_ok, needs_approval, require_perm, scoped, submit_change)
+                 modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
 from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Operator,
                     Vehicle, db)
 
@@ -27,7 +27,9 @@ operators_bp = Blueprint("operators", __name__)
 
 def _accessible_fleets():
     fids = current_user_fleet_ids()
-    q = Fleet.query.order_by(Fleet.name)
+    # Archived fleets drop out of the pickers (no new data on a mothballed
+    # fleet); existing data stays visible, scoped by current_user_fleet_ids.
+    q = Fleet.query.filter(Fleet.is_active.is_(True)).order_by(Fleet.name)
     if fids is not None:
         q = q.filter(Fleet.id.in_(fids))
     return q.all()
@@ -81,7 +83,7 @@ def _read_operator_form(operator):
 
 def _form_context(operator):
     return {
-        "fleets": _accessible_fleets(),
+        "fleets": with_current_fleet(_accessible_fleets(), operator.fleet if operator else None),
         "form_active": (request.form.get("is_active") is not None)
         if request.method == "POST"
         else (operator.is_active if operator else True),

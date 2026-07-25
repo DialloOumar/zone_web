@@ -18,7 +18,7 @@ from flask_login import current_user, login_required
 import maintenance_engine
 from app import (current_user_categories, current_user_fleet_ids, get_t,
                  is_modal_request, log_action, modal_ok, needs_approval,
-                 require_perm, scoped, submit_change)
+                 require_perm, scoped, submit_change, with_current_fleet)
 from blueprints.expenses import MAINTENANCE_CATEGORY, PAYMENT_METHODS
 from models import (Alert, Expense, Fleet, MaintenanceRecord, MaintenanceRule,
                     Operator, Vehicle, VehicleCategory, db)
@@ -37,7 +37,9 @@ SNOOZE_DAYS = 7
 
 def _accessible_fleets():
     fids = current_user_fleet_ids()
-    q = Fleet.query.order_by(Fleet.name)
+    # Archived fleets drop out of the pickers (no new data on a mothballed
+    # fleet); existing data stays visible, scoped by current_user_fleet_ids.
+    q = Fleet.query.filter(Fleet.is_active.is_(True)).order_by(Fleet.name)
     if fids is not None:
         q = q.filter(Fleet.id.in_(fids))
     return q.all()
@@ -207,7 +209,7 @@ def _rule_form_ctx(rule):
         "rule_types": RULE_TYPES,
         "record_types": RECORD_TYPES,
         "severities": SEVERITIES,
-        "fleets": _accessible_fleets(),
+        "fleets": with_current_fleet(_accessible_fleets(), rule.fleet if rule else None),
         "categories": _accessible_categories(),
         "vehicles": _accessible_vehicles(),
         "form_active": (request.form.get("is_active") is not None)

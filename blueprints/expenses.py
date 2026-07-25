@@ -17,7 +17,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
-                 modal_ok, needs_approval, require_perm, submit_change)
+                 modal_ok, needs_approval, require_perm, submit_change, with_current_fleet)
 from models import Expense, Fleet, Operator, Vehicle, db
 
 expenses_bp = Blueprint("expenses", __name__)
@@ -42,14 +42,18 @@ PAYMENT_METHODS = ["mobile_money", "cash", "transfer", "cheque", "other"]
 
 def _accessible_fleets():
     fids = current_user_fleet_ids()
-    q = Fleet.query.order_by(Fleet.name)
+    # Archived fleets drop out of the pickers (no new data on a mothballed
+    # fleet); existing data stays visible, scoped by current_user_fleet_ids.
+    q = Fleet.query.filter(Fleet.is_active.is_(True)).order_by(Fleet.name)
     if fids is not None:
         q = q.filter(Fleet.id.in_(fids))
     return q.all()
 
 
 def _accessible_vehicles():
-    q = Vehicle.query
+    # Entry picker: only vehicles on a live fleet — no new expense against a
+    # mothballed fleet. History stays reachable through the scoped list views.
+    q = Vehicle.query.filter(Vehicle.fleet.has(Fleet.is_active.is_(True)))
     fids = current_user_fleet_ids()
     if fids is not None:
         q = q.filter(Vehicle.fleet_id.in_(fids))
@@ -210,7 +214,7 @@ def _form_context(expense):
         if v:
             preset_fleet = v.fleet_id
     return {
-        "fleets": _accessible_fleets(),
+        "fleets": with_current_fleet(_accessible_fleets(), expense.fleet if expense else None),
         "vehicles": _accessible_vehicles(),
         "operators": _accessible_operators(),
         "categories": EXPENSE_CATEGORIES,

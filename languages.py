@@ -350,6 +350,7 @@ TRANSLATIONS = {
         "roster.tap_to_log": "Appuyer pour saisir",
         "roster.no_vehicles": "Aucun véhicule actif dans cette flotte.",
         "roster.no_fleet":   "Aucune flotte accessible. Demandez l'accès à une flotte.",
+        "roster.fleet_archived": "Cette flotte est archivée — saisie impossible. Son historique reste dans les saisies.",
 
         # Expenses
         "expense.new":            "Nouvelle dépense",
@@ -655,6 +656,7 @@ TRANSLATIONS = {
         "user.err.username_taken":    "Ce nom d'utilisateur existe déjà.",
         "user.err.email_taken":       "Ce courriel est déjà utilisé.",
         "user.err.assign":            "Choisissez une flotte et un rôle.",
+        "user.err.fleet_archived":    "Cette flotte est archivée — impossible d'y affecter un accès.",
 
         # Approvals
         "approval.pending":      "En attente",
@@ -1228,6 +1230,7 @@ TRANSLATIONS = {
         "roster.tap_to_log": "Tap to log",
         "roster.no_vehicles": "No active vehicles in this fleet.",
         "roster.no_fleet":   "No accessible fleet. Ask for fleet access.",
+        "roster.fleet_archived": "This fleet is archived — logging disabled. Its history stays under Entries.",
 
         # Expenses
         "expense.new":            "New expense",
@@ -1532,6 +1535,7 @@ TRANSLATIONS = {
         "user.err.username_taken":    "That username already exists.",
         "user.err.email_taken":       "That email is already in use.",
         "user.err.assign":            "Choose a fleet and a role.",
+        "user.err.fleet_archived":    "This fleet is archived — you can't assign access to it.",
 
         # Approvals
         "approval.pending":      "Pending",

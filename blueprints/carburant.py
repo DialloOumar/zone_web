@@ -18,7 +18,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
-                 modal_ok, require_perm)
+                 modal_ok, require_perm, with_current_fleet)
 from models import Citerne, Fleet, FuelMovement, Operator, Vehicle, db
 
 carburant_bp = Blueprint("carburant", __name__, url_prefix="/carburant")
@@ -70,6 +70,13 @@ def _accessible_vehicles():
     return q.order_by(Vehicle.code).all()
 
 
+def _entry_vehicles():
+    """Vehicles you may record a NEW fuel movement against — the ones on an
+    archived fleet drop out (no new data on a mothballed fleet). Consult/history
+    scoping keeps using _accessible_vehicles() so past movements stay visible."""
+    return [v for v in _accessible_vehicles() if v.fleet is None or v.fleet.is_active]
+
+
 def _accessible_operators():
     q = Operator.query.filter(Operator.is_active.is_(True))
     fids = current_user_fleet_ids()
@@ -108,7 +115,7 @@ def index():
     return render_template(
         "citernes.html", citernes=rows, active_citernes=active_citernes,
         recent=recent, show_archived=show_archived, archived_count=archived_count,
-        vehicles=_accessible_vehicles(), operators=_accessible_operators(),
+        vehicles=_entry_vehicles(), operators=_accessible_operators(),
         seuil=SEUIL_ECART, today=date.today().isoformat())
 
 
@@ -269,8 +276,8 @@ def _render_citerne_form(citerne, error=None):
     tpl = "_citerne_form.html" if is_modal_request() else "citerne_form.html"
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, citerne=citerne, error=error,
-                           fleets=_accessible_fleets(),
-                           vehicles=_accessible_vehicles()), status
+                           fleets=with_current_fleet(_accessible_fleets(), citerne.fleet if citerne else None),
+                           vehicles=_entry_vehicles()), status
 
 
 @carburant_bp.route("/citernes/new", methods=["GET", "POST"])
@@ -398,7 +405,7 @@ def _render_distribution_form(error=None):
         tpl, error=error,
         citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
                   .order_by(Citerne.code).all()),
-        vehicles=_accessible_vehicles(), operators=_accessible_operators(),
+        vehicles=_entry_vehicles(), operators=_accessible_operators(),
         today=date.today().isoformat(),
         preset_citerne=request.args.get("citerne", type=int)), status
 

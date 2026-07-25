@@ -10,7 +10,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
-                 modal_ok, needs_approval, require_perm, scoped, submit_change)
+                 modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
 from models import (Alert, Citerne, DailyEntry, Expense, Fleet,
                     MaintenanceRecord, Operator, Vehicle, VehicleCategory, db)
 
@@ -23,7 +23,9 @@ vehicles_bp = Blueprint("vehicles", __name__)
 def _accessible_fleets():
     """Fleets the current user may file vehicles under (all, for super admin)."""
     fids = current_user_fleet_ids()
-    q = Fleet.query.order_by(Fleet.name)
+    # Archived fleets drop out of the pickers (no new data on a mothballed
+    # fleet); existing data stays visible, scoped by current_user_fleet_ids.
+    q = Fleet.query.filter(Fleet.is_active.is_(True)).order_by(Fleet.name)
     if fids is not None:
         q = q.filter(Fleet.id.in_(fids))
     return q.all()
@@ -123,7 +125,7 @@ def _accessible_operators():
 
 def _form_context(vehicle):
     return {
-        "fleets": _accessible_fleets(),
+        "fleets": with_current_fleet(_accessible_fleets(), vehicle.fleet if vehicle else None),
         "categories": VehicleCategory.query.order_by(VehicleCategory.sort_order).all(),
         "operators": _accessible_operators(),
         "form_active": (request.form.get("is_active") is not None)
