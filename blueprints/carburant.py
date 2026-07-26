@@ -708,7 +708,8 @@ def _read_ravitaillement_form():
                                "Cette rentrée dépasse la capacité (%d L max, %d L déjà en cuve)."
                                % (c.capacity_liters, c.stock))
         return dict(kind="rentree", citerne_id=c.id, date=date_str, time=time_str,
-                    liters=liters, note=(request.form.get("reference") or "").strip() or None), None
+                    liters=liters, operator=operator,
+                    note=(request.form.get("reference") or "").strip() or None), None
 
     if target.startswith("v:") and target[2:].isdigit():
         v = db.session.get(Vehicle, int(target[2:]))

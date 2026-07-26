@@ -91,10 +91,10 @@
         var conso = fillType.value === 'conso';
         // Type (réservoir/conso) only for a citerne; a vehicle is always a direct fill.
         typeBlock.style.display = isCit ? '' : 'none';
-        // Reference only when filling a tank; driver for a consumption/direct fill.
+        // Reference only when filling a tank; the driver is always available.
         var reservoir = isCit && !conso;
         refBlock.style.display = reservoir ? '' : 'none';
-        opBlock.style.display = reservoir ? 'none' : '';
+        opBlock.style.display = '';
     }
     target.addEventListener('change', apply);
     fillType.addEventListener('change', apply);
