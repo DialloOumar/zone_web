@@ -37,6 +37,18 @@ def _valid_date(s):
         return False
 
 
+def _clean_time(s):
+    """Normalise an optional HH:MM time. Returns the string, or None if empty
+    or malformed (a bad time never blocks the save — the date still stands)."""
+    s = (s or "").strip()
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s, "%H:%M").strftime("%H:%M")
+    except ValueError:
+        return None
+
+
 def _accessible_fleets():
     fids = current_user_fleet_ids()
     q = Fleet.query.filter(Fleet.is_active.is_(True)).order_by(Fleet.name)
@@ -403,6 +415,7 @@ def _read_distribution_form():
     date_str = (request.form.get("date") or "").strip()
     if not _valid_date(date_str):
         return None, t.get("distribution.err.date", "Date invalide.")
+    time_str = _clean_time(request.form.get("time"))
 
     v = db.session.get(Vehicle, request.form.get("vehicle_id", type=int) or 0)
     if not v:
@@ -419,7 +432,7 @@ def _read_distribution_form():
     if source == "direct":
         # Straight at the client — no citerne, no reservoir to draw down.
         return dict(kind="direct", citerne_id=None, vehicle_id=v.id, date=date_str,
-                    liters=liters, operator=operator), None
+                    time=time_str, liters=liters, operator=operator), None
 
     c = db.session.get(Citerne, request.form.get("citerne_id", type=int) or 0)
     if not c or not c.is_active:
@@ -434,7 +447,7 @@ def _read_distribution_form():
                            "Stock insuffisant dans la citerne (%d L disponibles)." % c.stock)
 
     return dict(kind="distribution", citerne_id=c.id, vehicle_id=v.id, date=date_str,
-                liters=liters, operator=operator), None
+                time=time_str, liters=liters, operator=operator), None
 
 
 def _render_distribution_form(error=None):
@@ -445,7 +458,7 @@ def _render_distribution_form(error=None):
         citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
                   .order_by(Citerne.code).all()),
         vehicles=_entry_vehicles(), operators=_accessible_operators(),
-        today=date.today().isoformat(),
+        today=date.today().isoformat(), now_time=datetime.now().strftime("%H:%M"),
         preset_citerne=request.args.get("citerne", type=int)), status
 
 

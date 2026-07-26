@@ -1,4 +1,16 @@
 {# Shared fuel-movement table. Expects `movements` (list) and `seuil` (int). #}
+{% macro machine_cell(v) %}
+    {% if v %}
+    {% set purl = photo_url(v.photo_key) if v.photo_key else None %}
+    <span class="vehicle-cell">
+        <span class="vehicle-thumb vehicle-thumb--sm {% if not purl %}vehicle-thumb--empty{% endif %}">
+            {% if purl %}<img src="{{ purl }}" alt="" loading="lazy">
+            {% else %}<span class="material-symbols-outlined">{{ 'directions_bus' if v.category.code == 'BUS' else 'handyman' }}</span>{% endif %}
+        </span>
+        <strong>{{ v.code }}</strong>
+    </span>
+    {% else %}<span class="muted">—</span>{% endif %}
+{% endmacro %}
 <div class="table-wrap"><table class="data-table">
     <thead>
         <tr>
@@ -14,7 +26,7 @@
     <tbody>
         {% for m in movements %}
         <tr>
-            <td>{{ m.date }}</td>
+            <td>{{ m.date }}{% if m.time %}<div class="muted small">{{ m.time }}</div>{% endif %}</td>
             {% if m.kind == 'releve' %}
             {% set ec = m.ecart %}
             {% set bad = ec is not none and (ec > seuil or ec < -seuil) %}
@@ -31,20 +43,20 @@
             {% elif m.kind == 'conso' %}
             <td><span class="mv-chip mv-chip--conso">{{ t['movement.conso'] }}</span></td>
             <td>{{ m.citerne.code }}</td>
-            <td>{% if m.vehicle %}<strong>{{ m.vehicle.code }}</strong>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>{{ machine_cell(m.vehicle) }}</td>
             <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ '{:,}'.format(m.liters) }} L</td>
             <td class="col-secondary muted">{{ m.operator or t['conso.own'] }}</td>
             {% elif m.kind == 'direct' %}
             <td><span class="mv-chip mv-chip--direct">{{ t['movement.direct'] }}</span></td>
             <td><span class="muted">{{ t['distribution.client'] }}</span></td>
-            <td>{% if m.vehicle %}<strong>{{ m.vehicle.code }}</strong>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>{{ machine_cell(m.vehicle) }}</td>
             <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ '{:,}'.format(m.liters) }} L</td>
             <td class="col-secondary muted">{{ m.operator or '—' }}</td>
             {% else %}
             {% set is_in = m.kind == 'rentree' %}
             <td><span class="mv-chip {{ 'mv-chip--in' if is_in else 'mv-chip--out' }}">{{ t['movement.rentree'] if is_in else t['movement.distribution'] }}</span></td>
             <td>{{ m.citerne.code }}</td>
-            <td>{% if m.vehicle %}<strong>{{ m.vehicle.code }}</strong>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>{{ machine_cell(m.vehicle) }}</td>
             <td style="text-align:right; font-weight:700; white-space:nowrap;" class="{{ 'lit-in' if is_in else 'lit-out' }}">
                 {{ '+' if is_in else '−' }}{{ '{:,}'.format(m.liters) }} L
             </td>

@@ -94,7 +94,11 @@
             {% for v, liters in machines %}
             <div class="flux-machine" data-liters="{{ liters }}">
                 <div class="flux-machine__head">
-                    <span class="material-symbols-outlined" aria-hidden="true">directions_bus</span>
+                    {% set purl = photo_url(v.photo_key) if v.photo_key else None %}
+                    <span class="vehicle-thumb {% if not purl %}vehicle-thumb--empty{% endif %}">
+                        {% if purl %}<img src="{{ purl }}" alt="{{ v.code }}" loading="lazy">
+                        {% else %}<span class="material-symbols-outlined" aria-hidden="true">{{ 'directions_bus' if v.category.code == 'BUS' else 'handyman' }}</span>{% endif %}
+                    </span>
                     <div>
                         <div class="flux-machine__code">{{ v.code }}</div>
                         <div class="flux-machine__cat">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</div>

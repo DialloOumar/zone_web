@@ -563,6 +563,7 @@ class FuelMovement(db.Model):
     citerne_id  = db.Column(db.Integer,     db.ForeignKey("citernes.id"), nullable=True)
     kind        = db.Column(db.String(20),  nullable=False)                  # initial|rentree|distribution|releve|conso|direct
     date        = db.Column(db.String(10),  nullable=False)                  # YYYY-MM-DD
+    time        = db.Column(db.String(5),   nullable=True)                   # HH:MM — when the fuel was actually taken (prises)
     liters      = db.Column(db.Integer,     nullable=False)                  # positive; sign from kind
     vehicle_id  = db.Column(db.Integer,     db.ForeignKey("vehicles.id"), nullable=True)  # the machine, for distributions
     operator    = db.Column(db.String(120), nullable=True)                  # driver who took the fuel

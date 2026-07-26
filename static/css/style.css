@@ -1675,3 +1675,7 @@ a.stat-card { text-decoration: none; color: inherit; }
 .flux-identity > div { min-width: 0; }
 .vehicle-thumb--lg { flex-basis: 56px; width: 56px; height: 56px; border-radius: var(--shape-md); }
 .vehicle-thumb--lg .material-symbols-outlined { font-size: 28px; }
+
+/* Small avatar for dense tables (fuel movement machine cells) */
+.vehicle-thumb--sm { flex-basis: 30px; width: 30px; height: 30px; border-radius: var(--shape-xs); }
+.vehicle-thumb--sm .material-symbols-outlined { font-size: 16px; }
