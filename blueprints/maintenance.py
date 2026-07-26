@@ -25,7 +25,9 @@ from models import (Alert, Expense, Fleet, MaintenanceRecord, MaintenanceRule,
 
 maintenance_bp = Blueprint("maintenance", __name__)
 
-RULE_TYPES = ["km_recurring", "hours_recurring", "trips_recurring", "time_recurring"]
+# "time_recurring" (calendar-based) is hidden from the form for now — the engine
+# still evaluates any rule already saved with that type.
+RULE_TYPES = ["km_recurring", "hours_recurring", "trips_recurring"]
 RECORD_TYPES = ["oil_change", "filter", "tires", "brakes", "repair", "parts",
                 "revision", "other"]
 SEVERITIES = ["info", "warning", "critical"]
