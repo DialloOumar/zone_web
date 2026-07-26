@@ -9,12 +9,49 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
+import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
 from models import (Alert, Citerne, DailyEntry, Expense, Fleet,
                     MaintenanceRecord, Operator, Vehicle, VehicleCategory, db)
 
 vehicles_bp = Blueprint("vehicles", __name__)
+
+
+# Map an s3_storage error code to a localized message for the form.
+_PHOTO_ERR_KEYS = {
+    s3_storage.ERR_TOO_LARGE:     "photo.err.too_large",
+    s3_storage.ERR_BAD_FORMAT:    "photo.err.bad_format",
+    s3_storage.ERR_NOT_CONFIGURED: "photo.err.not_configured",
+    s3_storage.ERR_S3:            "photo.err.s3",
+    s3_storage.ERR_UNKNOWN:       "photo.err.unknown",
+}
+
+
+def _apply_photo_change(vehicle):
+    """Handle the optional photo on a create/edit POST.
+
+    A new upload replaces (and deletes) the previous object; ticking the
+    "remove" box clears it. Returns a localized error string when an actually
+    submitted photo can't be stored, else None. Never blocks the save on its
+    own — the caller decides, but a bad/oversized file is worth reporting so
+    the user retries. Assumes the vehicle row already has an id.
+    """
+    t = get_t()
+    old_key = vehicle.photo_key
+    if request.form.get("photo_remove") == "1":
+        vehicle.photo_key = None
+    upload = request.files.get("photo")
+    if upload and upload.filename:
+        key, err = s3_storage.upload_vehicle_photo(upload, vehicle.code)
+        if err:
+            return t.get(_PHOTO_ERR_KEYS.get(err, "photo.err.unknown"),
+                         "Photo non enregistrée.")
+        vehicle.photo_key = key
+    # Delete the old object only once the DB will keep the new state.
+    if old_key and old_key != vehicle.photo_key:
+        s3_storage.delete_photo(old_key)
+    return None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -212,6 +249,10 @@ def new():
         v = Vehicle(created_by=current_user.id, **data)
         db.session.add(v)
         db.session.flush()
+        perr = _apply_photo_change(v)
+        if perr:
+            db.session.rollback()
+            return _render_vehicle_form(None, perr)
         log_action("CREATE", "vehicle", resource_id=v.id, fleet_id=v.fleet_id,
                    detail=f"Created vehicle '{v.code}'")
         db.session.commit()
@@ -238,6 +279,10 @@ def edit(vid):
             return modal_ok() if is_modal_request() else redirect(url_for("vehicles.detail", vid=vehicle.id))
         for k, val in data.items():
             setattr(vehicle, k, val)
+        perr = _apply_photo_change(vehicle)
+        if perr:
+            db.session.rollback()
+            return _render_vehicle_form(vehicle, perr)
         log_action("UPDATE", "vehicle", resource_id=vehicle.id,
                    fleet_id=vehicle.fleet_id, detail=f"Updated vehicle '{vehicle.code}'")
         db.session.commit()

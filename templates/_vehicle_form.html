@@ -1,7 +1,7 @@
 {% set is_edit = vehicle is not none %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 {% if not fleets %}<div class="alert alert--warning">{{ t['vehicle.no_active_fleet'] }}</div>{% endif %}
-<form method="post" class="entry-form" data-modal-form
+<form method="post" class="entry-form" data-modal-form enctype="multipart/form-data"
       action="{{ url_for('vehicles.edit', vid=vehicle.id) if is_edit else url_for('vehicles.new') }}">
     <div class="field">
         <input type="text" id="code" name="code" placeholder="{{ t['ph.vehicle.code'] }}" required
@@ -62,9 +62,29 @@
             <div class="field-hint">{{ t['vehicle.default_operator_hint'] }}</div>
         </div>
         <div class="field">
-            <textarea id="description" name="description" placeholder="{{ t['ph.vehicle.description'] }}" rows="1">{{ request.form.get('description') or (vehicle.description if is_edit else '') }}</textarea>
+            <textarea id="description" name="description" placeholder="{{ t['ph.vehicle.description'] }}" rows="1">{{ request.form.get('description') or (vehicle.description if is_edit and vehicle.description else '') }}</textarea>
             <label for="description">{{ t['vehicle.description'] }}</label>
         </div>
+    </div>
+
+    <div class="photo-input">
+        <span class="photo-input__label">{{ t['vehicle.photo'] }}</span>
+        <div class="photo-preview" id="vehicle-photo-preview">
+            {% set purl = photo_url(vehicle.photo_key) if is_edit and vehicle.photo_key else None %}
+            {% if purl %}
+            <div class="photo-preview__inner photo-preview__inner--existing">
+                <a href="{{ purl }}" target="_blank" rel="noopener"><img src="{{ purl }}" alt="{{ vehicle.code }}"></a>
+                <button type="button" class="photo-preview__remove" data-photo-remove title="{{ t['vehicle.photo_remove'] }}">&times;</button>
+            </div>
+            {% endif %}
+        </div>
+        <label class="btn btn--outlined btn--sm photo-input__pick" for="vehicle-photo">
+            <span class="material-symbols-outlined">photo_camera</span> {{ t['vehicle.photo_change'] if purl else t['vehicle.photo_add'] }}
+        </label>
+        <input type="file" id="vehicle-photo" name="photo" accept="image/*" hidden
+               onchange="onVehiclePhotoPick(this)">
+        <input type="hidden" name="photo_remove" id="vehicle-photo-remove" value="">
+        <div class="field-hint">{{ t['vehicle.photo_hint'] }}</div>
     </div>
 
     <label class="checkbox-item" style="max-width: 220px;">

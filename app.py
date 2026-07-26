@@ -22,6 +22,7 @@ from flask_login import (LoginManager, current_user, login_required,
                          login_user, logout_user)
 from flask_migrate import Migrate
 
+import s3_storage
 from languages import TRANSLATIONS
 from models import (Alert, AppSetting, AuditLog, DailyEntry, Expense, Fleet,
                     FleetRate, MaintenanceRecord, MaintenanceRule, Operator,
@@ -150,6 +151,9 @@ def _inject_globals():
         "lang": current_lang(),
         "v": STATIC_VERSION,
         "has_perm": has_perm,
+        # Fresh 1-hour presigned URL for a private S3 object (photo). Returns
+        # None when the key is empty or storage isn't configured.
+        "photo_url": s3_storage.signed_url,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,

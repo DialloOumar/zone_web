@@ -295,4 +295,53 @@ window.compressImage = function (file, opts) {
     });
 };
 
+// ── Vehicle photo picker (form) ──
+// Shows an instant local preview, compresses the picked image before it's
+// uploaded (kind to slow field connections), and lets the user drop a photo.
+function _vehiclePreviewEl() { return document.getElementById("vehicle-photo-preview"); }
+
+function _renderPickedPhoto(objectUrl) {
+    var preview = _vehiclePreviewEl();
+    if (!preview) return;
+    preview.innerHTML =
+        '<div class="photo-preview__inner">' +
+            '<img src="' + objectUrl + '" alt="">' +
+            '<button type="button" class="photo-preview__remove" data-photo-remove>&times;</button>' +
+        '</div>';
+}
+
+window.onVehiclePhotoPick = function (input) {
+    var removeFlag = document.getElementById("vehicle-photo-remove");
+    if (removeFlag) removeFlag.value = "";   // a fresh pick cancels a pending removal
+    var file = input.files && input.files[0];
+    if (!file) return;
+    _renderPickedPhoto(URL.createObjectURL(file));
+    // Compress in the background; swap the input's file if the result is smaller.
+    if (window.compressImage) {
+        window.compressImage(file, { maxDim: 1600, quality: 0.82 }).then(function (out) {
+            if (!out || out === file || out.size >= file.size || typeof DataTransfer === "undefined") return;
+            try {
+                var dt = new DataTransfer();
+                dt.items.add(out instanceof File ? out :
+                    new File([out], "photo.jpg", { type: "image/jpeg" }));
+                input.files = dt.files;
+            } catch (e) { /* keep the original file */ }
+        }).catch(function () {});
+    }
+};
+
+// Remove button (works for both an existing photo and a freshly picked one),
+// delegated so it survives modal injection.
+document.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-photo-remove]");
+    if (!btn) return;
+    e.preventDefault();
+    var removeFlag = document.getElementById("vehicle-photo-remove");
+    var fileInput = document.getElementById("vehicle-photo");
+    var preview = _vehiclePreviewEl();
+    if (fileInput) fileInput.value = "";
+    if (removeFlag) removeFlag.value = "1";  // tell the server to drop the stored photo
+    if (preview) preview.innerHTML = "";
+});
+
 console.log("Zone Web booted");

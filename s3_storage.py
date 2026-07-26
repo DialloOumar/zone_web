@@ -10,9 +10,22 @@ import time
 import uuid
 from typing import Optional, Tuple
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
-from PIL import Image, ImageOps, UnidentifiedImageError
+# boto3 / Pillow are optional at import time: if they're missing (a minimal
+# environment), the module still loads and simply reports "not configured" —
+# photo features switch off instead of crashing the whole app on startup.
+try:
+    import boto3
+    from botocore.exceptions import BotoCoreError, ClientError
+except ImportError:  # pragma: no cover - exercised only where boto3 is absent
+    boto3 = None
+    class BotoCoreError(Exception): pass
+    class ClientError(Exception): pass
+
+try:
+    from PIL import Image, ImageOps, UnidentifiedImageError
+except ImportError:  # pragma: no cover
+    Image = ImageOps = None
+    class UnidentifiedImageError(Exception): pass
 
 # Reasons returned alongside None when upload_shift_photo fails. The caller
 # maps these to user-facing strings via the translation table.
@@ -36,6 +49,7 @@ if S3_PREFIX and not S3_PREFIX.endswith("/"):
     S3_PREFIX += "/"
 
 PHOTO_PREFIX    = S3_PREFIX + "shift-photos/"
+VEHICLE_PREFIX  = S3_PREFIX + "vehicles/"      # one photo per vehicle
 MAX_BYTES       = 12 * 1024 * 1024   # 12 MB raw upload cap
 RESIZE_MAX      = 1920               # longest edge after resize
 JPEG_QUALITY    = 85
@@ -44,6 +58,8 @@ SIGNED_URL_TTL  = 3600               # 1 hour
 
 def _client():
     """Lazily build an S3 client; returns None if not configured."""
+    if boto3 is None:
+        return None
     if not all([S3_ENDPOINT_URL, S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY]):
         return None
     return boto3.client(
@@ -108,6 +124,60 @@ def upload_shift_photo(file_storage, machine_id: str, date_str: str, shift: str)
         return None, ERR_S3
     except Exception as e:
         log.exception("Unexpected error during photo upload: %s", e)
+        return None, ERR_UNKNOWN
+
+
+def _resize_to_jpeg(file_storage) -> Tuple[Optional[bytes], Optional[str]]:
+    """Read an uploaded image (capped), fix EXIF rotation, downscale and
+    re-encode to JPEG. Returns (jpeg_bytes, None) or (None, error_code)."""
+    raw = file_storage.read(MAX_BYTES + 1)
+    if len(raw) > MAX_BYTES:
+        log.warning("Photo exceeds %d bytes; rejected", MAX_BYTES)
+        return None, ERR_TOO_LARGE
+    img = Image.open(io.BytesIO(raw))
+    img = ImageOps.exif_transpose(img)
+    img.thumbnail((RESIZE_MAX, RESIZE_MAX))
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+    return buf.getvalue(), None
+
+
+def _slug(text: str) -> str:
+    """A filesystem-safe fragment for an object key (letters/digits/dash)."""
+    out = "".join(ch if (ch.isalnum() or ch == "-") else "-" for ch in (text or "").lower())
+    out = "-".join(p for p in out.split("-") if p)
+    return out or "vehicle"
+
+
+def upload_vehicle_photo(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """Resize and upload a vehicle photo to {S3_PREFIX}vehicles/.
+
+    Returns (key, None) on success or (None, error_code) on failure — the
+    caller maps the code to a localized message. Best-effort, like the rest of
+    this module: an S3 hiccup never has to block saving the vehicle.
+    """
+    s3 = _client()
+    if s3 is None:
+        log.warning("S3 not configured; skipping vehicle photo upload")
+        return None, ERR_NOT_CONFIGURED
+    try:
+        body, err = _resize_to_jpeg(file_storage)
+        if err:
+            return None, err
+        key = (f"{VEHICLE_PREFIX}{_slug(code)}"
+               f"-{int(time.time())}-{uuid.uuid4().hex[:6]}.jpg")
+        s3.put_object(Bucket=S3_BUCKET, Key=key, Body=body, ContentType="image/jpeg")
+        return key, None
+    except UnidentifiedImageError:
+        log.warning("Uploaded vehicle photo is not a recognized image (HEIC or corrupted)")
+        return None, ERR_BAD_FORMAT
+    except (BotoCoreError, ClientError) as e:
+        log.exception("S3 vehicle photo upload failed: %s", e)
+        return None, ERR_S3
+    except Exception as e:
+        log.exception("Unexpected error during vehicle photo upload: %s", e)
         return None, ERR_UNKNOWN
 
 

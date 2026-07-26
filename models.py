@@ -221,6 +221,7 @@ class Vehicle(db.Model):
     # fleet), used to pre-fill the conducteur on a new daily entry.
     default_operator_id           = db.Column(db.Integer,   db.ForeignKey("operators.id"), nullable=True)
     is_active                     = db.Column(db.Boolean,   nullable=False, default=True)
+    photo_key                     = db.Column(db.String(200), nullable=True)   # S3 object key of the vehicle photo
     created_at                    = db.Column(db.DateTime,  nullable=False, default=datetime.utcnow)
     created_by                    = db.Column(db.Integer,   db.ForeignKey("users.id"), nullable=True)
 
