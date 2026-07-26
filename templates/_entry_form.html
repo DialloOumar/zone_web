@@ -53,7 +53,7 @@
     </div>
 
     <div class="form-row">
-        <div class="field">
+        <div class="field" id="field-km">
             <input type="text" inputmode="decimal" id="kilometers" name="kilometers" placeholder="{{ t['ph.entry.km'] }}"
                    value="{{ request.form.get('kilometers') or (entry.kilometers if is_edit and entry.kilometers is not none else '') }}">
             <label for="kilometers">{{ t['entry.km'] }}</label>
@@ -98,6 +98,7 @@
     var trips = document.getElementById("field-trips");
     var hours = document.getElementById("field-hours");
     var index = document.getElementById("field-index");
+    var km = document.getElementById("field-km");
     var iStart = document.getElementById("index_start");
     var iEnd = document.getElementById("index_end");
     var iPrev = document.getElementById("index_hours_preview");
@@ -138,6 +139,9 @@
         if (trips) trips.style.display = track === "trips" ? "" : "none";
         if (hours) hours.style.display = track === "hours" ? "" : "none";
         if (index) index.style.display = track === "hours_index" ? "" : "none";
+        // Km only makes sense for a moving vehicle (voyages). A machine tracked
+        // by hours / index doesn't run kilometres, so drop the field for it.
+        if (km) km.style.display = track === "trips" ? "" : "none";
         if (track === "hours_index") computeIndex();
         if (opSel) {
             var fleet = (opt && opt.dataset.fleet) || "";

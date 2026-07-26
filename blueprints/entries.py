@@ -158,6 +158,10 @@ def _read_entry_form(entry):
     trips = hours = index_start = index_end = None
     bad = False
     tracking = vehicle.category.tracking
+    # Kilometres only apply to a moving vehicle (voyages). A machine tracked by
+    # hours / index never runs km, so drop any value the form might still carry.
+    if tracking != "trips":
+        km = None
     if tracking == "trips":
         trips, bad = _num(request.form.get("trips"), lambda s: int(round(float(s))))
     elif tracking == "hours_index":
