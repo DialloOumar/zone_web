@@ -305,6 +305,9 @@ def scoped(model, *, category_attr="category_id", fleet_attr="fleet_id"):
     own join (this helper covers the simple direct-FK case only).
     """
     q = model.query
+    # Soft-deleted rows are gone from every UI (kept only for history/FKs).
+    if hasattr(model, "deleted_at"):
+        q = q.filter(model.deleted_at.is_(None))
     if current_user.is_super_admin:
         return q
     fleet_ids = current_user_fleet_ids() or []

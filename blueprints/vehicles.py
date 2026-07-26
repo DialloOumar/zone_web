@@ -5,6 +5,8 @@ fleets. First module to wire the approval+grace flow: when a user's role
 marks vehicle.* as requiring approval (and they're outside the grace window),
 the change is parked in the approval queue instead of applied.
 """
+from datetime import datetime
+
 from flask import (Blueprint, abort, flash, make_response, redirect,
                    render_template, request, url_for)
 from flask_login import current_user, login_required
@@ -70,8 +72,8 @@ def _accessible_fleets():
 
 def _get_vehicle_or_404(vid):
     v = db.session.get(Vehicle, vid)
-    if not v:
-        abort(404)
+    if not v or v.deleted_at is not None:
+        abort(404)          # a deleted machine no longer exists for the UI
     fids = current_user_fleet_ids()
     if fids is not None and v.fleet_id not in fids:
         abort(403)
@@ -120,8 +122,10 @@ def _read_vehicle_form(vehicle):
     if category.code not in (fleet.categories or []):
         return None, t["vehicle.err.cat_not_in_fleet"]
 
-    # Code unique (case-insensitive), excluding self on edit.
-    q = Vehicle.query.filter(db.func.lower(Vehicle.code) == code.lower())
+    # Code unique among live machines (case-insensitive), excluding self on
+    # edit. A deleted machine doesn't count, so its code can be reused.
+    q = Vehicle.query.filter(db.func.lower(Vehicle.code) == code.lower(),
+                             Vehicle.deleted_at.is_(None))
     if vehicle:
         q = q.filter(Vehicle.id != vehicle.id)
     if q.first():
@@ -332,3 +336,24 @@ def reactivate(vid):
     db.session.commit()
     flash("success|" + t.get("vehicle.reactivated", "Véhicule réactivé."))
     return redirect(url_for("vehicles.index"))
+
+
+@vehicles_bp.route("/vehicles/<int:vid>/destroy", methods=["POST"])
+@login_required
+@require_perm("vehicle.delete")
+def destroy(vid):
+    """Real delete of an already-archived machine: it vanishes from every UI
+    and its code is freed for reuse, but the row stays so its history (entries,
+    fuel movements, expenses) isn't orphaned. Must be archived first."""
+    vehicle = _get_vehicle_or_404(vid)
+    t = get_t()
+    if vehicle.is_active:
+        flash("error|" + t.get("delete.archive_first",
+                               "Archivez d'abord, puis supprimez."))
+        return redirect(url_for("vehicles.index"))
+    vehicle.deleted_at = datetime.utcnow()
+    log_action("DELETE", "vehicle", resource_id=vid, fleet_id=vehicle.fleet_id,
+               detail=f"Deleted vehicle '{vehicle.code}' (kept for history)")
+    db.session.commit()
+    flash("success|" + t.get("vehicle.deleted", "Véhicule supprimé."))
+    return redirect(url_for("vehicles.index", archived=1))

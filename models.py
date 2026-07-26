@@ -207,7 +207,14 @@ class VehicleCategory(db.Model):
 
 class Vehicle(db.Model):
     __tablename__ = "vehicles"
-    __table_args__ = (db.UniqueConstraint("code", name="uq_vehicles_code"),)
+    # Code is unique only among LIVE rows (not soft-deleted), so the code of a
+    # deleted machine can be reused. A partial unique index enforces this at the
+    # DB level on both SQLite and Postgres.
+    __table_args__ = (
+        db.Index("uq_vehicles_code_live", "code", unique=True,
+                 sqlite_where=db.text("deleted_at IS NULL"),
+                 postgresql_where=db.text("deleted_at IS NULL")),
+    )
 
     id                            = db.Column(db.Integer, primary_key=True)
     code                          = db.Column(db.String(30), nullable=False)
@@ -221,6 +228,9 @@ class Vehicle(db.Model):
     # fleet), used to pre-fill the conducteur on a new daily entry.
     default_operator_id           = db.Column(db.Integer,   db.ForeignKey("operators.id"), nullable=True)
     is_active                     = db.Column(db.Boolean,   nullable=False, default=True)
+    # Soft delete beyond archive: set = the machine is gone from every UI, its
+    # code is freed for reuse, but the row stays so history isn't orphaned.
+    deleted_at                    = db.Column(db.DateTime,  nullable=True)
     photo_key                     = db.Column(db.String(200), nullable=True)   # S3 object key of the vehicle photo
     created_at                    = db.Column(db.DateTime,  nullable=False, default=datetime.utcnow)
     created_by                    = db.Column(db.Integer,   db.ForeignKey("users.id"), nullable=True)

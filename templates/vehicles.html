@@ -107,6 +107,10 @@
                         <form method="post" action="{{ url_for('vehicles.reactivate', vid=v.id) }}" style="display:inline">
                             <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
                         </form>
+                        <form method="post" action="{{ url_for('vehicles.destroy', vid=v.id) }}"
+                              data-confirm="{{ t['delete.confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
+                            <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['delete.forever'] }}" aria-label="{{ t['delete.forever'] }}"><span class="material-symbols-outlined">delete</span></button>
+                        </form>
                         {% endif %}
                     {% endif %}
                 </td>
