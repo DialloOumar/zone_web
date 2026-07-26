@@ -948,6 +948,8 @@ a:hover { text-decoration: underline; }
 }
 .roster-vehicle.is-done { border-left-color: var(--c-green); }
 .roster-vehicle__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.roster-vehicle__id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.roster-vehicle__id > div { min-width: 0; }
 .roster-vehicle__code { font-weight: 700; font-size: 1rem; margin-right: 6px; }
 .roster-add {
     width: 32px; height: 32px; flex-shrink: 0;

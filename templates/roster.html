@@ -43,9 +43,17 @@
     {% set ghosts = ghost_by_vehicle.get(v.id, []) %}
     <div class="roster-vehicle {% if ents %}is-done{% endif %}">
         <div class="roster-vehicle__head">
-            <div>
-                <a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="roster-vehicle__code">{{ v.code }}</a>
-                <span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
+            <div class="roster-vehicle__id">
+                {% set turl = photo_url(v.photo_key) if v.photo_key else None %}
+                <a href="{{ url_for('vehicles.detail', vid=v.id) }}"
+                   class="vehicle-thumb {% if not turl %}vehicle-thumb--empty{% endif %}">
+                    {% if turl %}<img src="{{ turl }}" alt="" loading="lazy">
+                    {% else %}<span class="material-symbols-outlined">{{ 'directions_bus' if v.category.code == 'BUS' else 'handyman' }}</span>{% endif %}
+                </a>
+                <div>
+                    <a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="roster-vehicle__code">{{ v.code }}</a>
+                    <span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
+                </div>
             </div>
             {% if has_perm('entry.create') %}
             <a class="roster-add" href="{{ url_for('entries.new', vehicle_id=v.id, date=date_str) }}"
