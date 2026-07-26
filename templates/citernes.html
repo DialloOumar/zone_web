@@ -16,22 +16,19 @@
             {% elif archived_count %}
             <a href="{{ url_for('carburant.index', archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
             {% endif %}
-            {% if has_perm('carburant.create') and active_citernes %}
+            {# VIVO Energy actions only — taking fuel straight at the pump. The
+               citerne's own actions (distribution, relevé, conso) live on each
+               citerne's row and on its flux page. #}
+            {% if has_perm('carburant.create') %}
+            {% if active_citernes %}
             <a href="{{ url_for('carburant.rentree_new') }}" class="btn btn--tonal"
                data-modal-url="{{ url_for('carburant.rentree_new') }}" data-modal-title="{{ t['rentree.new'] }}">
                 <span class="material-symbols-outlined">local_gas_station</span> {{ t['rentree.new'] }}
             </a>
-            <a href="{{ url_for('carburant.distribution_new') }}" class="btn btn--tonal"
-               data-modal-url="{{ url_for('carburant.distribution_new') }}" data-modal-title="{{ t['distribution.new'] }}">
-                <span class="material-symbols-outlined">directions_bus</span> {{ t['distribution.new'] }}
-            </a>
-            <a href="{{ url_for('carburant.releve_new') }}" class="btn btn--tonal"
-               data-modal-url="{{ url_for('carburant.releve_new') }}" data-modal-title="{{ t['releve.new'] }}">
-                <span class="material-symbols-outlined">donut_large</span> {{ t['releve.new'] }}
-            </a>
-            <a href="{{ url_for('carburant.conso_new') }}" class="btn btn--tonal"
-               data-modal-url="{{ url_for('carburant.conso_new') }}" data-modal-title="{{ t['conso.new'] }}">
-                <span class="material-symbols-outlined">directions_bus</span> {{ t['conso.new'] }}
+            {% endif %}
+            <a href="{{ url_for('carburant.distribution_new', source='direct') }}" class="btn btn--tonal"
+               data-modal-url="{{ url_for('carburant.distribution_new', source='direct') }}" data-modal-title="{{ t['movement.direct'] }}">
+                <span class="material-symbols-outlined">directions_bus</span> {{ t['movement.direct'] }}
             </a>
             {% endif %}
             {% if has_perm('carburant.manage') %}
@@ -66,7 +63,7 @@
                             {% if turl %}<img src="{{ turl }}" alt="" loading="lazy">
                             {% else %}<span class="material-symbols-outlined">local_gas_station</span>{% endif %}
                         </span>
-                        <span><strong>{{ c.code }}</strong> <span class="material-symbols-outlined fuel-mark" title="{{ t['fuel.source_citerne'] }}" aria-hidden="true">local_gas_station</span><div class="muted small">{{ c.name }}{% if c.vehicle %} · {{ c.vehicle.code }}{% endif %}</div></span>
+                        <span><strong>{{ c.code }}</strong><div class="muted small">{{ c.name }}{% if c.vehicle %} · {{ c.vehicle.code }}{% endif %}</div></span>
                     </a>
                 </td>
                 <td>{{ c.fleet.name }}</td>
@@ -76,6 +73,17 @@
                 </td>
                 <td class="col-secondary">{{ '{:,}'.format(c.capacity_liters) }} L</td>
                 <td class="row-actions">
+                    {% if has_perm('carburant.create') and c.is_active %}
+                    <a href="{{ url_for('carburant.distribution_new', citerne=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('carburant.distribution_new', citerne=c.id) }}" data-modal-title="{{ t['distribution.new'] }} — {{ c.code }}"
+                       title="{{ t['distribution.new'] }}" aria-label="{{ t['distribution.new'] }}"><span class="material-symbols-outlined">local_gas_station</span></a>
+                    <a href="{{ url_for('carburant.releve_new', citerne=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('carburant.releve_new', citerne=c.id) }}" data-modal-title="{{ t['releve.new'] }} — {{ c.code }}"
+                       title="{{ t['releve.new'] }}" aria-label="{{ t['releve.new'] }}"><span class="material-symbols-outlined">donut_large</span></a>
+                    <a href="{{ url_for('carburant.conso_new', citerne=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('carburant.conso_new', citerne=c.id) }}" data-modal-title="{{ t['conso.new'] }} — {{ c.code }}"
+                       title="{{ t['conso.new'] }}" aria-label="{{ t['conso.new'] }}"><span class="material-symbols-outlined">fact_check</span></a>
+                    {% endif %}
                     {% if has_perm('carburant.manage') %}
                     <a href="{{ url_for('carburant.citerne_edit', cid=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('carburant.citerne_edit', cid=c.id) }}" data-modal-title="{{ t['citerne.edit'] }}"
@@ -108,19 +116,34 @@
             </div>
             <div class="stock-bar"><span style="width:{{ [pct, 100]|min }}%;"></span></div>
             <div class="list-card__meta"><span class="muted small">{{ c.name }} · {{ c.fleet.name }}</span></div>
-            {% if has_perm('carburant.manage') %}
+            {% if has_perm('carburant.manage') or (has_perm('carburant.create') and c.is_active) %}
             <div class="list-card__actions">
+                {% if has_perm('carburant.create') and c.is_active %}
+                <a href="{{ url_for('carburant.distribution_new', citerne=c.id) }}" class="btn btn--sm btn--tonal"
+                   data-modal-url="{{ url_for('carburant.distribution_new', citerne=c.id) }}" data-modal-title="{{ t['distribution.new'] }} — {{ c.code }}">
+                    <span class="material-symbols-outlined">local_gas_station</span> {{ t['distribution.new'] }}</a>
+                <a href="{{ url_for('carburant.releve_new', citerne=c.id) }}" class="btn btn--sm btn--tonal"
+                   data-modal-url="{{ url_for('carburant.releve_new', citerne=c.id) }}" data-modal-title="{{ t['releve.new'] }} — {{ c.code }}">
+                    <span class="material-symbols-outlined">donut_large</span> {{ t['releve.new'] }}</a>
+                <a href="{{ url_for('carburant.conso_new', citerne=c.id) }}" class="btn btn--sm btn--tonal"
+                   data-modal-url="{{ url_for('carburant.conso_new', citerne=c.id) }}" data-modal-title="{{ t['conso.new'] }} — {{ c.code }}">
+                    <span class="material-symbols-outlined">fact_check</span> {{ t['conso.new'] }}</a>
+                {% endif %}
+                {% if has_perm('carburant.manage') %}
                 <a href="{{ url_for('carburant.citerne_edit', cid=c.id) }}" class="btn btn--sm btn--tonal"
                    data-modal-url="{{ url_for('carburant.citerne_edit', cid=c.id) }}" data-modal-title="{{ t['citerne.edit'] }}">{{ t['btn.edit'] }}</a>
-                {% if c.is_active %}
-                <form method="post" action="{{ url_for('carburant.citerne_archive', cid=c.id) }}"
-                      data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="flex:1;">
-                    <button type="submit" class="btn btn--sm btn--tonal" style="width:100%;">{{ t['btn.archive'] }}</button>
-                </form>
-                {% else %}
-                <form method="post" action="{{ url_for('carburant.citerne_reactivate', cid=c.id) }}" style="flex:1;">
-                    <button type="submit" class="btn btn--sm btn--primary" style="width:100%;">{{ t['btn.reactivate'] }}</button>
-                </form>
+                {% endif %}
+                {% if has_perm('carburant.manage') %}
+                    {% if c.is_active %}
+                    <form method="post" action="{{ url_for('carburant.citerne_archive', cid=c.id) }}"
+                          data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="flex:1;">
+                        <button type="submit" class="btn btn--sm btn--tonal" style="width:100%;">{{ t['btn.archive'] }}</button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('carburant.citerne_reactivate', cid=c.id) }}" style="flex:1;">
+                        <button type="submit" class="btn btn--sm btn--primary" style="width:100%;">{{ t['btn.reactivate'] }}</button>
+                    </form>
+                    {% endif %}
                 {% endif %}
             </div>
             {% endif %}

@@ -459,7 +459,8 @@ def _render_distribution_form(error=None):
                   .order_by(Citerne.code).all()),
         vehicles=_entry_vehicles(), operators=_accessible_operators(),
         today=date.today().isoformat(), now_time=datetime.now().strftime("%H:%M"),
-        preset_citerne=request.args.get("citerne", type=int)), status
+        preset_citerne=request.args.get("citerne", type=int),
+        preset_source=request.args.get("source")), status
 
 
 @carburant_bp.route("/distributions/new", methods=["GET", "POST"])

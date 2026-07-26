@@ -25,20 +25,19 @@
         </form>
     </div>
 
+    {# Only this citerne's own actions here — refuelling it from VIVO
+       (Ravitailler) is a pump action, kept on the Carburant page. #}
     {% if has_perm('carburant.create') and citerne.is_active %}
     <div class="flux-actions">
-        <a class="btn btn--sm btn--tonal" href="{{ url_for('carburant.rentree_new', citerne=citerne.id) }}"
-           data-modal-url="{{ url_for('carburant.rentree_new', citerne=citerne.id) }}" data-modal-title="{{ t['rentree.new'] }}">
-            <span class="material-symbols-outlined">local_gas_station</span> {{ t['rentree.new'] }}</a>
         <a class="btn btn--sm btn--tonal" href="{{ url_for('carburant.distribution_new', citerne=citerne.id) }}"
            data-modal-url="{{ url_for('carburant.distribution_new', citerne=citerne.id) }}" data-modal-title="{{ t['distribution.new'] }}">
-            <span class="material-symbols-outlined">directions_bus</span> {{ t['distribution.new'] }}</a>
+            <span class="material-symbols-outlined">local_gas_station</span> {{ t['distribution.new'] }}</a>
         <a class="btn btn--sm btn--tonal" href="{{ url_for('carburant.releve_new', citerne=citerne.id) }}"
            data-modal-url="{{ url_for('carburant.releve_new', citerne=citerne.id) }}" data-modal-title="{{ t['releve.new'] }}">
             <span class="material-symbols-outlined">donut_large</span> {{ t['releve.new'] }}</a>
         <a class="btn btn--sm btn--tonal" href="{{ url_for('carburant.conso_new', citerne=citerne.id) }}"
            data-modal-url="{{ url_for('carburant.conso_new', citerne=citerne.id) }}" data-modal-title="{{ t['conso.new'] }}">
-            <span class="material-symbols-outlined">directions_bus</span> {{ t['conso.new'] }}</a>
+            <span class="material-symbols-outlined">fact_check</span> {{ t['conso.new'] }}</a>
     </div>
     {% endif %}
 

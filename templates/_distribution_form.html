@@ -1,15 +1,19 @@
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
-      action="{{ url_for('carburant.distribution_new', citerne=preset_citerne) if preset_citerne else url_for('carburant.distribution_new') }}">
+      action="{{ url_for('carburant.distribution_new', citerne=preset_citerne, source=preset_source) if (preset_citerne or preset_source) else url_for('carburant.distribution_new') }}">
 
     <div class="form-row">
-        {# Opened from a citerne's flux view: the fuel comes from THAT citerne,
-           so taking it straight at VIVO Energy (direct) makes no sense here —
-           drop that option and hide the now single-choice source field. #}
-        <div class="field field--select"{% if preset_citerne %} style="display:none"{% endif %}>
-            {% set sel_src = request.form.get('source') or 'citerne' %}
+        {# Source is fixed by where the form was opened from:
+           - from a citerne (preset_citerne) -> that citerne, no "direct" option;
+           - from "Plein direct" (preset_source=direct) -> straight at VIVO, no citerne.
+           In both cases the single-choice source field is hidden. #}
+        {% set forced_direct = preset_source == 'direct' %}
+        <div class="field field--select"{% if preset_citerne or forced_direct %} style="display:none"{% endif %}>
+            {% set sel_src = request.form.get('source') or preset_source or 'citerne' %}
             <select id="source" name="source">
+                {% if not forced_direct %}
                 <option value="citerne" {% if sel_src == 'citerne' %}selected{% endif %}>{{ t['distribution.source_citerne'] }}</option>
+                {% endif %}
                 {% if not preset_citerne %}
                 <option value="direct" {% if sel_src == 'direct' %}selected{% endif %}>{{ t['distribution.source_direct'] }}</option>
                 {% endif %}
