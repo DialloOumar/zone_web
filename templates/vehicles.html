@@ -7,6 +7,18 @@
 <section class="card">
     <div class="card-header card-header--end">
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+        {% if vehicles or view %}
+        <div class="view-toggle" role="group" aria-label="{{ t['view.label'] }}">
+            <a href="{{ url_for('vehicles.index', view='cards', category=(active_code or none), archived=(1 if show_archived else none)) }}"
+               class="view-toggle__btn {% if view == 'cards' %}active{% endif %}" title="{{ t['view.cards'] }}" aria-label="{{ t['view.cards'] }}">
+                <span class="material-symbols-outlined">space_dashboard</span>
+            </a>
+            <a href="{{ url_for('vehicles.index', view='table', category=(active_code or none), archived=(1 if show_archived else none)) }}"
+               class="view-toggle__btn {% if view == 'table' %}active{% endif %}" title="{{ t['view.table'] }}" aria-label="{{ t['view.table'] }}">
+                <span class="material-symbols-outlined">list_alt</span>
+            </a>
+        </div>
+        {% endif %}
         {% if show_archived %}
             <a href="{{ url_for('vehicles.index', category=active_code) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_active'] }}</a>
         {% elif archived_count %}
@@ -32,7 +44,13 @@
     {% endif %}
 
     {% if vehicles %}
-    {# Desktop: full table #}
+    {% if view == 'cards' %}
+    {# Cards view: photo-forward grid at every width #}
+    <div class="vehicle-grid">
+        {% for v in vehicles %}{% include "_vehicle_card.html" %}{% endfor %}
+    </div>
+    {% else %}
+    {# Table view: dense table on desktop, cards fallback on phones #}
     <div class="table-desktop">
     <table class="data-table">
         <thead>
@@ -98,46 +116,11 @@
     </table>
     </div>
 
-    {# Mobile: one card per vehicle #}
-    <div class="list-cards">
-        {% for v in vehicles %}
-        <div class="list-card">
-            <div class="list-card__top">
-                <a href="{{ url_for('vehicles.detail', vid=v.id) }}"><strong>{{ v.code }}</strong></a>
-                {% if v.is_active %}
-                <span class="badge badge--active">{{ t['vehicle.active'] }}</span>
-                {% else %}
-                <span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>
-                {% endif %}
-            </div>
-            <div class="list-card__meta">
-                <span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
-                <span class="muted small">{{ v.fleet.name }}</span>
-                {% if v.effective_baseline %}<span class="muted small">· {{ v.effective_baseline }} L/{{ t['unit.' + v.category.unit_type] }}</span>{% endif %}
-            </div>
-            {% if has_perm('vehicle.edit') or has_perm('vehicle.delete') %}
-            <div class="list-card__actions">
-                {% if has_perm('vehicle.edit') %}
-                <a href="{{ url_for('vehicles.edit', vid=v.id) }}" class="btn btn--sm btn--tonal"
-                   data-modal-url="{{ url_for('vehicles.edit', vid=v.id) }}" data-modal-title="{{ t['vehicle.edit'] }}">{{ t['btn.edit'] }}</a>
-                {% endif %}
-                {% if has_perm('vehicle.delete') %}
-                    {% if v.is_active %}
-                    <form method="post" action="{{ url_for('vehicles.delete', vid=v.id) }}"
-                          data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}">
-                        <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.archive'] }}</button>
-                    </form>
-                    {% else %}
-                    <form method="post" action="{{ url_for('vehicles.reactivate', vid=v.id) }}">
-                        <button type="submit" class="btn btn--sm btn--primary">{{ t['btn.reactivate'] }}</button>
-                    </form>
-                    {% endif %}
-                {% endif %}
-            </div>
-            {% endif %}
-        </div>
-        {% endfor %}
+    {# Phones can't show the wide table — fall back to the photo cards #}
+    <div class="vehicle-grid vehicle-grid--mobile">
+        {% for v in vehicles %}{% include "_vehicle_card.html" %}{% endfor %}
     </div>
+    {% endif %}
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">directions_bus</span>

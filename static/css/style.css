@@ -1621,3 +1621,49 @@ a.stat-card { text-decoration: none; color: inherit; }
 @media (max-width: 560px) {
     .vehicle-hero__media { flex-basis: 100%; max-width: 100%; }
 }
+
+/* ── Vehicles: cards / table view toggle + photo card grid ── */
+.view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--shape-full); overflow: hidden; }
+.view-toggle__btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 34px; color: var(--md-on-surface-variant);
+    text-decoration: none; background: var(--md-surface);
+}
+.view-toggle__btn .material-symbols-outlined { font-size: 20px; }
+.view-toggle__btn.active { background: var(--md-primary); color: #fff; }
+.view-toggle__btn:not(.active):hover { background: var(--md-surface-container-high); }
+
+.vehicle-grid {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.vehicle-grid--mobile { display: none; }   /* only used as the phone fallback in table view */
+
+.vehicle-card {
+    display: flex; flex-direction: column;
+    background: var(--md-surface); border: 1px solid var(--md-outline-variant);
+    border-radius: var(--shape-md); overflow: hidden;
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+.vehicle-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.10); transform: translateY(-1px); }
+.vehicle-card--archived { opacity: .72; }
+.vehicle-card__media {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    aspect-ratio: 16 / 10; background: var(--md-surface-container-high); overflow: hidden;
+}
+.vehicle-card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vehicle-card__media--empty .material-symbols-outlined { font-size: 48px; color: var(--md-outline); }
+.vehicle-card__status { position: absolute; top: 8px; left: 8px; }
+.vehicle-card__body { padding: 11px 13px 4px; flex: 1 1 auto; }
+.vehicle-card__title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vehicle-card__title a { text-decoration: none; }
+.vehicle-card__meta { margin-top: 5px; line-height: 1.35; }
+.vehicle-card__actions {
+    display: flex; gap: 8px; padding: 10px 13px 12px;
+}
+.vehicle-card__actions > a:first-child { flex: 1; justify-content: center; }
+
+@media (max-width: 768px) {
+    /* In table view the table is hidden on phones; show the card fallback. */
+    .vehicle-grid--mobile { display: grid; }
+}

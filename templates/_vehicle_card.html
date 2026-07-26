@@ -1,0 +1,47 @@
+{# One vehicle as a photo-forward card. Expects `v`. Used by the cards view
+   and as the phone fallback for the table view. #}
+{% set turl = photo_url(v.photo_key) if v.photo_key else None %}
+<div class="vehicle-card {% if not v.is_active %}vehicle-card--archived{% endif %}">
+    <a href="{{ url_for('vehicles.detail', vid=v.id) }}"
+       class="vehicle-card__media {% if not turl %}vehicle-card__media--empty{% endif %}">
+        {% if turl %}<img src="{{ turl }}" alt="{{ v.code }}" loading="lazy">
+        {% else %}<span class="material-symbols-outlined">{{ 'directions_bus' if v.category.code == 'BUS' else 'handyman' }}</span>{% endif %}
+        {% if v.is_active %}
+        <span class="badge badge--active vehicle-card__status">{{ t['vehicle.active'] }}</span>
+        {% else %}
+        <span class="badge badge--inactive vehicle-card__status">{{ t['vehicle.inactive'] }}</span>
+        {% endif %}
+    </a>
+    <div class="vehicle-card__body">
+        <div class="vehicle-card__title">
+            <a href="{{ url_for('vehicles.detail', vid=v.id) }}"><strong>{{ v.code }}</strong></a>
+            <span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
+        </div>
+        <div class="vehicle-card__meta muted small">
+            {{ v.fleet.name }}{% if v.site %} · {{ v.site }}{% endif %}
+            {% if v.effective_baseline %}<br>{{ v.effective_baseline }} L / {{ t['unit.' + v.category.unit_type] }}{% endif %}
+        </div>
+    </div>
+    {% if has_perm('vehicle.edit') or has_perm('vehicle.delete') %}
+    <div class="vehicle-card__actions">
+        {% if has_perm('vehicle.edit') %}
+        <a href="{{ url_for('vehicles.edit', vid=v.id) }}" class="btn btn--sm btn--tonal"
+           data-modal-url="{{ url_for('vehicles.edit', vid=v.id) }}" data-modal-title="{{ t['vehicle.edit'] }}">
+            <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}
+        </a>
+        {% endif %}
+        {% if has_perm('vehicle.delete') %}
+            {% if v.is_active %}
+            <form method="post" action="{{ url_for('vehicles.delete', vid=v.id) }}"
+                  data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}">
+                <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('vehicles.reactivate', vid=v.id) }}">
+                <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+            </form>
+            {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+</div>

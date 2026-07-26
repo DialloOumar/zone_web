@@ -5,8 +5,8 @@ fleets. First module to wire the approval+grace flow: when a user's role
 marks vehicle.* as requiring approval (and they're outside the grace window),
 the change is parked in the approval queue instead of applied.
 """
-from flask import (Blueprint, abort, flash, redirect, render_template,
-                   request, url_for)
+from flask import (Blueprint, abort, flash, make_response, redirect,
+                   render_template, request, url_for)
 from flask_login import current_user, login_required
 
 import s3_storage
@@ -195,9 +195,23 @@ def index():
         allowed.update(f.categories or [])
     filter_cats = [c for c in cats if c.code in allowed] or cats
 
-    return render_template("vehicles.html", vehicles=vehicles,
-                           filter_cats=filter_cats, active_code=active_code,
-                           show_archived=show_archived, archived_count=archived_count)
+    # Cards (photo-forward) vs table. An explicit ?view= wins and is remembered
+    # in a cookie; otherwise fall back to the last choice, defaulting to cards.
+    view = request.args.get("view")
+    explicit = view in ("cards", "table")
+    if not explicit:
+        view = request.cookies.get("veh_view", "cards")
+        if view not in ("cards", "table"):
+            view = "cards"
+
+    resp = make_response(render_template(
+        "vehicles.html", vehicles=vehicles, view=view,
+        filter_cats=filter_cats, active_code=active_code,
+        show_archived=show_archived, archived_count=archived_count))
+    if explicit:
+        resp.set_cookie("veh_view", view, max_age=60 * 60 * 24 * 365,
+                        samesite="Lax")
+    return resp
 
 
 @vehicles_bp.route("/vehicles/<int:vid>")
