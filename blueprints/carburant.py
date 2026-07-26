@@ -17,6 +17,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
+import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, require_perm, with_current_fleet)
 from models import Citerne, Fleet, FuelMovement, Operator, Vehicle, db
@@ -272,6 +273,36 @@ def _set_initial_stock(citerne, liters, today):
         db.session.delete(mv)
 
 
+_PHOTO_ERR_KEYS = {
+    s3_storage.ERR_TOO_LARGE:      "photo.err.too_large",
+    s3_storage.ERR_BAD_FORMAT:     "photo.err.bad_format",
+    s3_storage.ERR_NOT_CONFIGURED: "photo.err.not_configured",
+    s3_storage.ERR_S3:             "photo.err.s3",
+    s3_storage.ERR_UNKNOWN:        "photo.err.unknown",
+}
+
+
+def _apply_citerne_photo_change(citerne):
+    """Optional photo on a citerne create/edit POST: a new upload replaces (and
+    deletes) the previous object, the "remove" box clears it. Returns a
+    localized error string when a submitted photo can't be stored, else None.
+    Assumes the citerne row already has an id."""
+    t = get_t()
+    old_key = citerne.photo_key
+    if request.form.get("photo_remove") == "1":
+        citerne.photo_key = None
+    upload = request.files.get("photo")
+    if upload and upload.filename:
+        key, err = s3_storage.upload_citerne_photo(upload, citerne.code)
+        if err:
+            return t.get(_PHOTO_ERR_KEYS.get(err, "photo.err.unknown"),
+                         "Photo non enregistrée.")
+        citerne.photo_key = key
+    if old_key and old_key != citerne.photo_key:
+        s3_storage.delete_photo(old_key)
+    return None
+
+
 def _render_citerne_form(citerne, error=None):
     tpl = "_citerne_form.html" if is_modal_request() else "citerne_form.html"
     status = 422 if (error and is_modal_request()) else 200
@@ -293,6 +324,10 @@ def citerne_new():
         c = Citerne(created_by=current_user.id, **data)
         db.session.add(c)
         db.session.flush()
+        perr = _apply_citerne_photo_change(c)
+        if perr:
+            db.session.rollback()
+            return _render_citerne_form(None, perr)
         _set_initial_stock(c, initial, date.today().isoformat())
         log_action("CREATE", "citerne", resource_id=c.id, fleet_id=c.fleet_id,
                    detail=f"Created citerne '{c.code}'")
@@ -315,6 +350,10 @@ def citerne_edit(cid):
         initial = data.pop("initial")
         for k, v in data.items():
             setattr(citerne, k, v)
+        perr = _apply_citerne_photo_change(citerne)
+        if perr:
+            db.session.rollback()
+            return _render_citerne_form(citerne, perr)
         _set_initial_stock(citerne, initial, date.today().isoformat())
         log_action("UPDATE", "citerne", resource_id=citerne.id, fleet_id=citerne.fleet_id,
                    detail=f"Updated citerne '{citerne.code}'")

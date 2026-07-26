@@ -67,25 +67,9 @@
         </div>
     </div>
 
-    <div class="photo-input">
-        <span class="photo-input__label">{{ t['vehicle.photo'] }}</span>
-        <div class="photo-preview" id="vehicle-photo-preview">
-            {% set purl = photo_url(vehicle.photo_key) if is_edit and vehicle.photo_key else None %}
-            {% if purl %}
-            <div class="photo-preview__inner photo-preview__inner--existing">
-                <a href="{{ purl }}" target="_blank" rel="noopener"><img src="{{ purl }}" alt="{{ vehicle.code }}"></a>
-                <button type="button" class="photo-preview__remove" data-photo-remove title="{{ t['vehicle.photo_remove'] }}">&times;</button>
-            </div>
-            {% endif %}
-        </div>
-        <label class="btn btn--outlined btn--sm photo-input__pick" for="vehicle-photo">
-            <span class="material-symbols-outlined">photo_camera</span> {{ t['vehicle.photo_change'] if purl else t['vehicle.photo_add'] }}
-        </label>
-        <input type="file" id="vehicle-photo" name="photo" accept="image/*" hidden
-               onchange="onVehiclePhotoPick(this)">
-        <input type="hidden" name="photo_remove" id="vehicle-photo-remove" value="">
-        <div class="field-hint">{{ t['vehicle.photo_hint'] }}</div>
-    </div>
+    {% set photo_current = photo_url(vehicle.photo_key) if is_edit and vehicle.photo_key else None %}
+    {% set photo_alt = vehicle.code if is_edit else '' %}
+    {% include "_photo_field.html" %}
 
     <label class="checkbox-item" style="max-width: 220px;">
         <input type="checkbox" name="is_active" {% if form_active %}checked{% endif %}>

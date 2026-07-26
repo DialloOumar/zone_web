@@ -1,6 +1,6 @@
 {% set is_edit = citerne is not none %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
-<form method="post" class="entry-form" data-modal-form
+<form method="post" class="entry-form" data-modal-form enctype="multipart/form-data"
       action="{{ url_for('carburant.citerne_edit', cid=citerne.id) if is_edit else url_for('carburant.citerne_new') }}">
 
     <div class="form-row">
@@ -52,6 +52,10 @@
         <label for="initial_liters">{{ t['citerne.initial'] }}</label>
     </div>
     <div class="field-hint">{{ t['citerne.initial_hint'] }}</div>
+
+    {% set photo_current = photo_url(citerne.photo_key) if is_edit and citerne.photo_key else None %}
+    {% set photo_alt = citerne.code if is_edit else '' %}
+    {% include "_photo_field.html" %}
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">

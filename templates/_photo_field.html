@@ -1,0 +1,23 @@
+{# Shared photo picker for any form. Set before including:
+     photo_current : signed URL of the existing photo, or None
+     photo_alt     : alt text (e.g. the code)
+   The form must use enctype="multipart/form-data". Reads back as the "photo"
+   file field plus a hidden "photo_remove" flag. Styling + behaviour are
+   generic (onPhotoPick / [data-photo-remove] in main.js). #}
+<div class="photo-input">
+    <span class="photo-input__label">{{ t['photo.field'] }}</span>
+    <div class="photo-preview">
+        {% if photo_current %}
+        <div class="photo-preview__inner photo-preview__inner--existing">
+            <a href="{{ photo_current }}" target="_blank" rel="noopener"><img src="{{ photo_current }}" alt="{{ photo_alt or '' }}"></a>
+            <button type="button" class="photo-preview__remove" data-photo-remove title="{{ t['photo.remove'] }}">&times;</button>
+        </div>
+        {% endif %}
+    </div>
+    <label class="btn btn--outlined btn--sm photo-input__pick">
+        <span class="material-symbols-outlined">photo_camera</span> {{ t['photo.change'] if photo_current else t['photo.add'] }}
+        <input type="file" name="photo" accept="image/*" hidden onchange="onPhotoPick(this)">
+    </label>
+    <input type="hidden" name="photo_remove" value="">
+    <div class="field-hint">{{ t['photo.hint'] }}</div>
+</div>

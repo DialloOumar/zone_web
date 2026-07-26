@@ -507,6 +507,7 @@ class Citerne(db.Model):
     # consumption and maintenance ride on that vehicle. Optional.
     vehicle_id      = db.Column(db.Integer,     db.ForeignKey("vehicles.id"), nullable=True)
     is_active       = db.Column(db.Boolean,     nullable=False, default=True)  # soft delete = archive
+    photo_key       = db.Column(db.String(200), nullable=True)   # S3 object key of the citerne photo
     created_at      = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
     created_by      = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
 

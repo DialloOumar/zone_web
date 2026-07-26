@@ -50,6 +50,7 @@ if S3_PREFIX and not S3_PREFIX.endswith("/"):
 
 PHOTO_PREFIX    = S3_PREFIX + "shift-photos/"
 VEHICLE_PREFIX  = S3_PREFIX + "vehicles/"      # one photo per vehicle
+CITERNE_PREFIX  = S3_PREFIX + "citernes/"      # one photo per citerne
 MAX_BYTES       = 12 * 1024 * 1024   # 12 MB raw upload cap
 RESIZE_MAX      = 1920               # longest edge after resize
 JPEG_QUALITY    = 85
@@ -151,34 +152,40 @@ def _slug(text: str) -> str:
     return out or "vehicle"
 
 
-def upload_vehicle_photo(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
-    """Resize and upload a vehicle photo to {S3_PREFIX}vehicles/.
-
-    Returns (key, None) on success or (None, error_code) on failure — the
-    caller maps the code to a localized message. Best-effort, like the rest of
-    this module: an S3 hiccup never has to block saving the vehicle.
-    """
+def _upload_photo(file_storage, prefix: str, code: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """Resize and upload an image under `prefix`. Returns (key, None) on
+    success or (None, error_code) on failure — the caller maps the code to a
+    localized message. Best-effort: an S3 hiccup never has to block the save."""
     s3 = _client()
     if s3 is None:
-        log.warning("S3 not configured; skipping vehicle photo upload")
+        log.warning("S3 not configured; skipping photo upload")
         return None, ERR_NOT_CONFIGURED
     try:
         body, err = _resize_to_jpeg(file_storage)
         if err:
             return None, err
-        key = (f"{VEHICLE_PREFIX}{_slug(code)}"
-               f"-{int(time.time())}-{uuid.uuid4().hex[:6]}.jpg")
+        key = f"{prefix}{_slug(code)}-{int(time.time())}-{uuid.uuid4().hex[:6]}.jpg"
         s3.put_object(Bucket=S3_BUCKET, Key=key, Body=body, ContentType="image/jpeg")
         return key, None
     except UnidentifiedImageError:
-        log.warning("Uploaded vehicle photo is not a recognized image (HEIC or corrupted)")
+        log.warning("Uploaded photo is not a recognized image (HEIC or corrupted)")
         return None, ERR_BAD_FORMAT
     except (BotoCoreError, ClientError) as e:
-        log.exception("S3 vehicle photo upload failed: %s", e)
+        log.exception("S3 photo upload failed: %s", e)
         return None, ERR_S3
     except Exception as e:
-        log.exception("Unexpected error during vehicle photo upload: %s", e)
+        log.exception("Unexpected error during photo upload: %s", e)
         return None, ERR_UNKNOWN
+
+
+def upload_vehicle_photo(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """Resize and upload a vehicle photo to {S3_PREFIX}vehicles/."""
+    return _upload_photo(file_storage, VEHICLE_PREFIX, code)
+
+
+def upload_citerne_photo(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """Resize and upload a citerne photo to {S3_PREFIX}citernes/."""
+    return _upload_photo(file_storage, CITERNE_PREFIX, code)
 
 
 def signed_url(photo_key: str, expires_in: int = SIGNED_URL_TTL) -> Optional[str]:

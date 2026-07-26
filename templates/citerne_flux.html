@@ -5,7 +5,15 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header card-header--end">
+    <div class="card-header">
+        <div class="flux-identity">
+            {% set purl = photo_url(citerne.photo_key) if citerne.photo_key else None %}
+            <span class="vehicle-thumb vehicle-thumb--lg {% if not purl %}vehicle-thumb--empty{% endif %}">
+                {% if purl %}<a href="{{ purl }}" target="_blank" rel="noopener"><img src="{{ purl }}" alt="{{ citerne.code }}"></a>
+                {% else %}<span class="material-symbols-outlined">local_gas_station</span>{% endif %}
+            </span>
+            <div><strong>{{ citerne.code }}</strong><div class="muted small">{{ citerne.name }}</div></div>
+        </div>
         <form method="get" class="carbu-filters">
             <label class="carbu-filter"><span>{{ t['movement.period'] }}</span>
                 <select name="period" onchange="this.form.submit()">

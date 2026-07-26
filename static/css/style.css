@@ -1669,3 +1669,9 @@ a.stat-card { text-decoration: none; color: inherit; }
     /* In table view the table is hidden on phones; show the card fallback. */
     .vehicle-grid--mobile { display: grid; }
 }
+
+/* Citerne identity block on the flux page (photo + code/name) */
+.flux-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.flux-identity > div { min-width: 0; }
+.vehicle-thumb--lg { flex-basis: 56px; width: 56px; height: 56px; border-radius: var(--shape-md); }
+.vehicle-thumb--lg .material-symbols-outlined { font-size: 28px; }

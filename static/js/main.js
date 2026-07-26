@@ -295,27 +295,28 @@ window.compressImage = function (file, opts) {
     });
 };
 
-// ── Vehicle photo picker (form) ──
-// Shows an instant local preview, compresses the picked image before it's
-// uploaded (kind to slow field connections), and lets the user drop a photo.
-function _vehiclePreviewEl() { return document.getElementById("vehicle-photo-preview"); }
+// ── Photo picker (shared by any form using templates/_photo_field.html) ──
+// Instant local preview, client-side compression before upload (kind to slow
+// field connections), and a remove button. Everything is scoped to the
+// enclosing .photo-input so several pickers can coexist and survive modal
+// injection. See templates/_photo_field.html.
+function _photoBox(el) { return el.closest(".photo-input"); }
 
-function _renderPickedPhoto(objectUrl) {
-    var preview = _vehiclePreviewEl();
-    if (!preview) return;
-    preview.innerHTML =
-        '<div class="photo-preview__inner">' +
-            '<img src="' + objectUrl + '" alt="">' +
-            '<button type="button" class="photo-preview__remove" data-photo-remove>&times;</button>' +
-        '</div>';
-}
-
-window.onVehiclePhotoPick = function (input) {
-    var removeFlag = document.getElementById("vehicle-photo-remove");
+window.onPhotoPick = function (input) {
+    var box = _photoBox(input);
+    if (!box) return;
+    var removeFlag = box.querySelector('input[name="photo_remove"]');
     if (removeFlag) removeFlag.value = "";   // a fresh pick cancels a pending removal
     var file = input.files && input.files[0];
     if (!file) return;
-    _renderPickedPhoto(URL.createObjectURL(file));
+    var preview = box.querySelector(".photo-preview");
+    if (preview) {
+        preview.innerHTML =
+            '<div class="photo-preview__inner">' +
+                '<img src="' + URL.createObjectURL(file) + '" alt="">' +
+                '<button type="button" class="photo-preview__remove" data-photo-remove>&times;</button>' +
+            '</div>';
+    }
     // Compress in the background; swap the input's file if the result is smaller.
     if (window.compressImage) {
         window.compressImage(file, { maxDim: 1600, quality: 0.82 }).then(function (out) {
@@ -330,17 +331,18 @@ window.onVehiclePhotoPick = function (input) {
     }
 };
 
-// Remove button (works for both an existing photo and a freshly picked one),
-// delegated so it survives modal injection.
+// Remove button (existing or freshly picked photo), delegated for modals.
 document.addEventListener("click", function (e) {
     var btn = e.target.closest("[data-photo-remove]");
     if (!btn) return;
     e.preventDefault();
-    var removeFlag = document.getElementById("vehicle-photo-remove");
-    var fileInput = document.getElementById("vehicle-photo");
-    var preview = _vehiclePreviewEl();
+    var box = _photoBox(btn);
+    if (!box) return;
+    var removeFlag = box.querySelector('input[name="photo_remove"]');
+    var fileInput = box.querySelector('input[type="file"]');
+    var preview = box.querySelector(".photo-preview");
     if (fileInput) fileInput.value = "";
-    if (removeFlag) removeFlag.value = "1";  // tell the server to drop the stored photo
+    if (removeFlag) removeFlag.value = "1";   // tell the server to drop the stored photo
     if (preview) preview.innerHTML = "";
 });
 

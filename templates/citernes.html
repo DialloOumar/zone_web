@@ -55,7 +55,16 @@
             {% for c in citernes %}
             {% set pct = (c.stock / c.capacity_liters * 100) if c.capacity_liters else 0 %}
             <tr>
-                <td><a href="{{ url_for('carburant.citerne_flux', cid=c.id) }}" title="{{ t['flux.title'] }}"><strong>{{ c.code }}</strong></a><div class="muted small">{{ c.name }}{% if c.vehicle %} · {{ c.vehicle.code }}{% endif %}</div></td>
+                <td>
+                    <a href="{{ url_for('carburant.citerne_flux', cid=c.id) }}" class="vehicle-cell" title="{{ t['flux.title'] }}">
+                        {% set turl = photo_url(c.photo_key) if c.photo_key else None %}
+                        <span class="vehicle-thumb {% if not turl %}vehicle-thumb--empty{% endif %}">
+                            {% if turl %}<img src="{{ turl }}" alt="" loading="lazy">
+                            {% else %}<span class="material-symbols-outlined">local_gas_station</span>{% endif %}
+                        </span>
+                        <span><strong>{{ c.code }}</strong><div class="muted small">{{ c.name }}{% if c.vehicle %} · {{ c.vehicle.code }}{% endif %}</div></span>
+                    </a>
+                </td>
                 <td>{{ c.fleet.name }}</td>
                 <td style="text-align:right; white-space:nowrap;">
                     <strong>{{ '{:,}'.format(c.stock) }}</strong> <span class="muted small">L</span>
