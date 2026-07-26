@@ -1679,3 +1679,18 @@ a.stat-card { text-decoration: none; color: inherit; }
 /* Small avatar for dense tables (fuel movement machine cells) */
 .vehicle-thumb--sm { flex-basis: 30px; width: 30px; height: 30px; border-radius: var(--shape-xs); }
 .vehicle-thumb--sm .material-symbols-outlined { font-size: 16px; }
+
+/* ── Fuel source cues: VIVO logo (ravitaillement) + pump icon (distribution) ── */
+/* The logo has dark text, so back it with white to stay legible in dark mode. */
+.brand-logo { background: #fff; border-radius: var(--shape-sm); padding: 4px 8px; display: block; }
+.flux-client__logo { height: 30px; width: auto; max-width: 150px; margin: 0 auto 6px; }
+.fuel-src { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fuel-src__logo { height: 24px; width: auto; max-width: 120px; }
+.fuel-src__note { display: inline-flex; align-items: center; gap: 4px; font-size: 0.82rem; color: var(--md-on-surface-variant); }
+.fuel-src__note .material-symbols-outlined { font-size: 18px; color: var(--c-amber); }
+/* The pump mark that means "fuel comes from this citerne" */
+.fuel-mark { font-size: 17px; color: var(--c-amber); vertical-align: -3px; }
+
+@media (max-width: 560px) {
+    .fuel-src__note { display: none; }   /* keep just the logo on narrow screens */
+}

@@ -5,7 +5,11 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header card-header--end">
+    <div class="card-header">
+        <div class="fuel-src">
+            <img src="{{ url_for('static', filename='images/vivo-new-logo.svg') }}" alt="VIVO Energy" class="brand-logo fuel-src__logo">
+            <span class="fuel-src__note"><span class="material-symbols-outlined">local_gas_station</span> {{ t['fuel.source_vivo'] }}</span>
+        </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
             {% if show_archived %}
             <a href="{{ url_for('carburant.index') }}" class="btn btn--sm btn--outlined">{{ t['archive.show_active'] }}</a>
@@ -62,7 +66,7 @@
                             {% if turl %}<img src="{{ turl }}" alt="" loading="lazy">
                             {% else %}<span class="material-symbols-outlined">local_gas_station</span>{% endif %}
                         </span>
-                        <span><strong>{{ c.code }}</strong><div class="muted small">{{ c.name }}{% if c.vehicle %} · {{ c.vehicle.code }}{% endif %}</div></span>
+                        <span><strong>{{ c.code }}</strong> <span class="material-symbols-outlined fuel-mark" title="{{ t['fuel.source_citerne'] }}" aria-hidden="true">local_gas_station</span><div class="muted small">{{ c.name }}{% if c.vehicle %} · {{ c.vehicle.code }}{% endif %}</div></span>
                     </a>
                 </td>
                 <td>{{ c.fleet.name }}</td>
