@@ -672,6 +672,92 @@ def conso_new():
     return _render_conso_form()
 
 
+# ── Ravitaillement (unified VIVO refuel): one action, target decides the kind ──
+
+
+def _read_ravitaillement_form():
+    """One 'take fuel at VIVO' action. The chosen target decides the movement:
+        citerne + 'reservoir' -> rentree (fills the tank),
+        citerne + 'conso'     -> conso   (the tanker used fuel of its own),
+        vehicle               -> direct  (it filled straight at the pump).
+    """
+    t = get_t()
+    date_str = (request.form.get("date") or "").strip()
+    if not _valid_date(date_str):
+        return None, t.get("rentree.err.date", "Date invalide.")
+    time_str = _clean_time(request.form.get("time"))
+    liters = request.form.get("liters", type=int)
+    if not liters or liters <= 0:
+        return None, t.get("rentree.err.liters", "Litres invalides.")
+    operator = (request.form.get("operator") or "").strip() or None
+    fids = current_user_fleet_ids()
+    target = (request.form.get("target") or "").strip()
+
+    if target.startswith("c:") and target[2:].isdigit():
+        c = db.session.get(Citerne, int(target[2:]))
+        if not c or not c.is_active:
+            return None, t.get("rentree.err.citerne", "Choisissez une citerne active.")
+        if fids is not None and c.fleet_id not in fids:
+            return None, t.get("error.forbidden", "Action non autorisée.")
+        if (request.form.get("fill_type") or "reservoir") == "conso":
+            # The tanker consumed fuel of its own; attribute it to its vehicle.
+            return dict(kind="conso", citerne_id=c.id, date=date_str, time=time_str,
+                        liters=liters, operator=operator, vehicle_id=c.vehicle_id), None
+        if c.stock + liters > c.capacity_liters:
+            return None, t.get("rentree.err.over_capacity",
+                               "Cette rentrée dépasse la capacité (%d L max, %d L déjà en cuve)."
+                               % (c.capacity_liters, c.stock))
+        return dict(kind="rentree", citerne_id=c.id, date=date_str, time=time_str,
+                    liters=liters, note=(request.form.get("reference") or "").strip() or None), None
+
+    if target.startswith("v:") and target[2:].isdigit():
+        v = db.session.get(Vehicle, int(target[2:]))
+        if not v:
+            return None, t.get("distribution.err.vehicle", "Choisissez une machine.")
+        if fids is not None and v.fleet_id not in fids:
+            return None, t.get("error.forbidden", "Action non autorisée.")
+        return dict(kind="direct", vehicle_id=v.id, citerne_id=None, date=date_str,
+                    time=time_str, liters=liters, operator=operator), None
+
+    return None, t.get("rav.err.target", "Choisissez une citerne ou un véhicule.")
+
+
+def _render_ravitaillement_form(error=None):
+    tpl = "_ravitaillement_form.html" if is_modal_request() else "ravitaillement_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(
+        tpl, error=error,
+        citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
+                  .order_by(Citerne.code).all()),
+        vehicles=_entry_vehicles(), operators=_accessible_operators(),
+        today=date.today().isoformat(), now_time=datetime.now().strftime("%H:%M"),
+        preset_citerne=request.args.get("citerne", type=int)), status
+
+
+@carburant_bp.route("/ravitaillements/new", methods=["GET", "POST"])
+@login_required
+@require_perm("carburant.create")
+def ravitaillement_new():
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_ravitaillement_form()
+        if error:
+            return _render_ravitaillement_form(error)
+        kind = data.pop("kind")
+        c = db.session.get(Citerne, data["citerne_id"]) if data.get("citerne_id") else None
+        v = db.session.get(Vehicle, data["vehicle_id"]) if data.get("vehicle_id") else None
+        mv = FuelMovement(kind=kind, created_by=current_user.id, **data)
+        db.session.add(mv)
+        db.session.flush()
+        log_action("CREATE", "fuel_movement", resource_id=mv.id,
+                   fleet_id=(c.fleet_id if c else v.fleet_id),
+                   detail=f"Ravitaillement ({kind}) {mv.liters} L")
+        db.session.commit()
+        flash("success|" + t.get("rav.created", "Ravitaillement enregistré."))
+        return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
+    return _render_ravitaillement_form()
+
+
 # ── Delete a movement (rentrée / distribution / relevé / conso) ───────────────
 
 

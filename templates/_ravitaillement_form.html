@@ -1,0 +1,103 @@
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('carburant.ravitaillement_new') }}">
+
+    <div class="field field--select">
+        {% set sel_t = request.form.get('target') or ('c:%d' % preset_citerne if preset_citerne else '') %}
+        <select id="rav-target" name="target" required>
+            <option value="" hidden></option>
+            {% if citernes %}
+            <optgroup label="{{ t['rav.citernes'] }}">
+                {% for c in citernes %}
+                <option value="c:{{ c.id }}" {% if sel_t == 'c:%d' % c.id %}selected{% endif %}>{{ c.code }} — {{ '{:,}'.format(c.stock) }} L</option>
+                {% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if vehicles %}
+            <optgroup label="{{ t['rav.vehicles'] }}">
+                {% for v in vehicles %}
+                <option value="v:{{ v.id }}" {% if sel_t == 'v:%d' % v.id %}selected{% endif %}>{{ v.code }} — {{ v.fleet.name }}</option>
+                {% endfor %}
+            </optgroup>
+            {% endif %}
+        </select>
+        <label for="rav-target">{{ t['rav.target'] }}</label>
+    </div>
+
+    {# Only when the target is a citerne: fill its tank, or log its own conso. #}
+    <div class="field field--select" id="rav-type-block">
+        {% set sel_ft = request.form.get('fill_type') or 'reservoir' %}
+        <select id="rav-fill-type" name="fill_type">
+            <option value="reservoir" {% if sel_ft == 'reservoir' %}selected{% endif %}>{{ t['rav.reservoir'] }}</option>
+            <option value="conso" {% if sel_ft == 'conso' %}selected{% endif %}>{{ t['rav.consommation'] }}</option>
+        </select>
+        <label for="rav-fill-type">{{ t['rav.type'] }}</label>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or today }}">
+            <label for="date">{{ t['distribution.date'] }}</label>
+        </div>
+        <div class="field">
+            <input type="time" id="time" name="time" placeholder=" "
+                   value="{{ request.form.get('time') or now_time }}">
+            <label for="time">{{ t['distribution.time'] }}</label>
+        </div>
+        <div class="field">
+            <input type="number" id="liters" name="liters" placeholder=" " min="1" required
+                   value="{{ request.form.get('liters') or '' }}">
+            <label for="liters">{{ t['rav.liters'] }}</label>
+        </div>
+    </div>
+
+    {# Reference (bon de livraison) only makes sense when filling a tank. #}
+    <div class="field" id="rav-ref-block">
+        <input type="text" id="reference" name="reference" placeholder=" "
+               value="{{ request.form.get('reference') or '' }}">
+        <label for="reference">{{ t['rentree.reference'] }}</label>
+    </div>
+
+    {# Driver, for a consumption / direct fill. #}
+    <div class="field field--select" id="rav-op-block">
+        <select id="operator" name="operator">
+            <option value=""></option>
+            {% set sel_o = request.form.get('operator') %}
+            {% for o in operators %}
+            <option value="{{ o.name }}" {% if o.name == sel_o %}selected{% endif %}>{{ o.name }}</option>
+            {% endfor %}
+        </select>
+        <label for="operator">{{ t['distribution.driver'] }}</label>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('carburant.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
+
+<script>
+(function () {
+    var target = document.getElementById('rav-target'),
+        typeBlock = document.getElementById('rav-type-block'),
+        fillType = document.getElementById('rav-fill-type'),
+        refBlock = document.getElementById('rav-ref-block'),
+        opBlock = document.getElementById('rav-op-block');
+    function apply() {
+        var isCit = (target.value || '').charAt(0) === 'c';
+        var conso = fillType.value === 'conso';
+        // Type (réservoir/conso) only for a citerne; a vehicle is always a direct fill.
+        typeBlock.style.display = isCit ? '' : 'none';
+        // Reference only when filling a tank; driver for a consumption/direct fill.
+        var reservoir = isCit && !conso;
+        refBlock.style.display = reservoir ? '' : 'none';
+        opBlock.style.display = reservoir ? 'none' : '';
+    }
+    target.addEventListener('change', apply);
+    fillType.addEventListener('change', apply);
+    apply();
+})();
+</script>

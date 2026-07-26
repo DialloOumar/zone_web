@@ -35,9 +35,6 @@
         <a class="btn btn--sm btn--tonal" href="{{ url_for('carburant.releve_new', citerne=citerne.id) }}"
            data-modal-url="{{ url_for('carburant.releve_new', citerne=citerne.id) }}" data-modal-title="{{ t['releve.new'] }}">
             <span class="material-symbols-outlined">donut_large</span> {{ t['releve.new'] }}</a>
-        <a class="btn btn--sm btn--tonal" href="{{ url_for('carburant.conso_new', citerne=citerne.id) }}"
-           data-modal-url="{{ url_for('carburant.conso_new', citerne=citerne.id) }}" data-modal-title="{{ t['conso.new'] }}">
-            <span class="material-symbols-outlined">fact_check</span> {{ t['conso.new'] }}</a>
     </div>
     {% endif %}
 
