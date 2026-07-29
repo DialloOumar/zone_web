@@ -513,16 +513,12 @@ class Citerne(db.Model):
     name            = db.Column(db.String(120), nullable=False)
     capacity_liters = db.Column(db.Integer,     nullable=False)
     fleet_id        = db.Column(db.Integer,     db.ForeignKey("fleets.id"), nullable=False)
-    # The tanker truck itself, when tracked as a vehicle — so the citerne's own
-    # consumption and maintenance ride on that vehicle. Optional.
-    vehicle_id      = db.Column(db.Integer,     db.ForeignKey("vehicles.id"), nullable=True)
     is_active       = db.Column(db.Boolean,     nullable=False, default=True)  # soft delete = archive
     photo_key       = db.Column(db.String(200), nullable=True)   # S3 object key of the citerne photo
     created_at      = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
     created_by      = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
 
     fleet     = db.relationship("Fleet")
-    vehicle   = db.relationship("Vehicle", foreign_keys=[vehicle_id])
     movements = db.relationship("FuelMovement", back_populates="citerne",
                                 foreign_keys="FuelMovement.citerne_id",
                                 cascade="all, delete-orphan")

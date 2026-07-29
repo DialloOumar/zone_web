@@ -258,16 +258,8 @@ def _read_citerne_form(citerne):
     if clash.first():
         return None, t.get("citerne.err.code_taken", "Ce code est déjà utilisé.")
 
-    # Optional link to the tanker's own vehicle (must be in the same fleet).
-    vehicle_id = request.form.get("vehicle_id", type=int) or None
-    if vehicle_id:
-        v = db.session.get(Vehicle, vehicle_id)
-        if not v or v.fleet_id != fleet_id:
-            return None, t.get("citerne.err.vehicle",
-                               "Le camion-citerne doit être un véhicule de la même flotte.")
-
     return dict(code=code, name=name, capacity_liters=cap, fleet_id=fleet_id,
-                vehicle_id=vehicle_id, initial=initial), None
+                initial=initial), None
 
 
 def _set_initial_stock(citerne, liters, today):
@@ -319,8 +311,7 @@ def _render_citerne_form(citerne, error=None):
     tpl = "_citerne_form.html" if is_modal_request() else "citerne_form.html"
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, citerne=citerne, error=error,
-                           fleets=with_current_fleet(_accessible_fleets(), citerne.fleet if citerne else None),
-                           vehicles=_entry_vehicles()), status
+                           fleets=with_current_fleet(_accessible_fleets(), citerne.fleet if citerne else None)), status
 
 
 @carburant_bp.route("/citernes/new", methods=["GET", "POST"])
@@ -658,10 +649,6 @@ def conso_new():
             return _render_conso_form(error)
         c = db.session.get(Citerne, data["citerne_id"])
         mv = FuelMovement(kind="conso", created_by=current_user.id, **data)
-        # If the citerne is tied to a tanker vehicle, the conso is that
-        # vehicle's own fuel — attribute it so it lands on the vehicle too.
-        if c.vehicle_id:
-            mv.vehicle_id = c.vehicle_id
         db.session.add(mv)
         db.session.flush()
         log_action("CREATE", "fuel_movement", resource_id=mv.id, fleet_id=c.fleet_id,
@@ -700,9 +687,9 @@ def _read_ravitaillement_form():
         if fids is not None and c.fleet_id not in fids:
             return None, t.get("error.forbidden", "Action non autorisée.")
         if (request.form.get("fill_type") or "reservoir") == "conso":
-            # The tanker consumed fuel of its own; attribute it to its vehicle.
+            # The citerne took fuel for its own engine, not for its reservoir.
             return dict(kind="conso", citerne_id=c.id, date=date_str, time=time_str,
-                        liters=liters, operator=operator, vehicle_id=c.vehicle_id), None
+                        liters=liters, operator=operator), None
         if c.stock + liters > c.capacity_liters:
             return None, t.get("rentree.err.over_capacity",
                                "Cette rentrée dépasse la capacité (%d L max, %d L déjà en cuve)."

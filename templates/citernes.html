@@ -57,7 +57,7 @@
                             {% if turl %}<img src="{{ turl }}" alt="" loading="lazy">
                             {% else %}<span class="material-symbols-outlined">local_gas_station</span>{% endif %}
                         </span>
-                        <span><strong>{{ c.code }}</strong><div class="muted small">{{ c.name }}{% if c.vehicle %} · {{ c.vehicle.code }}{% endif %}</div></span>
+                        <span><strong>{{ c.code }}</strong><div class="muted small">{{ c.name }}</div></span>
                     </a>
                 </td>
                 <td>{{ c.fleet.name }}</td>
