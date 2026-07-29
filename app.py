@@ -1529,48 +1529,131 @@ def wipe_demo_cmd(yes):
 
 
 @app.cli.command("wipe-all")
+@click.option("--keep-fleet", "keep_slug", default=None, metavar="SLUG",
+              help="spare this fleet and everything attached to it")
+@click.option("--users", "users_mode", default="fleet", show_default=True,
+              type=click.Choice(["fleet", "admins"]),
+              help="'fleet' also keeps users assigned to the spared fleet; "
+                   "'admins' keeps super admins only")
 @click.option("--yes", is_flag=True, help="skip the confirmation prompt")
-def wipe_all_cmd(yes):
-    """Permanently remove ALL operational data, keeping only the super admin(s).
+def wipe_all_cmd(keep_slug, users_mode, yes):
+    """Permanently remove operational data, optionally sparing one fleet.
 
-    Wipes whole tables — fleets, vehicles, operators, citernes, entries, fuel
-    movements, expenses, maintenance rules/records, alerts, billing rates, the
-    approval queue and the audit log — plus every non-super-admin user. Unlike
-    `wipe-demo`, nothing is scoped by fleet, so rows with no fleet (a
-    company-wide expense, an orphaned record) are removed too.
+    With no options this empties every operational table — fleets, vehicles,
+    operators, citernes, entries, fuel movements, expenses, maintenance
+    rules/records, alerts, billing rates, the approval queue and the audit log
+    — and deletes every non-super-admin user.
 
-    Kept, so the app still boots and stays usable: permissions, roles and their
-    mappings, vehicle categories, app settings, and users flagged super admin.
-    Photos in S3 are NOT deleted — only the rows pointing at them.
+    With `--keep-fleet SLUG` that fleet survives along with everything hanging
+    off it, and only the rest goes. Rows belonging to no fleet at all (a
+    company-wide expense, a stale approval, a login audit line) count as "the
+    rest" and are removed either way — that blind spot is what made `wipe-demo`
+    fail. The exception is a maintenance rule targeting a category or all
+    vehicles: it has no fleet but still governs the fleet you are keeping, so
+    it stays.
+
+    Always kept, so the app still boots: permissions, roles and their mappings,
+    vehicle categories, app settings, and every super admin. Photos in S3 are
+    NOT deleted — only the rows pointing at them.
 
     This is a HARD delete with no archive and no undo. Back the database up
     first.
     """
+    from sqlalchemy import and_, or_
+
     from models import Citerne, FuelMovement
 
-    # Ordered parent-last so foreign keys never block a delete: children first
-    # (alerts, entries, movements), then vehicles before operators — a vehicle
-    # points at its default operator — then fleets, then users.
-    tables = [
-        ("alerts", Alert), ("daily entries", DailyEntry),
-        ("fuel movements", FuelMovement), ("maintenance records", MaintenanceRecord),
-        ("maintenance rules", MaintenanceRule), ("expenses", Expense),
-        ("citernes", Citerne), ("vehicles", Vehicle), ("operators", Operator),
-        ("billing rates", FleetRate), ("pending changes", PendingChange),
-        ("audit log entries", AuditLog), ("user-fleet links", UserFleet),
-        ("fleets", Fleet),
-    ]
+    keep_fleet = None
+    if keep_slug:
+        keep_fleet = Fleet.query.filter_by(slug=keep_slug).first()
+        if not keep_fleet:
+            known = ", ".join(f.slug for f in Fleet.query.order_by(Fleet.slug).all()) or "(none)"
+            click.echo("No fleet with slug %r. Existing slugs: %s" % (keep_slug, known), err=True)
+            raise SystemExit(1)
 
-    keep = User.query.filter_by(is_super_admin=True).all()
-    if not keep:
+    admins = User.query.filter_by(is_super_admin=True).all()
+    if not admins:
         click.echo("No super admin found — refusing to wipe, you would be locked out. "
                    "Run `flask seed-super-admin` first.", err=True)
         raise SystemExit(1)
-    doomed = User.query.filter_by(is_super_admin=False).all()
 
-    counts = [(label, model.query.count()) for label, model in tables]
-    if not any(n for _, n in counts) and not doomed:
-        click.echo("Database is already clean — nothing to wipe.")
+    # Everything being spared, resolved to id lists up front. All empty when no
+    # fleet is kept, which is what turns this into a full wipe.
+    fleet_ids = [keep_fleet.id] if keep_fleet else []
+    veh_ids = [v.id for v in Vehicle.query.filter(Vehicle.fleet_id.in_(fleet_ids)).all()]
+    op_ids  = [o.id for o in Operator.query.filter(Operator.fleet_id.in_(fleet_ids)).all()]
+    cit_ids = [c.id for c in Citerne.query.filter(Citerne.fleet_id.in_(fleet_ids)).all()]
+
+    user_ids = {u.id for u in admins}
+    if keep_fleet and users_mode == "fleet":
+        user_ids |= {uf.user_id for uf in UserFleet.query.filter_by(fleet_id=keep_fleet.id).all()}
+    user_ids = sorted(user_ids)
+
+    rule_ids = []
+    if keep_fleet:
+        rule_ids = [r.id for r in MaintenanceRule.query.filter(or_(
+            MaintenanceRule.fleet_id.in_(fleet_ids),
+            MaintenanceRule.vehicle_id.in_(veh_ids),
+            # Neither field set = targets a category or every vehicle, so the
+            # rule is global and still governs the fleet being kept.
+            and_(MaintenanceRule.fleet_id.is_(None),
+                 MaintenanceRule.vehicle_id.is_(None)))).all()]
+
+    # notin_([]) is not valid SQL, hence the sentinel no id can match.
+    def stray(col, ids):
+        """Row whose link is missing or points at something being deleted."""
+        return or_(col.is_(None), col.notin_(ids or [0]))
+
+    def points_out(col, ids):
+        """Row whose link is set and points at something being deleted. A null
+        passes, for columns where null is meaningful — a direct fill has no
+        citerne, an unreviewed request has no reviewer."""
+        return and_(col.isnot(None), col.notin_(ids or [0]))
+
+    def others(model, ids):
+        return model.query.filter(model.id.notin_(ids)) if ids else model.query
+
+    # Ordered so a row is always deleted before whatever it points at. Alerts
+    # and expenses lead, because both cite a maintenance record (the one that
+    # resolved the alert, the one that billed the expense); vehicles precede
+    # operators, a vehicle citing its default driver; and everything
+    # fleet-scoped precedes the fleets themselves.
+    doomed = [
+        ("alerts", Alert.query.filter(or_(stray(Alert.vehicle_id, veh_ids),
+                                          stray(Alert.rule_id, rule_ids)))),
+        ("expenses", Expense.query.filter(or_(stray(Expense.fleet_id, fleet_ids),
+                                              points_out(Expense.vehicle_id, veh_ids)))),
+        ("daily entries", DailyEntry.query.filter(stray(DailyEntry.vehicle_id, veh_ids))),
+        ("fuel movements", FuelMovement.query.filter(or_(
+            points_out(FuelMovement.citerne_id, cit_ids),
+            points_out(FuelMovement.vehicle_id, veh_ids),
+            and_(FuelMovement.citerne_id.is_(None), FuelMovement.vehicle_id.is_(None))))),
+        ("maintenance records", MaintenanceRecord.query.filter(or_(
+            stray(MaintenanceRecord.vehicle_id, veh_ids),
+            points_out(MaintenanceRecord.rule_id, rule_ids)))),
+        ("maintenance rules", others(MaintenanceRule, rule_ids)),
+        ("citernes", others(Citerne, cit_ids)),
+        ("vehicles", others(Vehicle, veh_ids)),
+        ("operators", others(Operator, op_ids)),
+        ("billing rates", FleetRate.query.filter(stray(FleetRate.fleet_id, fleet_ids))),
+        ("pending changes", PendingChange.query.filter(or_(
+            stray(PendingChange.fleet_id, fleet_ids),
+            points_out(PendingChange.requested_by, user_ids),
+            points_out(PendingChange.reviewed_by, user_ids)))),
+        # Scoped by fleet alone: an audit line snapshots its actor's username,
+        # so losing the user is no reason to lose the trail — user_id is
+        # nullable and gets blanked below.
+        ("audit log entries", AuditLog.query.filter(stray(AuditLog.fleet_id, fleet_ids))),
+        ("user-fleet links", UserFleet.query.filter(or_(
+            stray(UserFleet.fleet_id, fleet_ids),
+            stray(UserFleet.user_id, user_ids)))),
+        ("fleets", others(Fleet, fleet_ids)),
+        ("users", User.query.filter(User.id.notin_(user_ids))),
+    ]
+
+    counts = [(label, q.count()) for label, q in doomed]
+    if not any(n for _, n in counts):
+        click.echo("Nothing to wipe — the database already looks like this.")
         return
 
     if not yes:
@@ -1578,23 +1661,39 @@ def wipe_all_cmd(yes):
         for label, n in counts:
             if n:
                 click.echo("  %6d %s" % (n, label))
-        if doomed:
-            click.echo("  %6d user(s): %s" % (len(doomed), ", ".join(u.username for u in doomed)))
-        click.echo("Keeping super admin(s): %s" % ", ".join(u.username for u in keep))
+        if keep_fleet:
+            click.echo("Keeping fleet %r (%s): %d vehicle(s), %d operator(s), %d citerne(s)."
+                       % (keep_fleet.name, keep_fleet.slug,
+                          len(veh_ids), len(op_ids), len(cit_ids)))
+        else:
+            click.echo("Keeping no fleet at all — this is a full wipe.")
+        kept_names = [u.username for u in User.query.filter(User.id.in_(user_ids)).all()]
+        click.echo("Keeping %d user(s): %s" % (len(kept_names), ", ".join(kept_names)))
         click.confirm("Proceed?", abort=True)
 
-    for _, model in tables:
-        model.query.delete(synchronize_session=False)
-    # app_settings survives but points at whoever last edited it; drop the
-    # reference to any user about to be deleted so the FK still resolves.
-    keep_ids = [u.id for u in keep]
-    (AppSetting.query.filter(AppSetting.updated_by.isnot(None))
-     .filter(AppSetting.updated_by.notin_(keep_ids))
-     .update({AppSetting.updated_by: None}, synchronize_session=False))
-    User.query.filter_by(is_super_admin=False).delete(synchronize_session=False)
+    for label, q in doomed:
+        if label == "users":
+            # A row we are keeping may still credit a user about to be deleted
+            # — created_by, recorded_by, resolved_by, updated_by. Every such
+            # column is nullable, so blank the stale ones instead of letting
+            # the delete cascade into data we meant to spare. Walked off the
+            # mappers so a column added later is covered without editing this.
+            for mapper in db.Model.registry.mappers:
+                for col in mapper.columns:
+                    if not col.nullable:
+                        continue
+                    if not any(fk.column.table.name == "users" for fk in col.foreign_keys):
+                        continue
+                    (mapper.class_.query
+                     .filter(col.isnot(None), col.notin_(user_ids or [0]))
+                     .update({col: None}, synchronize_session=False))
+        q.delete(synchronize_session=False)
     db.session.commit()
-    click.echo("Wiped. %d super admin(s) kept; permissions, roles, categories and "
-               "settings left intact." % len(keep))
+
+    click.echo("Wiped. Kept %s and %d user(s); permissions, roles, categories "
+               "and settings left intact."
+               % (("fleet %r" % keep_fleet.slug) if keep_fleet else "no fleet",
+                  len(user_ids)))
 
 
 # ── Blueprints ───────────────────────────────────────────────────────────────
