@@ -1475,6 +1475,10 @@ def wipe_demo_cmd(yes):
     Only the demo fleets are touched; any other (real) fleet and its data
     are left intact. This is a HARD delete, not an archive.
     """
+    from sqlalchemy import or_
+
+    from models import Citerne, FuelMovement
+
     demo_slugs = [slug for _, slug, _ in DEMO_FLEETS]
     fleets = Fleet.query.filter(Fleet.slug.in_(demo_slugs)).all()
     fleet_ids = [f.id for f in fleets]
@@ -1497,21 +1501,100 @@ def wipe_demo_cmd(yes):
         d(DailyEntry.query.filter(DailyEntry.vehicle_id.in_(vehicle_ids)))
         d(Alert.query.filter(Alert.vehicle_id.in_(vehicle_ids)))
     if fleet_ids:
+        citerne_ids = [c.id for c in Citerne.query.filter(Citerne.fleet_id.in_(fleet_ids)).all()]
+        # A fuel movement hangs off a citerne or a vehicle, so it has to go
+        # before both. in_([]) is a valid empty predicate, no guard needed.
+        d(FuelMovement.query.filter(or_(FuelMovement.citerne_id.in_(citerne_ids),
+                                        FuelMovement.vehicle_id.in_(vehicle_ids))))
         # Expenses / rules / records / rates are keyed by fleet (or its vehicles).
         d(Expense.query.filter(Expense.fleet_id.in_(fleet_ids)))
         if vehicle_ids:
             d(MaintenanceRecord.query.filter(MaintenanceRecord.vehicle_id.in_(vehicle_ids)))
         d(MaintenanceRule.query.filter(MaintenanceRule.fleet_id.in_(fleet_ids)))
         d(FleetRate.query.filter(FleetRate.fleet_id.in_(fleet_ids)))
+        d(Citerne.query.filter(Citerne.fleet_id.in_(fleet_ids)))
         d(Vehicle.query.filter(Vehicle.fleet_id.in_(fleet_ids)))      # before operators (FK)
         d(Operator.query.filter(Operator.fleet_id.in_(fleet_ids)))
         d(UserFleet.query.filter(UserFleet.fleet_id.in_(fleet_ids)))
+        # The approval queue and the audit trail carry a fleet_id of their own;
+        # left behind, either one blocks the fleet delete on a FK violation.
+        d(PendingChange.query.filter(PendingChange.fleet_id.in_(fleet_ids)))
+        d(AuditLog.query.filter(AuditLog.fleet_id.in_(fleet_ids)))
         d(Fleet.query.filter(Fleet.id.in_(fleet_ids)))
     if mgr:
         d(UserFleet.query.filter_by(user_id=mgr.id))
         db.session.delete(mgr)
     db.session.commit()
     click.echo("Demo data wiped.")
+
+
+@app.cli.command("wipe-all")
+@click.option("--yes", is_flag=True, help="skip the confirmation prompt")
+def wipe_all_cmd(yes):
+    """Permanently remove ALL operational data, keeping only the super admin(s).
+
+    Wipes whole tables — fleets, vehicles, operators, citernes, entries, fuel
+    movements, expenses, maintenance rules/records, alerts, billing rates, the
+    approval queue and the audit log — plus every non-super-admin user. Unlike
+    `wipe-demo`, nothing is scoped by fleet, so rows with no fleet (a
+    company-wide expense, an orphaned record) are removed too.
+
+    Kept, so the app still boots and stays usable: permissions, roles and their
+    mappings, vehicle categories, app settings, and users flagged super admin.
+    Photos in S3 are NOT deleted — only the rows pointing at them.
+
+    This is a HARD delete with no archive and no undo. Back the database up
+    first.
+    """
+    from models import Citerne, FuelMovement
+
+    # Ordered parent-last so foreign keys never block a delete: children first
+    # (alerts, entries, movements), then vehicles before operators — a vehicle
+    # points at its default operator — then fleets, then users.
+    tables = [
+        ("alerts", Alert), ("daily entries", DailyEntry),
+        ("fuel movements", FuelMovement), ("maintenance records", MaintenanceRecord),
+        ("maintenance rules", MaintenanceRule), ("expenses", Expense),
+        ("citernes", Citerne), ("vehicles", Vehicle), ("operators", Operator),
+        ("billing rates", FleetRate), ("pending changes", PendingChange),
+        ("audit log entries", AuditLog), ("user-fleet links", UserFleet),
+        ("fleets", Fleet),
+    ]
+
+    keep = User.query.filter_by(is_super_admin=True).all()
+    if not keep:
+        click.echo("No super admin found — refusing to wipe, you would be locked out. "
+                   "Run `flask seed-super-admin` first.", err=True)
+        raise SystemExit(1)
+    doomed = User.query.filter_by(is_super_admin=False).all()
+
+    counts = [(label, model.query.count()) for label, model in tables]
+    if not any(n for _, n in counts) and not doomed:
+        click.echo("Database is already clean — nothing to wipe.")
+        return
+
+    if not yes:
+        click.echo("This permanently deletes:")
+        for label, n in counts:
+            if n:
+                click.echo("  %6d %s" % (n, label))
+        if doomed:
+            click.echo("  %6d user(s): %s" % (len(doomed), ", ".join(u.username for u in doomed)))
+        click.echo("Keeping super admin(s): %s" % ", ".join(u.username for u in keep))
+        click.confirm("Proceed?", abort=True)
+
+    for _, model in tables:
+        model.query.delete(synchronize_session=False)
+    # app_settings survives but points at whoever last edited it; drop the
+    # reference to any user about to be deleted so the FK still resolves.
+    keep_ids = [u.id for u in keep]
+    (AppSetting.query.filter(AppSetting.updated_by.isnot(None))
+     .filter(AppSetting.updated_by.notin_(keep_ids))
+     .update({AppSetting.updated_by: None}, synchronize_session=False))
+    User.query.filter_by(is_super_admin=False).delete(synchronize_session=False)
+    db.session.commit()
+    click.echo("Wiped. %d super admin(s) kept; permissions, roles, categories and "
+               "settings left intact." % len(keep))
 
 
 # ── Blueprints ───────────────────────────────────────────────────────────────
