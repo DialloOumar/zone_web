@@ -330,22 +330,24 @@ HELP_SECTIONS = [
         "gate": {"perms": ["insights.view"]},
         "title": {"fr": "Analyse des opérations", "en": "Operations analysis"},
         "intro": {
-            "fr": "L'analyse sert à repérer deux anomalies : les machines qui "
-                  "consomment plus que prévu, et celles qui ne travaillent pas.",
-            "en": "Analysis is there to spot two anomalies: machines burning more "
-                  "fuel than expected, and machines not working at all.",
+            "fr": "L'analyse donne deux repères d'exploitation : la consommation "
+                  "de chaque machine par rapport à sa référence, et le taux "
+                  "d'utilisation du parc.",
+            "en": "Analysis gives two operating indicators: each machine's "
+                  "consumption against its baseline, and how much of the fleet "
+                  "is actually being used.",
         },
         "steps": {
             "fr": [
                 "Ouvrez « Analyse ».",
                 "Choisissez le mois (et la flotte si vous en avez plusieurs).",
-                "« Carburant vs référence » compare la consommation réelle de chaque véhicule à la consommation de référence de sa catégorie. Un écart important, répété d'un mois sur l'autre, mérite une vérification (fuite, réglage, ou pointage incomplet).",
+                "« Carburant vs référence » compare la consommation réelle de chaque véhicule à la consommation de référence de sa catégorie. Un écart qui se répète d'un mois sur l'autre signale souvent un besoin d'entretien (réglage moteur, fuite) ou un pointage incomplet.",
                 "« Véhicules inactifs » liste les machines sans aucune saisie sur la période — soit elles sont réellement à l'arrêt, soit on a oublié de les pointer.",
             ],
             "en": [
                 "Open \"Analysis\".",
                 "Pick the month (and the fleet if you have several).",
-                "\"Fuel vs baseline\" compares each vehicle's actual consumption against its category's baseline. A large gap, repeated month after month, is worth checking (leak, tuning, or incomplete logging).",
+                "\"Fuel vs baseline\" compares each vehicle's actual consumption against its category's baseline. A gap that repeats month after month usually points to a maintenance need (engine tuning, leak) or incomplete logging.",
                 "\"Idle vehicles\" lists machines with no entry over the period — either they really are stopped, or someone forgot to log them.",
             ],
         },
