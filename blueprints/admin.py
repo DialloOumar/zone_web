@@ -23,9 +23,10 @@ from app import (HIDDEN_PERMS, get_t, has_perm, is_modal_request, log_action,
                  modal_ok, require_perm, slugify, super_admin_required,
                  tombstone_system_role)
 from billing import current_rates
-from models import (AppSetting, AuditLog, Fleet, FleetRate, MaintenanceRule,
-                    Operator, Permission, Role, RolePermission, User, UserFleet,
-                    Vehicle, VehicleCategory, db)
+from models import (AppSetting, AuditLog, Citerne, DailyEntry, Expense, Fleet,
+                    FleetRate, FuelMovement, MaintenanceRecord, MaintenanceRule,
+                    Operator, PendingChange, Permission, Role, RolePermission,
+                    User, UserFleet, Vehicle, VehicleCategory, db)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -49,6 +50,42 @@ def _valid_iso_date(s):
 # ── Fleets ────────────────────────────────────────────────────────────────────
 
 
+def _fleet_usage(fleet):
+    """What is still attached to a fleet, and whether it can be deleted.
+
+    "vehicles" counts live machines only. A machine that logged something and
+    was then deleted keeps a tombstone row, which still carries fleet_id — so
+    counting those would report phantom vehicles for a fleet that visibly has
+    none, and block a delete no one could explain.
+
+    Everything listed in `blockers` holds real data and stops a delete. Empty
+    tombstones and billing rates do not: they are removed with the fleet, the
+    first having no history behind it and the second being priced per fleet.
+    """
+    vids = [v.id for v in Vehicle.query.filter_by(fleet_id=fleet.id).all()]
+    live = Vehicle.query.filter_by(fleet_id=fleet.id).filter(
+        Vehicle.deleted_at.is_(None)).count()
+    usage = {
+        "vehicles":  live,
+        "users":     UserFleet.query.filter_by(fleet_id=fleet.id).count(),
+        "operators": Operator.query.filter_by(fleet_id=fleet.id).count(),
+        "citernes":  Citerne.query.filter_by(fleet_id=fleet.id).count(),
+        "rules":     MaintenanceRule.query.filter_by(fleet_id=fleet.id).count(),
+        "expenses":  Expense.query.filter_by(fleet_id=fleet.id).count(),
+        "pending":   PendingChange.query.filter_by(fleet_id=fleet.id).count(),
+        "entries":   DailyEntry.query.filter(DailyEntry.vehicle_id.in_(vids)).count() if vids else 0,
+        "movements": FuelMovement.query.filter(FuelMovement.vehicle_id.in_(vids)).count() if vids else 0,
+        "records":   MaintenanceRecord.query.filter(
+            MaintenanceRecord.vehicle_id.in_(vids)).count() if vids else 0,
+        "tombstones": len(vids) - live,
+    }
+    usage["blockers"] = [k for k in ("vehicles", "users", "operators", "citernes",
+                                     "rules", "expenses", "pending", "entries",
+                                     "movements", "records") if usage[k]]
+    usage["deletable"] = not usage["blockers"]
+    return usage
+
+
 @admin_bp.route("/fleets")
 @login_required
 @require_perm("admin.fleets")
@@ -56,13 +93,7 @@ def fleets():
     show_archived = request.args.get("archived") == "1"
     rows = (Fleet.query.filter(Fleet.is_active.is_(not show_archived))
             .order_by(Fleet.name).all())
-    counts = {
-        f.id: {
-            "vehicles": Vehicle.query.filter_by(fleet_id=f.id).count(),
-            "users": UserFleet.query.filter_by(fleet_id=f.id).count(),
-        }
-        for f in rows
-    }
+    counts = {f.id: _fleet_usage(f) for f in rows}
     cat_labels = {c.code: c for c in VehicleCategory.query.all()}
     archived_count = Fleet.query.filter(Fleet.is_active.is_(False)).count()
     return render_template(
@@ -131,6 +162,48 @@ def fleet_delete(fleet_id):
     db.session.commit()
     flash("success|" + t.get("fleet.archived", "Flotte archivée."))
     return redirect(url_for("admin.fleets"))
+
+
+@admin_bp.route("/fleets/<int:fleet_id>/destroy", methods=["POST"])
+@login_required
+@require_perm("admin.fleets")
+def fleet_destroy(fleet_id):
+    """Hard delete, allowed only while nothing of substance hangs off the fleet.
+
+    Re-checked here rather than trusting the button, since the list may have
+    been rendered before someone else added a vehicle.
+    """
+    fleet = db.session.get(Fleet, fleet_id)
+    if not fleet:
+        abort(404)
+    t = get_t()
+    back = url_for("admin.fleets", archived=1) if request.form.get("archived") \
+        else url_for("admin.fleets")
+
+    usage = _fleet_usage(fleet)
+    if not usage["deletable"]:
+        flash("error|" + t.get("fleet.err.delete_blocked",
+                               "Impossible de supprimer : des éléments sont encore "
+                               "rattachés à cette flotte."))
+        return redirect(back)
+
+    name, dead = fleet.name, usage["tombstones"]
+    # Empty tombstones only — a machine with history would have shown up as a
+    # blocker above, so nothing here can orphan anything.
+    Vehicle.query.filter_by(fleet_id=fleet_id).delete(synchronize_session=False)
+    rates = FleetRate.query.filter_by(fleet_id=fleet_id).delete(synchronize_session=False)
+    # The audit trail outlives the fleet: unhook the lines instead of dropping them.
+    AuditLog.query.filter_by(fleet_id=fleet_id).update({AuditLog.fleet_id: None},
+                                                       synchronize_session=False)
+    db.session.delete(fleet)
+    log_action("DELETE", "fleet", resource_id=fleet_id,
+               detail="Deleted fleet '%s'%s%s"
+                      % (name,
+                         " + %d empty vehicle row(s)" % dead if dead else "",
+                         " + %d stale rate(s)" % rates if rates else ""))
+    db.session.commit()
+    flash("success|" + t.get("fleet.deleted", "Flotte supprimée."))
+    return redirect(back)
 
 
 @admin_bp.route("/fleets/<int:fleet_id>/reactivate", methods=["POST"])

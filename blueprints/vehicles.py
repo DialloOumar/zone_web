@@ -14,8 +14,9 @@ from flask_login import current_user, login_required
 import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
-from models import (Alert, DailyEntry, Expense, Fleet,
-                    MaintenanceRecord, Operator, Vehicle, VehicleCategory, db)
+from models import (Alert, DailyEntry, Expense, Fleet, FuelMovement,
+                    MaintenanceRecord, MaintenanceRule, Operator, Vehicle,
+                    VehicleCategory, db)
 
 vehicles_bp = Blueprint("vehicles", __name__)
 
@@ -235,6 +236,19 @@ def detail(vid):
                            records=records, alerts=alerts)
 
 
+def _vehicle_history(vid):
+    """Rows that would be orphaned if the vehicle's row went away.
+
+    Alerts are excluded on purpose: they are derived from the rules and get
+    regenerated, so they never justify keeping a machine alive.
+    """
+    return (DailyEntry.query.filter_by(vehicle_id=vid).count()
+            + FuelMovement.query.filter_by(vehicle_id=vid).count()
+            + Expense.query.filter_by(vehicle_id=vid).count()
+            + MaintenanceRecord.query.filter_by(vehicle_id=vid).count()
+            + MaintenanceRule.query.filter_by(vehicle_id=vid).count())
+
+
 def _render_vehicle_form(vehicle, error=None):
     """Render the vehicle form as a modal partial or a full page."""
     tpl = "_vehicle_form.html" if is_modal_request() else "vehicle_form.html"
@@ -335,18 +349,33 @@ def reactivate(vid):
 @login_required
 @require_perm("vehicle.delete")
 def destroy(vid):
-    """Real delete of an already-archived machine: it vanishes from every UI
-    and its code is freed for reuse, but the row stays so its history (entries,
-    fuel movements, expenses) isn't orphaned. Must be archived first."""
+    """Delete an already-archived machine. Must be archived first.
+
+    A machine that logged something keeps its row as a tombstone: it vanishes
+    from every UI and frees its code, but the entries, fuel movements and
+    expenses hanging off it would otherwise be orphaned.
+
+    A machine that logged nothing has no such history to protect, so the row
+    really goes. That matters beyond tidiness: a tombstone keeps holding its
+    foreign keys, so a never-used machine left behind would pin its fleet and
+    its category forever, neither of which could then be deleted.
+    """
     vehicle = _get_vehicle_or_404(vid)
     t = get_t()
     if vehicle.is_active:
         flash("error|" + t.get("delete.archive_first",
                                "Archivez d'abord, puis supprimez."))
         return redirect(url_for("vehicles.index"))
-    vehicle.deleted_at = datetime.utcnow()
-    log_action("DELETE", "vehicle", resource_id=vid, fleet_id=vehicle.fleet_id,
-               detail=f"Deleted vehicle '{vehicle.code}' (kept for history)")
+
+    fleet_id, code = vehicle.fleet_id, vehicle.code
+    if _vehicle_history(vid):
+        vehicle.deleted_at = datetime.utcnow()
+        detail = f"Deleted vehicle '{code}' (kept for history)"
+    else:
+        Alert.query.filter_by(vehicle_id=vid).delete(synchronize_session=False)
+        db.session.delete(vehicle)
+        detail = f"Deleted vehicle '{code}' (no history, row removed)"
+    log_action("DELETE", "vehicle", resource_id=vid, fleet_id=fleet_id, detail=detail)
     db.session.commit()
     flash("success|" + t.get("vehicle.deleted", "Véhicule supprimé."))
     return redirect(url_for("vehicles.index", archived=1))

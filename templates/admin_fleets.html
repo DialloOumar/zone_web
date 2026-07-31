@@ -46,19 +46,33 @@
                         <span class="muted">—</span>
                     {% endfor %}
                 </td>
-                <td>{{ counts[f.id].vehicles }}</td>
-                <td>{{ counts[f.id].users }}</td>
+                {% set u = counts[f.id] %}
+                <td>{{ u.vehicles }}</td>
+                <td>{{ u.users }}
+                    {# Otherwise a fleet reading 0 / 0 with no delete button is a mystery. #}
+                    {% if u.blockers and not u.vehicles and not u.users %}
+                    <div class="muted small">{{ t['fleet.still_holds'] }}</div>
+                    {% endif %}
+                </td>
                 <td class="row-actions">
                     <a href="{{ url_for('admin.fleet_edit', fleet_id=f.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('admin.fleet_edit', fleet_id=f.id) }}" data-modal-title="{{ t['fleet.edit'] }}" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
-                    {% if f.is_active %}
+                    {% if not f.is_active %}
+                    <form method="post" action="{{ url_for('admin.fleet_reactivate', fleet_id=f.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% if u.deletable %}
+                    {# Nothing of substance attached, so there is no history to keep. #}
+                    <form method="post" action="{{ url_for('admin.fleet_destroy', fleet_id=f.id) }}"
+                          data-confirm="{{ t['fleet.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" style="display:inline">
+                        {% if show_archived %}<input type="hidden" name="archived" value="1">{% endif %}
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% elif f.is_active %}
                     <form method="post" action="{{ url_for('admin.fleet_delete', fleet_id=f.id) }}"
                           data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
                         <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
-                    </form>
-                    {% else %}
-                    <form method="post" action="{{ url_for('admin.fleet_reactivate', fleet_id=f.id) }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
                     </form>
                     {% endif %}
                 </td>

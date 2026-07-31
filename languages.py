@@ -220,11 +220,13 @@ TRANSLATIONS = {
         "fleet.created":        "Flotte créée.",
         "fleet.updated":        "Flotte mise à jour.",
         "fleet.deleted":        "Flotte supprimée.",
+        "fleet.delete_confirm": "Cette flotte ne contient rien : aucun véhicule, conducteur, citerne ni saisie. Elle sera définitivement supprimée. Cette action est irréversible.",
+        "fleet.still_holds":    "contient encore des données",
         "fleet.delete_confirm": "Supprimer cette flotte ?",
         "fleet.err.name_required": "Le nom est obligatoire.",
         "fleet.err.name_taken":    "Une flotte porte déjà ce nom.",
         "fleet.err.slug_taken":    "Cet identifiant (slug) est déjà utilisé.",
-        "fleet.err.delete_blocked": "Impossible de supprimer : des véhicules, conducteurs ou utilisateurs sont encore rattachés à cette flotte.",
+        "fleet.err.delete_blocked": "Impossible de supprimer : des véhicules, conducteurs, citernes ou saisies sont encore rattachés à cette flotte. Archivez-la à la place.",
 
         # Vehicles
         "vehicle.new":            "Nouveau véhicule",
@@ -1126,11 +1128,13 @@ TRANSLATIONS = {
         "fleet.created":        "Fleet created.",
         "fleet.updated":        "Fleet updated.",
         "fleet.deleted":        "Fleet deleted.",
+        "fleet.delete_confirm": "This fleet holds nothing: no vehicle, driver, tank or entry. It will be deleted for good. This cannot be undone.",
+        "fleet.still_holds":    "still holds data",
         "fleet.delete_confirm": "Delete this fleet?",
         "fleet.err.name_required": "Name is required.",
         "fleet.err.name_taken":    "A fleet with this name already exists.",
         "fleet.err.slug_taken":    "That slug is already in use.",
-        "fleet.err.delete_blocked": "Cannot delete: vehicles, operators or users are still attached to this fleet.",
+        "fleet.err.delete_blocked": "Cannot delete: vehicles, operators, tanks or entries are still attached to this fleet. Archive it instead.",
 
         # Vehicles
         "vehicle.new":            "New vehicle",
