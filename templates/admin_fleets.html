@@ -49,9 +49,14 @@
                 {% set u = counts[f.id] %}
                 <td>{{ u.vehicles }}</td>
                 <td>{{ u.users }}
-                    {# Otherwise a fleet reading 0 / 0 with no delete button is a mystery. #}
-                    {% if u.blockers and not u.vehicles and not u.users %}
-                    <div class="muted small">{{ t['fleet.still_holds'] }}</div>
+                    {# Only vehicles and users have a column, so a fleet held back
+                       by an operator or a tank would read 0 / 0 and offer no
+                       delete, with nothing on screen explaining why. Name them. #}
+                    {% set hidden = u.blockers | reject('in', ['vehicles', 'users']) | list %}
+                    {% if hidden %}
+                    <div class="muted small">{{ t['fleet.still_holds'] }} :
+                        {% for k in hidden %}{{ u[k] }} {{ t['fleet.blocker.' + k] }}{{ " · " if not loop.last }}{% endfor %}
+                    </div>
                     {% endif %}
                 </td>
                 <td class="row-actions">

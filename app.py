@@ -962,8 +962,40 @@ def _seed_system_roles_data():
     return created
 
 
-def _seed_default_categories_data():
-    """Insert default vehicle categories + app settings. Idempotent."""
+# Marks that the starter categories have been laid down once, so a redeploy
+# never re-asserts them.
+CATEGORIES_SEEDED_KEY = "categories_seeded"
+
+
+def _seed_default_categories_data(force=False):
+    """Lay down the starter vehicle categories once, and ensure app settings.
+
+    The categories are a starting point, not a specification. `flask seed` runs
+    on every deploy, so re-adding each missing default meant a category the
+    admin had deliberately deleted came back on the next restart — silently,
+    and with no way to make it stick.
+
+    A marker setting records that the bootstrap happened. An existing database
+    that already holds categories counts as bootstrapped too, so upgrading does
+    not hand back what was already removed.
+
+    App settings are different: they are configuration the app needs in order
+    to boot, so a missing one is still filled in on every run.
+    """
+    for key, value, label, category in DEFAULT_SETTINGS:
+        if not db.session.get(AppSetting, key):
+            db.session.add(AppSetting(key=key, value=value, label=label, category=category))
+
+    done = (db.session.get(AppSetting, CATEGORIES_SEEDED_KEY) is not None
+            or VehicleCategory.query.first() is not None)
+    if done and not force:
+        if not db.session.get(AppSetting, CATEGORIES_SEEDED_KEY):
+            db.session.add(AppSetting(key=CATEGORIES_SEEDED_KEY, value="1",
+                                      label="Starter categories already in place",
+                                      category="system"))
+        db.session.commit()
+        return 0
+
     added = 0
     for code, label, label_fr, tracking, baseline, cost, order in DEFAULT_CATEGORIES:
         if not VehicleCategory.query.filter_by(code=code).first():
@@ -974,9 +1006,10 @@ def _seed_default_categories_data():
                 sort_order=order,
             ))
             added += 1
-    for key, value, label, category in DEFAULT_SETTINGS:
-        if not db.session.get(AppSetting, key):
-            db.session.add(AppSetting(key=key, value=value, label=label, category=category))
+    if not db.session.get(AppSetting, CATEGORIES_SEEDED_KEY):
+        db.session.add(AppSetting(key=CATEGORIES_SEEDED_KEY, value="1",
+                                  label="Starter categories inserted",
+                                  category="system"))
     db.session.commit()
     return added
 
@@ -995,9 +1028,15 @@ def seed_permissions_cmd():
 
 
 @app.cli.command("seed-default-categories")
-def seed_default_categories_cmd():
-    """Seed the default vehicle categories + app settings. Idempotent."""
-    added = _seed_default_categories_data()
+@click.option("--force", is_flag=True,
+              help="re-add missing starter categories even once bootstrapped")
+def seed_default_categories_cmd(force):
+    """Seed the starter vehicle categories + app settings.
+
+    Deploys no longer do this past the first run, so a deleted category stays
+    deleted. Use --force to deliberately pull the missing ones back.
+    """
+    added = _seed_default_categories_data(force=force)
     click.echo(f"Categories: {added} added. Default settings ensured.")
 
 

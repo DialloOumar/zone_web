@@ -23,10 +23,10 @@ from app import (HIDDEN_PERMS, get_t, has_perm, is_modal_request, log_action,
                  modal_ok, require_perm, slugify, super_admin_required,
                  tombstone_system_role)
 from billing import current_rates
-from models import (AppSetting, AuditLog, Citerne, DailyEntry, Expense, Fleet,
-                    FleetRate, FuelMovement, MaintenanceRecord, MaintenanceRule,
-                    Operator, PendingChange, Permission, Role, RolePermission,
-                    User, UserFleet, Vehicle, VehicleCategory, db)
+from models import (Alert, AppSetting, AuditLog, Citerne, DailyEntry, Expense,
+                    Fleet, FleetRate, FuelMovement, MaintenanceRecord,
+                    MaintenanceRule, Operator, PendingChange, Permission, Role,
+                    RolePermission, User, UserFleet, Vehicle, VehicleCategory, db)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -70,7 +70,12 @@ def _fleet_usage(fleet):
         "users":     UserFleet.query.filter_by(fleet_id=fleet.id).count(),
         "operators": Operator.query.filter_by(fleet_id=fleet.id).count(),
         "citernes":  Citerne.query.filter_by(fleet_id=fleet.id).count(),
-        "rules":     MaintenanceRule.query.filter_by(fleet_id=fleet.id).count(),
+        # A rule can target the fleet or one of its machines directly; the
+        # second kind carries no fleet_id, and missing it would let the delete
+        # remove a vehicle the rule still points at.
+        "rules":     MaintenanceRule.query.filter(db.or_(
+            MaintenanceRule.fleet_id == fleet.id,
+            MaintenanceRule.vehicle_id.in_(vids) if vids else db.false())).count(),
         "expenses":  Expense.query.filter_by(fleet_id=fleet.id).count(),
         "pending":   PendingChange.query.filter_by(fleet_id=fleet.id).count(),
         "entries":   DailyEntry.query.filter(DailyEntry.vehicle_id.in_(vids)).count() if vids else 0,
@@ -189,7 +194,12 @@ def fleet_destroy(fleet_id):
 
     name, dead = fleet.name, usage["tombstones"]
     # Empty tombstones only — a machine with history would have shown up as a
-    # blocker above, so nothing here can orphan anything.
+    # blocker above, so nothing here can orphan anything. Their alerts go too:
+    # an alert is derived from a rule and regenerates, it never blocks, but it
+    # does hold a non-null vehicle_id that would refuse the delete.
+    vids = [v.id for v in Vehicle.query.filter_by(fleet_id=fleet_id).all()]
+    if vids:
+        Alert.query.filter(Alert.vehicle_id.in_(vids)).delete(synchronize_session=False)
     Vehicle.query.filter_by(fleet_id=fleet_id).delete(synchronize_session=False)
     rates = FleetRate.query.filter_by(fleet_id=fleet_id).delete(synchronize_session=False)
     # The audit trail outlives the fleet: unhook the lines instead of dropping them.
