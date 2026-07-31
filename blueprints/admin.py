@@ -83,6 +83,11 @@ def _fleet_usage(fleet):
         "records":   MaintenanceRecord.query.filter(
             MaintenanceRecord.vehicle_id.in_(vids)).count() if vids else 0,
         "tombstones": len(vids) - live,
+        # An archived driver still pins the fleet but is hidden behind the
+        # "show archived" toggle, so the list looks empty while the delete
+        # stays blocked. Recorded here so the page can point at the right view.
+        "operators_active": Operator.query.filter_by(fleet_id=fleet.id,
+                                                     is_active=True).count(),
     }
     usage["blockers"] = [k for k in ("vehicles", "users", "operators", "citernes",
                                      "rules", "expenses", "pending", "entries",

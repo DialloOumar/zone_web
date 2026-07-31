@@ -55,7 +55,16 @@
                     {% set hidden = u.blockers | reject('in', ['vehicles', 'users']) | list %}
                     {% if hidden %}
                     <div class="muted small">{{ t['fleet.still_holds'] }} :
-                        {% for k in hidden %}{{ u[k] }} {{ t['fleet.blocker.' + k] }}{{ " · " if not loop.last }}{% endfor %}
+                        {% for k in hidden %}
+                            {%- if k == 'operators' -%}
+                            {# Land on the archived view when none are active,
+                               or the page looks empty while the delete stays blocked. #}
+                            <a href="{{ url_for('operators.index', fleet=f.id, archived=None if u.operators_active else 1) }}">{{ u[k] }} {{ t['fleet.blocker.' + k] }}</a>
+                            {%- else -%}
+                            {{ u[k] }} {{ t['fleet.blocker.' + k] }}
+                            {%- endif -%}
+                            {{ " · " if not loop.last }}
+                        {% endfor %}
                     </div>
                     {% endif %}
                 </td>

@@ -121,7 +121,12 @@ def _operator_usage(op):
         # over-count only ever means "archive it instead", never a bad delete.
         "movements": FuelMovement.query.filter_by(operator=name).count(),
         "expenses": Expense.query.filter_by(operator=name).count(),
-        "default_for": Vehicle.query.filter_by(default_operator_id=op.id).count(),
+        # Live machines only. A deleted machine that logged something keeps a
+        # tombstone row, and that row keeps its default_operator_id — so a
+        # driver would stay pinned by a vehicle nobody can see any more.
+        "default_for": (Vehicle.query
+                        .filter_by(default_operator_id=op.id)
+                        .filter(Vehicle.deleted_at.is_(None)).count()),
     }
     usage["blockers"] = [k for k, n in usage.items() if n]
     usage["deletable"] = not usage["blockers"]
@@ -325,9 +330,18 @@ def destroy(oid):
         return redirect(url_for("operators.index"))
 
     name, fid = op.name, op.fleet_id
+    # A tombstoned machine still names him as its default driver. That does not
+    # block the delete — nobody can open a deleted machine to unassign him —
+    # but the key is real, so unhook it or the delete is refused outright.
+    ghosts = (Vehicle.query
+              .filter_by(default_operator_id=op.id)
+              .filter(Vehicle.deleted_at.isnot(None))
+              .update({Vehicle.default_operator_id: None}, synchronize_session=False))
     db.session.delete(op)
     log_action("DELETE", "operator", resource_id=oid, fleet_id=fid,
-               detail=f"Deleted operator '{name}' (no activity, row removed)")
+               detail="Deleted operator '%s' (no activity, row removed)%s"
+                      % (name, " + unhooked from %d deleted vehicle(s)" % ghosts
+                         if ghosts else ""))
     db.session.commit()
     flash("success|" + t.get("operator.deleted", "Conducteur supprimé."))
     return redirect(url_for("operators.index"))
