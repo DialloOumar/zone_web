@@ -66,14 +66,21 @@
                        data-modal-url="{{ url_for('operators.edit', oid=op.id) }}" data-modal-title="{{ t['operator.edit'] }}" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% endif %}
                     {% if has_perm('operator.delete') %}
-                        {% if op.is_active %}
+                        {% if not op.is_active %}
+                        <form method="post" action="{{ url_for('operators.reactivate', oid=op.id) }}" style="display:inline">
+                            <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                        </form>
+                        {% endif %}
+                        {% if usage[op.id].deletable %}
+                        {# Nothing was ever logged under this name: no history to keep. #}
+                        <form method="post" action="{{ url_for('operators.destroy', oid=op.id) }}"
+                              data-confirm="{{ t['operator.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" style="display:inline">
+                            <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                        </form>
+                        {% elif op.is_active %}
                         <form method="post" action="{{ url_for('operators.delete', oid=op.id) }}"
                               data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
                             <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
-                        </form>
-                        {% else %}
-                        <form method="post" action="{{ url_for('operators.reactivate', oid=op.id) }}" style="display:inline">
-                            <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
                         </form>
                         {% endif %}
                     {% endif %}
@@ -109,14 +116,20 @@
                    data-modal-url="{{ url_for('operators.edit', oid=op.id) }}" data-modal-title="{{ t['operator.edit'] }}">{{ t['btn.edit'] }}</a>
                 {% endif %}
                 {% if has_perm('operator.delete') %}
-                    {% if op.is_active %}
+                    {% if not op.is_active %}
+                    <form method="post" action="{{ url_for('operators.reactivate', oid=op.id) }}">
+                        <button type="submit" class="btn btn--sm btn--primary">{{ t['btn.reactivate'] }}</button>
+                    </form>
+                    {% endif %}
+                    {% if usage[op.id].deletable %}
+                    <form method="post" action="{{ url_for('operators.destroy', oid=op.id) }}"
+                          data-confirm="{{ t['operator.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}">
+                        <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.delete'] }}</button>
+                    </form>
+                    {% elif op.is_active %}
                     <form method="post" action="{{ url_for('operators.delete', oid=op.id) }}"
                           data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}">
                         <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.archive'] }}</button>
-                    </form>
-                    {% else %}
-                    <form method="post" action="{{ url_for('operators.reactivate', oid=op.id) }}">
-                        <button type="submit" class="btn btn--sm btn--primary">{{ t['btn.reactivate'] }}</button>
                     </form>
                     {% endif %}
                 {% endif %}

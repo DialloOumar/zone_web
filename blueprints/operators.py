@@ -16,8 +16,8 @@ from sqlalchemy import func
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
-from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Operator,
-                    Vehicle, db)
+from models import (DailyEntry, Expense, Fleet, FuelMovement,
+                    MaintenanceRecord, Operator, Vehicle, db)
 
 operators_bp = Blueprint("operators", __name__)
 
@@ -93,6 +93,41 @@ def _form_context(operator):
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 
+def _operator_usage(op):
+    """What still refers to a driver, and whether the row can be deleted.
+
+    Entries, services, fuel movements and expenses store the driver as a name,
+    not an id — deliberately, so history survives a rename. Deleting the row
+    therefore orphans nothing, but it would strip that history of the only
+    place the name is still a real person with a phone number and a licence.
+    So anything logged under the name blocks, and the driver gets archived
+    instead.
+
+    Being a vehicle's default driver is the one genuine foreign key, and it
+    blocks too: silently clearing someone else's default is a surprise, and
+    the fix is one edit away on the vehicle.
+    """
+    name, fid = op.name, op.fleet_id
+    usage = {
+        "entries": (DailyEntry.query
+                    .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+                    .filter(Vehicle.fleet_id == fid, DailyEntry.operator == name).count()),
+        "records": (MaintenanceRecord.query
+                    .join(Vehicle, MaintenanceRecord.vehicle_id == Vehicle.id)
+                    .filter(Vehicle.fleet_id == fid,
+                            MaintenanceRecord.operator == name).count()),
+        # A fill or a cost can sit outside any vehicle, so there is no fleet to
+        # join through; matching the name alone over-counts at worst, and an
+        # over-count only ever means "archive it instead", never a bad delete.
+        "movements": FuelMovement.query.filter_by(operator=name).count(),
+        "expenses": Expense.query.filter_by(operator=name).count(),
+        "default_for": Vehicle.query.filter_by(default_operator_id=op.id).count(),
+    }
+    usage["blockers"] = [k for k, n in usage.items() if n]
+    usage["deletable"] = not usage["blockers"]
+    return usage
+
+
 @operators_bp.route("/operators")
 @login_required
 @require_perm("operator.view")
@@ -106,8 +141,9 @@ def index():
         q = q.filter(Operator.fleet_id == active_fleet)
     operators = q.order_by(Operator.name).all()
     archived_count = scoped(Operator).filter(Operator.is_active.is_(False)).count()
+    usage = {o.id: _operator_usage(o) for o in operators}
 
-    return render_template("operators.html", operators=operators,
+    return render_template("operators.html", operators=operators, usage=usage,
                            filter_fleets=fleets, active_fleet=active_fleet,
                            show_archived=show_archived, archived_count=archived_count)
 
@@ -267,6 +303,33 @@ def delete(oid):
                detail=f"Archived operator '{op.name}'")
     db.session.commit()
     flash("success|" + t.get("operator.archived", "Conducteur archivé."))
+    return redirect(url_for("operators.index"))
+
+
+@operators_bp.route("/operators/<int:oid>/destroy", methods=["POST"])
+@login_required
+@require_perm("operator.delete")
+def destroy(oid):
+    """Hard delete, allowed only while nothing was ever logged under the name.
+
+    Re-checked here rather than trusting the button, since the list may have
+    been rendered before someone pointed a day of work at this driver.
+    """
+    op = _get_operator_or_404(oid)
+    t = get_t()
+    usage = _operator_usage(op)
+    if not usage["deletable"]:
+        flash("error|" + t.get("operator.err.delete_blocked",
+                               "Impossible de supprimer : ce conducteur a déjà "
+                               "de l'activité enregistrée."))
+        return redirect(url_for("operators.index"))
+
+    name, fid = op.name, op.fleet_id
+    db.session.delete(op)
+    log_action("DELETE", "operator", resource_id=oid, fleet_id=fid,
+               detail=f"Deleted operator '{name}' (no activity, row removed)")
+    db.session.commit()
+    flash("success|" + t.get("operator.deleted", "Conducteur supprimé."))
     return redirect(url_for("operators.index"))
 
 
