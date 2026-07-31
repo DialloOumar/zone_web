@@ -59,7 +59,6 @@
                 <th>{{ t['vehicle.category'] }}</th>
                 <th class="col-secondary">{{ t['vehicle.fleet'] }}</th>
                 <th class="col-secondary">{{ t['vehicle.site'] }}</th>
-                <th class="col-secondary">{{ t['vehicle.baseline'] }}</th>
                 <th>{{ t['vehicle.status'] }}</th>
                 <th></th>
             </tr>
@@ -80,11 +79,6 @@
                 <td><span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span></td>
                 <td class="col-secondary">{{ v.fleet.name }}</td>
                 <td class="col-secondary">{{ v.site or '—' }}</td>
-                <td class="col-secondary">
-                    {% if v.effective_baseline %}
-                        {{ v.effective_baseline }} L / {{ t['unit.' + v.category.unit_type] }}
-                    {% else %}—{% endif %}
-                </td>
                 <td>
                     {% if v.is_active %}
                         <span class="badge badge--active">{{ t['vehicle.active'] }}</span>

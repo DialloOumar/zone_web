@@ -25,7 +25,6 @@
                 <th>{{ t['vcat.code'] }}</th>
                 <th>{{ t['vcat.label_fr'] }}</th>
                 <th>{{ t['vcat.tracking'] }}</th>
-                <th style="text-align:right;">{{ t['vcat.baseline'] }}</th>
                 <th style="text-align:right;">{{ t['vcat.usage'] }}</th>
                 <th></th>
             </tr>
@@ -37,7 +36,6 @@
                 <td><span class="chip chip--{{ c.code|lower }}">{{ c.code }}</span></td>
                 <td><strong>{{ c.label_fr }}</strong>{% if c.label != c.label_fr %}<div class="muted small">{{ c.label }}</div>{% endif %}</td>
                 <td>{{ t['vcat.track.' + c.tracking] }}</td>
-                <td style="text-align:right;">{% if c.default_baseline_l_per_unit is not none %}{{ c.default_baseline_l_per_unit }} L/{{ t['unit.' + c.unit_type] }}{% else %}—{% endif %}</td>
                 <td style="text-align:right;">{{ u.vehicles }}
                     {# Why a category with no vehicle still can't be deleted. #}
                     {% if u.fleets or u.rules %}

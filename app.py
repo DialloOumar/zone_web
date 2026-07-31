@@ -839,14 +839,17 @@ PERMISSIONS_CATALOG = [
 # Format: (code, label_en, label_fr, unit_type, default_l_per_unit, default_cost_per_unit, sort_order)
 # (code, label, label_fr, tracking, baseline, cost, sort_order)
 # tracking: "trips" | "hours" | "hours_index"; unit_type is derived from it.
+# The baseline stays None on purpose: a reference consumption is meant to be
+# derived from the fleet's own logged activity once a few months have run, and
+# a seeded guess would quietly drive the fuel analysis in the meantime.
 DEFAULT_CATEGORIES = [
-    ("BUS",         "Bus",             "Bus",                "trips",        12.0,  None,  1),
-    ("MINIBUS",     "Minibus",         "Minibus",            "trips",         8.0,  None,  2),
-    ("NAVETTE",     "Shuttle",         "Navette",            "trips",         6.0,  None,  3),
-    ("CAMION_TSF",  "TSF Truck",       "Camion TSF",         "hours",        25.0,  None,  4),
-    ("MACHINE_TSF", "TSF Machine",     "Machine TSF",        "hours_index",  30.0,  None,  5),
-    ("CITERNE",     "Water tanker",    "Citerne à eau",      "trips",        15.0,  None,  6),
-    ("SERVICE",     "Service vehicle", "Véhicule de service", "trips",        4.0,  None,  7),
+    ("BUS",         "Bus",             "Bus",                "trips",        None,  None,  1),
+    ("MINIBUS",     "Minibus",         "Minibus",            "trips",        None,  None,  2),
+    ("NAVETTE",     "Shuttle",         "Navette",            "trips",        None,  None,  3),
+    ("CAMION_TSF",  "TSF Truck",       "Camion TSF",         "hours",        None,  None,  4),
+    ("MACHINE_TSF", "TSF Machine",     "Machine TSF",        "hours_index",  None,  None,  5),
+    ("CITERNE",     "Water tanker",    "Citerne à eau",      "trips",        None,  None,  6),
+    ("SERVICE",     "Service vehicle", "Véhicule de service", "trips",       None,  None,  7),
     ("AUTRE",       "Other",           "Autre",              "trips",        None,  None,  8),
 ]
 

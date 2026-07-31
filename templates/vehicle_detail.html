@@ -47,17 +47,6 @@
             <dt>{{ t['vehicle.default_operator'] }}</dt>
             <dd>{{ vehicle.default_operator.name if vehicle.default_operator else '—' }}</dd>
         </div>
-        <div>
-            <dt>{{ t['vehicle.baseline'] }}</dt>
-            <dd>
-                {% if vehicle.effective_baseline %}
-                    {{ vehicle.effective_baseline }} L / {{ t['unit.' + vehicle.category.unit_type] }}
-                    {% if not vehicle.baseline_l_per_unit_override %}
-                    <span class="muted small">({{ t['vehicle.from_category'] }})</span>
-                    {% endif %}
-                {% else %}—{% endif %}
-            </dd>
-        </div>
         {% if vehicle.description %}
         <div style="grid-column: 1 / -1;">
             <dt>{{ t['vehicle.description'] }}</dt>

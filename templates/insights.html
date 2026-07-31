@@ -34,6 +34,8 @@
         </div>
     </div>
     {% endif %}
+    {# No reference consumption yet means a permanent, misleading zero. #}
+    {% if fuel_rows %}
     <div class="stat-card">
         <span class="stat-icon {{ 'stat-icon--red' if over_count else 'stat-icon--teal' }} material-symbols-outlined">local_gas_station</span>
         <div>
@@ -41,6 +43,7 @@
             <div class="stat-label">{{ t['insights.over_baseline'] }}</div>
         </div>
     </div>
+    {% endif %}
     <div class="stat-card">
         <span class="stat-icon {{ 'stat-icon--amber' if idle_count else 'stat-icon--teal' }} material-symbols-outlined">bedtime</span>
         <div>

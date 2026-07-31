@@ -41,12 +41,6 @@
                    value="{{ request.form.get('site') or (vehicle.site if is_edit else '') }}">
             <label for="site">{{ t['vehicle.site'] }}</label>
         </div>
-        <div class="field">
-            <input type="text" id="baseline_l_per_unit_override" name="baseline_l_per_unit_override" placeholder="{{ t['ph.vehicle.baseline'] }}" inputmode="decimal"
-                   value="{{ request.form.get('baseline_l_per_unit_override') or (vehicle.baseline_l_per_unit_override if is_edit and vehicle.baseline_l_per_unit_override is not none else '') }}">
-            <label for="baseline_l_per_unit_override">{{ t['vehicle.baseline_override'] }}</label>
-            <div class="field-hint">{{ t['vehicle.baseline_hint'] }}</div>
-        </div>
     </div>
 
     <div class="form-row">

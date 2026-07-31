@@ -131,10 +131,6 @@ def _read_vehicle_form(vehicle):
     if q.first():
         return None, t["vehicle.err.code_taken"]
 
-    baseline, err1 = _num(request.form.get("baseline_l_per_unit_override"), float)
-    if err1:
-        return None, t["vehicle.err.bad_number"]
-
     # Optional default driver — must be a registered operator of this fleet.
     default_operator_id = request.form.get("default_operator_id", type=int) or None
     if default_operator_id:
@@ -149,7 +145,6 @@ def _read_vehicle_form(vehicle):
         category_id=category_id,
         description=(request.form.get("description") or "").strip() or None,
         site=(request.form.get("site") or "").strip() or None,
-        baseline_l_per_unit_override=baseline,
         default_operator_id=default_operator_id,
         is_active=request.form.get("is_active") is not None,
     )

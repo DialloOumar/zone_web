@@ -183,11 +183,11 @@ HELP_SECTIONS = [
         "tips": {
             "fr": [
                 "Le total du mois et le total des litres sont rappelés en haut de la liste.",
-                "Les pleins alimentent l'analyse carburant (consommation réelle comparée à la consommation de référence de la catégorie).",
+                "Les pleins alimentent l'analyse carburant.",
             ],
             "en": [
                 "The month's total and total litres are shown at the top of the list.",
-                "Fill-ups feed the fuel analysis (actual consumption against the category's baseline).",
+                "Fill-ups feed the fuel analysis.",
             ],
         },
     },
@@ -352,8 +352,8 @@ HELP_SECTIONS = [
             ],
         },
         "tips": {
-            "fr": ["La consommation de référence se règle par catégorie (Administration → Catégories de véhicules). Sans référence, la comparaison carburant reste vide."],
-            "en": ["The baseline consumption is set per category (Administration → Vehicle categories). Without a baseline the fuel comparison stays empty."],
+            "fr": ["La consommation de référence ne se saisit pas : elle sera déduite de l'activité réelle du parc après quelques mois de saisie. En attendant, la comparaison carburant reste vide."],
+            "en": ["The reference consumption is not typed in: it will be derived from the fleet's own activity after a few months of logging. Until then the fuel comparison stays empty."],
         },
     },
     {
@@ -549,14 +549,12 @@ HELP_SECTIONS = [
                 "Ouvrez Administration → « Catégories de véhicules » puis « Nouvelle catégorie ».",
                 "Saisissez un code (ex. BUS, EXC) et les libellés.",
                 "Choisissez le mode de suivi : Voyages (on compte des rotations), Heures (on saisit directement les heures) ou Index d'horomètre (on saisit l'index début/fin, les heures sont calculées).",
-                "(Optionnel) Renseignez une consommation de référence (L/unité) pour les analyses de carburant.",
                 "Enregistrez. La catégorie devient assignable aux véhicules.",
             ],
             "en": [
                 "Open Administration → \"Vehicle categories\" then \"New category\".",
                 "Enter a code (e.g. BUS, EXC) and the labels.",
                 "Choose the tracking mode: Trips (count rotations), Hours (enter worked hours directly) or Hour-meter index (enter start/end index, hours are computed).",
-                "(Optional) Set a baseline consumption (L/unit) for fuel analysis.",
                 "Save. The category can now be assigned to vehicles.",
             ],
         },
