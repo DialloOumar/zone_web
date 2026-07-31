@@ -32,23 +32,41 @@
         </thead>
         <tbody>
             {% for c in categories %}
+            {% set u = usage[c.id] %}
             <tr>
                 <td><span class="chip chip--{{ c.code|lower }}">{{ c.code }}</span></td>
                 <td><strong>{{ c.label_fr }}</strong>{% if c.label != c.label_fr %}<div class="muted small">{{ c.label }}</div>{% endif %}</td>
                 <td>{{ t['vcat.track.' + c.tracking] }}</td>
                 <td style="text-align:right;">{% if c.default_baseline_l_per_unit is not none %}{{ c.default_baseline_l_per_unit }} L/{{ t['unit.' + c.unit_type] }}{% else %}—{% endif %}</td>
-                <td style="text-align:right;">{{ counts[c.id] }}</td>
+                <td style="text-align:right;">{{ u.vehicles }}
+                    {# Why a category with no vehicle still can't be deleted. #}
+                    {% if u.fleets or u.rules %}
+                    <div class="muted small">
+                        {% if u.fleets %}{{ u.fleets|length }} {{ t['vcat.used_fleets'] }}{% endif %}
+                        {% if u.fleets and u.rules %} · {% endif %}
+                        {% if u.rules %}{{ u.rules }} {{ t['vcat.used_rules'] }}{% endif %}
+                    </div>
+                    {% endif %}
+                </td>
                 <td class="row-actions">
                     <a href="{{ url_for('admin.category_edit', cat_id=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('admin.category_edit', cat_id=c.id) }}" data-modal-title="{{ t['vcat.edit'] }}" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
-                    {% if c.is_active %}
+                    {% if not c.is_active %}
+                    <form method="post" action="{{ url_for('admin.category_reactivate', cat_id=c.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% if u.deletable %}
+                    {# Nothing references it, so there is no history to keep: real delete. #}
+                    <form method="post" action="{{ url_for('admin.category_destroy', cat_id=c.id) }}"
+                          data-confirm="{{ t['vcat.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" style="display:inline">
+                        {% if show_archived %}<input type="hidden" name="archived" value="1">{% endif %}
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% elif c.is_active %}
                     <form method="post" action="{{ url_for('admin.category_delete', cat_id=c.id) }}"
                           data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
                         <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
-                    </form>
-                    {% else %}
-                    <form method="post" action="{{ url_for('admin.category_reactivate', cat_id=c.id) }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
                     </form>
                     {% endif %}
                 </td>

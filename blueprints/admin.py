@@ -23,9 +23,9 @@ from app import (HIDDEN_PERMS, get_t, has_perm, is_modal_request, log_action,
                  modal_ok, require_perm, slugify, super_admin_required,
                  tombstone_system_role)
 from billing import current_rates
-from models import (AppSetting, AuditLog, Fleet, FleetRate, Operator,
-                    Permission, Role, RolePermission, User, UserFleet, Vehicle,
-                    VehicleCategory, db)
+from models import (AppSetting, AuditLog, Fleet, FleetRate, MaintenanceRule,
+                    Operator, Permission, Role, RolePermission, User, UserFleet,
+                    Vehicle, VehicleCategory, db)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -724,6 +724,31 @@ def _cat_num(raw, cast):
         return None, True
 
 
+def _category_usage(cat, fleets=None):
+    """Everything still pointing at a category.
+
+    Vehicles and maintenance rules reference it by id, but a fleet lists it by
+    code inside a JSON column and a billing rate stores the code as a plain
+    string — neither is a foreign key, so the database would happily let a
+    still-referenced category go. Hence the explicit check.
+
+    Vehicles, rules and fleets block a delete. Stale rates do not: a rate is
+    priced per (fleet × category), so once no fleet carries the category it can
+    never be applied again, and it goes with it.
+
+    `fleets` is injectable so the list view resolves them once, not per row.
+    """
+    fleets = Fleet.query.all() if fleets is None else fleets
+    usage = {
+        "vehicles": Vehicle.query.filter_by(category_id=cat.id).count(),
+        "rules":    MaintenanceRule.query.filter_by(category_id=cat.id).count(),
+        "fleets":   [f.name for f in fleets if cat.code in (f.categories or [])],
+        "rates":    FleetRate.query.filter_by(category_code=cat.code).count(),
+    }
+    usage["deletable"] = not (usage["vehicles"] or usage["rules"] or usage["fleets"])
+    return usage
+
+
 @admin_bp.route("/categories")
 @login_required
 @require_perm("admin.categories")
@@ -731,9 +756,10 @@ def categories():
     show_archived = request.args.get("archived") == "1"
     rows = (VehicleCategory.query.filter(VehicleCategory.is_active.is_(not show_archived))
             .order_by(VehicleCategory.sort_order, VehicleCategory.code).all())
-    counts = {c.id: Vehicle.query.filter_by(category_id=c.id).count() for c in rows}
+    fleets = Fleet.query.all()
+    usage = {c.id: _category_usage(c, fleets) for c in rows}
     archived_count = VehicleCategory.query.filter(VehicleCategory.is_active.is_(False)).count()
-    return render_template("admin_categories.html", categories=rows, counts=counts,
+    return render_template("admin_categories.html", categories=rows, usage=usage,
                            show_archived=show_archived, archived_count=archived_count)
 
 
@@ -827,6 +853,43 @@ def category_delete(cat_id):
     db.session.commit()
     flash("success|" + t.get("vcat.archived", "Catégorie archivée."))
     return redirect(url_for("admin.categories"))
+
+
+@admin_bp.route("/categories/<int:cat_id>/destroy", methods=["POST"])
+@login_required
+@require_perm("admin.categories")
+def category_destroy(cat_id):
+    """Hard delete, allowed only while nothing references the category.
+
+    A vehicle keeps a tombstone row when deleted, because its entries and fuel
+    movements would otherwise be orphaned. An unused category has no such
+    history behind it, so the row genuinely goes and its code frees up.
+
+    The usage check runs again here rather than trusting the button: the list
+    page may have been rendered before someone else created a vehicle on it.
+    """
+    cat = db.session.get(VehicleCategory, cat_id)
+    if not cat:
+        abort(404)
+    t = get_t()
+    back = url_for("admin.categories", archived=1) if request.form.get("archived") \
+        else url_for("admin.categories")
+
+    usage = _category_usage(cat)
+    if not usage["deletable"]:
+        flash("error|" + t.get("vcat.err.delete_blocked",
+                               "Impossible de supprimer : cette catégorie est utilisée."))
+        return redirect(back)
+
+    code = cat.code
+    rates = FleetRate.query.filter_by(category_code=code).delete(synchronize_session=False)
+    db.session.delete(cat)
+    log_action("DELETE", "vehicle_category", resource_id=cat_id,
+               detail="Deleted category '%s'%s"
+                      % (code, " + %d stale rate(s)" % rates if rates else ""))
+    db.session.commit()
+    flash("success|" + t.get("vcat.deleted", "Catégorie supprimée."))
+    return redirect(back)
 
 
 @admin_bp.route("/categories/<int:cat_id>/reactivate", methods=["POST"])
