@@ -193,6 +193,8 @@
                         <div class="alert alert--error">{{ msg[6:] }}</div>
                         {% elif msg.startswith('success|') %}
                         <div class="alert alert--success">{{ msg[8:] }}</div>
+                        {% elif msg.startswith('info|') %}
+                        <div class="alert">{{ msg[5:] }}</div>
                         {% else %}
                         <div class="alert">{{ msg }}</div>
                         {% endif %}

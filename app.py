@@ -50,6 +50,12 @@ migrate = Migrate(app, db)
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
+# Flask-Login queues "Please log in to access this page." when it bounces an
+# anonymous visitor. The flash survives the redirect *and* the login itself, so
+# it lands on the first page after signing in — telling someone who just
+# authenticated to authenticate, in English, on a French-first app. The login
+# screen already says why you are there.
+login_manager.login_message = None
 
 
 @login_manager.user_loader
