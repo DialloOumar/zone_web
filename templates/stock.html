@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.stock'] }}{% endblock %}
+{% block page_title %}{{ t['nav.stock'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <div style="display:flex; gap:14px; align-items:baseline; flex-wrap:wrap;">
+            <span class="muted small">{{ t['stock.total_value'] }} <strong>{{ '{:,}'.format(total_value) }}</strong> GNF</span>
+            {% if low_count %}
+            <span class="badge badge--warning">{{ low_count }} {{ t['stock.to_reorder'] }}</span>
+            {% endif %}
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+            {% if show_archived %}
+            <a href="{{ url_for('stock.index') }}" class="btn btn--sm btn--outlined">{{ t['archive.show_active'] }}</a>
+            {% elif archived_count %}
+            <a href="{{ url_for('stock.index', archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
+            {% endif %}
+            {% if has_perm('stock.manage') and active_parts %}
+            <a href="{{ url_for('stock.entree_new') }}" class="btn btn--tonal"
+               data-modal-url="{{ url_for('stock.entree_new') }}" data-modal-title="{{ t['entree.new'] }}">
+                <span class="material-symbols-outlined">inventory</span> {{ t['entree.new'] }}
+            </a>
+            <a href="{{ url_for('stock.inventaire_new') }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('stock.inventaire_new') }}" data-modal-title="{{ t['inventaire.new'] }}">
+                <span class="material-symbols-outlined">fact_check</span> {{ t['inventaire.new'] }}
+            </a>
+            {% endif %}
+            {% if has_perm('stock.manage') %}
+            <a href="{{ url_for('stock.part_new') }}" class="fab"
+               data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['part.new'] }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <form method="get" class="filter-bar">
+        {% if show_archived %}<input type="hidden" name="archived" value="1">{% endif %}
+        <div class="field" style="min-width:220px;">
+            <input type="text" name="q" value="{{ search }}" placeholder=" ">
+            <label>{{ t['stock.search'] }}</label>
+        </div>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        {% if search %}
+        <a href="{{ url_for('stock.index', archived=1 if show_archived else None) }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
+        {% endif %}
+    </form>
+
+    {% if parts %}
+    <div class="table-desktop">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['part.name'] }}</th>
+                <th style="text-align:right;">{{ t['part.quantity'] }}</th>
+                <th class="col-secondary" style="text-align:right;">{{ t['part.avg_cost'] }}</th>
+                <th class="col-secondary" style="text-align:right;">{{ t['part.stock_value'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in parts %}
+            <tr>
+                <td>
+                    <span class="vehicle-cell">
+                        {% set turl = photo_url(p.photo_key) if p.photo_key else None %}
+                        <span class="vehicle-thumb {% if not turl %}vehicle-thumb--empty{% endif %}">
+                            {% if turl %}<img src="{{ turl }}" alt="" loading="lazy">
+                            {% else %}<span class="material-symbols-outlined">handyman</span>{% endif %}
+                        </span>
+                        <span><strong>{{ p.name }}</strong>
+                            <div class="muted small">{{ t['unit.' + p.unit] }}</div></span>
+                    </span>
+                </td>
+                <td style="text-align:right; white-space:nowrap;">
+                    <strong>{{ '{:,.10g}'.format(p.quantity) }}</strong>
+                    {% if p.below_reorder %}
+                    <span class="badge badge--warning" title="{{ t['part.reorder_at'] }} {{ '{:,.10g}'.format(p.reorder_level) }}">{{ t['stock.reorder'] }}</span>
+                    {% endif %}
+                </td>
+                <td class="col-secondary" style="text-align:right; white-space:nowrap;">
+                    {% if p.average_cost_as_of() is not none %}{{ '{:,}'.format(p.average_cost_as_of()) }}
+                    {% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td class="col-secondary" style="text-align:right; white-space:nowrap;">
+                    {% if p.stock_value is not none %}{{ '{:,}'.format(p.stock_value) }}
+                    {% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td class="row-actions">
+                    {% if has_perm('stock.manage') %}
+                    <a href="{{ url_for('stock.part_edit', pid=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('stock.part_edit', pid=p.id) }}" data-modal-title="{{ t['part.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% if p.is_active %}
+                    <form method="post" action="{{ url_for('stock.part_archive', pid=p.id) }}"
+                          data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('stock.part_reactivate', pid=p.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    <div class="list-cards">
+        {% for p in parts %}
+        <div class="list-card">
+            <div class="list-card__top">
+                <strong>{{ p.name }}</strong>
+                <span class="list-card__amount">{{ '{:,.10g}'.format(p.quantity) }} <span class="muted small">{{ t['unit.' + p.unit] }}</span></span>
+            </div>
+            <div class="list-card__meta">
+                <span class="muted small">
+                    {% if p.stock_value is not none %}{{ '{:,}'.format(p.stock_value) }} GNF{% else %}—{% endif %}
+                </span>
+                {% if p.below_reorder %}<span class="badge badge--warning">{{ t['stock.reorder'] }}</span>{% endif %}
+            </div>
+            {% if has_perm('stock.manage') %}
+            <div class="list-card__actions">
+                <a href="{{ url_for('stock.part_edit', pid=p.id) }}" class="btn btn--sm btn--tonal"
+                   data-modal-url="{{ url_for('stock.part_edit', pid=p.id) }}" data-modal-title="{{ t['part.edit'] }}">{{ t['btn.edit'] }}</a>
+                {% if p.is_active %}
+                <form method="post" action="{{ url_for('stock.part_archive', pid=p.id) }}"
+                      data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="flex:1;">
+                    <button type="submit" class="btn btn--sm btn--tonal" style="width:100%;">{{ t['btn.archive'] }}</button>
+                </form>
+                {% else %}
+                <form method="post" action="{{ url_for('stock.part_reactivate', pid=p.id) }}" style="flex:1;">
+                    <button type="submit" class="btn btn--sm btn--primary" style="width:100%;">{{ t['btn.reactivate'] }}</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">handyman</span>
+        <p>{{ t['stock.no_match'] if search else t['stock.empty'] }}</p>
+        {% if has_perm('stock.manage') and not search %}
+        <a href="{{ url_for('stock.part_new') }}" class="fab"
+           data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['part.new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+
+{% if recent %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['mv.recent'] }}</h2>
+        <a class="link-more" href="{{ url_for('stock.history') }}">{{ t['mv.history'] }}</a>
+    </div>
+    {% set movements = recent %}
+    {% include "_stock_movement_table.html" %}
+</section>
+{% endif %}
+{% endblock %}

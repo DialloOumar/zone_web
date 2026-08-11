@@ -86,6 +86,63 @@
         </div>
     </div>
 
+    {% if stock_parts %}
+    {# Parts come out of the store, so they are not typed into the cost above:
+       they were paid for when they were received. #}
+    <div class="form-section">
+        <div class="form-section__title">{{ t['maint.parts_used'] }}</div>
+        <div id="parts-lines">
+            {% for pid, qty in part_rows %}
+            <div class="form-row parts-line">
+                <div class="field field--select">
+                    <select name="part_id">
+                        <option value="">{{ t['form.select'] }}</option>
+                        {% for p in stock_parts %}
+                        <option value="{{ p.id }}" {% if pid == p.id|string %}selected{% endif %}>{{ p.name }} — {{ '{:,.10g}'.format(p.quantity) }} {{ t['unit.' + p.unit] }}</option>
+                        {% endfor %}
+                    </select>
+                    <label>{{ t['mv.part'] }}</label>
+                </div>
+                <div class="field">
+                    <input type="number" name="part_qty" placeholder=" " min="0" step="any" value="{{ qty }}">
+                    <label>{{ t['mv.quantity'] }}</label>
+                </div>
+                <button type="button" class="btn btn--sm btn--tonal btn--icon" data-parts-remove
+                        title="{{ t['maint.parts_remove'] }}" aria-label="{{ t['maint.parts_remove'] }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn--sm btn--outlined" data-parts-add>
+            <span class="material-symbols-outlined">add</span> {{ t['maint.parts_add'] }}
+        </button>
+        <div class="field-hint">{{ t['maint.parts_hint'] }}</div>
+    </div>
+
+    <template id="parts-line-tpl">
+        <div class="form-row parts-line">
+            <div class="field field--select">
+                <select name="part_id">
+                    <option value="">{{ t['form.select'] }}</option>
+                    {% for p in stock_parts %}
+                    <option value="{{ p.id }}">{{ p.name }} — {{ '{:,.10g}'.format(p.quantity) }} {{ t['unit.' + p.unit] }}</option>
+                    {% endfor %}
+                </select>
+                <label>{{ t['mv.part'] }}</label>
+            </div>
+            <div class="field">
+                <input type="number" name="part_qty" placeholder=" " min="0" step="any">
+                <label>{{ t['mv.quantity'] }}</label>
+            </div>
+            <button type="button" class="btn btn--sm btn--tonal btn--icon" data-parts-remove
+                    title="{{ t['maint.parts_remove'] }}" aria-label="{{ t['maint.parts_remove'] }}">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+    </template>
+    {% endif %}
+
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
@@ -93,3 +150,25 @@
         <a href="{{ url_for('maintenance.records') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
+
+{% if stock_parts %}
+<script>
+(function () {
+    var box = document.getElementById('parts-lines');
+    var tpl = document.getElementById('parts-line-tpl');
+    if (!box || !tpl) return;
+    var add = document.querySelector('[data-parts-add]');
+
+    function addLine() {
+        box.appendChild(tpl.content.cloneNode(true));
+    }
+    add.addEventListener('click', addLine);
+    box.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-parts-remove]');
+        if (btn) btn.closest('.parts-line').remove();
+    });
+    // Start with one empty row so the block is usable without a click.
+    if (!box.querySelector('.parts-line')) addLine();
+})();
+</script>
+{% endif %}

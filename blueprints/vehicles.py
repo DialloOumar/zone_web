@@ -15,8 +15,8 @@ import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
 from models import (Alert, DailyEntry, Expense, Fleet, FuelMovement,
-                    MaintenanceRecord, MaintenanceRule, Operator, Vehicle,
-                    VehicleCategory, db)
+                    MaintenanceRecord, MaintenanceRule, Operator, StockMovement,
+                    Vehicle, VehicleCategory, db)
 
 vehicles_bp = Blueprint("vehicles", __name__)
 
@@ -231,9 +231,31 @@ def detail(vid):
     alerts = (Alert.query.filter_by(vehicle_id=vid)
               .filter(Alert.status.in_(("open", "snoozed")))
               .order_by(Alert.triggered_at.desc()).all())
+
+    # Parts this machine took from the store. They are NOT ledger rows: the
+    # money left when the parts were bought, and these movements only say the
+    # cost was for this vehicle. Totals cover everything, the list shows the
+    # last few.
+    part_q = (StockMovement.query
+              .join(MaintenanceRecord,
+                    StockMovement.maintenance_record_id == MaintenanceRecord.id)
+              .filter(MaintenanceRecord.vehicle_id == vid,
+                      StockMovement.kind.in_(("sortie", "retour"))))
+    all_parts = part_q.all()
+    parts_total = (sum(m.value or 0 for m in all_parts if m.kind == "sortie")
+                   - sum(m.value or 0 for m in all_parts if m.kind == "retour"))
+    parts_used = (part_q.order_by(StockMovement.date.desc(),
+                                  StockMovement.id.desc()).limit(10).all())
+    # What the machine has cost so far: its own ledger rows plus its share of
+    # the store. The two never overlap, so this can be added up safely.
+    direct_total = sum(e.amount for e in
+                       Expense.query.filter_by(vehicle_id=vid).all())
+
     return render_template("vehicle_detail.html", vehicle=vehicle,
                            entries=entries, expenses=expenses,
-                           records=records, alerts=alerts)
+                           records=records, alerts=alerts,
+                           parts_used=parts_used, parts_total=parts_total,
+                           direct_total=direct_total)
 
 
 def _vehicle_history(vid):

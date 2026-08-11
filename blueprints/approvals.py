@@ -15,10 +15,10 @@ from flask_login import current_user, login_required
 import maintenance_engine
 from app import current_user_fleet_ids, get_t, log_action
 from blueprints.entries import _recompute_cumulatives
-from blueprints.maintenance import (MONEY_KEYS, _close_alert_for_record,
-                                    sync_service_expense)
+from blueprints.maintenance import (MONEY_KEYS, PARTS_KEY, _close_alert_for_record,
+                                    sync_record_parts, sync_service_expense)
 from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Operator,
-                    PendingChange, User, Vehicle, VehicleCategory, db)
+                    Part, PendingChange, User, Vehicle, VehicleCategory, db)
 
 approvals_bp = Blueprint("approvals", __name__)
 
@@ -81,7 +81,7 @@ _FIELD_LABELS = {
     "operator": "conducteur", "note": "note", "index_start": "index début",
     "index_end": "index fin", "cost": "coût", "supplier": "fournisseur",
     "description": "description", "amount": "montant", "liters": "litres",
-    "type": "type", "name": "nom", "code": "code",
+    "type": "type", "name": "nom", "code": "code", "parts": "pièces",
 }
 
 
@@ -96,7 +96,16 @@ def _describe(pc):
             continue
         label = _FIELD_LABELS.get(k, k.replace("_id", "").replace("_", " "))
         val = v
-        if k == "vehicle_id":
+        if k == "parts":
+            # A list of {part_id, quantity} — name the parts instead of dumping
+            # the raw payload at the approver.
+            names = []
+            for line in v:
+                o = db.session.get(Part, line.get("part_id"))
+                qty = line.get("quantity")
+                names.append(f"{o.name if o else line.get('part_id')} × {qty:.10g}")
+            val = ", ".join(names)
+        elif k == "vehicle_id":
             o = db.session.get(Vehicle, v)
             val = o.code if o else v
             label = "véhicule"
@@ -120,10 +129,12 @@ def _apply(pc):
     payload = dict(pc.payload or {})
     obj = None
     vehicle_id = None  # affected vehicle for daily_entry side-effects
-    # A service's cost rides along in the payload but belongs to the ledger, so
-    # it is set aside here and re-applied once the record itself exists.
-    money = ({k: payload.pop(k, None) for k in MONEY_KEYS}
-             if pc.resource_type == "maintenance_record" else None)
+    # A service's cost and its parts ride along in the payload but belong to the
+    # ledger and to the store, so they are set aside here and re-applied once the
+    # record itself exists.
+    is_service = pc.resource_type == "maintenance_record"
+    money = ({k: payload.pop(k, None) for k in MONEY_KEYS} if is_service else None)
+    parts = (payload.pop(PARTS_KEY, None) or []) if is_service else []
     if pc.action == "create":
         obj = Model(**payload)
         setattr(obj, creator_attr, pc.requested_by)
@@ -155,6 +166,7 @@ def _apply(pc):
     if pc.resource_type == "maintenance_record" and obj is not None:
         db.session.flush()
         sync_service_expense(obj, money or {})
+        sync_record_parts(obj, parts)
         if pc.action == "create":
             _close_alert_for_record(obj)
         maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, obj.vehicle_id))

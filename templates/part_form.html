@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = part is not none %}
+{% block title %}{{ t['part.edit'] if is_edit else t['part.new'] }}{% endblock %}
+{% block page_title %}{{ t['part.edit'] if is_edit else t['part.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px;">
+    {% include "_part_form.html" %}
+</section>
+{% endblock %}

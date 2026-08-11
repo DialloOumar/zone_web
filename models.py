@@ -1,12 +1,15 @@
 """SQLAlchemy models for zone_web.
 
-Schema overview (17 tables, grouped):
+Schema overview (22 tables, grouped):
 
-  Auth & access     User, Fleet, UserFleet, Role, Permission, RolePermission
-  Domain            VehicleCategory, Vehicle
+  Auth & access     User, Fleet, FleetRate, UserFleet, Role, Permission,
+                    RolePermission
+  Domain            VehicleCategory, Vehicle, Operator
   Daily ops         DailyEntry
   Maintenance       MaintenanceRule, MaintenanceRecord, Alert
   Money             Expense
+  Fuel              Citerne, FuelMovement
+  Parts store       Part, StockMovement
   Workflow          PendingChange, AuditLog
   Config            AppSetting
 """
@@ -378,11 +381,34 @@ class MaintenanceRecord(db.Model):
         foreign_keys="Expense.maintenance_record_id",
         cascade="all, delete-orphan",
     )
+    # Parts taken from the store for this service. Deleting the record deletes
+    # these movements, which puts the parts back in stock on its own.
+    part_movements = db.relationship(
+        "StockMovement", back_populates="record",
+        foreign_keys="StockMovement.maintenance_record_id",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def cost(self):
-        """Read-through to the linked expense, so templates keep using `.cost`."""
+        """Read-through to the linked expense, so templates keep using `.cost`.
+        Labour and outside work only — parts are valued from the store."""
         return self.expense.amount if self.expense else None
+
+    @property
+    def parts_value(self):
+        """What the parts taken for this service were worth, at the value frozen
+        when they left the store. Returns are netted off. Not money in the
+        ledger: the parts were paid for when they were bought."""
+        return sum(m.value or 0 for m in self.part_movements
+                   if m.kind == "sortie") - \
+               sum(m.value or 0 for m in self.part_movements
+                   if m.kind == "retour")
+
+    @property
+    def total_cost(self):
+        """Labour (ledger) + parts (store) — what the service really cost."""
+        return (self.cost or 0) + self.parts_value
 
 
 class Alert(db.Model):
@@ -418,6 +444,9 @@ class Expense(db.Model):
       • Fiche d'entretien → category "entretien", created automatically and
         linked back through maintenance_record_id (a service's cost lives here,
         never on MaintenanceRecord, so nothing is ever counted twice)
+      • Entrée en stock  → category "pieces", linked through stock_movement_id.
+        Buying parts is the only moment parts cost money: issuing one to a
+        vehicle later adds NO row here, it only attributes this one.
 
     Scope rules: fleet_id set = a client's cost, visible to that fleet's users;
     fleet_id null = a company cost, visible to anyone who may see expenses.
@@ -443,6 +472,8 @@ class Expense(db.Model):
 
     # Cross-link when an expense IS a maintenance event (auto-closes the alert)
     maintenance_record_id = db.Column(db.Integer, db.ForeignKey("maintenance_records.id"), nullable=True)
+    # … or when it IS a stock entry (parts bought for the store)
+    stock_movement_id     = db.Column(db.Integer, db.ForeignKey("stock_movements.id"), nullable=True)
 
     created_by = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -588,6 +619,173 @@ class FuelMovement(db.Model):
         if self.kind != "releve" or not self.citerne:
             return None
         return self.citerne.stock_as_of(self.date) - self.liters
+
+
+# ── Parts store ───────────────────────────────────────────────────────────────
+
+
+class Part(db.Model):
+    """A maintenance part held in the workshop store (one store for the whole
+    company, not per fleet).
+
+    Like a Citerne, it carries no quantity of its own: what is on hand is
+    computed from its movements, so the figure on screen and the history can
+    never disagree. Soft-deleted via is_active.
+    """
+    __tablename__ = "parts"
+
+    id            = db.Column(db.Integer,     primary_key=True)
+    name          = db.Column(db.String(120), nullable=False)                  # e.g. Filtre à huile Perkins
+    unit          = db.Column(db.String(20),  nullable=False, default="piece")  # piece | litre | kg | set
+    unit_price    = db.Column(db.Integer,     nullable=True)   # GNF, indicative — only pre-fills an entrée
+    reorder_level = db.Column(db.Float,       nullable=True)   # below this, the list flags it to re-order
+    photo_key     = db.Column(db.String(200), nullable=True)
+    is_active     = db.Column(db.Boolean,     nullable=False, default=True)     # soft delete = archive
+    created_at    = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+    created_by    = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+
+    movements = db.relationship("StockMovement", back_populates="part",
+                                foreign_keys="StockMovement.part_id",
+                                cascade="all, delete-orphan")
+
+    def _ordered_movements(self):
+        return sorted(self.movements, key=lambda m: (m.date, m.id or 0))
+
+    @property
+    def quantity(self):
+        """What is on hand right now."""
+        return self.quantity_as_of(None)
+
+    def quantity_as_of(self, date_str):
+        """Quantity counting only movements dated on/before `date_str`
+        (None = all). A physical count is a reset point: whatever was counted
+        replaces the running figure, and later movements build on it. That is
+        how a wrong figure — including a negative one — gets put right.
+        """
+        total = 0.0
+        for m in self._ordered_movements():
+            if date_str is not None and m.date > date_str:
+                continue
+            if m.kind == "inventaire":
+                total = m.quantity
+            elif m.kind == "sortie":
+                total -= m.quantity
+            else:                      # initial | entree | retour
+                total += m.quantity
+        return total
+
+    @property
+    def opening_quantity(self):
+        """The opening balance (the 'initial' movement), what the part form
+        edits — distinct from `quantity`, which later movements have moved."""
+        for m in self.movements:
+            if m.kind == "initial":
+                return m.quantity
+        return 0
+
+    def average_cost_as_of(self, date_str=None):
+        """Weighted average cost of one unit, over everything that came in on or
+        before `date_str`. This is what a sortie is valued at — computed once,
+        then frozen on the movement, so a later purchase can never change what
+        a past service cost.
+
+        Falls back to the last known purchase price, then to the part's
+        indicative price, when nothing has come in yet (a store may well issue a
+        part before its receipt has been logged).
+        """
+        qty = value = 0.0
+        last_price = None
+        for m in self._ordered_movements():
+            if date_str is not None and m.date > date_str:
+                continue
+            if m.kind in ("initial", "entree") and m.unit_price is not None:
+                qty += m.quantity
+                value += m.unit_price * m.quantity
+                last_price = m.unit_price
+        if qty > 0:
+            return int(round(value / qty))
+        return last_price if last_price is not None else self.unit_price
+
+    @property
+    def stock_value(self):
+        """What the shelf is worth: quantity on hand × weighted average cost."""
+        avg = self.average_cost_as_of()
+        return int(round(self.quantity * avg)) if avg is not None else None
+
+    @property
+    def below_reorder(self):
+        """True when it is time to re-order. No threshold set = never flagged."""
+        return self.reorder_level is not None and self.quantity <= self.reorder_level
+
+
+class StockMovement(db.Model):
+    """One dated movement of a part. `quantity` is always positive; the sign is
+    carried by `kind`:
+        initial     — opening stock, set when the part is created (+)
+        entree      — parts received (+); the only kind that costs money, so the
+                      only one mirrored into the ledger as an Expense
+        sortie      — parts issued for a service (−), linked to its record
+        retour      — parts brought back unused (+)
+        inventaire  — a physical count; resets the running quantity to what was
+                      counted (see Part.quantity_as_of)
+
+    Two price columns, and they mean different things: `unit_price` is what was
+    actually paid on an entrée, `unit_value` is the weighted average frozen on a
+    sortie. Keeping both is what lets the valuation method change later without
+    rewriting a single past figure.
+    """
+    __tablename__ = "stock_movements"
+
+    id          = db.Column(db.Integer,     primary_key=True)
+    part_id     = db.Column(db.Integer,     db.ForeignKey("parts.id"), nullable=False)
+    kind        = db.Column(db.String(20),  nullable=False)   # initial|entree|sortie|retour|inventaire
+    date        = db.Column(db.String(10),  nullable=False)   # YYYY-MM-DD
+    quantity    = db.Column(db.Float,       nullable=False)   # positive; sign from kind
+    unit_price  = db.Column(db.Integer,     nullable=True)    # GNF paid — entrée / initial
+    unit_value  = db.Column(db.Integer,     nullable=True)    # GNF frozen average — sortie / retour
+    supplier    = db.Column(db.String(120), nullable=True)
+    note        = db.Column(db.String(255), nullable=True)
+    # Set on a sortie (or a retour): the service the parts went to
+    maintenance_record_id = db.Column(db.Integer, db.ForeignKey("maintenance_records.id"), nullable=True)
+    created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    part   = db.relationship("Part", back_populates="movements",
+                             foreign_keys=[part_id])
+    record = db.relationship("MaintenanceRecord", back_populates="part_movements",
+                             foreign_keys=[maintenance_record_id])
+    # An entrée's cost lives in the money ledger, not here — same arrangement as
+    # a service and its expense, so the two can never disagree.
+    expense = db.relationship(
+        "Expense", uselist=False,
+        primaryjoin="Expense.stock_movement_id == StockMovement.id",
+        foreign_keys="Expense.stock_movement_id",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def value(self):
+        """What this movement is worth in GNF, or None when no price is known."""
+        price = self.unit_price if self.unit_price is not None else self.unit_value
+        return int(round(price * self.quantity)) if price is not None else None
+
+    @property
+    def ecart(self):
+        """For a physical count: what was on the shelf before it, minus what was
+        counted. Positive = the count came up short. None for other kinds."""
+        if self.kind != "inventaire" or not self.part:
+            return None
+        expected = 0.0
+        for m in self.part._ordered_movements():
+            if (m.date, m.id or 0) >= (self.date, self.id or 0):
+                continue
+            if m.kind == "inventaire":
+                expected = m.quantity
+            elif m.kind == "sortie":
+                expected -= m.quantity
+            else:
+                expected += m.quantity
+        return expected - self.quantity
 
 
 # ── Config & system ───────────────────────────────────────────────────────────

@@ -65,9 +65,10 @@
                 <td class="col-secondary">{{ e.supplier or '—' }}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} {{ currency }}</td>
                 <td class="row-actions">
-                    {% if e.maintenance_record_id %}
-                    {# Owned by its service record — edited there, so it can't drift. #}
-                    <span class="muted small">{{ t['expense.from_maint'] }}</span>
+                    {% if e.maintenance_record_id or e.stock_movement_id %}
+                    {# Owned by its service record or its stock receipt — edited
+                       there, so it can't drift. #}
+                    <span class="muted small">{{ t['expense.from_stock'] if e.stock_movement_id else t['expense.from_maint'] }}</span>
                     {% else %}
                     {% if has_perm('expense.edit') %}
                     <a href="{{ url_for('expenses.edit', xid=e.id) }}" class="btn btn--sm btn--tonal btn--icon"
@@ -106,8 +107,8 @@
                 {% if e.payment_method %}<span class="muted small">· {{ t['pay.' + e.payment_method] }}</span>{% endif %}
                 {% if e.supplier %}<span class="muted small">· {{ e.supplier }}</span>{% endif %}
             </div>
-            {% if e.maintenance_record_id %}
-            <div class="muted small">{{ t['expense.from_maint'] }}</div>
+            {% if e.maintenance_record_id or e.stock_movement_id %}
+            <div class="muted small">{{ t['expense.from_stock'] if e.stock_movement_id else t['expense.from_maint'] }}</div>
             {% elif has_perm('expense.edit') or has_perm('expense.delete') %}
             <div class="list-card__actions">
                 {% if has_perm('expense.edit') %}

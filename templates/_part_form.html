@@ -1,0 +1,55 @@
+{% set is_edit = part is not none %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form enctype="multipart/form-data"
+      action="{{ url_for('stock.part_edit', pid=part.id) if is_edit else url_for('stock.part_new') }}">
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="name" name="name" placeholder=" " required
+                   value="{{ request.form.get('name') or (part.name if is_edit else '') }}">
+            <label for="name">{{ t['part.name'] }}</label>
+        </div>
+        <div class="field field--select">
+            <select id="unit" name="unit" required>
+                <option value="" hidden></option>
+                {% set sel_u = request.form.get('unit') or (part.unit if is_edit else 'piece') %}
+                {% for u in units %}
+                <option value="{{ u }}" {% if u == sel_u %}selected{% endif %}>{{ t['unit.' + u] }}</option>
+                {% endfor %}
+            </select>
+            <label for="unit">{{ t['part.unit'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="number" id="unit_price" name="unit_price" placeholder=" " min="0"
+                   value="{{ request.form.get('unit_price') or (part.unit_price if is_edit and part.unit_price is not none else '') }}">
+            <label for="unit_price">{{ t['part.unit_price'] }}</label>
+        </div>
+        <div class="field">
+            <input type="number" id="reorder_level" name="reorder_level" placeholder=" " min="0" step="any"
+                   value="{{ request.form.get('reorder_level') or (part.reorder_level if is_edit and part.reorder_level is not none else '') }}">
+            <label for="reorder_level">{{ t['part.reorder_level'] }}</label>
+        </div>
+    </div>
+    <div class="field-hint">{{ t['part.unit_price_hint'] }}</div>
+
+    <div class="field">
+        <input type="number" id="opening_quantity" name="opening_quantity" placeholder=" " min="0" step="any"
+               value="{{ request.form.get('opening_quantity') or (part.opening_quantity if is_edit else '') }}">
+        <label for="opening_quantity">{{ t['part.opening'] }}</label>
+    </div>
+    <div class="field-hint">{{ t['part.opening_hint'] }}</div>
+
+    {% set photo_current = photo_url(part.photo_key) if is_edit and part.photo_key else None %}
+    {% set photo_alt = part.name if is_edit else '' %}
+    {% include "_photo_field.html" %}
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('stock.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

@@ -51,6 +51,7 @@ if S3_PREFIX and not S3_PREFIX.endswith("/"):
 PHOTO_PREFIX    = S3_PREFIX + "shift-photos/"
 VEHICLE_PREFIX  = S3_PREFIX + "vehicles/"      # one photo per vehicle
 CITERNE_PREFIX  = S3_PREFIX + "citernes/"      # one photo per citerne
+PART_PREFIX     = S3_PREFIX + "parts/"         # one photo per stock part
 MAX_BYTES       = 12 * 1024 * 1024   # 12 MB raw upload cap
 RESIZE_MAX      = 1920               # longest edge after resize
 JPEG_QUALITY    = 85
@@ -186,6 +187,11 @@ def upload_vehicle_photo(file_storage, code: str = "") -> Tuple[Optional[str], O
 def upload_citerne_photo(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
     """Resize and upload a citerne photo to {S3_PREFIX}citernes/."""
     return _upload_photo(file_storage, CITERNE_PREFIX, code)
+
+
+def upload_part_photo(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """Resize and upload a stock part photo to {S3_PREFIX}parts/."""
+    return _upload_photo(file_storage, PART_PREFIX, code)
 
 
 def signed_url(photo_key: str, expires_in: int = SIGNED_URL_TTL) -> Optional[str]:

@@ -121,7 +121,65 @@
     {% else %}
     <p class="muted" style="padding: 6px 0;">{{ t['expense.empty'] }}</p>
     {% endif %}
+
+    {% if parts_total %}
+    {# Parts are not ledger rows — they were paid for when bought. Shown apart
+       so the two can be added without counting the same money twice. #}
+    <div class="cost-split">
+        <div class="cost-split__row">
+            <span>{{ t['vehicle.cost_direct'] }}</span>
+            <strong>{{ '{:,}'.format(direct_total) }} GNF</strong>
+        </div>
+        <div class="cost-split__row">
+            <span>{{ t['vehicle.cost_parts'] }}</span>
+            <strong>{{ '{:,}'.format(parts_total) }} GNF</strong>
+        </div>
+        <div class="cost-split__row cost-split__row--total">
+            <span>{{ t['vehicle.cost_total'] }}</span>
+            <strong>{{ '{:,}'.format(direct_total + parts_total) }} GNF</strong>
+        </div>
+        <p class="muted small">{{ t['vehicle.cost_hint_parts'] }}</p>
+    </div>
+    {% endif %}
 </section>
+
+{% if parts_used %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['vehicle.parts_used'] }}</h2>
+        {% if has_perm('stock.view') %}
+        <a class="link-more" href="{{ url_for('stock.history') }}">{{ t['mv.history'] }}</a>
+        {% endif %}
+    </div>
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['mv.date'] }}</th>
+                <th>{{ t['part.name'] }}</th>
+                <th style="text-align:right;">{{ t['mv.quantity'] }}</th>
+                <th style="text-align:right;">{{ t['mv.value'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in parts_used %}
+            <tr>
+                <td>{{ m.date }}</td>
+                <td>{{ m.part.name }}
+                    {% if m.kind == 'retour' %}<span class="chip">{{ t['mv.kind.retour'] }}</span>{% endif %}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if m.kind == 'sortie' %}−{% else %}+{% endif %}{{ '{:,.10g}'.format(m.quantity) }}
+                    <span class="muted small">{{ t['unit.' + m.part.unit] }}</span>
+                </td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">
+                    {% if m.value is not none %}{{ '{:,}'.format(m.value) }} GNF{% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+</section>
+{% endif %}
 
 {% if alerts %}
 <section class="card">
@@ -153,7 +211,8 @@
                 <th>{{ t['maint.date'] }}</th>
                 <th>{{ t['maint.record_type'] }}</th>
                 <th class="col-secondary">{{ t['maint.operator'] }}</th>
-                <th style="text-align:right;">{{ t['maint.cost'] }}</th>
+                <th class="col-secondary" style="text-align:right;">{{ t['maint.parts_used'] }}</th>
+                <th style="text-align:right;">{{ t['maint.total_cost'] }}</th>
             </tr>
         </thead>
         <tbody>
@@ -162,7 +221,12 @@
                 <td>{{ m.date }}</td>
                 <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
                 <td class="col-secondary">{{ m.operator or '—' }}</td>
-                <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} GNF{% else %}—{% endif %}</td>
+                <td class="col-secondary" style="text-align:right; white-space:nowrap;">
+                    {% if m.parts_value %}{{ '{:,}'.format(m.parts_value) }} GNF{% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if m.cost is not none or m.parts_value %}{{ '{:,}'.format(m.total_cost) }} GNF{% else %}—{% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

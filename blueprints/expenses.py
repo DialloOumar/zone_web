@@ -25,14 +25,16 @@ expenses_bp = Blueprint("expenses", __name__)
 # Category codes (labels via expense.cat.<code>).
 FUEL_CATEGORY = "fuel"           # own screen: /carburant
 MAINTENANCE_CATEGORY = "entretien"  # written by the maintenance blueprint only
+PARTS_CATEGORY = "pieces"        # written by the stock blueprint only (a receipt)
 
-# What the Dépenses form offers. Fuel has its own screen and "entretien" is
-# created automatically from a service record — neither is selectable here, so
-# the same cost can never be entered twice.
+# What the Dépenses form offers. Fuel has its own screen, "entretien" is created
+# from a service record and "pieces" from a stock receipt — none of the three is
+# selectable here, so the same cost can never be entered twice.
 EXPENSE_CATEGORIES = ["accident", "lavage", "autre"]
 
 # Every category that can appear in the ledger (filters, labels).
-ALL_CATEGORIES = [FUEL_CATEGORY] + EXPENSE_CATEGORIES + [MAINTENANCE_CATEGORY]
+ALL_CATEGORIES = ([FUEL_CATEGORY] + EXPENSE_CATEGORIES
+                  + [MAINTENANCE_CATEGORY, PARTS_CATEGORY])
 
 PAYMENT_METHODS = ["mobile_money", "cash", "transfer", "cheque", "other"]
 
@@ -243,13 +245,14 @@ def index():
     q = _scoped_expenses().filter(Expense.category != FUEL_CATEGORY)
     if active == "general":
         q = q.filter(Expense.vehicle_id.is_(None))
-    elif active in EXPENSE_CATEGORIES + [MAINTENANCE_CATEGORY]:
+    elif active in EXPENSE_CATEGORIES + [MAINTENANCE_CATEGORY, PARTS_CATEGORY]:
         q = q.filter(Expense.category == active)
     expenses = q.order_by(Expense.date.desc(), Expense.id.desc()).limit(300).all()
     total = sum(e.amount for e in expenses)
     return render_template(
         "expenses.html", expenses=expenses, total=total, active=active,
-        filters=["general"] + EXPENSE_CATEGORIES + [MAINTENANCE_CATEGORY],
+        filters=(["general"] + EXPENSE_CATEGORIES
+                 + [MAINTENANCE_CATEGORY, PARTS_CATEGORY]),
         maintenance_category=MAINTENANCE_CATEGORY)
 
 
@@ -288,6 +291,10 @@ def edit(xid):
         # Owned by its service record — edited there, so the two can't drift.
         flash("error|" + t["expense.err.maintenance_locked"])
         return redirect(url_for("expenses.index"))
+    if expense.stock_movement_id:
+        # Same arrangement for a stock receipt: it is edited on the movement.
+        flash("error|" + t["expense.err.stock_locked"])
+        return redirect(url_for("expenses.index"))
     if request.method == "POST":
         data, error = _read_expense_form(expense)
         if error:
@@ -315,6 +322,9 @@ def delete(xid):
     t = get_t()
     if expense.maintenance_record_id:
         flash("error|" + t["expense.err.maintenance_locked"])
+        return redirect(request.referrer or url_for("expenses.index"))
+    if expense.stock_movement_id:
+        flash("error|" + t["expense.err.stock_locked"])
         return redirect(request.referrer or url_for("expenses.index"))
     fleet_id = expense.fleet_id
     db.session.delete(expense)

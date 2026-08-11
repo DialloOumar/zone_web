@@ -262,6 +262,7 @@ HELP_SECTIONS = [
                 "« Reporter » range vraiment l'alerte de côté : elle quitte l'onglet « Actives » et le badge du menu, et attend dans l'onglet « Reportées » avec sa date de retour. Utile quand la pièce est commandée mais pas encore arrivée.",
                 "Historique entretien : la liste de toutes les interventions (type, date, coût, conducteur).",
                 "Sur la fiche d'entretien, vous pouvez associer le conducteur concerné, et saisir le coût avec son moyen de paiement.",
+                "« Pièces » : ajoutez les pièces prises au magasin, une ligne par article. Elles sortent du stock et sont valorisées automatiquement au coût moyen. Le champ « Coût » ne concerne alors que la main-d'œuvre et la prestation du garage.",
             ],
             "en": [
                 "Maintenance rules: define when to alert (e.g. oil change every 250 h, or every 5000 km, or every X trips, or every N days). A rule targets a vehicle, a category, a fleet or all.",
@@ -270,6 +271,7 @@ HELP_SECTIONS = [
                 "\"Snooze\" genuinely puts the alert aside: it leaves the \"Active\" tab and the menu badge, and waits under \"Snoozed\" with its return date. Handy when the part is ordered but hasn't arrived.",
                 "Service history: the list of all interventions (type, date, cost, driver).",
                 "On the service record you can link the driver involved, and enter the cost with its payment method.",
+                "\"Parts\": add the parts taken from the store, one line per item. They leave the stock and are valued automatically at the average cost. The \"Cost\" field then covers labour and outside work only.",
             ],
         },
         "tips": {
@@ -282,6 +284,55 @@ HELP_SECTIONS = [
                 "An alert only resolves by logging a service (or automatically once it's no longer due).",
                 "The cost entered on a service record automatically lands in \"Expenses\" under \"Maintenance\". Nothing to re-enter.",
                 "Hour-based rules only apply to machines tracked in hours, and trip-based rules only to machines tracked in trips — the category's tracking mode decides.",
+            ],
+        },
+    },
+    {
+        "id": "stock",
+        "icon": "inventory_2",
+        "gate": {"perms": ["stock.view"]},
+        "title": {"fr": "Stock des pièces d'entretien",
+                  "en": "Maintenance parts stock"},
+        "intro": {
+            "fr": "Le magasin tient le compte des pièces : ce qui entre, ce qui "
+                  "part sur les machines, et ce qu'il reste. Il est commun à "
+                  "toute la société — une pièce n'appartient pas à une flotte.",
+            "en": "The store keeps count of the parts: what comes in, what goes "
+                  "onto the machines, and what is left. It is shared by the whole "
+                  "company — a part does not belong to a fleet.",
+        },
+        "steps": {
+            "fr": [
+                "Ouvrez « Stock pièces » puis « Nouvel article » : désignation, unité (pièce, litre, kg, jeu), prix indicatif, seuil d'alerte et, si vous en avez déjà, la quantité de départ.",
+                "La quantité de départ, c'est ce que vous avez en magasin aujourd'hui. Elle ne crée pas de dépense : ces pièces ont été payées avant.",
+                "« Réception » : à chaque achat, saisissez la quantité, le prix réellement payé ce jour-là, le fournisseur et le moyen de paiement. C'est le seul moment où une pièce coûte de l'argent — la dépense part toute seule dans « Dépenses », catégorie « Achat de pièces ».",
+                "Le prix est demandé à chaque réception, et pas une fois pour toutes, parce qu'il change. Chaque lot garde le sien.",
+                "Les sorties se font depuis la fiche d'entretien, bloc « Pièces ». Elles ne créent aucune dépense : elles indiquent seulement quel véhicule a reçu la pièce.",
+                "« Comptage » : quand vous comptez physiquement le magasin, saisissez ce que vous avez trouvé. Le stock est recalé sur ce chiffre et l'écart est indiqué.",
+                "« Historique des mouvements » : tout est là, filtrable par article, par type et par période.",
+            ],
+            "en": [
+                "Open \"Parts stock\" then \"New part\": designation, unit (piece, litre, kg, set), indicative price, re-order level and, if you already have some, the opening quantity.",
+                "The opening quantity is what is in the store today. It creates no expense: those parts were paid for earlier.",
+                "\"Receipt\": on each purchase, enter the quantity, the price actually paid that day, the supplier and the payment method. This is the only moment a part costs money — the expense lands in \"Expenses\" under \"Parts purchase\" on its own.",
+                "The price is asked on every receipt, not once and for all, because it changes. Each lot keeps its own.",
+                "Issues happen on the service record, in the \"Parts\" block. They create no expense: they only say which vehicle received the part.",
+                "\"Count\": when you physically count the store, enter what you found. The stock is set to that figure and the gap is shown.",
+                "\"Movement history\": everything is there, filterable by part, kind and period.",
+            ],
+        },
+        "tips": {
+            "fr": [
+                "Une sortie est valorisée au coût moyen du stock au moment où elle a lieu, puis ce montant est figé. Un achat plus cher le mois suivant ne change donc jamais le coût d'une intervention déjà enregistrée.",
+                "Si le stock ne suffit pas, la saisie passe quand même : un avertissement s'affiche et la quantité peut devenir négative. Enregistrez la réception manquante, ou faites un comptage, et le compte se remet d'aplomb.",
+                "Le seuil d'alerte fait apparaître « à commander » sur la ligne de l'article. Sans seuil, aucun signalement.",
+                "Supprimer une intervention remet ses pièces en stock ; supprimer une réception supprime aussi sa dépense.",
+            ],
+            "en": [
+                "An issue is valued at the stock's average cost at the moment it happens, and that amount is then frozen. A dearer purchase next month therefore never changes the cost of a service already recorded.",
+                "If the shelf is short, the entry still goes through: a warning shows and the quantity may go negative. Log the missing receipt, or run a count, and the figure comes back straight.",
+                "The re-order level shows \"re-order\" on the part's row. Without a level, nothing is flagged.",
+                "Deleting a service puts its parts back in stock; deleting a receipt also deletes its expense.",
             ],
         },
     },

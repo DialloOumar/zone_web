@@ -35,7 +35,8 @@
                 <th>{{ t['maint.record_type'] }}</th>
                 <th class="col-secondary">{{ t['maint.operator'] }}</th>
                 <th>{{ t['maint.supplier'] }}</th>
-                <th style="text-align:right;">{{ t['maint.cost'] }}</th>
+                <th class="col-secondary" style="text-align:right;">{{ t['maint.parts_used'] }}</th>
+                <th style="text-align:right;">{{ t['maint.total_cost'] }}</th>
                 <th></th>
             </tr>
         </thead>
@@ -47,7 +48,17 @@
                 <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
                 <td class="col-secondary">{{ m.operator or '—' }}</td>
                 <td>{{ m.supplier or '—' }}</td>
-                <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} {{ currency }}{% else %}—{% endif %}</td>
+                <td class="col-secondary" style="text-align:right; white-space:nowrap;">
+                    {% if m.parts_value %}{{ '{:,}'.format(m.parts_value) }} {{ currency }}{% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if m.cost is not none or m.parts_value %}
+                    <strong>{{ '{:,}'.format(m.total_cost) }}</strong> {{ currency }}
+                    {% if m.cost is not none and m.parts_value %}
+                    <div class="muted small" title="{{ t['maint.cost'] }}">{{ t['maint.labour_short'] }} {{ '{:,}'.format(m.cost) }}</div>
+                    {% endif %}
+                    {% else %}—{% endif %}
+                </td>
                 <td class="row-actions">
                     {% if has_perm('maintenance_record.edit') %}
                     <a href="{{ url_for('maintenance.record_edit', mid=m.id) }}" class="btn btn--sm btn--tonal btn--icon"
@@ -72,13 +83,14 @@
         <div class="list-card">
             <div class="list-card__top">
                 <a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a>
-                <span class="list-card__amount">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} <span class="muted small">{{ currency }}</span>{% endif %}</span>
+                <span class="list-card__amount">{% if m.cost is not none or m.parts_value %}{{ '{:,}'.format(m.total_cost) }} <span class="muted small">{{ currency }}</span>{% endif %}</span>
             </div>
             <div class="list-card__meta">
                 <span class="chip">{{ t['maint.rtype.' + m.type] }}</span>
                 <span class="muted small">{{ m.date }}</span>
                 {% if m.operator %}<span class="muted small">· {{ m.operator }}</span>{% endif %}
                 {% if m.supplier %}<span class="muted small">· {{ m.supplier }}</span>{% endif %}
+                {% if m.parts_value %}<span class="muted small">· {{ t['maint.parts_used'] }} {{ '{:,}'.format(m.parts_value) }}</span>{% endif %}
             </div>
             {% if has_perm('maintenance_record.edit') or has_perm('maintenance_record.delete') %}
             <div class="list-card__actions">

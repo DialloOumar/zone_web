@@ -86,7 +86,7 @@
 
             {# Sits last before Administration: like admin, it is configuration
                and history rather than day-to-day operations. #}
-            {% if has_perm('maintenance_rule.view') or has_perm('maintenance_record.view') or has_perm('alert.view') %}
+            {% if has_perm('maintenance_rule.view') or has_perm('maintenance_record.view') or has_perm('alert.view') or has_perm('stock.view') %}
             <li class="sidebar-section">{{ t['nav.maintenance'] }}</li>
             {% if has_perm('alert.view') %}
             <li><a href="{{ url_for('maintenance.alerts') }}" class="sidebar-sub {% if request.endpoint == 'maintenance.alerts' %}active{% endif %}">
@@ -97,6 +97,11 @@
             {% if has_perm('maintenance_record.view') %}
             <li><a href="{{ url_for('maintenance.records') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.records', 'maintenance.record_new', 'maintenance.record_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">handyman</span> {{ t['nav.maintenance_records'] }}
+            </a></li>
+            {% endif %}
+            {% if has_perm('stock.view') %}
+            <li><a href="{{ url_for('stock.index') }}" class="sidebar-sub {% if request.endpoint in ['stock.index', 'stock.part_new', 'stock.part_edit'] %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">inventory_2</span> {{ t['nav.stock'] }}
             </a></li>
             {% endif %}
             {% if has_perm('maintenance_rule.view') %}
@@ -193,6 +198,8 @@
                         <div class="alert alert--error">{{ msg[6:] }}</div>
                         {% elif msg.startswith('success|') %}
                         <div class="alert alert--success">{{ msg[8:] }}</div>
+                        {% elif msg.startswith('warning|') %}
+                        <div class="alert alert--warning">{{ msg[8:] }}</div>
                         {% elif msg.startswith('info|') %}
                         <div class="alert">{{ msg[5:] }}</div>
                         {% else %}

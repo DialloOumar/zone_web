@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['mv.history'] }}{% endblock %}
+{% block page_title %}{{ t['mv.history'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header card-header--end">
+        <a class="link-more" href="{{ url_for('stock.index') }}">{{ t['nav.stock'] }}</a>
+    </div>
+
+    <form method="get" class="filter-bar">
+        <div class="field field--select" style="min-width:180px;">
+            <select name="part_id">
+                <option value="">{{ t['mv.all_parts'] }}</option>
+                {% for p in parts %}
+                <option value="{{ p.id }}" {% if filters.part_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                {% endfor %}
+            </select>
+            <label>{{ t['mv.part'] }}</label>
+        </div>
+        <div class="field field--select" style="min-width:150px;">
+            <select name="kind">
+                <option value="">{{ t['mv.all_kinds'] }}</option>
+                {% for k in kinds %}
+                <option value="{{ k }}" {% if filters.kind == k %}selected{% endif %}>{{ t['mv.kind.' + k] }}</option>
+                {% endfor %}
+            </select>
+            <label>{{ t['mv.kind'] }}</label>
+        </div>
+        <div class="field" style="min-width:140px;">
+            <input type="date" name="date_from" value="{{ filters.date_from }}" placeholder=" ">
+            <label>{{ t['entry.from'] }}</label>
+        </div>
+        <div class="field" style="min-width:140px;">
+            <input type="date" name="date_to" value="{{ filters.date_to }}" placeholder=" ">
+            <label>{{ t['entry.to'] }}</label>
+        </div>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        {% if has_filters %}
+        <a href="{{ url_for('stock.history') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
+        {% endif %}
+    </form>
+
+    {% if movements %}
+    {% set show_delete = True %}
+    {% include "_stock_movement_table.html" %}
+    {% if movements|length >= limit %}
+    <p class="muted small" style="margin-top:10px;">{{ t['mv.truncated'] % limit }}</p>
+    {% endif %}
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <p>{{ t['mv.empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

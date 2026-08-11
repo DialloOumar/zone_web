@@ -21,7 +21,7 @@ from app import (current_user_categories, current_user_fleet_ids, get_t,
                  require_perm, scoped, submit_change, with_current_fleet)
 from blueprints.expenses import MAINTENANCE_CATEGORY, PAYMENT_METHODS
 from models import (Alert, Expense, Fleet, MaintenanceRecord, MaintenanceRule,
-                    Operator, Vehicle, VehicleCategory, db)
+                    Operator, Part, StockMovement, Vehicle, VehicleCategory, db)
 
 maintenance_bp = Blueprint("maintenance", __name__)
 
@@ -367,6 +367,10 @@ def _read_record_form(record):
     if cost is not None and method not in PAYMENT_METHODS:
         return None, t["expense.err.payment_required"]
 
+    parts, e4 = _read_part_lines()
+    if e4:
+        return None, e4
+
     rule_id = request.form.get("rule_id", type=int) or None
     data = dict(
         vehicle_id=vehicle_id, rule_id=rule_id, type=rtype, date=date_str,
@@ -378,17 +382,58 @@ def _read_record_form(record):
         cost=cost,
         payment_method=method,
         payment_reference=(request.form.get("payment_reference") or "").strip() or None,
+        parts=parts,
     )
     return data, None
 
 
+def _read_part_lines():
+    """Read the "parts used" rows off the form: two parallel lists, one blank
+    row being the norm rather than the exception. Quantities for the same part
+    are added up, so the service ends with one movement per part.
+    Returns (lines, error) where lines is [{"part_id": int, "quantity": float}].
+    """
+    t = get_t()
+    ids = request.form.getlist("part_id")
+    qtys = request.form.getlist("part_qty")
+    merged = {}
+    order = []
+    for raw_id, raw_qty in zip(ids, qtys):
+        if not (raw_id or "").strip():
+            continue
+        try:
+            pid = int(raw_id)
+        except ValueError:
+            return None, t.get("mv.err.part", "Choisissez un article actif.")
+        part = db.session.get(Part, pid)
+        if not part:
+            return None, t.get("mv.err.part", "Choisissez un article actif.")
+        try:
+            qty = float((raw_qty or "").replace(",", "."))
+        except ValueError:
+            return None, t.get("mv.err.quantity", "Quantité invalide.")
+        if qty <= 0:
+            return None, t.get("mv.err.quantity", "Quantité invalide.")
+        if pid not in merged:
+            order.append(pid)
+        merged[pid] = merged.get(pid, 0.0) + qty
+    return [{"part_id": pid, "quantity": merged[pid]} for pid in order], None
+
+
 # Keys in the form payload that belong to the ledger row, not the service record.
 MONEY_KEYS = ("cost", "payment_method", "payment_reference")
+# … and the parts used, which belong to the store.
+PARTS_KEY = "parts"
 
 
 def split_money(data):
     """Pop the ledger fields out of a record payload. Returns (data, money)."""
     return data, {k: data.pop(k, None) for k in MONEY_KEYS}
+
+
+def split_parts(data):
+    """Pop the parts lines out of a record payload. Returns (data, lines)."""
+    return data, data.pop(PARTS_KEY, None) or []
 
 
 def sync_service_expense(record, money):
@@ -421,6 +466,76 @@ def sync_service_expense(record, money):
                                created_by=getattr(current_user, "id", None), **fields))
 
 
+def sync_record_parts(record, lines):
+    """Mirror the parts used into the store as this service's sortie movements.
+
+    A line that is already there keeps the value frozen when it left the shelf —
+    only its quantity moves — so editing a service never re-prices what it
+    already consumed. A new line is valued at the weighted average as of the
+    service date. A line that disappeared is deleted, which puts the parts back
+    on the shelf and drops that much off the vehicle's cost.
+
+    These movements carry no money of their own: the parts were paid for when
+    they were received. They only say which machine the cost was for.
+    """
+    existing = {m.part_id: m for m in record.part_movements if m.kind == "sortie"}
+    for line in lines:
+        pid = line["part_id"]
+        mv = existing.pop(pid, None)
+        if mv:
+            mv.quantity = line["quantity"]
+            mv.date = record.date
+            continue
+        part = db.session.get(Part, pid)
+        if not part:
+            continue
+        db.session.add(StockMovement(
+            part_id=pid, kind="sortie", date=record.date,
+            quantity=line["quantity"],
+            unit_value=part.average_cost_as_of(record.date),
+            maintenance_record_id=record.id,
+            created_by=getattr(current_user, "id", None)))
+    for mv in existing.values():
+        db.session.delete(mv)
+
+
+def short_parts(record, lines):
+    """Parts whose shelf would go under zero once these lines are applied.
+    Warned about, never blocked: the part was fitted this morning and the
+    receipt may well be logged this afternoon.
+
+    Returns [(part, remaining)] — remaining is negative.
+    """
+    already = {m.part_id: m.quantity
+               for m in record.part_movements if m.kind == "sortie"} if record else {}
+    out = []
+    for line in lines:
+        part = db.session.get(Part, line["part_id"])
+        if not part:
+            continue
+        # Add back what this service already took, so an edit compares against
+        # the shelf as it stands without it.
+        available = part.quantity + already.get(part.id, 0.0)
+        remaining = available - line["quantity"]
+        if remaining < 0:
+            out.append((part, remaining))
+    return out
+
+
+def _flash_short_parts(short):
+    """Tell the user the shelf went under zero, without standing in their way.
+    Worded as a stock figure to put right, not as a reproach."""
+    if not short:
+        return
+    t = get_t()
+    names = ", ".join(f"{p.name} ({rem:,.10g})" for p, rem in short)
+    flash("warning|" + t.get(
+        "maint.parts_short",
+        "Stock insuffisant, la saisie est conservée : %(names)s. "
+        "Enregistrez la réception pour remettre le compte à jour.")
+        % {"names": names})
+
+
 def _record_form_ctx(record):
     preset_rule = request.args.get("rule_id", type=int)
     preset_type = None
@@ -428,11 +543,26 @@ def _record_form_ctx(record):
         r = db.session.get(MaintenanceRule, preset_rule)
         if r and r.service_type:
             preset_type = r.service_type
+    # Re-render the parts rows the user submitted, so a rejected form doesn't
+    # lose them; otherwise the ones already on the record.
+    if request.method == "POST":
+        submitted = list(zip(request.form.getlist("part_id"),
+                             request.form.getlist("part_qty")))
+        part_rows = [(pid, qty) for pid, qty in submitted if (pid or "").strip()]
+    elif record:
+        part_rows = [(str(m.part_id), f"{m.quantity:.10g}")
+                     for m in record.part_movements if m.kind == "sortie"]
+    else:
+        part_rows = []
+
     return {
         "record_types": RECORD_TYPES,
         "vehicles": _accessible_vehicles(),
         "operators": _accessible_operators(),
         "payment_methods": PAYMENT_METHODS,
+        "stock_parts": Part.query.filter(Part.is_active.is_(True))
+                                 .order_by(Part.name).all(),
+        "part_rows": part_rows,
         "preset_vehicle": request.args.get("vehicle_id", type=int),
         "preset_rule": preset_rule,
         "preset_type": preset_type,
@@ -490,16 +620,20 @@ def record_new():
             flash("success|" + t["maint.record_submitted"])
             return modal_ok() if is_modal_request() else redirect(url_for("maintenance.records"))
         data, money = split_money(data)
+        data, lines = split_parts(data)
+        short = short_parts(None, lines)
         rec = MaintenanceRecord(recorded_by=current_user.id, **data)
         db.session.add(rec)
         db.session.flush()
         sync_service_expense(rec, money)
+        sync_record_parts(rec, lines)
         _close_alert_for_record(rec)
         maintenance_engine.evaluate_vehicle(vehicle)
         log_action("CREATE", "maintenance_record", resource_id=rec.id,
                    fleet_id=vehicle.fleet_id, detail=f"Logged {rec.type} on {vehicle.code}")
         db.session.commit()
         flash("success|" + t["maint.record_created"])
+        _flash_short_parts(short)
         return modal_ok() if is_modal_request() else redirect(url_for("maintenance.records"))
     return _render_record_form(None)
 
@@ -521,15 +655,19 @@ def record_edit(mid):
             flash("success|" + t["maint.record_submitted"])
             return modal_ok() if is_modal_request() else redirect(url_for("maintenance.records"))
         data, money = split_money(data)
+        data, lines = split_parts(data)
+        short = short_parts(record, lines)
         for k, v in data.items():
             setattr(record, k, v)
         db.session.flush()
         sync_service_expense(record, money)
+        sync_record_parts(record, lines)
         maintenance_engine.evaluate_vehicle(vehicle)
         log_action("UPDATE", "maintenance_record", resource_id=record.id,
                    fleet_id=vehicle.fleet_id, detail=f"Edited record #{record.id}")
         db.session.commit()
         flash("success|" + t["maint.record_updated"])
+        _flash_short_parts(short)
         return modal_ok() if is_modal_request() else redirect(url_for("maintenance.records"))
     return _render_record_form(record)
 

@@ -539,6 +539,48 @@ a:hover { text-decoration: underline; }
 /* Two-column form rows (collapse to one column on narrow screens) */
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 
+/* ── Cost breakdown (ledger rows vs. parts drawn from the store) ── */
+.cost-split {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--md-outline-variant);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.cost-split__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 0.88rem;
+    color: var(--md-on-surface-variant);
+}
+.cost-split__row--total {
+    padding-top: 6px;
+    border-top: 1px solid var(--md-outline-variant);
+    color: var(--md-on-surface);
+    font-size: 0.95rem;
+}
+
+/* ── Repeatable line block inside a form (parts used on a service) ── */
+.form-section {
+    border-top: 1px solid var(--md-outline-variant);
+    padding-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.form-section__title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--md-on-surface-variant);
+}
+#parts-lines { display: flex; flex-direction: column; gap: 12px; }
+/* Part, quantity, and the button that drops the line — the button keeps its
+   own width and sits on the fields' baseline. */
+.parts-line { grid-template-columns: 1fr 1fr auto; align-items: center; }
+.form-section > [data-parts-add] { align-self: flex-start; }
+
 /* ── Selectable checkbox chips (multi-select) ── */
 .checkbox-grid {
     display: grid;
@@ -1570,6 +1612,9 @@ a.stat-card { text-decoration: none; color: inherit; }
     .content { padding: 16px; gap: 16px; overflow-x: hidden; }
     .card { padding: 18px; min-width: 0; }
     .form-row { grid-template-columns: 1fr; }
+    /* Keep the quantity and its remove button side by side when stacked */
+    .parts-line { grid-template-columns: 1fr auto; gap: 12px; }
+    .parts-line .field--select { grid-column: 1 / -1; }
 
     /* Alerts: stack body over full-width actions instead of cramming side by side */
     .alert-card { flex-direction: column; align-items: stretch; gap: 12px; }

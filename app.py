@@ -823,6 +823,10 @@ PERMISSIONS_CATALOG = [
     ("carburant.view",   "View fuel & citernes",    "Carburant", "carburant", "view"),
     ("carburant.create", "Log a fuel distribution", "Carburant", "carburant", "create"),
     ("carburant.manage", "Manage citernes",         "Carburant", "carburant", "manage"),
+    # Stock (workshop parts store). Issuing parts on a service rides on the
+    # maintenance_record permission — the storekeeper and the mechanic differ.
+    ("stock.view",   "View parts stock",  "Stock", "stock", "view"),
+    ("stock.manage", "Manage parts stock", "Stock", "stock", "manage"),
     # Insights (analyse)
     ("insights.view", "View insights", "Insights", "insights", "view"),
     # Reports
@@ -882,6 +886,7 @@ SYSTEM_ROLES = {
         "alert.view", "alert.resolve", "alert.dismiss",
         "expense.view", "expense.create", "expense.edit", "expense.delete",
         "carburant.view", "carburant.create", "carburant.manage",
+        "stock.view", "stock.manage",
         "insights.view", "report.view", "report.export_pdf",
         "invoicing.view",
     ]),
@@ -1758,6 +1763,7 @@ from blueprints.vehicles import vehicles_bp  # noqa: E402
 from blueprints.approvals import approvals_bp  # noqa: E402  (imports entries/maintenance)
 from blueprints.insights import insights_bp  # noqa: E402
 from blueprints.invoicing import invoicing_bp  # noqa: E402
+from blueprints.stock import stock_bp  # noqa: E402
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(vehicles_bp)
@@ -1769,6 +1775,7 @@ app.register_blueprint(maintenance_bp)
 app.register_blueprint(approvals_bp)
 app.register_blueprint(insights_bp)
 app.register_blueprint(invoicing_bp)
+app.register_blueprint(stock_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────
