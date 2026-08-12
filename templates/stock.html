@@ -94,14 +94,21 @@
                     <a href="{{ url_for('stock.part_edit', pid=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('stock.part_edit', pid=p.id) }}" data-modal-title="{{ t['part.edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
-                    {% if p.is_active %}
+                    {% if not p.is_active %}
+                    <form method="post" action="{{ url_for('stock.part_reactivate', pid=p.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% if usage[p.id].deletable %}
+                    {# No movement of its own: nothing to keep, so it can go. #}
+                    <form method="post" action="{{ url_for('stock.part_destroy', pid=p.id) }}"
+                          data-confirm="{{ t['part.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% elif p.is_active %}
                     <form method="post" action="{{ url_for('stock.part_archive', pid=p.id) }}"
                           data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
                         <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
-                    </form>
-                    {% else %}
-                    <form method="post" action="{{ url_for('stock.part_reactivate', pid=p.id) }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
                     </form>
                     {% endif %}
                     {% endif %}
@@ -129,14 +136,20 @@
             <div class="list-card__actions">
                 <a href="{{ url_for('stock.part_edit', pid=p.id) }}" class="btn btn--sm btn--tonal"
                    data-modal-url="{{ url_for('stock.part_edit', pid=p.id) }}" data-modal-title="{{ t['part.edit'] }}">{{ t['btn.edit'] }}</a>
-                {% if p.is_active %}
+                {% if not p.is_active %}
+                <form method="post" action="{{ url_for('stock.part_reactivate', pid=p.id) }}" style="flex:1;">
+                    <button type="submit" class="btn btn--sm btn--primary" style="width:100%;">{{ t['btn.reactivate'] }}</button>
+                </form>
+                {% endif %}
+                {% if usage[p.id].deletable %}
+                <form method="post" action="{{ url_for('stock.part_destroy', pid=p.id) }}"
+                      data-confirm="{{ t['part.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="flex:1;">
+                    <button type="submit" class="btn btn--sm btn--danger" style="width:100%;">{{ t['btn.delete'] }}</button>
+                </form>
+                {% elif p.is_active %}
                 <form method="post" action="{{ url_for('stock.part_archive', pid=p.id) }}"
                       data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="flex:1;">
                     <button type="submit" class="btn btn--sm btn--tonal" style="width:100%;">{{ t['btn.archive'] }}</button>
-                </form>
-                {% else %}
-                <form method="post" action="{{ url_for('stock.part_reactivate', pid=p.id) }}" style="flex:1;">
-                    <button type="submit" class="btn btn--sm btn--primary" style="width:100%;">{{ t['btn.reactivate'] }}</button>
                 </form>
                 {% endif %}
             </div>

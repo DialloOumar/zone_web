@@ -63,6 +63,22 @@ def _active_parts():
     return Part.query.filter(Part.is_active.is_(True)).order_by(Part.name).all()
 
 
+def _part_usage(part):
+    """What would be lost if this part's row went away, so the list can offer an
+    outright delete when there is nothing to lose.
+
+    The opening stock does not count: it is part of the part itself, edited on
+    its own form, and carries no history of its own. Everything else does — a
+    receipt owns a row in the money ledger, and an issue belongs to a service.
+    """
+    counts = {}
+    for kind in ("entree", "sortie", "retour", "inventaire"):
+        n = sum(1 for m in part.movements if m.kind == kind)
+        if n:
+            counts[kind] = n
+    return {"counts": counts, "deletable": not counts}
+
+
 # ── Catalogue ────────────────────────────────────────────────────────────────
 
 
@@ -92,6 +108,7 @@ def index():
         "stock.html", parts=parts, show_archived=show_archived, search=search,
         archived_count=archived_count, total_value=total_value,
         low_count=low_count, recent=recent, active_parts=_active_parts(),
+        usage={p.id: _part_usage(p) for p in parts},
         today=date.today().isoformat())
 
 
@@ -270,6 +287,40 @@ def part_archive(pid):
                detail=f"Archived part '{part.name}'")
     db.session.commit()
     flash("success|" + get_t().get("part.archived", "Article archivé."))
+    return redirect(url_for("stock.index"))
+
+
+@stock_bp.route("/parts/<int:pid>/destroy", methods=["POST"])
+@login_required
+@require_perm("stock.manage")
+def part_destroy(pid):
+    """Hard delete, allowed only while the part has no movement of its own.
+
+    Re-checked here rather than trusting the button: the list may have been
+    rendered before someone logged a receipt against this part. Its opening
+    stock goes with it, which is right — that row is the part.
+    """
+    part = _get_part_or_404(pid)
+    t = get_t()
+    usage = _part_usage(part)
+    if not usage["deletable"]:
+        moved = ", ".join(
+            "%d %s" % (n, t.get("mv.kind." + k, k).lower())
+            for k, n in usage["counts"].items())
+        flash("error|" + t.get(
+            "part.err.delete_blocked",
+            "Impossible de supprimer : cet article a des mouvements (%(moved)s). "
+            "Archivez-le à la place.") % {"moved": moved})
+        return redirect(request.referrer or url_for("stock.index"))
+
+    name = part.name
+    photo_key = part.photo_key
+    db.session.delete(part)          # takes its opening movement with it
+    log_action("DELETE", "part", resource_id=pid, detail=f"Deleted part '{name}'")
+    db.session.commit()
+    if photo_key:
+        s3_storage.delete_photo(photo_key)
+    flash("success|" + t.get("part.deleted", "Article supprimé."))
     return redirect(url_for("stock.index"))
 
 
