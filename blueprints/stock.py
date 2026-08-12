@@ -126,10 +126,6 @@ def _read_part_form(part):
         except ValueError:
             return None, True
 
-    unit_price, bad = _num(request.form.get("unit_price"), lambda s: int(round(float(s))))
-    if bad or (unit_price is not None and unit_price < 0):
-        return None, t.get("part.err.price", "Prix invalide.")
-
     reorder, bad = _num(request.form.get("reorder_level"), float)
     if bad or (reorder is not None and reorder < 0):
         return None, t.get("part.err.reorder", "Seuil invalide.")
@@ -138,26 +134,34 @@ def _read_part_form(part):
     if bad or (opening is not None and opening < 0):
         return None, t.get("part.err.opening", "Quantité de départ invalide.")
 
-    return dict(name=name, unit=unit, unit_price=unit_price,
-                reorder_level=reorder, opening=opening or 0), None
+    # What the opening stock is worth per unit. Attached to those parts and to
+    # nothing else — there is no catalogue price on a part, so no second price
+    # to wonder about.
+    opening_price, bad = _num(request.form.get("opening_price"),
+                              lambda s: int(round(float(s))))
+    if bad or (opening_price is not None and opening_price < 0):
+        return None, t.get("part.err.price", "Prix invalide.")
+
+    return dict(name=name, unit=unit, reorder_level=reorder,
+                opening=opening or 0, opening_price=opening_price), None
 
 
-def _set_opening_stock(part, quantity, today):
+def _set_opening_stock(part, quantity, price, today):
     """The opening stock is a single 'initial' movement, so editing it just
     adjusts (or removes) that one row. It is deliberately NOT an expense: those
     parts were paid for before the store existed — only a receipt costs money.
-    Its unit_price follows the part's indicative price so the opening stock
-    still has a value to average.
+    Its price is what the user declared them to be worth, which is what lets
+    them weigh into the average like any receipt.
     """
     mv = next((m for m in part.movements if m.kind == "initial"), None)
     if quantity > 0:
         if mv:
             mv.quantity = quantity
-            mv.unit_price = part.unit_price
+            mv.unit_price = price
         else:
             db.session.add(StockMovement(
                 part_id=part.id, kind="initial", date=today,
-                quantity=quantity, unit_price=part.unit_price,
+                quantity=quantity, unit_price=price,
                 created_by=current_user.id))
     elif mv:
         db.session.delete(mv)
@@ -209,6 +213,7 @@ def part_new():
         if error:
             return _render_part_form(None, error)
         opening = data.pop("opening")
+        opening_price = data.pop("opening_price")
         p = Part(created_by=current_user.id, **data)
         db.session.add(p)
         db.session.flush()
@@ -216,7 +221,7 @@ def part_new():
         if perr:
             db.session.rollback()
             return _render_part_form(None, perr)
-        _set_opening_stock(p, opening, date.today().isoformat())
+        _set_opening_stock(p, opening, opening_price, date.today().isoformat())
         log_action("CREATE", "part", resource_id=p.id,
                    detail=f"Created part '{p.name}'")
         db.session.commit()
@@ -236,13 +241,14 @@ def part_edit(pid):
         if error:
             return _render_part_form(part, error)
         opening = data.pop("opening")
+        opening_price = data.pop("opening_price")
         for k, v in data.items():
             setattr(part, k, v)
         perr = _apply_part_photo_change(part)
         if perr:
             db.session.rollback()
             return _render_part_form(part, perr)
-        _set_opening_stock(part, opening, date.today().isoformat())
+        _set_opening_stock(part, opening, opening_price, date.today().isoformat())
         log_action("UPDATE", "part", resource_id=part.id,
                    detail=f"Edited part '{part.name}'")
         db.session.commit()

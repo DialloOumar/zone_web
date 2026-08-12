@@ -21,24 +21,27 @@
         </div>
     </div>
 
+    <div class="field">
+        <input type="number" id="reorder_level" name="reorder_level" placeholder=" " min="0" step="any"
+               value="{{ request.form.get('reorder_level') or (part.reorder_level if is_edit and part.reorder_level is not none else '') }}">
+        <label for="reorder_level">{{ t['part.reorder_level'] }}</label>
+    </div>
+    <div class="field-hint">{{ t['part.reorder_hint'] }}</div>
+
+    {# The only price here belongs to the opening parts themselves. A purchase
+       is a receipt, with its own price, supplier and payment. #}
+    {% set opening_mv = part.movements|selectattr('kind', 'equalto', 'initial')|first if is_edit else None %}
     <div class="form-row">
         <div class="field">
-            <input type="number" id="unit_price" name="unit_price" placeholder=" " min="0"
-                   value="{{ request.form.get('unit_price') or (part.unit_price if is_edit and part.unit_price is not none else '') }}">
-            <label for="unit_price">{{ t['part.unit_price'] }}</label>
+            <input type="number" id="opening_quantity" name="opening_quantity" placeholder=" " min="0" step="any"
+                   value="{{ request.form.get('opening_quantity') or (part.opening_quantity if is_edit else '') }}">
+            <label for="opening_quantity">{{ t['part.opening'] }}</label>
         </div>
         <div class="field">
-            <input type="number" id="reorder_level" name="reorder_level" placeholder=" " min="0" step="any"
-                   value="{{ request.form.get('reorder_level') or (part.reorder_level if is_edit and part.reorder_level is not none else '') }}">
-            <label for="reorder_level">{{ t['part.reorder_level'] }}</label>
+            <input type="number" id="opening_price" name="opening_price" placeholder=" " min="0"
+                   value="{{ request.form.get('opening_price') or (opening_mv.unit_price if opening_mv and opening_mv.unit_price is not none else '') }}">
+            <label for="opening_price">{{ t['part.opening_price'] }}</label>
         </div>
-    </div>
-    <div class="field-hint">{{ t['part.unit_price_hint'] }}</div>
-
-    <div class="field">
-        <input type="number" id="opening_quantity" name="opening_quantity" placeholder=" " min="0" step="any"
-               value="{{ request.form.get('opening_quantity') or (part.opening_quantity if is_edit else '') }}">
-        <label for="opening_quantity">{{ t['part.opening'] }}</label>
     </div>
     <div class="field-hint">{{ t['part.opening_hint'] }}</div>
 

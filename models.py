@@ -637,7 +637,6 @@ class Part(db.Model):
     id            = db.Column(db.Integer,     primary_key=True)
     name          = db.Column(db.String(120), nullable=False)                  # e.g. Filtre à huile Perkins
     unit          = db.Column(db.String(20),  nullable=False, default="piece")  # piece | litre | kg | set
-    unit_price    = db.Column(db.Integer,     nullable=True)   # GNF, indicative — only pre-fills an entrée
     reorder_level = db.Column(db.Float,       nullable=True)   # below this, the list flags it to re-order
     photo_key     = db.Column(db.String(200), nullable=True)
     is_active     = db.Column(db.Boolean,     nullable=False, default=True)     # soft delete = archive
@@ -689,9 +688,11 @@ class Part(db.Model):
         then frozen on the movement, so a later purchase can never change what
         a past service cost.
 
-        Falls back to the last known purchase price, then to the part's
-        indicative price, when nothing has come in yet (a store may well issue a
-        part before its receipt has been logged).
+        Every price in here belongs to real parts: what the opening stock was
+        declared to be worth, and what each receipt actually cost. There is no
+        catalogue price to drift out of date. Falls back to the last price paid
+        when nothing is left to average, and to None when the part has never
+        been priced at all.
         """
         qty = value = 0.0
         last_price = None
@@ -704,7 +705,24 @@ class Part(db.Model):
                 last_price = m.unit_price
         if qty > 0:
             return int(round(value / qty))
-        return last_price if last_price is not None else self.unit_price
+        return last_price
+
+    @property
+    def last_purchase_price(self):
+        """The most recent price paid for this part — what pre-fills the next
+        receipt. Receipts win over the opening stock whatever the dates say: the
+        opening row is a declaration carrying the day it was typed, so it would
+        otherwise mask every receipt logged for an earlier date. Falls back to
+        the opening price, then to None for a part nobody has priced.
+        """
+        price = None
+        for m in self._ordered_movements():
+            if m.kind == "entree" and m.unit_price is not None:
+                price = m.unit_price
+        if price is not None:
+            return price
+        opening = next((m for m in self.movements if m.kind == "initial"), None)
+        return opening.unit_price if opening else None
 
     @property
     def stock_value(self):
