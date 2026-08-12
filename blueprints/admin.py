@@ -342,8 +342,8 @@ def _save_fleet(fleet):
 
 # Permission grid layout: resources (rows grouped) × actions.
 RES_ORDER = ["dashboard", "vehicle", "operator", "entry", "maintenance_record",
-             "maintenance_rule", "alert", "expense", "carburant", "insights",
-             "invoicing", "report", "admin"]
+             "maintenance_rule", "alert", "expense", "carburant", "stock",
+             "insights", "invoicing", "report", "admin"]
 ACTION_ORDER = ["view", "create", "edit", "delete", "manage", "export", "resolve",
                 "dismiss", "fleets", "roles", "categories"]
 
@@ -383,13 +383,19 @@ def _owns_role(role):
 
 
 def _permission_groups():
-    """[(resource, [permissions ordered by action])] over _editable_perms()."""
+    """[(resource, [permissions ordered by action])] over _editable_perms().
+
+    RES_ORDER only decides the running order. A resource missing from it still
+    shows, at the end — a new module must never go ungrantable just because
+    nobody remembered to add it to a list up here.
+    """
     perms = _editable_perms()
     by_res = {}
     for p in perms:
         by_res.setdefault(p.resource, []).append(p)
+    ordered = RES_ORDER + sorted(r for r in by_res if r not in RES_ORDER)
     groups = []
-    for res in RES_ORDER:
+    for res in ordered:
         if res in by_res:
             rows = sorted(by_res[res], key=lambda p: ACTION_ORDER.index(p.action)
                           if p.action in ACTION_ORDER else 99)

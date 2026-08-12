@@ -42,7 +42,9 @@
         {% set is_admin_group = resource == 'admin' %}
         <div class="perm-card{% if is_admin_group %} perm-card--admin{% endif %}" data-perm-group>
             <div class="perm-card__head">
-                <span class="perm-card__title">{{ t['perm.res.' + resource] }}</span>
+                {# Fall back to the raw resource name: an unlabelled module must
+                   still be identifiable rather than showing a blank card. #}
+                <span class="perm-card__title">{{ t['perm.res.' + resource] or resource }}</span>
                 <div class="perm-card__quick">
                     <span class="muted small">{{ t['role.set_all'] }}</span>
                     <button type="button" class="btn" data-setall="cannot">{{ t['perm.state.cannot'] }}</button>
