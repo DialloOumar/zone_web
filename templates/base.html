@@ -44,11 +44,18 @@
             </a></li>
             {% endif %}
 
-            {% if has_perm('carburant.view') or has_perm('expense.view') or has_perm('insights.view') or has_perm('invoicing.view') %}
+            {% if has_perm('carburant.view') or has_perm('expense.view') or has_perm('stock.view') or has_perm('insights.view') or has_perm('invoicing.view') %}
             <li class="sidebar-section">{{ t['nav.management'] }}</li>
             {% if has_perm('carburant.view') %}
             <li><a href="{{ url_for('carburant.index') }}" class="sidebar-sub {% if request.blueprint == 'carburant' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">local_gas_station</span> {{ t['nav.fuel'] }}
+            </a></li>
+            {% endif %}
+            {# Day-to-day like fuel: the storekeeper is in here every morning, so
+               it belongs beside it rather than down with the maintenance setup. #}
+            {% if has_perm('stock.view') %}
+            <li><a href="{{ url_for('stock.index') }}" class="sidebar-sub {% if request.blueprint == 'stock' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">inventory_2</span> {{ t['nav.stock'] }}
             </a></li>
             {% endif %}
             {% if has_perm('expense.view') %}
@@ -86,7 +93,7 @@
 
             {# Sits last before Administration: like admin, it is configuration
                and history rather than day-to-day operations. #}
-            {% if has_perm('maintenance_rule.view') or has_perm('maintenance_record.view') or has_perm('alert.view') or has_perm('stock.view') %}
+            {% if has_perm('maintenance_rule.view') or has_perm('maintenance_record.view') or has_perm('alert.view') %}
             <li class="sidebar-section">{{ t['nav.maintenance'] }}</li>
             {% if has_perm('alert.view') %}
             <li><a href="{{ url_for('maintenance.alerts') }}" class="sidebar-sub {% if request.endpoint == 'maintenance.alerts' %}active{% endif %}">
@@ -97,11 +104,6 @@
             {% if has_perm('maintenance_record.view') %}
             <li><a href="{{ url_for('maintenance.records') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.records', 'maintenance.record_new', 'maintenance.record_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">handyman</span> {{ t['nav.maintenance_records'] }}
-            </a></li>
-            {% endif %}
-            {% if has_perm('stock.view') %}
-            <li><a href="{{ url_for('stock.index') }}" class="sidebar-sub {% if request.endpoint in ['stock.index', 'stock.part_new', 'stock.part_edit'] %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">inventory_2</span> {{ t['nav.stock'] }}
             </a></li>
             {% endif %}
             {% if has_perm('maintenance_rule.view') %}
