@@ -50,6 +50,8 @@
             {% for c in citernes %}
             {% set pct = (c.stock / c.capacity_liters * 100) if c.capacity_liters else 0 %}
             {% set under = c.stock < 0 %}
+            {% set over = c.stock > c.capacity_liters %}
+            {% set anom = c.anomaly %}
             <tr>
                 <td>
                     <a href="{{ url_for('carburant.citerne_flux', cid=c.id) }}" class="vehicle-cell" title="{{ t['flux.title'] }}">
@@ -63,11 +65,19 @@
                 </td>
                 <td>{{ c.fleet.name }}</td>
                 <td style="text-align:right; white-space:nowrap;">
-                    <strong {% if under %}class="stock-negative"{% endif %}>{{ '{:,}'.format(c.stock) }}</strong> <span class="muted small">L</span>
+                    <strong {% if under or over %}class="stock-negative"{% endif %}>{{ '{:,}'.format(c.stock) }}</strong> <span class="muted small">L</span>
                     {% if under %}
                     <div><span class="badge badge--critical" title="{{ t['citerne.negative_hint'] }}">{{ t['citerne.negative'] }}</span></div>
+                    {% elif over %}
+                    <div><span class="badge badge--critical" title="{{ t['citerne.over_hint'] }}">{{ t['citerne.over'] }}</span></div>
                     {% else %}
                     <div class="stock-bar"><span style="width:{{ [pct, 100]|min }}%;"></span></div>
+                    {% endif %}
+                    {# Today's figure can be fine while the history is not — that
+                       is what a late rentrée leaves behind. #}
+                    {% if anom and anom.past_only %}
+                    <div><a href="{{ url_for('carburant.history', citerne=c.id, period='all') }}" class="badge badge--warning"
+                            title="{{ t['citerne.past_hint'] }}">{{ t['citerne.past_anomaly'] }}</a></div>
                     {% endif %}
                 </td>
                 <td class="col-secondary">{{ '{:,}'.format(c.capacity_liters) }} L</td>
@@ -106,16 +116,24 @@
         {% for c in citernes %}
         {% set pct = (c.stock / c.capacity_liters * 100) if c.capacity_liters else 0 %}
         {% set under = c.stock < 0 %}
+        {% set over = c.stock > c.capacity_liters %}
+        {% set anom = c.anomaly %}
         <div class="list-card">
             <div class="list-card__top">
                 <a href="{{ url_for('carburant.citerne_flux', cid=c.id) }}"><strong>{{ c.code }}</strong></a>
-                <span class="list-card__amount {% if under %}stock-negative{% endif %}">{{ '{:,}'.format(c.stock) }} <span class="muted small">/ {{ '{:,}'.format(c.capacity_liters) }} L</span></span>
+                <span class="list-card__amount {% if under or over %}stock-negative{% endif %}">{{ '{:,}'.format(c.stock) }} <span class="muted small">/ {{ '{:,}'.format(c.capacity_liters) }} L</span></span>
             </div>
             {% if under %}
             <div><span class="badge badge--critical">{{ t['citerne.negative'] }}</span>
                  <span class="muted small">{{ t['citerne.negative_hint'] }}</span></div>
+            {% elif over %}
+            <div><span class="badge badge--critical">{{ t['citerne.over'] }}</span>
+                 <span class="muted small">{{ t['citerne.over_hint'] }}</span></div>
             {% else %}
             <div class="stock-bar"><span style="width:{{ [pct, 100]|min }}%;"></span></div>
+            {% endif %}
+            {% if anom and anom.past_only %}
+            <div><a href="{{ url_for('carburant.history', citerne=c.id, period='all') }}" class="badge badge--warning">{{ t['citerne.past_anomaly'] }}</a></div>
             {% endif %}
             <div class="list-card__meta"><span class="muted small">{{ c.name }} · {{ c.fleet.name }}</span></div>
             {% if has_perm('carburant.manage') or (has_perm('carburant.create') and c.is_active) %}

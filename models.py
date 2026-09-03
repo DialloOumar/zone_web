@@ -633,6 +633,51 @@ class Citerne(db.Model):
         before, _, highest = self._levels(date_str)
         return self._pick(max, before, highest)
 
+    def level_history(self):
+        """[(movement, level after it)] oldest first, opening balance included.
+
+        Cached on the instance: the movement table asks each row for its level,
+        and recomputing the whole run per row would be quadratic.
+        """
+        cached = getattr(self, "_level_history", None)
+        if cached is None:
+            cached = []
+            running = 0
+            for m in self._reservoir_movements():
+                running += m.liters if m.kind in ("initial", "rentree") else -m.liters
+                cached.append((m, running))
+            self._level_history = cached
+        return cached
+
+    @property
+    def anomaly(self):
+        """How far out of its bounds this citerne has ever been, or None.
+
+        A tank holds between nothing and its capacity. Entry does not enforce
+        that — a fill logged late, a draw entered before its rentrée, and the
+        figures cross the line for a while. What matters is that the crossing
+        is visible with its date, so it can be traced back and settled, rather
+        than sitting in a total nobody questions.
+        """
+        low = high = None
+        for m, level in self.level_history():
+            if level < 0 and (low is None or level < low[1]):
+                low = (m.date, level)
+            if level > self.capacity_liters and (high is None or level > high[1]):
+                high = (m.date, level)
+        if not low and not high:
+            return None
+        return {
+            "low": low[1] if low else None,
+            "low_date": low[0] if low else None,
+            "high": high[1] if high else None,
+            "high_date": high[0] if high else None,
+            # An anomaly the current figure already shows needs no second
+            # badge — this one says the history is out of range even when
+            # today's level looks fine.
+            "past_only": self.stock >= 0 and self.stock <= self.capacity_liters,
+        }
+
     def peak_if_returned(self, date_str, liters):
         """Highest level the tank would reach if `liters` went back in from this
         date on — deleting a distribution. The level before it does not move,
@@ -683,6 +728,26 @@ class FuelMovement(db.Model):
 
     citerne = db.relationship("Citerne", back_populates="movements")
     vehicle = db.relationship("Vehicle")
+
+    @property
+    def level_after(self):
+        """The citerne's level right after this movement, or None for the kinds
+        that leave the reservoir alone (relevé, conso, direct)."""
+        if not self.citerne or self.kind not in ("initial", "rentree", "distribution"):
+            return None
+        for m, level in self.citerne.level_history():
+            if m.id == self.id:
+                return level
+        return None
+
+    @property
+    def out_of_range(self):
+        """True when the tank stood outside [0, capacity] right after this
+        movement — which is what makes the offending line findable."""
+        level = self.level_after
+        if level is None:
+            return False
+        return level < 0 or level > self.citerne.capacity_liters
 
     @property
     def ecart(self):

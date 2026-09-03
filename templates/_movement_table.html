@@ -25,8 +25,11 @@
     </thead>
     <tbody>
         {% for m in movements %}
-        <tr>
-            <td>{{ m.date }}{% if m.time %}<div class="muted small">{{ m.time }}</div>{% endif %}</td>
+        {# The row that took the citerne outside [0, capacity]: the one to look
+           at when a tank's history does not add up. #}
+        <tr {% if m.out_of_range %}class="mv-row--out"{% endif %}>
+            <td>{{ m.date }}{% if m.time %}<div class="muted small">{{ m.time }}</div>{% endif %}
+                {% if m.out_of_range %}<div class="muted small stock-negative">{{ '{:,}'.format(m.level_after) }} L</div>{% endif %}</td>
             {% if m.kind == 'releve' %}
             {% set ec = m.ecart %}
             {% set bad = ec is not none and (ec > seuil or ec < -seuil) %}

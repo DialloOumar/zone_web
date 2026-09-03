@@ -74,12 +74,22 @@
             </div>
             <div class="flux-readout">
                 <div class="flux-name"><span class="material-symbols-outlined fuel-mark" title="{{ t['fuel.source_citerne'] }}" aria-hidden="true">local_gas_station</span> {{ citerne.name }} · {{ citerne.code }}</div>
-                <div class="flux-stock {% if citerne.stock < 0 %}stock-negative{% endif %}">{{ '{:,}'.format(citerne.stock) }} <small>/ {{ '{:,}'.format(citerne.capacity_liters) }} L</small></div>
+                <div class="flux-stock {% if citerne.stock < 0 or citerne.stock > citerne.capacity_liters %}stock-negative{% endif %}">{{ '{:,}'.format(citerne.stock) }} <small>/ {{ '{:,}'.format(citerne.capacity_liters) }} L</small></div>
+                {% set anom = citerne.anomaly %}
                 {% if citerne.stock < 0 %}
                 <div class="flux-line"><span class="badge badge--critical">{{ t['citerne.negative'] }}</span>
                     <span class="muted small">{{ t['citerne.negative_hint'] }}</span></div>
+                {% elif citerne.stock > citerne.capacity_liters %}
+                <div class="flux-line"><span class="badge badge--critical">{{ t['citerne.over'] }}</span>
+                    <span class="muted small">{{ t['citerne.over_hint'] }}</span></div>
                 {% else %}
                 <div class="flux-bar"><span id="flux-bar-fill"></span></div>
+                {% endif %}
+                {% if anom %}
+                <div class="flux-line">
+                    {% if anom.low %}<span class="muted small">{{ t['citerne.worst_low'] % {'n': anom.low, 'd': anom.low_date} }}</span>{% endif %}
+                    {% if anom.high %}<span class="muted small">{{ t['citerne.worst_high'] % {'n': anom.high, 'd': anom.high_date} }}</span>{% endif %}
+                </div>
                 {% endif %}
                 <div class="flux-line">{{ t['flux.distributed'] }} : <b>{{ '{:,}'.format(distributed_total) }}</b> L</div>
                 {% if conso_total %}

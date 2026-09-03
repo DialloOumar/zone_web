@@ -249,8 +249,6 @@ def _read_citerne_form(citerne):
         return None, t.get("citerne.err.fleet", "La flotte est obligatoire.")
     if initial < 0:
         initial = 0
-    if initial > cap:
-        return None, t.get("citerne.err.over_capacity", "Le stock dépasse la capacité.")
 
     clash = Citerne.query.filter(db.func.lower(Citerne.code) == code.lower())
     if citerne:
@@ -263,7 +261,7 @@ def _read_citerne_form(citerne):
     # be wrong, so it stays correctable — lowering it below what has since been
     # dispensed only means a rentrée is missing, and the shortfall is reported
     # rather than refused. Logging that rentrée settles it on its own.
-    shortfall = 0
+    shortfall = overflow = 0
     if citerne:
         drop = citerne.opening_stock - initial
         new_floor = citerne.min_stock_from(None) - drop
@@ -273,25 +271,27 @@ def _read_citerne_form(citerne):
         # shrinking the cuve under what it holds, corrects nothing and describes
         # a tank that cannot exist.
         peak = citerne.max_stock_from(None) - citerne.opening_stock + initial
-        if peak > cap:
-            return None, t.get("citerne.err.over_capacity_history",
-                               "Ce réglage mettrait %(peak)d L dans une cuve de "
-                               "%(cap)d L. Corrigez les mouvements d'abord.")                 % {"peak": peak, "cap": cap}
+        overflow = max(peak - cap, 0)
 
     return dict(code=code, name=name, capacity_liters=cap, fleet_id=fleet_id,
-                initial=initial, shortfall=shortfall), None
+                initial=initial, shortfall=shortfall, overflow=overflow), None
 
 
-def _flash_shortfall(shortfall):
-    """Say the tank now reads under zero on some dates, and what settles it.
-    Worded as a missing entry, which is what it is."""
-    if not shortfall:
-        return
-    flash("warning|" + get_t().get(
-        "citerne.warn_negative",
-        "Le stock de cette citerne passe sous zéro de %(n)d L : il manque une "
-        "rentrée. Enregistrez-la à sa date et le compte se remet d'aplomb.")
-        % {"n": shortfall})
+def _flash_shortfall(shortfall, overflow=0):
+    """Say the tank now reads outside its bounds, and what settles it. The entry
+    is kept either way — this is a note, not a refusal."""
+    t = get_t()
+    if shortfall:
+        flash("warning|" + t.get(
+            "citerne.warn_negative",
+            "Le stock de cette citerne passe sous zéro de %(n)d L : il manque une "
+            "rentrée. Enregistrez-la à sa date et le compte se remet d'aplomb.")
+            % {"n": shortfall})
+    if overflow:
+        flash("warning|" + t.get(
+            "citerne.warn_over",
+            "Le stock de cette citerne dépasse sa capacité de %(n)d L. "
+            "Vérifiez la capacité ou les mouvements.") % {"n": overflow})
 
 
 def _set_initial_stock(citerne, liters, today):
@@ -356,7 +356,7 @@ def citerne_new():
         if error:
             return _render_citerne_form(None, error)
         initial = data.pop("initial")
-        shortfall = data.pop("shortfall")
+        shortfall, overflow = data.pop("shortfall"), data.pop("overflow")
         c = Citerne(created_by=current_user.id, **data)
         db.session.add(c)
         db.session.flush()
@@ -369,7 +369,7 @@ def citerne_new():
                    detail=f"Created citerne '{c.code}'")
         db.session.commit()
         flash("success|" + t.get("citerne.created", "Citerne créée."))
-        _flash_shortfall(shortfall)
+        _flash_shortfall(shortfall, overflow)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_citerne_form(None)
 
@@ -385,7 +385,7 @@ def citerne_edit(cid):
         if error:
             return _render_citerne_form(citerne, error)
         initial = data.pop("initial")
-        shortfall = data.pop("shortfall")
+        shortfall, overflow = data.pop("shortfall"), data.pop("overflow")
         for k, v in data.items():
             setattr(citerne, k, v)
         perr = _apply_citerne_photo_change(citerne)
@@ -397,7 +397,7 @@ def citerne_edit(cid):
                    detail=f"Updated citerne '{citerne.code}'")
         db.session.commit()
         flash("success|" + t.get("citerne.updated", "Citerne mise à jour."))
-        _flash_shortfall(shortfall)
+        _flash_shortfall(shortfall, overflow)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_citerne_form(citerne)
 
@@ -469,18 +469,13 @@ def _read_distribution_form():
     if v.fleet_id != c.fleet_id:
         return None, t.get("distribution.err.fleet_mismatch",
                            "La machine et la citerne doivent être de la même flotte.")
-    # Against the lowest level from that date onward, not today's: a back-dated
-    # distribution checked against a tank that has since been refilled would go
-    # through, leaving the citerne under zero on the day the fuel came out.
+    # Entry never refuses: the fuel left the tank, whatever the paperwork says.
+    # What is missing is a rentrée, and saying so beats turning the person away
+    # — refused, they would shift the date or the litres until it went through.
     available = c.min_stock_from(date_str)
-    if liters > available:
-        return None, t.get(
-            "distribution.err.stock",
-            "Stock insuffisant : la citerne n'a que %(n)d L disponibles "
-            "à cette date.") % {"n": max(available, 0)}
-
     return dict(kind="distribution", citerne_id=c.id, vehicle_id=v.id, date=date_str,
-                time=time_str, liters=liters, operator=operator), None
+                time=time_str, liters=liters, operator=operator,
+                warn_short=max(liters - available, 0)), None
 
 
 def _render_distribution_form(error=None):
@@ -506,6 +501,7 @@ def distribution_new():
         if error:
             return _render_distribution_form(error)
         kind = data.pop("kind")
+        warn_short = data.pop("warn_short", 0)
         c = db.session.get(Citerne, data["citerne_id"]) if data["citerne_id"] else None
         v = db.session.get(Vehicle, data["vehicle_id"])
         mv = FuelMovement(kind=kind, created_by=current_user.id, **data)
@@ -517,6 +513,7 @@ def distribution_new():
                    fleet_id=(c.fleet_id if c else v.fleet_id), detail=detail)
         db.session.commit()
         flash("success|" + t.get("distribution.created", "Prise de carburant enregistrée."))
+        _flash_shortfall(warn_short)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_distribution_form()
 
@@ -545,13 +542,8 @@ def _read_rentree_form():
     # it back then, and a legitimate back-dated one gets refused whenever the
     # citerne happens to be full now.
     room = c.capacity_liters - c.max_stock_from(date_str)
-    if liters > room:
-        return None, t.get(
-            "rentree.err.over_capacity",
-            "Cette rentrée dépasse la capacité : la citerne ne peut recevoir "
-            "que %(n)d L à cette date.") % {"n": max(room, 0)}
-
     return dict(citerne_id=c.id, date=date_str, liters=liters,
+                warn_over=max(liters - room, 0),
                 note=(request.form.get("reference") or "").strip() or None), None
 
 
@@ -576,6 +568,7 @@ def rentree_new():
         if error:
             return _render_rentree_form(error)
         c = db.session.get(Citerne, data["citerne_id"])
+        overflow = data.pop("warn_over", 0)
         mv = FuelMovement(kind="rentree", created_by=current_user.id, **data)
         db.session.add(mv)
         db.session.flush()
@@ -583,6 +576,7 @@ def rentree_new():
                    detail=f"Rentrée {mv.liters} L into '{c.code}'")
         db.session.commit()
         flash("success|" + t.get("rentree.created", "Rentrée enregistrée."))
+        _flash_shortfall(0, overflow)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_rentree_form()
 
@@ -739,13 +733,9 @@ def _read_ravitaillement_form():
             return dict(kind="conso", citerne_id=c.id, date=date_str, time=time_str,
                         liters=liters, operator=operator), None
         room = c.capacity_liters - c.max_stock_from(date_str)
-        if liters > room:
-            return None, t.get(
-                "rentree.err.over_capacity",
-                "Cette rentrée dépasse la capacité : la citerne ne peut recevoir "
-                "que %(n)d L à cette date.") % {"n": max(room, 0)}
         return dict(kind="rentree", citerne_id=c.id, date=date_str, time=time_str,
                     liters=liters, operator=operator,
+                    warn_over=max(liters - room, 0),
                     note=(request.form.get("reference") or "").strip() or None), None
 
     if target.startswith("v:") and target[2:].isdigit():
@@ -782,6 +772,7 @@ def ravitaillement_new():
         if error:
             return _render_ravitaillement_form(error)
         kind = data.pop("kind")
+        overflow = data.pop("warn_over", 0)
         c = db.session.get(Citerne, data["citerne_id"]) if data.get("citerne_id") else None
         v = db.session.get(Vehicle, data["vehicle_id"]) if data.get("vehicle_id") else None
         mv = FuelMovement(kind=kind, created_by=current_user.id, **data)
@@ -792,6 +783,7 @@ def ravitaillement_new():
                    detail=f"Ravitaillement ({kind}) {mv.liters} L")
         db.session.commit()
         flash("success|" + t.get("rav.created", "Ravitaillement enregistré."))
+        _flash_shortfall(0, overflow)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_ravitaillement_form()
 
@@ -810,21 +802,16 @@ def movement_delete(mid):
     fids = current_user_fleet_ids()
     if fids is not None and c and c.fleet_id not in fids:
         abort(403)
-    # Removing a rentrée must not push the tank below zero — on its own date or
-    # on any day after it, same rule as a draw.
-    if mv.kind == "rentree" and c and c.floor_if_removed(mv.date, mv.liters) < 0:
-        flash("error|" + get_t().get("rentree.err.delete_negative",
-              "Suppression impossible : le stock deviendrait négatif."))
-        return redirect(request.referrer or url_for("carburant.index"))
-    # … and putting a distribution's litres back must not overflow the tank.
-    if (mv.kind == "distribution" and c
-            and c.peak_if_returned(mv.date, mv.liters) > c.capacity_liters):
-        flash("error|" + get_t().get("distribution.err.delete_over_capacity",
-              "Suppression impossible : le stock dépasserait la capacité."))
-        return redirect(request.referrer or url_for("carburant.index"))
+    # Removing a movement is allowed too; what it does to the tank is reported.
+    short = over = 0
+    if c and mv.kind == "rentree":
+        short = max(-c.floor_if_removed(mv.date, mv.liters), 0)
+    if c and mv.kind == "distribution":
+        over = max(c.peak_if_returned(mv.date, mv.liters) - c.capacity_liters, 0)
     db.session.delete(mv)
     log_action("DELETE", "fuel_movement", resource_id=mid,
                fleet_id=(c.fleet_id if c else None), detail=f"Deleted {mv.kind}")
     db.session.commit()
     flash("success|" + get_t().get("movement.deleted", "Mouvement supprimé."))
+    _flash_shortfall(short, over)
     return redirect(request.referrer or url_for("carburant.index"))

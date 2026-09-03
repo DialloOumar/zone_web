@@ -184,10 +184,16 @@ HELP_SECTIONS = [
             "fr": [
                 "Le total du mois et le total des litres sont rappelés en haut de la liste.",
                 "Les pleins alimentent l'analyse carburant.",
+                "Sur les citernes, la saisie n'est jamais refusée : si une distribution vide la citerne au-delà de ce qu'elle avait, ou si une rentrée dépasse sa capacité, c'est enregistré et signalé. Le stock s'affiche alors en rouge, avec ce qu'il faut faire.",
+                "Un stock négatif veut dire qu'il manque une rentrée : saisissez-la à sa vraie date et le compte se remet d'aplomb tout seul.",
+                "Le badge « Historique à régulariser » apparaît quand le stock d'aujourd'hui est correct mais que la citerne est sortie de ses bornes à une date passée. Il mène droit aux mouvements concernés, surlignés dans la liste.",
             ],
             "en": [
                 "The month's total and total litres are shown at the top of the list.",
                 "Fill-ups feed the fuel analysis.",
+                "On citernes, entry is never refused: a distribution that takes more than the tank held, or a fill past its capacity, is recorded and flagged. The stock then shows in red, with what to do about it.",
+                "A negative stock means a rentrée is missing: log it on its real date and the figure settles on its own.",
+                "The \"History to settle\" badge shows when today's stock is fine but the citerne went out of bounds on a past date. It leads straight to the movements, highlighted in the list.",
             ],
         },
     },
