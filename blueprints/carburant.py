@@ -258,6 +258,18 @@ def _read_citerne_form(citerne):
     if clash.first():
         return None, t.get("citerne.err.code_taken", "Ce code est déjà utilisé.")
 
+    # Lowering the opening stock lowers every level after it by the same amount.
+    # Take away more than the tank ever had spare and the history goes negative,
+    # so the fuel distributed since would have come out of an empty citerne.
+    if citerne:
+        drop = citerne.opening_stock - initial
+        room = citerne.min_stock_from(None)
+        if drop > room:
+            return None, t.get("citerne.err.opening_too_low",
+                               "Le stock de départ ne peut pas descendre sous "
+                               "%(min)d L : la citerne a déjà distribué ce "
+                               "carburant.") % {"min": citerne.opening_stock - room}
+
     return dict(code=code, name=name, capacity_liters=cap, fleet_id=fleet_id,
                 initial=initial), None
 
@@ -433,9 +445,15 @@ def _read_distribution_form():
     if v.fleet_id != c.fleet_id:
         return None, t.get("distribution.err.fleet_mismatch",
                            "La machine et la citerne doivent être de la même flotte.")
-    if liters > c.stock:
-        return None, t.get("distribution.err.stock",
-                           "Stock insuffisant dans la citerne (%d L disponibles)." % c.stock)
+    # Against the lowest level from that date onward, not today's: a back-dated
+    # distribution checked against a tank that has since been refilled would go
+    # through, leaving the citerne under zero on the day the fuel came out.
+    available = c.min_stock_from(date_str)
+    if liters > available:
+        return None, t.get(
+            "distribution.err.stock",
+            "Stock insuffisant : la citerne n'a que %(n)d L disponibles "
+            "à cette date.") % {"n": max(available, 0)}
 
     return dict(kind="distribution", citerne_id=c.id, vehicle_id=v.id, date=date_str,
                 time=time_str, liters=liters, operator=operator), None
@@ -760,8 +778,9 @@ def movement_delete(mid):
     fids = current_user_fleet_ids()
     if fids is not None and c and c.fleet_id not in fids:
         abort(403)
-    # Removing a rentrée must not push the tank below zero.
-    if mv.kind == "rentree" and c and c.stock - mv.liters < 0:
+    # Removing a rentrée must not push the tank below zero — on its own date or
+    # on any day after it, same rule as a draw.
+    if mv.kind == "rentree" and c and c.min_stock_from(mv.date) - mv.liters < 0:
         flash("error|" + get_t().get("rentree.err.delete_negative",
               "Suppression impossible : le stock deviendrait négatif."))
         return redirect(request.referrer or url_for("carburant.index"))

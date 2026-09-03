@@ -567,13 +567,54 @@ class Citerne(db.Model):
         (None = all). Used both for the live stock and for a relevé's écart."""
         total = 0
         for m in self.movements:
-            if date_str is not None and m.date > date_str:
+            # The opening balance is not a dated event: it is what the tank
+            # held before any of this was logged, so it counts on every date,
+            # including one earlier than the day the citerne was created.
+            if (date_str is not None and m.date > date_str
+                    and m.kind != "initial"):
                 continue
             if m.kind in ("initial", "rentree"):
                 total += m.liters
             elif m.kind == "distribution":
                 total -= m.liters
         return total
+
+    def _reservoir_movements(self):
+        """Movements that move the reservoir, oldest first. Relevés and conso
+        are left out: a relevé measures, and a conso is fuel taken at the client
+        for the truck's own engine, never out of the tank."""
+        return sorted((m for m in self.movements
+                       if m.kind in ("initial", "rentree", "distribution")),
+                      # The opening balance comes first whatever its date: it is
+                      # the level the tank started at, not something that happened.
+                      key=lambda m: (m.kind != "initial", m.date, m.id or 0))
+
+    def min_stock_from(self, date_str=None):
+        """The lowest the tank ever gets from `date_str` onward (None = over its
+        whole history).
+
+        This, not `stock`, is what a draw has to fit inside. Checking against
+        today's level lets a back-dated distribution through whenever the tank
+        has since been refilled — and the tank was empty on the day the fuel is
+        claimed to have come out of it.
+        """
+        running = 0
+        # The level the tank sits at on that date, before anything happens on it.
+        # Zero when nothing came earlier — an empty tank is the honest starting
+        # point. For the whole history (no date) there is no such floor to add.
+        before = 0 if date_str is not None else None
+        lowest = None
+        for m in self._reservoir_movements():
+            delta = m.liters if m.kind in ("initial", "rentree") else -m.liters
+            if m.kind == "initial" or (date_str is not None and m.date < date_str):
+                running += delta
+                before = running
+                continue
+            running += delta
+            lowest = running if lowest is None else min(lowest, running)
+        if lowest is None:
+            return before if before is not None else running
+        return lowest if before is None else min(before, lowest)
 
     @property
     def opening_stock(self):
