@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = deposit is not none %}
+{% block title %}{{ t['caisse.deposit_edit'] if is_edit else t['caisse.deposit_new'] }}{% endblock %}
+{% block page_title %}{{ t['caisse.deposit_edit'] if is_edit else t['caisse.deposit_new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px;">
+    {% include "_deposit_form.html" %}
+</section>
+{% endblock %}

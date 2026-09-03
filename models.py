@@ -1,13 +1,13 @@
 """SQLAlchemy models for zone_web.
 
-Schema overview (22 tables, grouped):
+Schema overview (23 tables, grouped):
 
   Auth & access     User, Fleet, FleetRate, UserFleet, Role, Permission,
                     RolePermission
   Domain            VehicleCategory, Vehicle, Operator
   Daily ops         DailyEntry
   Maintenance       MaintenanceRule, MaintenanceRecord, Alert
-  Money             Expense
+  Money             Expense, CashMovement
   Fuel              Citerne, FuelMovement
   Parts store       Part, StockMovement
   Workflow          PendingChange, AuditLog
@@ -480,6 +480,35 @@ class Expense(db.Model):
 
     vehicle = db.relationship("Vehicle")
     fleet   = db.relationship("Fleet")
+
+
+# ── Caisse (petty cash) ───────────────────────────────────────────────────────
+
+
+class CashMovement(db.Model):
+    """Money put into the cash box.
+
+    The other side — money going out — is already in the ledger: the costs
+    entered on the Dépenses page. So this table holds only what comes in, and
+    the balance is deposits minus those costs. One cash box for the company,
+    like the parts store.
+
+    `kind` leaves room for a withdrawal or a correction later; only "depot"
+    exists today.
+    """
+    __tablename__ = "cash_movements"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    kind       = db.Column(db.String(20),  nullable=False, default="depot")
+    date       = db.Column(db.String(10),  nullable=False)              # YYYY-MM-DD
+    amount     = db.Column(db.Integer,     nullable=False)              # GNF
+    currency   = db.Column(db.String(5),   nullable=False, default="GNF")
+    source     = db.Column(db.String(120), nullable=True)   # who handed the money over
+    method     = db.Column(db.String(20),  nullable=True)   # cash | mobile_money
+    reference  = db.Column(db.String(60),  nullable=True)
+    note       = db.Column(db.String(255), nullable=True)
+    created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
 
 # ── Workflow — approvals & audit ──────────────────────────────────────────────

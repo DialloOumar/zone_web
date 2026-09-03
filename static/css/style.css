@@ -542,6 +542,11 @@ a:hover { text-decoration: underline; }
 /* A tank reading under zero: the figure itself carries the alarm, since the
    gauge bar cannot draw a negative fill and would just look empty. */
 .stock-negative { color: var(--c-red); }
+
+/* What is left in the cash box, read first on the Dépenses page. */
+.caisse-balance { display: flex; flex-direction: column; gap: 2px; }
+.caisse-balance__label { font-size: 0.74rem; color: var(--md-on-surface-variant); }
+.caisse-balance strong { font-size: 1.35rem; }
 /* The movement that took a tank out of its bounds, so the eye lands on it. */
 .mv-row--out > td { background: var(--c-red-bg); }
 

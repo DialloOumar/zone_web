@@ -18,7 +18,7 @@ from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, submit_change, with_current_fleet)
-from models import Expense, Fleet, Operator, Vehicle, db
+from models import CashMovement, Expense, Fleet, Operator, Vehicle, db
 
 expenses_bp = Blueprint("expenses", __name__)
 
@@ -39,6 +39,11 @@ ALL_CATEGORIES = ([FUEL_CATEGORY] + EXPENSE_CATEGORIES
                   + [MAINTENANCE_CATEGORY, PARTS_CATEGORY])
 
 PAYMENT_METHODS = ["mobile_money", "cash", "transfer", "cheque", "other"]
+
+# The Dépenses page is the cash box: money is handed over, and spent out of it.
+# Only the two ways that float actually moves are offered there. Older rows keep
+# whatever they were saved with and still read fine.
+CASH_METHODS = ["cash", "mobile_money"]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -114,7 +119,7 @@ def _valid_date(s):
         return False
 
 
-def _common_fields(t):
+def _common_fields(t, methods=None):
     """Date, amount and payment fields shared by both screens.
     Returns (dict, None) or (None, error)."""
     date_str = (request.form.get("date") or "").strip()
@@ -130,7 +135,7 @@ def _common_fields(t):
         return None, t["expense.err.amount_required"]
 
     method = (request.form.get("payment_method") or "").strip()
-    if method not in PAYMENT_METHODS:
+    if method not in (methods or PAYMENT_METHODS):
         return None, t["expense.err.payment_required"]
 
     return dict(
@@ -154,7 +159,7 @@ def _read_expense_form(expense):
     Returns (data, None) or (None, err).
     """
     t = get_t()
-    common, error = _common_fields(t)
+    common, error = _common_fields(t, CASH_METHODS)
     if error:
         return None, error
 
@@ -216,7 +221,7 @@ def _read_fuel_form(expense):
 def _form_context(expense):
     return {
         "fleets": with_current_fleet(_accessible_fleets(), expense.fleet if expense else None),
-        "payment_methods": PAYMENT_METHODS,
+        "payment_methods": CASH_METHODS,
         "today": date.today().isoformat(),
     }
 
@@ -242,16 +247,24 @@ def _render_expense_form(expense, error=None):
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 
-# Where a cost came from, which is the only split that still says anything:
-# what someone typed on this page, what an intervention cost, what the store
-# was stocked with. Categories used to carry this and no longer can — every
-# manual cost lands in the same one.
-ORIGINS = {
-    "general":   lambda q: q.filter(Expense.category.notin_(
-                     [MAINTENANCE_CATEGORY, PARTS_CATEGORY])),
-    "entretien": lambda q: q.filter(Expense.category == MAINTENANCE_CATEGORY),
-    "pieces":    lambda q: q.filter(Expense.category == PARTS_CATEGORY),
-}
+def _cash_expenses():
+    """The costs that come out of the cash box: the ones entered on this page.
+    A service's cost and a stock receipt are in the ledger too, but they are not
+    paid out of this float, so they never touch its balance."""
+    return _scoped_expenses().filter(Expense.category.notin_(
+        [FUEL_CATEGORY, MAINTENANCE_CATEGORY, PARTS_CATEGORY]))
+
+
+def cash_balance():
+    """What is left in the box: everything paid in, minus everything spent from
+    it. Not bounded by the month on screen — a balance carries over."""
+    paid_in = db.session.query(db.func.coalesce(
+        db.func.sum(CashMovement.amount), 0)).scalar() or 0
+    spent = db.session.query(db.func.coalesce(
+        db.func.sum(Expense.amount), 0)).filter(
+        Expense.category.notin_([FUEL_CATEGORY, MAINTENANCE_CATEGORY,
+                                 PARTS_CATEGORY])).scalar() or 0
+    return paid_in - spent
 
 
 def _month_bounds(month):
@@ -274,24 +287,27 @@ def index():
     a total nobody can compare to anything. The origin chips replace the old
     category ones — see ORIGINS.
     """
-    active = request.args.get("f") or ""
     month = (request.args.get("month") or "").strip() or date.today().strftime("%Y-%m")
     fleet_id = request.args.get("fleet_id", type=int)
-
-    q = _scoped_expenses().filter(Expense.category != FUEL_CATEGORY)
-    if active in ORIGINS:
-        q = ORIGINS[active](q)
     start, end = _month_bounds(month)
+
+    q = _cash_expenses()
     if start:
         q = q.filter(Expense.date >= start, Expense.date <= end)
     if fleet_id:
         q = q.filter(Expense.fleet_id == fleet_id)
-
     expenses = q.order_by(Expense.date.desc(), Expense.id.desc()).limit(300).all()
-    total = sum(e.amount for e in expenses)
+
+    dq = CashMovement.query
+    if start:
+        dq = dq.filter(CashMovement.date >= start, CashMovement.date <= end)
+    deposits = dq.order_by(CashMovement.date.desc(), CashMovement.id.desc()).all()
+
     return render_template(
-        "expenses.html", expenses=expenses, total=total, active=active,
-        filters=list(ORIGINS), month=month, fleet_id=fleet_id,
+        "expenses.html", expenses=expenses, deposits=deposits,
+        total=sum(e.amount for e in expenses),
+        deposited=sum(d.amount for d in deposits),
+        balance=cash_balance(), month=month, fleet_id=fleet_id,
         fleets=_accessible_fleets(), months=_recent_months(),
         maintenance_category=MAINTENANCE_CATEGORY)
 
@@ -372,6 +388,101 @@ def delete(xid):
                detail=f"Deleted expense #{xid}")
     db.session.commit()
     flash("success|" + t["expense.deleted"])
+    return redirect(request.referrer or url_for("expenses.index"))
+
+
+# ── Caisse: money paid in ────────────────────────────────────────────────────
+
+
+def _read_deposit_form():
+    """A deposit into the cash box: when, how much, from whom, and how."""
+    t = get_t()
+    date_str = (request.form.get("date") or "").strip()
+    if not date_str or not _valid_date(date_str):
+        return None, t["expense.err.date_required"]
+
+    raw = (request.form.get("amount") or "").strip().replace(" ", "").replace(",", "")
+    try:
+        amount = int(round(float(raw)))
+    except (TypeError, ValueError):
+        return None, t["expense.err.amount_required"]
+    if amount <= 0:
+        return None, t["expense.err.amount_required"]
+
+    method = (request.form.get("method") or "").strip()
+    if method not in CASH_METHODS:
+        return None, t["expense.err.payment_required"]
+
+    return dict(
+        kind="depot", date=date_str, amount=amount, currency="GNF", method=method,
+        source=(request.form.get("source") or "").strip() or None,
+        reference=(request.form.get("reference") or "").strip() or None,
+        note=(request.form.get("note") or "").strip() or None,
+    ), None
+
+
+def _render_deposit_form(deposit, error=None):
+    tpl = "_deposit_form.html" if is_modal_request() else "deposit_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, deposit=deposit, error=error,
+                           methods=CASH_METHODS,
+                           today=date.today().isoformat()), status
+
+
+@expenses_bp.route("/caisse/depots/new", methods=["GET", "POST"])
+@login_required
+@require_perm("expense.create")
+def deposit_new():
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_deposit_form()
+        if error:
+            return _render_deposit_form(None, error)
+        d = CashMovement(created_by=current_user.id, **data)
+        db.session.add(d)
+        db.session.flush()
+        log_action("CREATE", "cash_movement", resource_id=d.id,
+                   detail=f"Deposit {d.amount} GNF into the cash box")
+        db.session.commit()
+        flash("success|" + t.get("caisse.deposit_created", "Dépôt enregistré."))
+        return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
+    return _render_deposit_form(None)
+
+
+@expenses_bp.route("/caisse/depots/<int:did>/edit", methods=["GET", "POST"])
+@login_required
+@require_perm("expense.edit")
+def deposit_edit(did):
+    d = db.session.get(CashMovement, did)
+    if not d:
+        abort(404)
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_deposit_form()
+        if error:
+            return _render_deposit_form(d, error)
+        for k, v in data.items():
+            setattr(d, k, v)
+        log_action("UPDATE", "cash_movement", resource_id=d.id,
+                   detail=f"Edited deposit #{d.id}")
+        db.session.commit()
+        flash("success|" + t.get("caisse.deposit_updated", "Dépôt modifié."))
+        return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
+    return _render_deposit_form(d)
+
+
+@expenses_bp.route("/caisse/depots/<int:did>/delete", methods=["POST"])
+@login_required
+@require_perm("expense.delete")
+def deposit_delete(did):
+    d = db.session.get(CashMovement, did)
+    if not d:
+        abort(404)
+    db.session.delete(d)
+    log_action("DELETE", "cash_movement", resource_id=did,
+               detail=f"Deleted deposit #{did}")
+    db.session.commit()
+    flash("success|" + get_t().get("caisse.deposit_deleted", "Dépôt supprimé."))
     return redirect(request.referrer or url_for("expenses.index"))
 
 

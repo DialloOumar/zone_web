@@ -14,16 +14,25 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header card-header--end">
-        {% if has_perm('expense.create') %}
-        <a href="{{ url_for('expenses.new') }}" class="fab" data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
-            <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
-        </a>
-        {% endif %}
+    <div class="card-header">
+        <div class="caisse-balance {% if balance < 0 %}stock-negative{% endif %}">
+            <span class="caisse-balance__label">{{ t['caisse.balance'] }}</span>
+            <strong>{{ '{:,}'.format(balance) }} {{ currency }}</strong>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+            {% if has_perm('expense.create') %}
+            <a href="{{ url_for('expenses.deposit_new') }}" class="btn btn--tonal"
+               data-modal-url="{{ url_for('expenses.deposit_new') }}" data-modal-title="{{ t['caisse.deposit_new'] }}">
+                <span class="material-symbols-outlined">savings</span> {{ t['caisse.deposit_new'] }}
+            </a>
+            <a href="{{ url_for('expenses.new') }}" class="fab" data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
+            </a>
+            {% endif %}
+        </div>
     </div>
 
     <form method="get" class="filter-bar">
-        {% if active %}<input type="hidden" name="f" value="{{ active }}">{% endif %}
         <div class="field field--select" style="min-width:170px;">
             <select name="month" onchange="this.form.submit()">
                 {% for m in months %}
@@ -44,22 +53,55 @@
         <noscript><button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button></noscript>
     </form>
 
-    {# Origin, not category: what was typed here, what a service cost, what the
-       store was stocked with. #}
-    <div class="filter-chips">
-        <a href="{{ url_for('expenses.index', month=month, fleet_id=fleet_id or None) }}"
-           class="filter-chip {% if not active %}active{% endif %}">{{ t['expense.all'] }}</a>
-        {% for f in filters %}
-        <a href="{{ url_for('expenses.index', f=f, month=month, fleet_id=fleet_id or None) }}"
-           class="filter-chip {% if active == f %}active{% endif %}">{{ t['expense.origin.' + f] }}</a>
-        {% endfor %}
-    </div>
 
-    {% if expenses %}
     <div class="expense-total">
-        {{ t['expense.total_month'] }}<strong>{{ '{:,}'.format(total) }} {{ currency }}</strong>
+        {{ t['caisse.in_month'] }}<strong>{{ '{:,}'.format(deposited) }}</strong>
+        <span class="muted small">·</span>
+        {{ t['caisse.out_month'] }}<strong>{{ '{:,}'.format(total) }} {{ currency }}</strong>
         <span class="muted small">· {{ expenses|length }} {{ t['expense.count'] }}</span>
     </div>
+
+    {% if deposits %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['expense.date'] }}</th>
+                <th>{{ t['caisse.source'] }}</th>
+                <th class="col-secondary">{{ t['expense.payment_method'] }}</th>
+                <th style="text-align:right;">{{ t['caisse.deposited'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in deposits %}
+            <tr>
+                <td>{{ d.date }}</td>
+                <td><strong>{{ d.source or t['caisse.deposit'] }}</strong>
+                    {% if d.note %}<div class="muted small">{{ d.note }}</div>{% endif %}</td>
+                <td class="col-secondary">{{ t['pay.' + d.method] if d.method else '—' }}
+                    {% if d.reference %}<div class="muted small">{{ d.reference }}</div>{% endif %}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap; color:var(--c-green);">
+                    + {{ '{:,}'.format(d.amount) }} {{ currency }}</td>
+                <td class="row-actions">
+                    {% if has_perm('expense.edit') %}
+                    <a href="{{ url_for('expenses.deposit_edit', did=d.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('expenses.deposit_edit', did=d.id) }}" data-modal-title="{{ t['caisse.deposit_edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% endif %}
+                    {% if has_perm('expense.delete') %}
+                    <form method="post" action="{{ url_for('expenses.deposit_delete', did=d.id) }}"
+                          data-confirm="{{ t['caisse.deposit_delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% endif %}
+
+    {% if expenses %}
 
     {# Desktop: full table #}
     <div class="table-desktop">

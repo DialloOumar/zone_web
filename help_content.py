@@ -215,7 +215,9 @@ HELP_SECTIONS = [
         },
         "steps": {
             "fr": [
-                "Ouvrez « Dépenses » puis « Nouvelle dépense ».",
+                "La page « Dépenses », c'est la caisse : on y met de l'argent, et les dépenses le consomment. Le solde est affiché en haut.",
+                "« Approvisionner la caisse » : date, montant, qui a remis l'argent, espèces ou mobile money. Le solde monte d'autant.",
+                "Ouvrez « Dépenses » puis « Nouvelle dépense » pour une sortie.",
                 "Donnez un nom à la dépense (ex. « Loyer du bureau », « Fournitures »). C'est ce nom qui la décrit — il n'y a pas de catégorie à choisir.",
                 "Choisissez la flotte si la dépense en concerne une. Sans flotte, c'est une dépense de société, visible par toute personne ayant accès à la page.",
                 "Entrez la date et le montant, puis le moyen de paiement et la référence.",
@@ -223,7 +225,9 @@ HELP_SECTIONS = [
                 "Enregistrez.",
             ],
             "en": [
-                "Open \"Expenses\" then \"New expense\".",
+                "The \"Expenses\" page is the cash box: money is paid in, and the costs spend it. The balance is at the top.",
+                "\"Add money to the box\": date, amount, who handed it over, cash or mobile money. The balance goes up by that much.",
+                "Open \"Expenses\" then \"New expense\" for money going out.",
                 "Name the expense (e.g. \"Office rent\", \"Supplies\"). That name is what describes it — there is no category to pick.",
                 "Pick the fleet if the cost belongs to one. With no fleet it is a company cost, visible to anyone with access to the page.",
                 "Enter the date and amount, then the payment method and reference.",
@@ -234,6 +238,9 @@ HELP_SECTIONS = [
         "tips": {
             "fr": [
                 "Les coûts d'entretien ne se saisissent PAS ici : ils se saisissent sur la fiche d'entretien et apparaissent ensuite dans cette liste, catégorie « Entretien », en lecture seule. Pour corriger un tel montant, passez par la fiche d'entretien.",
+                "Seules les dépenses saisies ici sortent de la caisse. Le carburant, les entretiens et les achats de pièces sont dans le registre mais pas dans la caisse, et n'apparaissent plus sur cette page.",
+                "Le paiement se fait en espèces ou en mobile money. Les autres moyens ne sont plus proposés ici.",
+                "Si le solde passe en négatif, il s'affiche en rouge : c'est qu'il manque un dépôt à enregistrer.",
                 "Les achats de pièces ne se saisissent pas ici non plus : ils partent de « Stock pièces », catégorie « Achat de pièces », également en lecture seule.",
                 "Le carburant a sa propre page — voir la rubrique précédente. Il apparaît aussi dans cette liste si vous filtrez dessus.",
                 "Une dépense de cette page n'est rattachée à aucune machine. Les coûts d'un véhicule se suivent depuis sa fiche : carburant, entretien et pièces y sont déjà.",
@@ -241,6 +248,9 @@ HELP_SECTIONS = [
             ],
             "en": [
                 "Service costs are NOT entered here: you enter them on the service record and they then appear in this list under \"Maintenance\", read-only. To fix such an amount, go through the service record.",
+                "Only the costs entered here come out of the cash box. Fuel, services and parts purchases are in the ledger but not in the box, and no longer show on this page.",
+                "Payment is cash or mobile money. The other methods are no longer offered here.",
+                "If the balance goes negative it shows in red: a deposit is missing.",
                 "Parts purchases are not entered here either: they come from \"Parts stock\" under \"Parts purchase\", also read-only.",
                 "Fuel has its own page — see the previous topic. It also shows in this list if you filter for it.",
                 "A cost on this page belongs to no machine. A vehicle's costs are followed from its own sheet, where fuel, services and parts already are.",

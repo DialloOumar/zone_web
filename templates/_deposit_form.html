@@ -1,0 +1,54 @@
+{% set is_edit = deposit is not none %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('expenses.deposit_edit', did=deposit.id) if is_edit else url_for('expenses.deposit_new') }}">
+
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or (deposit.date if is_edit else today) }}">
+            <label for="date">{{ t['expense.date'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+                   value="{{ request.form.get('amount') or (deposit.amount if is_edit else '') }}">
+            <label for="amount">{{ t['caisse.amount'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="method" name="method" required>
+                <option value="" hidden></option>
+                {% set sel_m = request.form.get('method') or (deposit.method if is_edit else '') %}
+                {% for m in methods %}
+                <option value="{{ m }}" {% if m == sel_m %}selected{% endif %}>{{ t['pay.' + m] }}</option>
+                {% endfor %}
+            </select>
+            <label for="method">{{ t['expense.payment_method'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="reference" name="reference" placeholder=" "
+                   value="{{ request.form.get('reference') or (deposit.reference if is_edit and deposit.reference else '') }}">
+            <label for="reference">{{ t['expense.payment_reference'] }}</label>
+        </div>
+    </div>
+
+    <div class="field">
+        <input type="text" id="source" name="source" placeholder="{{ t['ph.caisse.source'] }}"
+               value="{{ request.form.get('source') or (deposit.source if is_edit and deposit.source else '') }}">
+        <label for="source">{{ t['caisse.source'] }}</label>
+    </div>
+
+    <div class="field">
+        <textarea id="note" name="note" rows="2">{{ request.form.get('note') or (deposit.note if is_edit and deposit.note else '') }}</textarea>
+        <label for="note">{{ t['expense.description'] }}</label>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('expenses.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
