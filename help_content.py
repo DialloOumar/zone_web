@@ -198,45 +198,47 @@ HELP_SECTIONS = [
         "title": {"fr": "Enregistrer une dépense", "en": "Record an expense"},
         "intro": {
             "fr": "« Dépenses » est le registre unique de tous les coûts : ce que "
-                  "vous saisissez ici, plus les pleins de carburant et les coûts "
-                  "d'entretien, qui y arrivent automatiquement. Une dépense peut "
-                  "concerner un véhicule précis ou non.",
+                  "vous saisissez ici, plus les pleins de carburant, les coûts "
+                  "d'entretien et les achats de pièces, qui y arrivent "
+                  "automatiquement. On y saisit les frais généraux — ceux qui "
+                  "ne sont rattachés à aucune machine.",
             "en": "\"Expenses\" is the single ledger for every cost: what you enter "
-                  "here, plus fuel fill-ups and service costs, which land in it "
-                  "automatically. An expense may or may not concern a vehicle.",
+                  "here, plus fuel fill-ups, service costs and parts purchases, "
+                  "which land in it automatically. What you enter here is the "
+                  "overheads — the costs tied to no machine.",
         },
         "steps": {
             "fr": [
                 "Ouvrez « Dépenses » puis « Nouvelle dépense ».",
-                "Première question, tout en haut : « Dépense liée à un véhicule ? ». C'est elle qui change le reste du formulaire.",
-                "Si OUI : choisissez le véhicule (la flotte en découle) et la catégorie — accident, lavage ou autre.",
-                "Si NON : donnez un nom libre à la dépense (ex. « Loyer du bureau », « Fournitures ») et, en option, une description.",
-                "Pour une dépense sans véhicule, la flotte est facultative : si vous n'en choisissez aucune, c'est une dépense de société, visible par toute personne ayant accès à la page.",
+                "Donnez un nom à la dépense (ex. « Loyer du bureau », « Fournitures »). C'est ce nom qui la décrit — il n'y a pas de catégorie à choisir.",
+                "Choisissez la flotte si la dépense en concerne une. Sans flotte, c'est une dépense de société, visible par toute personne ayant accès à la page.",
                 "Entrez la date et le montant, puis le moyen de paiement et la référence.",
-                "(Optionnel) Choisissez le conducteur à qui imputer la dépense.",
+                "(Optionnel) La description accepte plusieurs lignes, pour détailler ce que recouvre la dépense.",
                 "Enregistrez.",
             ],
             "en": [
                 "Open \"Expenses\" then \"New expense\".",
-                "First question, right at the top: \"Expense tied to a vehicle?\". It decides what the rest of the form looks like.",
-                "If YES: pick the vehicle (the fleet follows from it) and the category — accident, washing or other.",
-                "If NO: give the expense a free-text name (e.g. \"Office rent\", \"Supplies\") and, optionally, a description.",
-                "For an expense without a vehicle the fleet is optional: leave it empty and it becomes a company expense, visible to anyone with access to the page.",
+                "Name the expense (e.g. \"Office rent\", \"Supplies\"). That name is what describes it — there is no category to pick.",
+                "Pick the fleet if the cost belongs to one. With no fleet it is a company cost, visible to anyone with access to the page.",
                 "Enter the date and amount, then the payment method and reference.",
-                "(Optional) Pick the driver the cost is attributed to.",
+                "(Optional) The description takes several lines, to spell out what the cost covers.",
                 "Save.",
             ],
         },
         "tips": {
             "fr": [
                 "Les coûts d'entretien ne se saisissent PAS ici : ils se saisissent sur la fiche d'entretien et apparaissent ensuite dans cette liste, catégorie « Entretien », en lecture seule. Pour corriger un tel montant, passez par la fiche d'entretien.",
+                "Les achats de pièces ne se saisissent pas ici non plus : ils partent de « Stock pièces », catégorie « Achat de pièces », également en lecture seule.",
                 "Le carburant a sa propre page — voir la rubrique précédente. Il apparaît aussi dans cette liste si vous filtrez dessus.",
-                "Le filtre en haut permet d'isoler une catégorie, ou les dépenses générales (sans véhicule).",
+                "Une dépense de cette page n'est rattachée à aucune machine. Les coûts d'un véhicule se suivent depuis sa fiche : carburant, entretien et pièces y sont déjà.",
+                "Le filtre en haut isole une catégorie. Les catégories accident et lavage restent affichées pour l'historique, même si elles ne se saisissent plus.",
             ],
             "en": [
                 "Service costs are NOT entered here: you enter them on the service record and they then appear in this list under \"Maintenance\", read-only. To fix such an amount, go through the service record.",
+                "Parts purchases are not entered here either: they come from \"Parts stock\" under \"Parts purchase\", also read-only.",
                 "Fuel has its own page — see the previous topic. It also shows in this list if you filter for it.",
-                "The filter at the top isolates a category, or the general (vehicle-less) expenses.",
+                "A cost on this page belongs to no machine. A vehicle's costs are followed from its own sheet, where fuel, services and parts already are.",
+                "The filter at the top isolates a category. The accident and washing categories stay listed for history, even though nothing new is filed under them.",
             ],
         },
     },

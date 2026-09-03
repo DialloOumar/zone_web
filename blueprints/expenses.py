@@ -3,7 +3,7 @@
 Every cost lives in one table (Expense), but is captured where it belongs:
 
   • /carburant — fuel, always tied to a vehicle, with litres
-  • /expenses  — accident / lavage / autre, tied to a vehicle or not
+  • /expenses  — a named cost, on a fleet or on the company, no vehicle
 
 Maintenance costs also land in the ledger (category "entretien") but are written
 by the maintenance blueprint alongside their service record, so they show here
@@ -27,10 +27,12 @@ FUEL_CATEGORY = "fuel"           # own screen: /carburant
 MAINTENANCE_CATEGORY = "entretien"  # written by the maintenance blueprint only
 PARTS_CATEGORY = "pieces"        # written by the stock blueprint only (a receipt)
 
-# What the Dépenses form offers. Fuel has its own screen, "entretien" is created
-# from a service record and "pieces" from a stock receipt — none of the three is
-# selectable here, so the same cost can never be entered twice.
+# Categories that manual costs used to be filed under. Nothing is filed by hand
+# any more — the Dépenses form asks for a label instead, which says far more
+# than a fixed list ever did — but old rows keep theirs, so the filters and the
+# labels stay. New ones all land in DEFAULT_CATEGORY.
 EXPENSE_CATEGORIES = ["accident", "lavage", "autre"]
+DEFAULT_CATEGORY = "autre"
 
 # Every category that can appear in the ledger (filters, labels).
 ALL_CATEGORIES = ([FUEL_CATEGORY] + EXPENSE_CATEGORIES
@@ -130,46 +132,36 @@ def _common_fields(t):
 
 
 def _read_expense_form(expense):
-    """Dépenses form: a vehicle cost, or a free-standing one named by `label`.
-    Returns (data, None) or (None, err)."""
+    """Dépenses form: a cost named by `label`, on a fleet or on the company.
+
+    Neither a category, a vehicle nor a supplier is asked for here. The label is
+    what says what the cost is, which beats picking from a fixed list. Costs
+    that belong to a machine are recorded on its service record, not here.
+
+    Returns (data, None) or (None, err).
+    """
     t = get_t()
     common, error = _common_fields(t)
     if error:
         return None, error
 
-    category = (request.form.get("category") or "").strip()
-    if category not in EXPENSE_CATEGORIES:
-        return None, t["expense.err.category_required"]
-
     fids = current_user_fleet_ids()
-    is_vehicle = request.form.get("is_vehicle") is not None
 
-    if is_vehicle:
-        vehicle_id = request.form.get("vehicle_id", type=int) or None
-        if not vehicle_id:
-            return None, t["expense.err.vehicle_required"]
-        v = db.session.get(Vehicle, vehicle_id)
-        if not v:
-            return None, t["expense.err.vehicle_required"]
-        if fids is not None and v.fleet_id not in fids:
+    label = (request.form.get("label") or "").strip()
+    if not label:
+        return None, t["expense.err.label_required"]
+
+    # Fleet is optional: none at all = a company cost.
+    fleet_id = request.form.get("fleet_id", type=int) or None
+    if fleet_id:
+        if fids is not None and fleet_id not in fids:
             return None, t["error.forbidden"]
-        # The fleet always follows the vehicle — never asked for separately.
-        common.update(vehicle_id=v.id, fleet_id=v.fleet_id, label=None,
-                      operator=(request.form.get("operator") or "").strip() or None)
-    else:
-        label = (request.form.get("label") or "").strip()
-        if not label:
-            return None, t["expense.err.label_required"]
-        # Fleet is optional here: none at all = a company cost.
-        fleet_id = request.form.get("fleet_id", type=int) or None
-        if fleet_id:
-            if fids is not None and fleet_id not in fids:
-                return None, t["error.forbidden"]
-            if not db.session.get(Fleet, fleet_id):
-                return None, t["expense.err.fleet_required"]
-        common.update(vehicle_id=None, fleet_id=fleet_id, label=label, operator=None)
+        if not db.session.get(Fleet, fleet_id):
+            return None, t["expense.err.fleet_required"]
 
-    common.update(category=category, liters=None)
+    common.update(vehicle_id=None, fleet_id=fleet_id, label=label,
+                  operator=None, supplier=None, category=DEFAULT_CATEGORY,
+                  liters=None)
     return common, None
 
 
@@ -209,20 +201,21 @@ def _read_fuel_form(expense):
 
 
 def _form_context(expense):
-    preset_vehicle = request.args.get("vehicle_id", type=int)
-    preset_fleet = None
-    if preset_vehicle:
-        v = db.session.get(Vehicle, preset_vehicle)
-        if v:
-            preset_fleet = v.fleet_id
     return {
         "fleets": with_current_fleet(_accessible_fleets(), expense.fleet if expense else None),
+        "payment_methods": PAYMENT_METHODS,
+        "today": date.today().isoformat(),
+    }
+
+
+def _fuel_form_context(expense):
+    """The Carburant form still picks a machine and its driver — a fill-up is
+    always a vehicle's. Only the Dépenses form dropped those."""
+    return {
         "vehicles": _accessible_vehicles(),
         "operators": _accessible_operators(),
-        "categories": EXPENSE_CATEGORIES,
         "payment_methods": PAYMENT_METHODS,
-        "preset_vehicle": preset_vehicle,
-        "preset_fleet": preset_fleet,
+        "preset_vehicle": request.args.get("vehicle_id", type=int),
         "today": date.today().isoformat(),
     }
 
@@ -341,7 +334,8 @@ def delete(xid):
 def _render_fuel_form(expense, error=None):
     tpl = "_fuel_form.html" if is_modal_request() else "fuel_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, expense=expense, error=error, **_form_context(expense)), status
+    return render_template(tpl, expense=expense, error=error,
+                           **_fuel_form_context(expense)), status
 
 
 @expenses_bp.route("/carburant")
