@@ -22,18 +22,42 @@
         {% endif %}
     </div>
 
+    <form method="get" class="filter-bar">
+        {% if active %}<input type="hidden" name="f" value="{{ active }}">{% endif %}
+        <div class="field field--select" style="min-width:170px;">
+            <select name="month" onchange="this.form.submit()">
+                {% for m in months %}
+                <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ month_label(m) }}</option>
+                {% endfor %}
+            </select>
+            <label>{{ t['expense.month'] }}</label>
+        </div>
+        <div class="field field--select" style="min-width:170px;">
+            <select name="fleet_id" onchange="this.form.submit()">
+                <option value="">{{ t['expense.all_fleets'] }}</option>
+                {% for f in fleets %}
+                <option value="{{ f.id }}" {% if fleet_id == f.id %}selected{% endif %}>{{ f.name }}</option>
+                {% endfor %}
+            </select>
+            <label>{{ t['expense.fleet'] }}</label>
+        </div>
+        <noscript><button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button></noscript>
+    </form>
+
+    {# Origin, not category: what was typed here, what a service cost, what the
+       store was stocked with. #}
     <div class="filter-chips">
-        <a href="{{ url_for('expenses.index') }}" class="filter-chip {% if not active %}active{% endif %}">{{ t['expense.all'] }}</a>
+        <a href="{{ url_for('expenses.index', month=month, fleet_id=fleet_id or None) }}"
+           class="filter-chip {% if not active %}active{% endif %}">{{ t['expense.all'] }}</a>
         {% for f in filters %}
-        <a href="{{ url_for('expenses.index', f=f) }}" class="filter-chip {% if active == f %}active{% endif %}">
-            {{ t['expense.filter.general'] if f == 'general' else t['expense.cat.' + f] }}
-        </a>
+        <a href="{{ url_for('expenses.index', f=f, month=month, fleet_id=fleet_id or None) }}"
+           class="filter-chip {% if active == f %}active{% endif %}">{{ t['expense.origin.' + f] }}</a>
         {% endfor %}
     </div>
 
     {% if expenses %}
     <div class="expense-total">
-        {{ t['expense.total'] }}<strong>{{ '{:,}'.format(total) }} {{ currency }}</strong>
+        {{ t['expense.total_month'] }}<strong>{{ '{:,}'.format(total) }} {{ currency }}</strong>
         <span class="muted small">· {{ expenses|length }} {{ t['expense.count'] }}</span>
     </div>
 
@@ -129,7 +153,7 @@
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">payments</span>
-        <p>{{ t['expense.empty'] }}</p>
+        <p>{{ t['expense.empty_month'] }}</p>
         {% if has_perm('expense.create') %}
         <a href="{{ url_for('expenses.new') }}" class="fab" data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}

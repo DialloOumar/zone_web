@@ -122,6 +122,17 @@ def set_language(lang):
     return redirect(request.referrer or url_for("dashboard"))
 
 
+def month_label(ym):
+    """'2026-08' -> 'août 2026' in the reader's language. Falls back to the raw
+    value for anything that is not a YYYY-MM string."""
+    try:
+        year, mo = ym.split("-")
+        abbr = MONTH_ABBR.get(current_lang(), MONTH_ABBR["en"])
+        return "%s %s" % (abbr[int(mo) - 1], year)
+    except (AttributeError, ValueError, IndexError):
+        return ym
+
+
 @app.context_processor
 def _inject_globals():
     """Make `t`, `has_perm`, `lang`, `v` callable inside Jinja templates."""
@@ -160,6 +171,8 @@ def _inject_globals():
         # Fresh 1-hour presigned URL for a private S3 object (photo). Returns
         # None when the key is empty or storage isn't configured.
         "photo_url": s3_storage.signed_url,
+        # "2026-08" -> "août 2026", for month pickers and period headings.
+        "month_label": month_label,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,

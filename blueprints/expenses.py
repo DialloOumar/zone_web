@@ -72,6 +72,19 @@ def _accessible_operators():
     return q.order_by(Operator.name).all()
 
 
+def _recent_months():
+    """The last 12 months, newest first — what the month picker offers."""
+    today = date.today()
+    out = []
+    y, m = today.year, today.month
+    for _ in range(12):
+        out.append("%04d-%02d" % (y, m))
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    return out
+
+
 def _scoped_expenses():
     """Ledger rows the user may see: the costs of their own fleets, plus the
     company costs (no fleet), which anyone allowed on this page can see."""
@@ -229,23 +242,57 @@ def _render_expense_form(expense, error=None):
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 
+# Where a cost came from, which is the only split that still says anything:
+# what someone typed on this page, what an intervention cost, what the store
+# was stocked with. Categories used to carry this and no longer can — every
+# manual cost lands in the same one.
+ORIGINS = {
+    "general":   lambda q: q.filter(Expense.category.notin_(
+                     [MAINTENANCE_CATEGORY, PARTS_CATEGORY])),
+    "entretien": lambda q: q.filter(Expense.category == MAINTENANCE_CATEGORY),
+    "pieces":    lambda q: q.filter(Expense.category == PARTS_CATEGORY),
+}
+
+
+def _month_bounds(month):
+    """('2026-08') -> ('2026-08-01', '2026-08-31'), or (None, None) if unusable.
+    Dates are stored as YYYY-MM-DD strings, so a prefix compare is enough."""
+    try:
+        datetime.strptime(month, "%Y-%m")
+    except (TypeError, ValueError):
+        return None, None
+    return month + "-01", month + "-31"
+
+
 @expenses_bp.route("/expenses")
 @login_required
 @require_perm("expense.view")
 def index():
-    """Everything except fuel, which has its own screen."""
+    """Everything except fuel, which has its own screen.
+
+    Filtered by month first: a ledger without a period shows the last N rows and
+    a total nobody can compare to anything. The origin chips replace the old
+    category ones — see ORIGINS.
+    """
     active = request.args.get("f") or ""
+    month = (request.args.get("month") or "").strip() or date.today().strftime("%Y-%m")
+    fleet_id = request.args.get("fleet_id", type=int)
+
     q = _scoped_expenses().filter(Expense.category != FUEL_CATEGORY)
-    if active == "general":
-        q = q.filter(Expense.vehicle_id.is_(None))
-    elif active in EXPENSE_CATEGORIES + [MAINTENANCE_CATEGORY, PARTS_CATEGORY]:
-        q = q.filter(Expense.category == active)
+    if active in ORIGINS:
+        q = ORIGINS[active](q)
+    start, end = _month_bounds(month)
+    if start:
+        q = q.filter(Expense.date >= start, Expense.date <= end)
+    if fleet_id:
+        q = q.filter(Expense.fleet_id == fleet_id)
+
     expenses = q.order_by(Expense.date.desc(), Expense.id.desc()).limit(300).all()
     total = sum(e.amount for e in expenses)
     return render_template(
         "expenses.html", expenses=expenses, total=total, active=active,
-        filters=(["general"] + EXPENSE_CATEGORIES
-                 + [MAINTENANCE_CATEGORY, PARTS_CATEGORY]),
+        filters=list(ORIGINS), month=month, fleet_id=fleet_id,
+        fleets=_accessible_fleets(), months=_recent_months(),
         maintenance_category=MAINTENANCE_CATEGORY)
 
 
