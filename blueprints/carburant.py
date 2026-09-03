@@ -269,6 +269,13 @@ def _read_citerne_form(citerne):
                                "Le stock de départ ne peut pas descendre sous "
                                "%(min)d L : la citerne a déjà distribué ce "
                                "carburant.") % {"min": citerne.opening_stock - room}
+        # The same in reverse, against the ceiling: raising it — or shrinking
+        # the cuve — must not leave the tank holding more than it can.
+        peak = citerne.max_stock_from(None) - citerne.opening_stock + initial
+        if peak > cap:
+            return None, t.get("citerne.err.over_capacity_history",
+                               "Ce réglage mettrait %(peak)d L dans une cuve de "
+                               "%(cap)d L. Corrigez les mouvements d'abord.")                 % {"peak": peak, "cap": cap}
 
     return dict(code=code, name=name, capacity_liters=cap, fleet_id=fleet_id,
                 initial=initial), None
@@ -516,10 +523,16 @@ def _read_rentree_form():
     liters = request.form.get("liters", type=int)
     if not liters or liters <= 0:
         return None, t.get("rentree.err.liters", "Litres invalides.")
-    if c.stock + liters > c.capacity_liters:
-        return None, t.get("rentree.err.over_capacity",
-                           "Cette rentrée dépasse la capacité (%d L max, %d L déjà en cuve)."
-                           % (c.capacity_liters, c.stock))
+    # Against the highest level from that date onward, not today's: a fill dated
+    # before a stretch where the tank was already full would otherwise overflow
+    # it back then, and a legitimate back-dated one gets refused whenever the
+    # citerne happens to be full now.
+    room = c.capacity_liters - c.max_stock_from(date_str)
+    if liters > room:
+        return None, t.get(
+            "rentree.err.over_capacity",
+            "Cette rentrée dépasse la capacité : la citerne ne peut recevoir "
+            "que %(n)d L à cette date.") % {"n": max(room, 0)}
 
     return dict(citerne_id=c.id, date=date_str, liters=liters,
                 note=(request.form.get("reference") or "").strip() or None), None
@@ -708,10 +721,12 @@ def _read_ravitaillement_form():
             # The citerne took fuel for its own engine, not for its reservoir.
             return dict(kind="conso", citerne_id=c.id, date=date_str, time=time_str,
                         liters=liters, operator=operator), None
-        if c.stock + liters > c.capacity_liters:
-            return None, t.get("rentree.err.over_capacity",
-                               "Cette rentrée dépasse la capacité (%d L max, %d L déjà en cuve)."
-                               % (c.capacity_liters, c.stock))
+        room = c.capacity_liters - c.max_stock_from(date_str)
+        if liters > room:
+            return None, t.get(
+                "rentree.err.over_capacity",
+                "Cette rentrée dépasse la capacité : la citerne ne peut recevoir "
+                "que %(n)d L à cette date.") % {"n": max(room, 0)}
         return dict(kind="rentree", citerne_id=c.id, date=date_str, time=time_str,
                     liters=liters, operator=operator,
                     note=(request.form.get("reference") or "").strip() or None), None
@@ -780,9 +795,15 @@ def movement_delete(mid):
         abort(403)
     # Removing a rentrée must not push the tank below zero — on its own date or
     # on any day after it, same rule as a draw.
-    if mv.kind == "rentree" and c and c.min_stock_from(mv.date) - mv.liters < 0:
+    if mv.kind == "rentree" and c and c.floor_if_removed(mv.date, mv.liters) < 0:
         flash("error|" + get_t().get("rentree.err.delete_negative",
               "Suppression impossible : le stock deviendrait négatif."))
+        return redirect(request.referrer or url_for("carburant.index"))
+    # … and putting a distribution's litres back must not overflow the tank.
+    if (mv.kind == "distribution" and c
+            and c.peak_if_returned(mv.date, mv.liters) > c.capacity_liters):
+        flash("error|" + get_t().get("distribution.err.delete_over_capacity",
+              "Suppression impossible : le stock dépasserait la capacité."))
         return redirect(request.referrer or url_for("carburant.index"))
     db.session.delete(mv)
     log_action("DELETE", "fuel_movement", resource_id=mid,

@@ -589,21 +589,22 @@ class Citerne(db.Model):
                       # the level the tank started at, not something that happened.
                       key=lambda m: (m.kind != "initial", m.date, m.id or 0))
 
-    def min_stock_from(self, date_str=None):
-        """The lowest the tank ever gets from `date_str` onward (None = over its
-        whole history).
+    def _levels(self, date_str):
+        """(level just before `date_str`, lowest after, highest after).
 
-        This, not `stock`, is what a draw has to fit inside. Checking against
-        today's level lets a back-dated distribution through whenever the tank
-        has since been refilled — and the tank was empty on the day the fuel is
-        claimed to have come out of it.
+        Every check on a citerne needs these, never today's level: a movement
+        carries a date, and it only shifts the levels from that date onward —
+        the one before it stays put. Comparing against `stock`, an undated
+        total, is what let a back-dated draw empty a tank that was full months
+        later, and a back-dated fill overflow one since emptied.
+
+        `before` is 0 when nothing came earlier, and None when no date is given
+        (over the whole history there is no such starting point). Lowest and
+        highest are None when nothing is dated at or after `date_str`.
         """
         running = 0
-        # The level the tank sits at on that date, before anything happens on it.
-        # Zero when nothing came earlier — an empty tank is the honest starting
-        # point. For the whole history (no date) there is no such floor to add.
         before = 0 if date_str is not None else None
-        lowest = None
+        lowest = highest = None
         for m in self._reservoir_movements():
             delta = m.liters if m.kind in ("initial", "rentree") else -m.liters
             if m.kind == "initial" or (date_str is not None and m.date < date_str):
@@ -612,9 +613,40 @@ class Citerne(db.Model):
                 continue
             running += delta
             lowest = running if lowest is None else min(lowest, running)
-        if lowest is None:
-            return before if before is not None else running
-        return lowest if before is None else min(before, lowest)
+            highest = running if highest is None else max(highest, running)
+        return before, lowest, highest
+
+    @staticmethod
+    def _pick(pick, *values):
+        vals = [v for v in values if v is not None]
+        return pick(vals) if vals else 0
+
+    def min_stock_from(self, date_str=None):
+        """The lowest the tank gets from `date_str` onward. What a draw has to
+        fit inside — a draw lowers that date's level and every one after it."""
+        before, lowest, _ = self._levels(date_str)
+        return self._pick(min, before, lowest)
+
+    def max_stock_from(self, date_str=None):
+        """The highest the tank gets from `date_str` onward. What a fill has to
+        leave room for under the capacity."""
+        before, _, highest = self._levels(date_str)
+        return self._pick(max, before, highest)
+
+    def peak_if_returned(self, date_str, liters):
+        """Highest level the tank would reach if `liters` went back in from this
+        date on — deleting a distribution. The level before it does not move,
+        so it is compared as it stands rather than raised too."""
+        before, _, highest = self._levels(date_str)
+        return self._pick(max, before,
+                          None if highest is None else highest + liters)
+
+    def floor_if_removed(self, date_str, liters):
+        """Lowest level the tank would fall to if `liters` came out from this
+        date on — deleting a rentrée. Same reasoning in reverse."""
+        before, lowest, _ = self._levels(date_str)
+        return self._pick(min, before,
+                          None if lowest is None else lowest - liters)
 
     @property
     def opening_stock(self):
