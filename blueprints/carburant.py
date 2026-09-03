@@ -258,19 +258,20 @@ def _read_citerne_form(citerne):
     if clash.first():
         return None, t.get("citerne.err.code_taken", "Ce code est déjà utilisé.")
 
-    # Lowering the opening stock lowers every level after it by the same amount.
-    # Take away more than the tank ever had spare and the history goes negative,
-    # so the fuel distributed since would have come out of an empty citerne.
+    # The opening stock is a declaration, not an event: nobody poured anything,
+    # someone stated what the tank already held. It is the figure most likely to
+    # be wrong, so it stays correctable — lowering it below what has since been
+    # dispensed only means a rentrée is missing, and the shortfall is reported
+    # rather than refused. Logging that rentrée settles it on its own.
+    shortfall = 0
     if citerne:
         drop = citerne.opening_stock - initial
-        room = citerne.min_stock_from(None)
-        if drop > room:
-            return None, t.get("citerne.err.opening_too_low",
-                               "Le stock de départ ne peut pas descendre sous "
-                               "%(min)d L : la citerne a déjà distribué ce "
-                               "carburant.") % {"min": citerne.opening_stock - room}
-        # The same in reverse, against the ceiling: raising it — or shrinking
-        # the cuve — must not leave the tank holding more than it can.
+        new_floor = citerne.min_stock_from(None) - drop
+        if new_floor < 0:
+            shortfall = -new_floor
+        # The ceiling is another matter: raising the opening past the brim, or
+        # shrinking the cuve under what it holds, corrects nothing and describes
+        # a tank that cannot exist.
         peak = citerne.max_stock_from(None) - citerne.opening_stock + initial
         if peak > cap:
             return None, t.get("citerne.err.over_capacity_history",
@@ -278,7 +279,19 @@ def _read_citerne_form(citerne):
                                "%(cap)d L. Corrigez les mouvements d'abord.")                 % {"peak": peak, "cap": cap}
 
     return dict(code=code, name=name, capacity_liters=cap, fleet_id=fleet_id,
-                initial=initial), None
+                initial=initial, shortfall=shortfall), None
+
+
+def _flash_shortfall(shortfall):
+    """Say the tank now reads under zero on some dates, and what settles it.
+    Worded as a missing entry, which is what it is."""
+    if not shortfall:
+        return
+    flash("warning|" + get_t().get(
+        "citerne.warn_negative",
+        "Le stock de cette citerne passe sous zéro de %(n)d L : il manque une "
+        "rentrée. Enregistrez-la à sa date et le compte se remet d'aplomb.")
+        % {"n": shortfall})
 
 
 def _set_initial_stock(citerne, liters, today):
@@ -343,6 +356,7 @@ def citerne_new():
         if error:
             return _render_citerne_form(None, error)
         initial = data.pop("initial")
+        shortfall = data.pop("shortfall")
         c = Citerne(created_by=current_user.id, **data)
         db.session.add(c)
         db.session.flush()
@@ -355,6 +369,7 @@ def citerne_new():
                    detail=f"Created citerne '{c.code}'")
         db.session.commit()
         flash("success|" + t.get("citerne.created", "Citerne créée."))
+        _flash_shortfall(shortfall)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_citerne_form(None)
 
@@ -370,6 +385,7 @@ def citerne_edit(cid):
         if error:
             return _render_citerne_form(citerne, error)
         initial = data.pop("initial")
+        shortfall = data.pop("shortfall")
         for k, v in data.items():
             setattr(citerne, k, v)
         perr = _apply_citerne_photo_change(citerne)
@@ -381,6 +397,7 @@ def citerne_edit(cid):
                    detail=f"Updated citerne '{citerne.code}'")
         db.session.commit()
         flash("success|" + t.get("citerne.updated", "Citerne mise à jour."))
+        _flash_shortfall(shortfall)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_citerne_form(citerne)
 
