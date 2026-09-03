@@ -20,6 +20,12 @@
             <strong>{{ '{:,}'.format(balance) }} {{ currency }}</strong>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+            {% if has_perm('report.export_pdf') %}
+            <a href="{{ url_for('expenses.export_print', **request.args.to_dict()) }}"
+               class="btn btn--sm btn--outlined" target="_blank" rel="noopener">
+                <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['caisse.report'] }}
+            </a>
+            {% endif %}
             {% if has_perm('expense.create') %}
             <a href="{{ url_for('expenses.deposit_new') }}" class="btn btn--tonal"
                data-modal-url="{{ url_for('expenses.deposit_new') }}" data-modal-title="{{ t['caisse.deposit_new'] }}">
@@ -33,14 +39,28 @@
     </div>
 
     <form method="get" class="filter-bar">
-        <div class="field field--select" style="min-width:170px;">
+        <div class="field field--select" style="min-width:150px;">
             <select name="month" onchange="this.form.submit()">
+                <option value="">{{ t['caisse.all_periods'] }}</option>
                 {% for m in months %}
                 <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ month_label(m) }}</option>
                 {% endfor %}
             </select>
             <label>{{ t['expense.month'] }}</label>
         </div>
+        {# A du/au wins over the month picker — see _period_bounds. #}
+        <div class="field" style="min-width:135px;">
+            <input type="date" name="date_from" value="{{ date_from }}" placeholder=" ">
+            <label>{{ t['entry.from'] }}</label>
+        </div>
+        <div class="field" style="min-width:135px;">
+            <input type="date" name="date_to" value="{{ date_to }}" placeholder=" ">
+            <label>{{ t['entry.to'] }}</label>
+        </div>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        {% if date_from or date_to %}
+        <a href="{{ url_for('expenses.index') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
+        {% endif %}
         <div class="field field--select" style="min-width:170px;">
             <select name="fleet_id" onchange="this.form.submit()">
                 <option value="">{{ t['expense.all_fleets'] }}</option>
@@ -50,7 +70,6 @@
             </select>
             <label>{{ t['expense.fleet'] }}</label>
         </div>
-        <noscript><button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button></noscript>
     </form>
 
 

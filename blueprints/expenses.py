@@ -267,6 +267,23 @@ def cash_balance():
     return paid_in - spent
 
 
+def _period_bounds():
+    """The window the page and the report both read, from the query string.
+
+    An explicit du/au wins; otherwise the month picker. Either end can be left
+    open — "everything since March" is a normal thing to ask for.
+    """
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
+    if _valid_date(date_from) or _valid_date(date_to):
+        return (date_from if _valid_date(date_from) else None,
+                date_to if _valid_date(date_to) else None,
+                "", date_from, date_to)
+    month = (request.args.get("month") or "").strip() or date.today().strftime("%Y-%m")
+    start, end = _month_bounds(month)
+    return start, end, month, "", ""
+
+
 def _month_bounds(month):
     """('2026-08') -> ('2026-08-01', '2026-08-31'), or (None, None) if unusable.
     Dates are stored as YYYY-MM-DD strings, so a prefix compare is enough."""
@@ -287,20 +304,23 @@ def index():
     a total nobody can compare to anything. The origin chips replace the old
     category ones — see ORIGINS.
     """
-    month = (request.args.get("month") or "").strip() or date.today().strftime("%Y-%m")
+    start, end, month, date_from, date_to = _period_bounds()
     fleet_id = request.args.get("fleet_id", type=int)
-    start, end = _month_bounds(month)
 
     q = _cash_expenses()
     if start:
-        q = q.filter(Expense.date >= start, Expense.date <= end)
+        q = q.filter(Expense.date >= start)
+    if end:
+        q = q.filter(Expense.date <= end)
     if fleet_id:
         q = q.filter(Expense.fleet_id == fleet_id)
     expenses = q.order_by(Expense.date.desc(), Expense.id.desc()).limit(300).all()
 
     dq = CashMovement.query
     if start:
-        dq = dq.filter(CashMovement.date >= start, CashMovement.date <= end)
+        dq = dq.filter(CashMovement.date >= start)
+    if end:
+        dq = dq.filter(CashMovement.date <= end)
     deposits = dq.order_by(CashMovement.date.desc(), CashMovement.id.desc()).all()
 
     return render_template(
@@ -308,6 +328,7 @@ def index():
         total=sum(e.amount for e in expenses),
         deposited=sum(d.amount for d in deposits),
         balance=cash_balance(), month=month, fleet_id=fleet_id,
+        date_from=date_from, date_to=date_to,
         fleets=_accessible_fleets(), months=_recent_months(),
         maintenance_category=MAINTENANCE_CATEGORY)
 
@@ -389,6 +410,98 @@ def delete(xid):
     db.session.commit()
     flash("success|" + t["expense.deleted"])
     return redirect(request.referrer or url_for("expenses.index"))
+
+
+# ── Caisse: the printable report ─────────────────────────────────────────────
+
+REPORT_LIMIT = 1000   # rows in one document; flagged on the page when reached
+
+
+def _caisse_report(start, end, fleet_id):
+    """The cash book for a window: what was in the box when it opened, every
+    movement in date order with the balance after each, and what is left.
+
+    Ordered oldest first — a running balance only reads forward — which is the
+    opposite of the screen, where the newest line matters most.
+    """
+    paid_in_before = spent_before = 0
+    if start:
+        paid_in_before = db.session.query(db.func.coalesce(
+            db.func.sum(CashMovement.amount), 0)).filter(
+            CashMovement.date < start).scalar() or 0
+        spent_before = db.session.query(db.func.coalesce(
+            db.func.sum(Expense.amount), 0)).filter(
+            Expense.category.notin_([FUEL_CATEGORY, MAINTENANCE_CATEGORY,
+                                     PARTS_CATEGORY]),
+            Expense.date < start).scalar() or 0
+    opening = paid_in_before - spent_before
+
+    dq = CashMovement.query
+    xq = _cash_expenses()
+    if start:
+        dq = dq.filter(CashMovement.date >= start)
+        xq = xq.filter(Expense.date >= start)
+    if end:
+        dq = dq.filter(CashMovement.date <= end)
+        xq = xq.filter(Expense.date <= end)
+    if fleet_id:
+        xq = xq.filter(Expense.fleet_id == fleet_id)
+
+    rows = []
+    for d in dq.all():
+        rows.append({"date": d.date, "label": d.source or get_t()["caisse.deposit"],
+                     "detail": d.note or d.reference, "method": d.method,
+                     "in": d.amount, "out": 0})
+    for x in xq.all():
+        rows.append({"date": x.date, "label": x.label or "—",
+                     "detail": x.description or x.payment_reference,
+                     "method": x.payment_method,
+                     "in": 0, "out": x.amount})
+    rows.sort(key=lambda r: r["date"])
+    truncated = len(rows) > REPORT_LIMIT
+    rows = rows[:REPORT_LIMIT]
+
+    running = opening
+    for r in rows:
+        running += r["in"] - r["out"]
+        r["balance"] = running
+
+    return dict(
+        rows=rows, opening=opening,
+        total_in=sum(r["in"] for r in rows),
+        total_out=sum(r["out"] for r in rows),
+        closing=running, truncated=truncated)
+
+
+@expenses_bp.route("/expenses/export.print")
+@login_required
+@require_perm("report.export_pdf")
+def export_print():
+    """The cash book, laid out for the browser to print — same arrangement as
+    the pointage export, and the filters come from the query string so what
+    prints does not depend on what the page happens to show."""
+    t = get_t()
+    start, end, month, date_from, date_to = _period_bounds()
+    fleet_id = request.args.get("fleet_id", type=int)
+
+    parts = []
+    if fleet_id:
+        fl = db.session.get(Fleet, fleet_id)
+        if fl:
+            parts.append(fl.name)
+    if month:
+        parts.append(month)
+    elif start or end:
+        parts.append("%s → %s" % (start or "…", end or "…"))
+    subtitle = " · ".join(parts) if parts else t.get("caisse.all_periods",
+                                                    "Toutes périodes")
+
+    return render_template(
+        "caisse_print.html",
+        back_url=url_for("expenses.index", **request.args.to_dict()),
+        subtitle=subtitle,
+        generated=datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
+        **_caisse_report(start, end, fleet_id))
 
 
 # ── Caisse: money paid in ────────────────────────────────────────────────────

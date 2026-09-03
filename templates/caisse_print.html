@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+{# Browser print view (expenses.export_print) — same arrangement as the pointage
+   export: a standalone page, no base.html, opening the print dialog on load. #}
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ t['caisse.report_title'] }} — {{ subtitle }}</title>
+<style>
+{% include '_export_style.html' %}
+
+@media screen {
+    html { background: #eef1f6; overflow-x: hidden; }
+    body {
+        max-width: 29.7cm; margin: 16px auto 40px; padding: 1.5cm 1.8cm;
+        background: #fff; border-radius: 12px;
+        box-shadow: 0 1px 2px rgba(0,0,0,.28), 0 1px 3px 1px rgba(0,0,0,.10);
+    }
+    .print-toolbar {
+        position: sticky; top: 0; z-index: 10; display: flex; gap: 10px;
+        align-items: center; justify-content: flex-end; flex-wrap: wrap;
+        margin: -1.5cm -1.8cm 20px; padding: 12px 1.8cm;
+        border-radius: 12px 12px 0 0;
+        background: #0F74BC; color: #fff; font-size: 13px;
+        font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    .print-toolbar__hint { margin-right: auto; font-size: 12px; color: #d4e9fb; }
+    .print-toolbar a, .print-toolbar button {
+        font: inherit; font-weight: 500; cursor: pointer; border-radius: 999px;
+        padding: 7px 16px; border: 1px solid rgba(255,255,255,.55);
+        background: transparent; color: #fff; text-decoration: none;
+    }
+    .print-toolbar button { background: #fff; border-color: #fff; color: #0F74BC; font-weight: 700; }
+
+    @media (max-width: 820px) {
+        body { margin: 0; padding: 12px 14px 32px; border-radius: 0; box-shadow: none; }
+        .print-toolbar { margin: -12px -14px 16px; padding: 10px 14px; border-radius: 0; }
+        .print-toolbar__hint { flex-basis: 100%; margin: 0 0 2px; }
+        .print-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+        .print-header-right { text-align: left; }
+        .print-summary { flex-wrap: wrap; gap: 8px; }
+        .print-summary-box { flex: 1 1 42%; }
+        .doc-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .doc-table .data-table { min-width: 640px; }
+        .print-signatories { flex-direction: column; align-items: stretch; gap: 24px; }
+        .print-signatory { width: 100%; }
+        .print-footer-note { flex-direction: column; gap: 4px; }
+    }
+}
+@media print {
+    .print-toolbar { display: none !important; }
+    .doc-table { overflow: visible !important; }
+    .doc-table .data-table { min-width: 0 !important; }
+}
+/* The balance column carries the whole point of the document, so it is the one
+   thing set apart from the rest of the row. */
+.cash-balance-col { font-weight: 700; }
+.cash-neg { color: #b3261e; }
+</style>
+</head>
+<body>
+
+<div class="print-toolbar">
+    <span class="print-toolbar__hint">{{ t['export.print_hint'] }}</span>
+    <a href="{{ back_url }}">{{ t['btn.cancel'] }}</a>
+    <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
+</div>
+
+<div class="print-header">
+    <img class="brand-logo" src="{{ url_for('static', filename='images/logo.svg') }}"
+         alt="{{ t['app.title'] }}">
+    <div class="print-header-right">
+        <div class="print-report-title">{{ t['caisse.report_title'] }}</div>
+        <div class="print-meta">
+            {{ subtitle }}<br>
+            {{ t['export.generated'] }} {{ generated }} · {{ rows|length }} {{ t['export.count'] }}
+            {% if truncated %}<br><strong>{{ t['export.truncated'] }}</strong>{% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="print-summary">
+    <div class="print-summary-box ps-navy"><span class="ps-label">{{ t['caisse.opening'] }}</span><span class="ps-value">{{ '{:,}'.format(opening) }}</span></div>
+    <div class="print-summary-box ps-green"><span class="ps-label">{{ t['caisse.deposited'] }}</span><span class="ps-value">{{ '{:,}'.format(total_in) }}</span></div>
+    <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['caisse.spent'] }}</span><span class="ps-value">{{ '{:,}'.format(total_out) }}</span></div>
+    <div class="print-summary-box ps-blue"><span class="ps-label">{{ t['caisse.closing'] }}</span><span class="ps-value">{{ '{:,}'.format(closing) }}</span></div>
+</div>
+
+<div class="doc-table">
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>{{ t['expense.date'] }}</th>
+            <th>{{ t['expense.label'] }}</th>
+            <th>{{ t['expense.payment_method'] }}</th>
+            <th class="r">{{ t['caisse.deposited'] }}</th>
+            <th class="r">{{ t['caisse.spent'] }}</th>
+            <th class="r">{{ t['caisse.balance'] }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td colspan="5"><em>{{ t['caisse.opening'] }}</em></td>
+            <td class="r cash-balance-col {% if opening < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(opening) }}</td>
+        </tr>
+        {% for r in rows %}
+        <tr>
+            <td>{{ r.date }}</td>
+            <td>{{ r.label }}{% if r.detail %}<div class="muted">{{ r.detail }}</div>{% endif %}</td>
+            <td>{{ t['pay.' + r.method] if r.method else '—' }}</td>
+            <td class="r">{% if r['in'] %}{{ '{:,}'.format(r['in']) }}{% endif %}</td>
+            <td class="r">{% if r.out %}{{ '{:,}'.format(r.out) }}{% endif %}</td>
+            <td class="r cash-balance-col {% if r.balance < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(r.balance) }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <td colspan="3"><strong>{{ t['caisse.closing'] }}</strong></td>
+            <td class="r"><strong>{{ '{:,}'.format(total_in) }}</strong></td>
+            <td class="r"><strong>{{ '{:,}'.format(total_out) }}</strong></td>
+            <td class="r cash-balance-col {% if closing < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(closing) }}</td>
+        </tr>
+    </tbody>
+</table>
+</div>
+
+<div class="print-signatories">
+    <div class="print-signatory">
+        <div class="print-signatory-line"></div>
+        <div class="print-signatory-name">{{ t['caisse.sign_holder'] }}</div>
+        <div class="print-signatory-title">{{ t['export.name_date'] }}</div>
+    </div>
+    <div class="print-signatory">
+        <div class="print-signatory-line"></div>
+        <div class="print-signatory-name">{{ t['export.validated'] }}</div>
+        <div class="print-signatory-title">{{ t['export.name_date'] }}</div>
+    </div>
+</div>
+
+<script>
+(function () {
+    function printNow() {
+        requestAnimationFrame(function () {
+            setTimeout(function () { window.print(); }, 120);
+        });
+    }
+    if (document.readyState === "complete") printNow();
+    else window.addEventListener("load", printNow);
+})();
+</script>
+
+</body>
+</html>

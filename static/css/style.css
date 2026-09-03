@@ -20,9 +20,20 @@
    fetched with a modern browser UA, then save the woff2 it points at over
    fonts/material-symbols.woff2 and bump the ?v= below. The list must cover
    icon names injected from JavaScript (main.js builds the modal close button)
-   and from Python (help_content.py, _onboarding_steps) as well as the ones
-   grepped out of the templates — missing those is exactly how `close` ended
-   up invisible. */
+   and from Python (help_content.py, _onboarding_steps), the ones written as
+   CSS content: below (the alert marks), and the ones grepped out of the
+   templates — missing those is exactly how `close` ended up invisible, and
+   later how the parts store and the cash box shipped with no icon at all.
+
+   The list as of v4 (46 names):
+     account_balance_wallet, add, admin_panel_settings, archive, arrow_back,
+     badge, bedtime, category, check_circle, chevron_left, chevron_right,
+     close, delete, directions_bus, donut_large, edit, error, fact_check,
+     group, handyman, help, history, info, inventory, list_alt,
+     local_gas_station, lock_reset, logout, menu, payments, pending_actions,
+     photo_camera, picture_as_pdf, query_stats, request_quote, rule, save,
+     settings, shelves, space_dashboard, task_alt, translate, tune, unarchive,
+     warning, workspaces */
 @font-face {
     font-family: "Roboto";
     font-style: normal;
@@ -49,7 +60,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2?v=3") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=4") format("woff2");
 }
 
 /* ── Design tokens (light) ── */
