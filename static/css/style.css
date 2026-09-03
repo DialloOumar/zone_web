@@ -539,6 +539,10 @@ a:hover { text-decoration: underline; }
 /* Two-column form rows (collapse to one column on narrow screens) */
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 
+/* A tank reading under zero: the figure itself carries the alarm, since the
+   gauge bar cannot draw a negative fill and would just look empty. */
+.stock-negative { color: var(--c-red); }
+
 /* ── Cost breakdown (ledger rows vs. parts drawn from the store) ── */
 .cost-split {
     margin-top: 14px;
