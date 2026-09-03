@@ -23,7 +23,7 @@
             {% if has_perm('expense.create') %}
             <a href="{{ url_for('expenses.deposit_new') }}" class="btn btn--tonal"
                data-modal-url="{{ url_for('expenses.deposit_new') }}" data-modal-title="{{ t['caisse.deposit_new'] }}">
-                <span class="material-symbols-outlined">savings</span> {{ t['caisse.deposit_new'] }}
+                <span class="material-symbols-outlined">account_balance_wallet</span> {{ t['caisse.deposit_new'] }}
             </a>
             <a href="{{ url_for('expenses.new') }}" class="fab" data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}

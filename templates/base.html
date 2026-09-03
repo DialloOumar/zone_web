@@ -55,7 +55,7 @@
                it belongs beside it rather than down with the maintenance setup. #}
             {% if has_perm('stock.view') %}
             <li><a href="{{ url_for('stock.index') }}" class="sidebar-sub {% if request.blueprint == 'stock' %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">inventory_2</span> {{ t['nav.stock'] }}
+                <span class="nav-icon material-symbols-outlined">shelves</span> {{ t['nav.stock'] }}
             </a></li>
             {% endif %}
             {% if has_perm('expense.view') %}

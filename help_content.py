@@ -307,7 +307,7 @@ HELP_SECTIONS = [
     },
     {
         "id": "stock",
-        "icon": "inventory_2",
+        "icon": "shelves",
         "gate": {"perms": ["stock.view"]},
         "title": {"fr": "Stock des pièces d'entretien",
                   "en": "Maintenance parts stock"},

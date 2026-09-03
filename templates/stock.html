@@ -69,7 +69,7 @@
                         {% set turl = photo_url(p.photo_key) if p.photo_key else None %}
                         <span class="vehicle-thumb {% if not turl %}vehicle-thumb--empty{% endif %}">
                             {% if turl %}<img src="{{ turl }}" alt="" loading="lazy">
-                            {% else %}<span class="material-symbols-outlined">handyman</span>{% endif %}
+                            {% else %}<span class="material-symbols-outlined">shelves</span>{% endif %}
                         </span>
                         <span><strong>{{ p.name }}</strong>
                             <div class="muted small">{{ t['unit.' + p.unit] }}</div></span>
@@ -159,7 +159,7 @@
     </div>
     {% else %}
     <div class="empty-state">
-        <span class="material-symbols-outlined">handyman</span>
+        <span class="material-symbols-outlined">shelves</span>
         <p>{{ t['stock.no_match'] if search else t['stock.empty'] }}</p>
         {% if has_perm('stock.manage') and not search %}
         <a href="{{ url_for('stock.part_new') }}" class="fab"
