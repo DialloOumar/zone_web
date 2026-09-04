@@ -7,8 +7,7 @@
     {% if e.vehicle_id %}
         <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
     {% else %}
-        <strong>{{ e.label or t['expense.fleet_wide'] }}</strong>{% if e.quantity %} <span class="muted">× {{ '{:.10g}'.format(e.quantity) }}</span>{% endif %}
-        <div class="muted small">{{ e.fleet.name if e.fleet else t['expense.company'] }}</div>
+        <strong>{{ e.label or '—' }}</strong>{% if e.quantity %} <span class="muted">× {{ '{:.10g}'.format(e.quantity) }}</span>{% endif %}
     {% endif %}
 {%- endmacro %}
 
@@ -38,8 +37,8 @@
         </div>
     </div>
 
-    {# One period control, then the fleet, then the buttons. Two ways to pick a
-       period sitting side by side was the confusing part. #}
+    {# The period and nothing else: everything on this page is a company cost,
+       so there is no fleet left to narrow by. #}
     <form method="get" class="filter-bar">
         <div class="field" style="min-width:150px;">
             <input type="date" name="date_from" value="{{ date_from }}" placeholder=" ">
@@ -48,15 +47,6 @@
         <div class="field" style="min-width:150px;">
             <input type="date" name="date_to" value="{{ date_to }}" placeholder=" ">
             <label>{{ t['entry.to'] }}</label>
-        </div>
-        <div class="field field--select" style="min-width:180px;">
-            <select name="fleet_id">
-                <option value="">{{ t['expense.all_fleets'] }}</option>
-                {% for f in fleets %}
-                <option value="{{ f.id }}" {% if fleet_id == f.id %}selected{% endif %}>{{ f.name }}</option>
-                {% endfor %}
-            </select>
-            <label>{{ t['expense.fleet'] }}</label>
         </div>
         <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
         <a href="{{ url_for('expenses.index', date_from='', date_to='') }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
@@ -176,8 +166,7 @@
                 {% if e.vehicle_id %}
                 <span>· <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a></span>
                 {% else %}
-                <span>· <strong>{{ e.label or t['expense.fleet_wide'] }}</strong>{% if e.quantity %} <span class="muted">× {{ '{:.10g}'.format(e.quantity) }}</span>{% endif %}</span>
-                <span class="muted small">· {{ e.fleet.name if e.fleet else t['expense.company'] }}</span>
+                <span>· <strong>{{ e.label or '—' }}</strong>{% if e.quantity %} <span class="muted">× {{ '{:.10g}'.format(e.quantity) }}</span>{% endif %}</span>
                 {% endif %}
                 {% if e.payment_method %}<span class="muted small">· {{ t['pay.' + e.payment_method] }}</span>{% endif %}
                 {% if e.supplier %}<span class="muted small">· {{ e.supplier }}</span>{% endif %}

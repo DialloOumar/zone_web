@@ -3,7 +3,7 @@
 Every cost lives in one table (Expense), but is captured where it belongs:
 
   • /carburant — fuel, always tied to a vehicle, with litres
-  • /expenses  — a named cost, on a fleet or on the company, no vehicle
+  • /expenses  — the cash box: a named company cost, no vehicle, no fleet
 
 Maintenance costs also land in the ledger (category "entretien") but are written
 by the maintenance blueprint alongside their service record, so they show here
@@ -140,9 +140,11 @@ def _common_fields(t, methods=None):
 def _read_expense_form(expense):
     """Dépenses form: a cost named by `label`, on a fleet or on the company.
 
-    Neither a category, a vehicle nor a supplier is asked for here. The label is
-    what says what the cost is, which beats picking from a fixed list. Costs
-    that belong to a machine are recorded on its service record, not here.
+    Nothing is asked for but a name, a date, an amount and how it was paid. No
+    category, no vehicle, no supplier, and no fleet: everything logged here is a
+    company cost. Costs that belong to a machine are recorded on its service
+    record instead. Rows saved earlier against a fleet keep it in the database;
+    it just stops being asked for, shown or filtered on.
 
     Returns (data, None) or (None, err).
     """
@@ -151,19 +153,9 @@ def _read_expense_form(expense):
     if error:
         return None, error
 
-    fids = current_user_fleet_ids()
-
     label = (request.form.get("label") or "").strip()
     if not label:
         return None, t["expense.err.label_required"]
-
-    # Fleet is optional: none at all = a company cost.
-    fleet_id = request.form.get("fleet_id", type=int) or None
-    if fleet_id:
-        if fids is not None and fleet_id not in fids:
-            return None, t["error.forbidden"]
-        if not db.session.get(Fleet, fleet_id):
-            return None, t["expense.err.fleet_required"]
 
     # Optional: how many of whatever this paid for. Blank stays blank rather
     # than becoming a zero nobody typed.
@@ -177,7 +169,7 @@ def _read_expense_form(expense):
         if quantity <= 0:
             return None, t.get("expense.err.quantity", "Quantité invalide.")
 
-    common.update(vehicle_id=None, fleet_id=fleet_id, label=label,
+    common.update(vehicle_id=None, fleet_id=None, label=label,
                   operator=None, supplier=None, category=DEFAULT_CATEGORY,
                   liters=None, quantity=quantity)
     return common, None
@@ -220,7 +212,6 @@ def _read_fuel_form(expense):
 
 def _form_context(expense):
     return {
-        "fleets": with_current_fleet(_accessible_fleets(), expense.fleet if expense else None),
         "payment_methods": CASH_METHODS,
         "today": date.today().isoformat(),
     }
@@ -297,15 +288,12 @@ def index():
     total nobody can compare to anything.
     """
     start, end, date_from, date_to = _period_bounds()
-    fleet_id = request.args.get("fleet_id", type=int)
 
     q = _cash_expenses()
     if start:
         q = q.filter(Expense.date >= start)
     if end:
         q = q.filter(Expense.date <= end)
-    if fleet_id:
-        q = q.filter(Expense.fleet_id == fleet_id)
     expenses = q.order_by(Expense.date.desc(), Expense.id.desc()).limit(300).all()
 
     dq = CashMovement.query
@@ -319,9 +307,8 @@ def index():
         "expenses.html", expenses=expenses, deposits=deposits,
         total=sum(e.amount for e in expenses),
         deposited=sum(d.amount for d in deposits),
-        balance=cash_balance(), fleet_id=fleet_id,
+        balance=cash_balance(),
         date_from=date_from, date_to=date_to,
-        fleets=_accessible_fleets(),
         maintenance_category=MAINTENANCE_CATEGORY)
 
 
@@ -409,7 +396,7 @@ def delete(xid):
 REPORT_LIMIT = 1000   # rows in one document; flagged on the page when reached
 
 
-def _caisse_report(start, end, fleet_id):
+def _caisse_report(start, end):
     """The cash book for a window: what was in the box when it opened, every
     movement in date order with the balance after each, and what is left.
 
@@ -436,9 +423,6 @@ def _caisse_report(start, end, fleet_id):
     if end:
         dq = dq.filter(CashMovement.date <= end)
         xq = xq.filter(Expense.date <= end)
-    if fleet_id:
-        xq = xq.filter(Expense.fleet_id == fleet_id)
-
     rows = []
     for d in dq.all():
         rows.append({"date": d.date, "label": d.source or get_t()["caisse.deposit"],
@@ -476,24 +460,15 @@ def export_print():
     prints does not depend on what the page happens to show."""
     t = get_t()
     start, end, date_from, date_to = _period_bounds()
-    fleet_id = request.args.get("fleet_id", type=int)
-
-    parts = []
-    if fleet_id:
-        fl = db.session.get(Fleet, fleet_id)
-        if fl:
-            parts.append(fl.name)
-    if start or end:
-        parts.append("%s → %s" % (start or "…", end or "…"))
-    subtitle = " · ".join(parts) if parts else t.get("caisse.all_periods",
-                                                    "Toutes périodes")
+    subtitle = ("%s → %s" % (start or "…", end or "…") if start or end
+                else t.get("caisse.all_periods", "Toutes périodes"))
 
     return render_template(
         "caisse_print.html",
         back_url=url_for("expenses.index", **request.args.to_dict()),
         subtitle=subtitle,
         generated=datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
-        **_caisse_report(start, end, fleet_id))
+        **_caisse_report(start, end))
 
 
 # ── Caisse: money paid in ────────────────────────────────────────────────────

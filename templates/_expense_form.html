@@ -1,31 +1,16 @@
 {% set is_edit = expense is not none %}
-{# A cost recorded here is a named one: the label says what it is, the fleet
-   says whose it is. No vehicle — a machine's costs are recorded on its service
+{# Everything logged here is a company cost, paid out of the cash box: no
+   fleet and no vehicle to pick. A machine's costs are recorded on its service
    record, where the parts and the labour already are. #}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('expenses.edit', xid=expense.id) if is_edit else url_for('expenses.new') }}">
 
-    <div class="form-row">
-        <div class="field">
-            <input type="text" id="label" name="label" placeholder=" " required
-                   value="{{ request.form.get('label') or (expense.label if is_edit and expense.label else '') }}">
-            <label for="label">{{ t['expense.label'] }}</label>
-        </div>
-        <div class="field field--select">
-            <select id="fleet_id" name="fleet_id">
-                {# Answers the label above it — which fleet — rather than
-                   naming a different thing the cost could be. #}
-                <option value="">{{ t['expense.no_fleet'] }}</option>
-                {% set sel_fleet = request.form.get('fleet_id')|int(0) or (expense.fleet_id if is_edit else 0) %}
-                {% for f in fleets %}
-                <option value="{{ f.id }}" {% if f.id == sel_fleet %}selected{% endif %}>{{ f.name }}</option>
-                {% endfor %}
-            </select>
-            <label for="fleet_id">{{ t['expense.fleet'] }}</label>
-        </div>
+    <div class="field">
+        <input type="text" id="label" name="label" placeholder=" " required
+               value="{{ request.form.get('label') or (expense.label if is_edit and expense.label else '') }}">
+        <label for="label">{{ t['expense.label'] }}</label>
     </div>
-    <div class="field-hint">{{ t['expense.fleet_hint'] }}</div>
 
     <div class="form-row">
         <div class="field">
