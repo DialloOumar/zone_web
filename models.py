@@ -521,7 +521,10 @@ class CashAccount(db.Model):
 
     id           = db.Column(db.Integer,     primary_key=True)
     name         = db.Column(db.String(80),  nullable=False, unique=True)
-    is_repayable = db.Column(db.Boolean,     nullable=False, default=True)
+    # Free text, not a number: an account here may be a bank account, a mobile
+    # money line, or nothing at all -- so it is never checked or added up.
+    number       = db.Column(db.String(60))
+    is_repayable = db.Column(db.Boolean,     nullable=False, default=False)
     sort_order   = db.Column(db.Integer,     nullable=False, default=0)
     is_active    = db.Column(db.Boolean,     nullable=False, default=True)
     created_at   = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)

@@ -212,7 +212,7 @@ HELP_SECTIONS = [
         "steps": {
             "fr": [
                 "Commencez par « Sites et comptes ». Les sites, ce sont les endroits où l'argent est dépensé — Siguiri, Mandiana. Les comptes, c'est d'où vient l'argent de la caisse : le compte du boss, celui de l'entreprise, un gérant qui avance quand la caisse est vide.",
-                "Sur un compte, cochez « Ce compte doit être remboursé » quand l'argent est avancé à la caisse. Décochez-le pour l'argent de l'entreprise, qui n'est dû à personne.",
+                "Sur un compte, cochez « Ce compte doit être remboursé » seulement si l'argent est avancé à la caisse — celui du boss, celui d'un gérant. Laissez la case vide pour l'argent de l'entreprise, qui n'est dû à personne.",
                 "« Entrée d'argent » : date, montant, et de quel compte il vient.",
                 "« Retrait » : quand le boss reprend de l'argent, ou qu'on rembourse un gérant. Ça baisse le solde sans compter comme une dépense — c'est le point important.",
                 "« Nouvelle dépense » : la date, le site, et si c'est pour une machine, le véhicule. Une dépense sans site est une dépense de société.",
@@ -221,7 +221,7 @@ HELP_SECTIONS = [
             ],
             "en": [
                 "Start with \"Sites and accounts\". Sites are the places money is spent — Siguiri, Mandiana. Accounts are where the box's money comes from: the boss's account, the company's, an agent who fronts the cash when the box is empty.",
-                "On an account, tick \"This account must be repaid\" when the money is advanced to the box. Untick it for the company's own money, which is owed to nobody.",
+                "On an account, tick \"This account must be repaid\" only if the money is advanced to the box — the boss's, an agent's. Leave it clear for the company's own money, which is owed to nobody.",
                 "\"Money in\": date, amount, and which account it came from.",
                 "\"Withdrawal\": when the boss takes money back, or an agent is repaid. It lowers the balance without counting as a cost — that is the important part.",
                 "\"New expense\": the date, the site, and the vehicle if it was for a machine. A cost with no site is a company expense.",

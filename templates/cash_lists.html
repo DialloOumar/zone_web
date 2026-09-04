@@ -26,6 +26,7 @@
                     {% if kind == 'account' and r.is_repayable %}
                     <span class="badge badge--info">{{ t['list.repayable_short'] }}</span>
                     {% endif %}
+                    {% if r.number %}<div class="muted small">{{ r.number }}</div>{% endif %}
                 </td>
                 <td class="row-actions">
                     <a href="{{ url_for('expenses.cash_list_edit', kind=kind, row_id=r.id) }}" class="btn btn--sm btn--tonal btn--icon"

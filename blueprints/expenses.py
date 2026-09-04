@@ -614,6 +614,7 @@ def _save_list_row(model, row, kind):
         db.session.add(row)
     row.name = name
     if kind == "account":
+        row.number = (request.form.get("number") or "").strip() or None
         row.is_repayable = request.form.get("is_repayable") is not None
     db.session.flush()
     log_action("CREATE" if creating else "UPDATE", "cash_%s" % kind,

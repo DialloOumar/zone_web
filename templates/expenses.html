@@ -78,7 +78,6 @@
             <strong class="{% if a.account.is_repayable and a.balance > 0 %}stock-negative{% endif %}">{{ '{:,}'.format(a.balance) }} {{ currency }}</strong>
         </div>
         {% endfor %}
-        <p class="muted small">{{ t['caisse.accounts_hint'] }}</p>
     </div>
     {% endif %}
     {# Period first, then the pickers: each opens a list you tick, several at a time. #}
