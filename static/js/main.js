@@ -347,41 +347,50 @@ document.addEventListener("click", function (e) {
 });
 
 // ── Filters that apply themselves ──
-// There is no Filtrer button: a filter takes effect as it is chosen. A menu of
-// tick boxes waits until it closes rather than reloading on every tick, so
-// picking three machines costs one page load instead of three. Without JS the
-// forms keep a submit button of their own (see the <noscript> in the template),
-// so the filters still work.
+// There is no Filtrer button: a filter takes effect as it is chosen. Ticking a
+// box does not reload at once, though -- it waits a moment, so a run of ticks
+// costs one page load instead of one each, and nobody has to leave the menu for
+// the choice to count. Closing the menu sends it straight away. Without JS the
+// forms keep a submit button of their own (the <noscript> in the template), so
+// the filters still work.
 (function () {
+    var PAUSE = 700;   // ms of quiet after the last tick
+
     function submit(form) {
         if (form.requestSubmit) form.requestSubmit();
         else form.submit();
     }
 
-    function ticked(box) {
-        return Array.prototype.map.call(
-            box.querySelectorAll("input[type=checkbox]:checked"),
-            function (i) { return i.value; }).join(",");
-    }
-
-    // Only the forms that ask for it: other screens keep their Filtrer button
-    // and their behaviour.
     document.querySelectorAll("form.filter-bar--live").forEach(function (form) {
+        var timer = null, dirty = false;
+
+        function soon() {
+            dirty = true;
+            clearTimeout(timer);
+            timer = setTimeout(function () { submit(form); }, PAUSE);
+        }
+
+        function now() {
+            if (!dirty) return;
+            clearTimeout(timer);
+            submit(form);
+        }
+
         // A date applies the moment it is picked.
         form.querySelectorAll('input[type="date"]').forEach(function (input) {
-            input.addEventListener("change", function () { submit(form); });
+            input.addEventListener("change", function () { dirty = true; now(); });
         });
+        form.querySelectorAll('details.filter-dd input[type="checkbox"]').forEach(
+            function (box) { box.addEventListener("change", soon); });
+        // Shutting the menu is a way of saying "that is my choice" -- no reason
+        // to keep waiting after that.
         form.querySelectorAll("details.filter-dd").forEach(function (dd) {
-            var before = null;
-            dd.addEventListener("toggle", function () {
-                if (dd.open) { before = ticked(dd); return; }
-                if (before !== null && ticked(dd) !== before) submit(form);
-            });
+            dd.addEventListener("toggle", function () { if (!dd.open) now(); });
         });
     });
 
-    // A menu has to be closable by clicking away from it, or it would never
-    // close on its own and the choice would never apply.
+    // A menu left open would sit over the page it is filtering, so clicking
+    // away closes it.
     document.addEventListener("click", function (e) {
         document.querySelectorAll(".filter-bar--live details.filter-dd[open]").forEach(
             function (dd) { if (!dd.contains(e.target)) dd.open = false; });

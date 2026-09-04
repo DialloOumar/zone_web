@@ -147,9 +147,11 @@
         {% endif %}
         <div class="tab-bar__actions">
             {% if has_perm('report.export_pdf') %}
+            {# Icon only: the row is already full, and the printer says it. #}
             <a href="{{ url_for('expenses.export_print', part=tab, **report_args) }}"
-               class="btn btn--sm btn--outlined" target="_blank" rel="noopener">
-                <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['caisse.report_section'] }}
+               class="btn btn--sm btn--outlined btn--icon" target="_blank" rel="noopener"
+               title="{{ t['caisse.report_section'] }}" aria-label="{{ t['caisse.report_section'] }}">
+                <span class="material-symbols-outlined">print</span>
             </a>
             {% endif %}
             {% if has_perm('expense.create') %}
