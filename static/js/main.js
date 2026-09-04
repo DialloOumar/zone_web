@@ -346,65 +346,29 @@ document.addEventListener("click", function (e) {
     if (preview) preview.innerHTML = "";
 });
 
-// ── Filters that apply themselves ──
-// There is no Filtrer button: a filter takes effect as it is chosen. Ticking a
-// box does not reload at once, though -- it waits a moment, so a run of ticks
-// costs one page load instead of one each, and nobody has to leave the menu for
-// the choice to count. Closing the menu sends it straight away. Without JS the
-// forms keep a submit button of their own (the <noscript> in the template), so
-// the filters still work.
+// ── Filter menus ──
+// The bar is sent by its Filtrer button, not by each tick: a filter is usually
+// several choices, and firing on every one asked the server for pages nobody
+// had finished asking for. What is left here is the behaviour a <details> does
+// not give on its own -- closing when you click away from it, and opening the
+// date picker from the whole pill rather than the few pixels of its icon.
 (function () {
-    var PAUSE = 700;   // ms of quiet after the last tick
-
-    function submit(form) {
-        if (form.requestSubmit) form.requestSubmit();
-        else form.submit();
-    }
-
-    document.querySelectorAll("form.filter-bar--live").forEach(function (form) {
-        var timer = null, dirty = false;
-
-        function soon() {
-            dirty = true;
-            clearTimeout(timer);
-            timer = setTimeout(function () { submit(form); }, PAUSE);
-        }
-
-        function now() {
-            if (!dirty) return;
-            clearTimeout(timer);
-            submit(form);
-        }
-
-        // A date applies the moment it is picked.
-        form.querySelectorAll('input[type="date"]').forEach(function (input) {
-            input.addEventListener("change", function () { dirty = true; now(); });
-        });
-        // The browser only opens the calendar from its own little icon, which
-        // nobody finds. The whole pill opens it -- except a click that lands on
-        // the numbers, which stays available for typing the date at the
-        // keyboard. showPicker() throws if the browser will not allow it (an
-        // untrusted event, or an older browser), so the icon remains the way in.
-        form.querySelectorAll("label.filter-date").forEach(function (pill) {
+    document.querySelectorAll("form.filter-bar--live label.filter-date").forEach(
+        function (pill) {
             pill.addEventListener("click", function (e) {
                 var input = pill.querySelector('input[type="date"]');
+                // A click on the numbers is left alone: that is how a date is
+                // typed at the keyboard.
                 if (!input || e.target === input) return;
+                // showPicker() is recent, and can refuse. When it does, the
+                // browser's own icon stays the way in.
                 if (typeof input.showPicker !== "function") return;
                 e.preventDefault();
                 try { input.showPicker(); } catch (err) { input.focus(); }
             });
         });
-        form.querySelectorAll('details.filter-dd input[type="checkbox"]').forEach(
-            function (box) { box.addEventListener("change", soon); });
-        // Shutting the menu is a way of saying "that is my choice" -- no reason
-        // to keep waiting after that.
-        form.querySelectorAll("details.filter-dd").forEach(function (dd) {
-            dd.addEventListener("toggle", function () { if (!dd.open) now(); });
-        });
-    });
 
-    // A menu left open would sit over the page it is filtering, so clicking
-    // away closes it.
+    // A menu left open would sit over the page it is filtering.
     document.addEventListener("click", function (e) {
         document.querySelectorAll(".filter-bar--live details.filter-dd[open]").forEach(
             function (dd) { if (!dd.contains(e.target)) dd.open = false; });
