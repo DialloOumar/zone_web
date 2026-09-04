@@ -625,6 +625,37 @@ a:hover { text-decoration: underline; }
     }
 }
 
+/* ── Tabs ── Links, not script: the chosen one is in the address, so it
+   survives the reload that pressing Filtrer causes. */
+.tabs {
+    display: flex; gap: 4px; margin: 4px 0 16px;
+    border-bottom: 1px solid var(--md-outline-variant);
+}
+.tab {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px; text-decoration: none;
+    font-size: 0.9rem; color: var(--md-on-surface-variant);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    white-space: nowrap;
+}
+.tab:hover { color: var(--md-on-surface); background: var(--md-surface-container); text-decoration: none; }
+.tab--on {
+    color: var(--md-primary); font-weight: 600;
+    border-bottom-color: var(--md-primary);
+}
+/* The count is what tells you the other tab is worth opening. */
+.tab__count {
+    font-size: 0.72rem; font-weight: 600; line-height: 1.5;
+    padding: 0 7px; border-radius: 999px;
+    background: var(--md-surface-container-high); color: var(--md-on-surface-variant);
+}
+.tab--on .tab__count { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+
+@media (max-width: 720px) {
+    .tabs { overflow-x: auto; }
+    .tab { padding: 10px 12px; font-size: 0.85rem; }
+}
+
 /* What is left in the cash box, read first on the Dépenses page. */
 .caisse-balance { display: flex; flex-direction: column; gap: 2px; }
 .caisse-balance__label { font-size: 0.74rem; color: var(--md-on-surface-variant); }

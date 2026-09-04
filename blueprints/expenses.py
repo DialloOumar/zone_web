@@ -52,6 +52,9 @@ PAYMENT_METHODS = ["mobile_money", "cash", "transfer", "cheque", "other"]
 # whatever they were saved with and still read fine.
 CASH_METHODS = ["cash", "mobile_money"]
 
+# The two halves of the cash book, shown one at a time.
+TABS = ("depenses", "mouvements")
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -339,8 +342,20 @@ def index():
         mq = mq.filter(db.false())
     movements = mq.order_by(CashMovement.date.desc(), CashMovement.id.desc()).all()
 
+    # The tab lives in the address, not in the page: every filter press reloads,
+    # and an unremembered tab would drop you back on the costs each time.
+    tab = request.args.get("tab")
+    if tab not in TABS:
+        # Asking about an account empties the costs, asking about a site or a
+        # machine empties the movements. Open on the side that has something.
+        tab = "mouvements" if movements and not expenses else "depenses"
+    kept = request.args.to_dict(flat=False)
+    kept.pop("tab", None)
+    tab_urls = {name: url_for("expenses.index", tab=name, **kept) for name in TABS}
+
     return render_template(
         "expenses.html", expenses=expenses, movements=movements,
+        tab=tab, tab_urls=tab_urls,
         total=sum(e.amount for e in expenses),
         deposited=sum(m.amount for m in movements if m.kind == "depot"),
         withdrawn=sum(m.amount for m in movements if m.kind == "retrait"),

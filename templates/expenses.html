@@ -109,6 +109,20 @@
         <span class="muted small">{{ currency }} &middot; {{ expenses|length }} {{ t['expense.count'] }}</span>
     </div>
 
+    {# Two tabs rather than two tables stacked: money in and out is not a cost,
+       and reading them one under the other invited adding them up. #}
+    <nav class="tabs" role="tablist">
+        <a href="{{ tab_urls['depenses'] }}" role="tab" aria-selected="{{ 'true' if tab == 'depenses' else 'false' }}"
+           class="tab {% if tab == 'depenses' %}tab--on{% endif %}">
+            {{ t['caisse.tab_expenses'] }}<span class="tab__count">{{ expenses|length }}</span>
+        </a>
+        <a href="{{ tab_urls['mouvements'] }}" role="tab" aria-selected="{{ 'true' if tab == 'mouvements' else 'false' }}"
+           class="tab {% if tab == 'mouvements' %}tab--on{% endif %}">
+            {{ t['caisse.tab_movements'] }}<span class="tab__count">{{ movements|length }}</span>
+        </a>
+    </nav>
+
+    {% if tab == 'mouvements' %}
     {% if movements %}
     <div class="table-wrap"><table class="data-table">
         <thead>
@@ -149,8 +163,14 @@
             {% endfor %}
         </tbody>
     </table></div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">payments</span>
+        <p>{{ t['caisse.movements_empty'] }}</p>
+    </div>
     {% endif %}
 
+    {% else %}
     {% if expenses %}
     <div class="table-desktop">
     <table class="data-table">
@@ -215,11 +235,12 @@
         </div>
         {% endfor %}
     </div>
-    {% elif not movements %}
+    {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">payments</span>
         <p>{{ t['expense.empty_month'] }}</p>
     </div>
+    {% endif %}
     {% endif %}
 </section>
 {% endblock %}
