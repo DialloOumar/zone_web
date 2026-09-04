@@ -346,4 +346,51 @@ document.addEventListener("click", function (e) {
     if (preview) preview.innerHTML = "";
 });
 
+// ── Filters that apply themselves ──
+// There is no Filtrer button: a filter takes effect as it is chosen. A menu of
+// tick boxes waits until it closes rather than reloading on every tick, so
+// picking three machines costs one page load instead of three. Without JS the
+// forms keep a submit button of their own (see the <noscript> in the template),
+// so the filters still work.
+(function () {
+    function submit(form) {
+        if (form.requestSubmit) form.requestSubmit();
+        else form.submit();
+    }
+
+    function ticked(box) {
+        return Array.prototype.map.call(
+            box.querySelectorAll("input[type=checkbox]:checked"),
+            function (i) { return i.value; }).join(",");
+    }
+
+    // Only the forms that ask for it: other screens keep their Filtrer button
+    // and their behaviour.
+    document.querySelectorAll("form.filter-bar--live").forEach(function (form) {
+        // A date applies the moment it is picked.
+        form.querySelectorAll('input[type="date"]').forEach(function (input) {
+            input.addEventListener("change", function () { submit(form); });
+        });
+        form.querySelectorAll("details.filter-dd").forEach(function (dd) {
+            var before = null;
+            dd.addEventListener("toggle", function () {
+                if (dd.open) { before = ticked(dd); return; }
+                if (before !== null && ticked(dd) !== before) submit(form);
+            });
+        });
+    });
+
+    // A menu has to be closable by clicking away from it, or it would never
+    // close on its own and the choice would never apply.
+    document.addEventListener("click", function (e) {
+        document.querySelectorAll(".filter-bar--live details.filter-dd[open]").forEach(
+            function (dd) { if (!dd.contains(e.target)) dd.open = false; });
+    });
+    document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        document.querySelectorAll(".filter-bar--live details.filter-dd[open]").forEach(
+            function (dd) { dd.open = false; });
+    });
+})();
+
 console.log("Zone Web booted");
