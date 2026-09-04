@@ -38,31 +38,19 @@
         </div>
     </div>
 
+    {# One period control, then the fleet, then the buttons. Two ways to pick a
+       period sitting side by side was the confusing part. #}
     <form method="get" class="filter-bar">
-        <div class="field field--select" style="min-width:150px;">
-            <select name="month" onchange="this.form.submit()">
-                <option value="">{{ t['caisse.all_periods'] }}</option>
-                {% for m in months %}
-                <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ month_label(m) }}</option>
-                {% endfor %}
-            </select>
-            <label>{{ t['expense.month'] }}</label>
-        </div>
-        {# A du/au wins over the month picker — see _period_bounds. #}
-        <div class="field" style="min-width:135px;">
+        <div class="field" style="min-width:150px;">
             <input type="date" name="date_from" value="{{ date_from }}" placeholder=" ">
             <label>{{ t['entry.from'] }}</label>
         </div>
-        <div class="field" style="min-width:135px;">
+        <div class="field" style="min-width:150px;">
             <input type="date" name="date_to" value="{{ date_to }}" placeholder=" ">
             <label>{{ t['entry.to'] }}</label>
         </div>
-        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
-        {% if date_from or date_to %}
-        <a href="{{ url_for('expenses.index') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
-        {% endif %}
-        <div class="field field--select" style="min-width:170px;">
-            <select name="fleet_id" onchange="this.form.submit()">
+        <div class="field field--select" style="min-width:180px;">
+            <select name="fleet_id">
                 <option value="">{{ t['expense.all_fleets'] }}</option>
                 {% for f in fleets %}
                 <option value="{{ f.id }}" {% if fleet_id == f.id %}selected{% endif %}>{{ f.name }}</option>
@@ -70,6 +58,8 @@
             </select>
             <label>{{ t['expense.fleet'] }}</label>
         </div>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        <a href="{{ url_for('expenses.index', date_from='', date_to='') }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
     </form>
 
 

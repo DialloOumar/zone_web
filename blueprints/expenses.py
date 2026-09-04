@@ -10,6 +10,7 @@ by the maintenance blueprint alongside their service record, so they show here
 read-only. A cost with no vehicle carries a `label`; a cost with no fleet is a
 company cost, visible to anyone allowed on the expenses page.
 """
+import calendar
 from datetime import date, datetime
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
@@ -75,19 +76,6 @@ def _accessible_operators():
     if fids is not None:
         q = q.filter(Operator.fleet_id.in_(fids))
     return q.order_by(Operator.name).all()
-
-
-def _recent_months():
-    """The last 12 months, newest first — what the month picker offers."""
-    today = date.today()
-    out = []
-    y, m = today.year, today.month
-    for _ in range(12):
-        out.append("%04d-%02d" % (y, m))
-        m -= 1
-        if m == 0:
-            y, m = y - 1, 12
-    return out
 
 
 def _scoped_expenses():
@@ -268,30 +256,23 @@ def cash_balance():
 
 
 def _period_bounds():
-    """The window the page and the report both read, from the query string.
+    """The window the page and the report both read: one from/to, nothing else.
 
-    An explicit du/au wins; otherwise the month picker. Either end can be left
-    open — "everything since March" is a normal thing to ask for.
+    Landing on the page with nothing asked for shows the current month, which
+    is what someone opening a cash book wants to see. Clearing either end opens
+    that side — "everything since March" is a normal thing to ask for — and a
+    cleared field stays cleared rather than snapping back to the month.
     """
-    date_from = (request.args.get("date_from") or "").strip()
-    date_to = (request.args.get("date_to") or "").strip()
-    if _valid_date(date_from) or _valid_date(date_to):
-        return (date_from if _valid_date(date_from) else None,
-                date_to if _valid_date(date_to) else None,
-                "", date_from, date_to)
-    month = (request.args.get("month") or "").strip() or date.today().strftime("%Y-%m")
-    start, end = _month_bounds(month)
-    return start, end, month, "", ""
-
-
-def _month_bounds(month):
-    """('2026-08') -> ('2026-08-01', '2026-08-31'), or (None, None) if unusable.
-    Dates are stored as YYYY-MM-DD strings, so a prefix compare is enough."""
-    try:
-        datetime.strptime(month, "%Y-%m")
-    except (TypeError, ValueError):
-        return None, None
-    return month + "-01", month + "-31"
+    today = date.today()
+    first = today.replace(day=1).isoformat()
+    last = today.replace(
+        day=calendar.monthrange(today.year, today.month)[1]).isoformat()
+    if "date_from" in request.args or "date_to" in request.args:
+        df = (request.args.get("date_from") or "").strip()
+        dt = (request.args.get("date_to") or "").strip()
+        return (df if _valid_date(df) else None,
+                dt if _valid_date(dt) else None, df, dt)
+    return first, last, first, last
 
 
 @expenses_bp.route("/expenses")
@@ -300,11 +281,10 @@ def _month_bounds(month):
 def index():
     """Everything except fuel, which has its own screen.
 
-    Filtered by month first: a ledger without a period shows the last N rows and
-    a total nobody can compare to anything. The origin chips replace the old
-    category ones — see ORIGINS.
+    Filtered by period first: a ledger without one shows the last N rows and a
+    total nobody can compare to anything.
     """
-    start, end, month, date_from, date_to = _period_bounds()
+    start, end, date_from, date_to = _period_bounds()
     fleet_id = request.args.get("fleet_id", type=int)
 
     q = _cash_expenses()
@@ -327,9 +307,9 @@ def index():
         "expenses.html", expenses=expenses, deposits=deposits,
         total=sum(e.amount for e in expenses),
         deposited=sum(d.amount for d in deposits),
-        balance=cash_balance(), month=month, fleet_id=fleet_id,
+        balance=cash_balance(), fleet_id=fleet_id,
         date_from=date_from, date_to=date_to,
-        fleets=_accessible_fleets(), months=_recent_months(),
+        fleets=_accessible_fleets(),
         maintenance_category=MAINTENANCE_CATEGORY)
 
 
@@ -481,7 +461,7 @@ def export_print():
     the pointage export, and the filters come from the query string so what
     prints does not depend on what the page happens to show."""
     t = get_t()
-    start, end, month, date_from, date_to = _period_bounds()
+    start, end, date_from, date_to = _period_bounds()
     fleet_id = request.args.get("fleet_id", type=int)
 
     parts = []
@@ -489,9 +469,7 @@ def export_print():
         fl = db.session.get(Fleet, fleet_id)
         if fl:
             parts.append(fl.name)
-    if month:
-        parts.append(month)
-    elif start or end:
+    if start or end:
         parts.append("%s → %s" % (start or "…", end or "…"))
     subtitle = " · ".join(parts) if parts else t.get("caisse.all_periods",
                                                     "Toutes périodes")

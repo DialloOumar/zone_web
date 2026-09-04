@@ -14,7 +14,9 @@
         </div>
         <div class="field field--select">
             <select id="fleet_id" name="fleet_id">
-                <option value="">{{ t['expense.company'] }}</option>
+                {# Answers the label above it — which fleet — rather than
+                   naming a different thing the cost could be. #}
+                <option value="">{{ t['expense.no_fleet'] }}</option>
                 {% set sel_fleet = request.form.get('fleet_id')|int(0) or (expense.fleet_id if is_edit else 0) %}
                 {% for f in fleets %}
                 <option value="{{ f.id }}" {% if f.id == sel_fleet %}selected{% endif %}>{{ f.name }}</option>
@@ -23,6 +25,7 @@
             <label for="fleet_id">{{ t['expense.fleet'] }}</label>
         </div>
     </div>
+    <div class="field-hint">{{ t['expense.fleet_hint'] }}</div>
 
     <div class="form-row">
         <div class="field">
