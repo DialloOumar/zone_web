@@ -25,7 +25,8 @@
    templates — missing those is exactly how `close` ended up invisible, and
    later how the parts store and the cash box shipped with no icon at all.
 
-   The list as of v5 (47 names):
+   The list as of v5 (47 names; `print` is in the font but nothing uses it at
+   the moment -- both report buttons settled on picture_as_pdf):
      account_balance_wallet, add, admin_panel_settings, archive, arrow_back,
      badge, bedtime, category, check_circle, chevron_left, chevron_right,
      close, delete, directions_bus, donut_large, edit, error, fact_check,
@@ -697,6 +698,21 @@ a:hover { text-decoration: underline; }
 .fold > .cost-split { margin: 0; padding: 0 14px 12px; }
 
 /* What is left in the cash box, read first on the Dépenses page. */
+/* The balance and the period's movement, read as one block: what is in the box,
+   then what went through it. */
+.caisse-head {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    min-width: 0;
+}
+.caisse-head .expense-total {
+    margin: 0; padding: 8px 14px; font-size: 0.84rem;
+}
+.caisse-head .expense-total strong { font-size: 0.95rem; }
+@media (max-width: 720px) {
+    .caisse-head { gap: 10px; }
+    .caisse-head .expense-total { width: 100%; }
+}
+
 .caisse-balance { display: flex; flex-direction: column; gap: 2px; }
 .caisse-balance__label { font-size: 0.74rem; color: var(--md-on-surface-variant); }
 .caisse-balance strong { font-size: 1.35rem; }

@@ -44,15 +44,27 @@
 {% block content %}
 <section class="card">
     <div class="card-header">
-        <div class="caisse-balance {% if balance < 0 %}stock-negative{% endif %}">
-            <span class="caisse-balance__label">{{ t['caisse.balance'] }}</span>
-            <strong>{{ '{:,}'.format(balance) }} {{ currency }}</strong>
+        <div class="caisse-head">
+            <div class="caisse-balance {% if balance < 0 %}stock-negative{% endif %}">
+                <span class="caisse-balance__label">{{ t['caisse.balance'] }}</span>
+                <strong>{{ '{:,}'.format(balance) }} {{ currency }}</strong>
+            </div>
+            {# What moved over the period on screen. The balance above is the
+               whole box and carries over; these follow the filters. #}
+            <div class="expense-total">
+                {{ t['caisse.in_month'] }}<strong>{{ '{:,}'.format(deposited) }}</strong>
+                <span class="muted small">&middot;</span>
+                {{ t['caisse.out_month'] }}<strong>{{ '{:,}'.format(total) }}</strong>
+                {% if withdrawn %}
+                <span class="muted small">&middot;</span>
+                {{ t['caisse.withdrawn'] }}<strong>{{ '{:,}'.format(withdrawn) }}</strong>
+                {% endif %}
+                <span class="muted small">{{ currency }} &middot; {{ expenses|length }} {{ t['expense.count'] }}</span>
+            </div>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
             {# Icons with the words on hover: neither is a daily errand, and the
-               header should not compete with the buttons under the tabs. The
-               whole book is a document, one section is a print -- two icons
-               rather than the same printer twice. #}
+               header should not compete with the buttons under the tabs. #}
             {% if has_perm('expense.create') %}
             <a href="{{ url_for('expenses.cash_lists') }}" class="btn btn--sm btn--outlined btn--icon"
                title="{{ t['caisse.lists'] }}" aria-label="{{ t['caisse.lists'] }}">
@@ -113,17 +125,6 @@
         <a href="{{ url_for('expenses.index', date_from='', date_to='', tab=tab) }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
     </form>
 
-    <div class="expense-total">
-        {{ t['caisse.in_month'] }}<strong>{{ '{:,}'.format(deposited) }}</strong>
-        <span class="muted small">&middot;</span>
-        {{ t['caisse.out_month'] }}<strong>{{ '{:,}'.format(total) }}</strong>
-        {% if withdrawn %}
-        <span class="muted small">&middot;</span>
-        {{ t['caisse.withdrawn'] }}<strong>{{ '{:,}'.format(withdrawn) }}</strong>
-        {% endif %}
-        <span class="muted small">{{ currency }} &middot; {{ expenses|length }} {{ t['expense.count'] }}</span>
-    </div>
-
     {# Two tabs rather than two tables stacked: money in and out is not a cost,
        and reading them one under the other invited adding them up. #}
     <nav class="tabs" role="tablist">
@@ -153,11 +154,13 @@
         {% endif %}
         <div class="tab-bar__actions">
             {% if has_perm('report.export_pdf') %}
-            {# Icon only: the row is already full, and the printer says it. #}
+            {# The same icon as the report in the header: one mark for "this comes
+               out as a document", told apart by where it sits and what it says
+               on hover. #}
             <a href="{{ url_for('expenses.export_print', part=tab, **report_args) }}"
                class="btn btn--sm btn--outlined btn--icon" target="_blank" rel="noopener"
                title="{{ t['caisse.report_section'] }}" aria-label="{{ t['caisse.report_section'] }}">
-                <span class="material-symbols-outlined">print</span>
+                <span class="material-symbols-outlined">picture_as_pdf</span>
             </a>
             {% endif %}
             {% if has_perm('expense.create') %}
