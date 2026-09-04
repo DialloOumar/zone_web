@@ -651,14 +651,22 @@ a:hover { text-decoration: underline; }
 }
 .tab--on .tab__count { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
 
-/* The section's own print button sits at the far end of the tab bar, where it
-   reads as belonging to the tab that is open. */
-.tabs__action { margin-left: auto; align-self: center; margin-bottom: 6px; }
+/* The row under the tabs: what belongs to the open tab and nothing else --
+   its filters on the left, its report on the right. */
+.tab-bar {
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap; margin: -6px 0 14px;
+}
+.tab-bar__filters { margin: 0; flex: 1 1 auto; }
+.tab-bar__actions {
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap; margin-left: auto;
+}
 
 @media (max-width: 720px) {
     .tabs { overflow-x: auto; }
     .tab { padding: 10px 12px; font-size: 0.85rem; }
-    .tabs__action { flex-shrink: 0; }
+    .tab-bar__actions { margin-left: 0; width: 100%; justify-content: flex-end; }
 }
 
 /* What is left in the cash box, read first on the Dépenses page. */

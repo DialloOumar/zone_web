@@ -237,6 +237,7 @@ HELP_SECTIONS = [
             "fr": [
                 "Le solde des comptes est affiché en haut : ce que la caisse doit encore à chacun, c'est-à-dire ce qu'il a avancé moins ce qui lui a été rendu. Un gérant remboursé retombe à zéro.",
                 "La liste est en deux onglets : « Dépenses » d'un côté, « Entrées et retraits » de l'autre. Le nombre sur chaque onglet dit ce qu'il contient. Un retrait n'est pas une dépense, c'est pourquoi les deux ne se mélangent pas.",
+            "Les filtres du haut valent pour toute la page : la période et le compte. Le site et le véhicule sont sous l'onglet « Dépenses », parce qu'ils ne concernent qu'une dépense — une entrée d'argent n'a ni site ni machine.",
             "Chaque filtre est un menu déroulant : ouvrez-le et cochez plusieurs sites ou plusieurs véhicules à la fois.",
                 "« Rapport global » suit les filtres affichés et imprime les deux tableaux : les dépenses et les entrées/retraits, avec solde d'ouverture et de clôture. Restreint à un site, c'est la liste des dépenses de ce site.",
             "« Imprimer cette section » n'imprime que l'onglet ouvert — les dépenses seules, ou les entrées et retraits seuls. Les filtres et la période sont les mêmes que ceux affichés.",
@@ -248,6 +249,7 @@ HELP_SECTIONS = [
             "en": [
                 "The account balances are at the top: what the box still owes each one — what it advanced, less what has been given back. A repaid agent falls back to zero.",
                 "The list is in two tabs: \"Expenses\" on one side, \"Money in and out\" on the other. The count on each tab says what is in it. A withdrawal is not a cost, which is why the two are never mixed.",
+            "The filters at the top apply to the whole page: the period and the account. Site and vehicle sit under the \"Expenses\" tab, because they belong to a cost alone -- money coming in has no site and no machine.",
             "Each filter is a dropdown: open it and tick several sites or several vehicles at a time.",
                 "\"Full report\" follows the filters on screen and prints both tables: the costs and the money in and out, opening and closing balance included. Narrowed to a site it is that site's list of costs.",
             "\"Print this section\" prints only the open tab -- the costs alone, or the money in and out alone. The filters and the period are the ones on screen.",

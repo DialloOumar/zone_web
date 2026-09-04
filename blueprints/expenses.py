@@ -373,9 +373,9 @@ def index():
         mq = mq.filter(CashMovement.date <= end)
     if account_ids:
         mq = mq.filter(CashMovement.account_id.in_(account_ids))
-    # A site or a machine is a property of a cost, never of a movement.
-    if site_ids or vehicle_ids:
-        mq = mq.filter(db.false())
+    # A site or a machine is a property of a cost, never of a movement, so those
+    # two filters live under the costs tab and leave this list alone. Blanking it
+    # instead would empty the other tab for a reason not visible from it.
     movements = mq.order_by(CashMovement.date.desc(), CashMovement.id.desc()).all()
 
     # The tab lives in the address, not in the page: every filter press reloads,
@@ -514,6 +514,9 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids, part=None):
         q = CashMovement.query
         if account_ids:
             q = q.filter(CashMovement.account_id.in_(account_ids))
+        # On paper it is one document, so a request for one site's costs drops
+        # the movements rather than printing every one of them beneath a heading
+        # the reader would take to mean that site.
         if site_ids or vehicle_ids:
             q = q.filter(db.false())
         return q

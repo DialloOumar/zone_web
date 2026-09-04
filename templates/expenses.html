@@ -18,6 +18,12 @@
 {# A dropdown holding tick boxes: several can be chosen, and thirty machines
    do not stretch across the page. <details> does the opening on its own, so no
    script has to run for the filter to work. #}
+{# Two filter forms sit on this page, and submitting either must not throw
+   away what the other holds -- so each carries the other's values hidden. #}
+{% macro carry(name, chosen) %}
+    {%- for v in chosen %}<input type="hidden" name="{{ name }}" value="{{ v }}">{% endfor %}
+{% endmacro %}
+
 {% macro tickbox(name, label, rows, chosen, attr) %}
 <details class="filter-dd{% if chosen %} filter-dd--on{% endif %}">
     <summary>
@@ -54,19 +60,6 @@
                 <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['caisse.report_all'] }}
             </a>
             {% endif %}
-            {% if has_perm('expense.create') %}
-            <a href="{{ url_for('expenses.deposit_new') }}" class="btn btn--sm btn--tonal"
-               data-modal-url="{{ url_for('expenses.deposit_new') }}" data-modal-title="{{ t['caisse.deposit_new'] }}">
-                <span class="material-symbols-outlined">account_balance_wallet</span> {{ t['caisse.deposit_new'] }}
-            </a>
-            <a href="{{ url_for('expenses.withdrawal_new') }}" class="btn btn--sm btn--tonal"
-               data-modal-url="{{ url_for('expenses.withdrawal_new') }}" data-modal-title="{{ t['caisse.withdrawal_new'] }}">
-                <span class="material-symbols-outlined">logout</span> {{ t['caisse.withdrawal_new'] }}
-            </a>
-            <a href="{{ url_for('expenses.new') }}" class="fab" data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
-                <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
-            </a>
-            {% endif %}
         </div>
     </div>
 
@@ -81,8 +74,12 @@
         {% endfor %}
     </div>
     {% endif %}
-    {# Period first, then the pickers: each opens a list you tick, several at a time. #}
+    {# What both tables answer to: the period, and the account the money moved
+       through. A site or a machine is a property of a cost alone, so those two
+       live under the costs tab instead of here. #}
     <form method="get" class="filter-bar">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        {{ carry('site', site_ids) }}{{ carry('vehicle', vehicle_ids) }}
         <div class="field" style="min-width:150px;">
             <input type="date" name="date_from" value="{{ date_from }}" placeholder=" ">
             <label>{{ t['entry.from'] }}</label>
@@ -91,11 +88,9 @@
             <input type="date" name="date_to" value="{{ date_to }}" placeholder=" ">
             <label>{{ t['entry.to'] }}</label>
         </div>
-        {% if sites %}{{ tickbox('site', t['expense.site'], sites, site_ids, 'name') }}{% endif %}
-        {% if vehicles %}{{ tickbox('vehicle', t['expense.vehicle'], vehicles, vehicle_ids, 'code') }}{% endif %}
         {% if accounts %}{{ tickbox('account', t['caisse.accounts'], accounts, account_ids, 'name') }}{% endif %}
         <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
-        <a href="{{ url_for('expenses.index', date_from='', date_to='') }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
+        <a href="{{ url_for('expenses.index', date_from='', date_to='', tab=tab) }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
     </form>
 
     <div class="expense-total">
@@ -120,13 +115,47 @@
            class="tab {% if tab == 'mouvements' %}tab--on{% endif %}">
             {{ t['caisse.tab_movements'] }}<span class="tab__count">{{ movements|length }}</span>
         </a>
-        {% if has_perm('report.export_pdf') %}
-        <a href="{{ url_for('expenses.export_print', part=tab, **report_args) }}"
-           class="btn btn--sm btn--outlined tabs__action" target="_blank" rel="noopener">
-            <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['caisse.report_section'] }}
-        </a>
-        {% endif %}
     </nav>
+
+    {# Under the tab, what belongs to the tab: its own filters on the left, its
+       own report on the right. #}
+    <div class="tab-bar">
+        {% if tab == 'depenses' and (sites or vehicles) %}
+        <form method="get" class="filter-bar tab-bar__filters">
+            <input type="hidden" name="tab" value="{{ tab }}">
+            <input type="hidden" name="date_from" value="{{ date_from }}">
+            <input type="hidden" name="date_to" value="{{ date_to }}">
+            {{ carry('account', account_ids) }}
+            {% if sites %}{{ tickbox('site', t['expense.site'], sites, site_ids, 'name') }}{% endif %}
+            {% if vehicles %}{{ tickbox('vehicle', t['expense.vehicle'], vehicles, vehicle_ids, 'code') }}{% endif %}
+            <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        </form>
+        {% endif %}
+        <div class="tab-bar__actions">
+            {% if has_perm('report.export_pdf') %}
+            <a href="{{ url_for('expenses.export_print', part=tab, **report_args) }}"
+               class="btn btn--sm btn--outlined" target="_blank" rel="noopener">
+                <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['caisse.report_section'] }}
+            </a>
+            {% endif %}
+            {% if has_perm('expense.create') %}
+            {% if tab == 'depenses' %}
+            <a href="{{ url_for('expenses.new') }}" class="fab" data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
+            </a>
+            {% else %}
+            <a href="{{ url_for('expenses.withdrawal_new') }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('expenses.withdrawal_new') }}" data-modal-title="{{ t['caisse.withdrawal_new'] }}">
+                <span class="material-symbols-outlined">logout</span> {{ t['caisse.withdrawal_new'] }}
+            </a>
+            <a href="{{ url_for('expenses.deposit_new') }}" class="fab"
+               data-modal-url="{{ url_for('expenses.deposit_new') }}" data-modal-title="{{ t['caisse.deposit_new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['caisse.deposit_new'] }}
+            </a>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
 
     {% if tab == 'mouvements' %}
     {% if movements %}
