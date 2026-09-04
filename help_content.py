@@ -151,49 +151,48 @@ HELP_SECTIONS = [
     {
         "id": "carburant",
         "icon": "local_gas_station",
-        "gate": {"perms": ["expense.view"]},
-        "title": {"fr": "Enregistrer un plein de carburant",
-                  "en": "Record a fuel fill-up"},
+        "gate": {"perms": ["carburant.view"]},
+        "title": {"fr": "Suivre le carburant", "en": "Track fuel"},
         "intro": {
-            "fr": "Le carburant a sa propre page parce que c'est la dépense la "
-                  "plus fréquente et la seule qui se compte aussi en litres. Un "
-                  "plein est toujours rattaché à un véhicule.",
-            "en": "Fuel has its own page because it is the most frequent expense "
-                  "and the only one also counted in litres. A fill-up is always "
-                  "tied to a vehicle.",
+            "fr": "Le carburant se suit en litres, pas en argent : ce qui entre "
+                  "dans les citernes, ce qui en sort vers les machines, et ce "
+                  "qu'il reste en cuve.",
+            "en": "Fuel is followed in litres, not in money: what goes into the "
+                  "citernes, what leaves them for the machines, and what is "
+                  "left in the tanks.",
         },
         "steps": {
             "fr": [
-                "Ouvrez « Carburant » puis « Nouveau plein ».",
-                "Choisissez le véhicule et la date.",
-                "Saisissez le montant (GNF) et les litres. Le prix au litre s'affiche tout seul dans la liste — c'est un bon contrôle de cohérence.",
-                "(Facultatif) Indiquez le conducteur qui a fait le plein.",
-                "Choisissez le moyen de paiement (mobile money, espèces, virement, chèque, autre) et, si vous en avez une, la référence (numéro de transaction, de reçu…).",
-                "Enregistrez.",
+                "Ouvrez « Carburant ». Chaque citerne affiche son stock et sa capacité.",
+                "« Ravitailler » : la citerne se remplit chez VIVO, ou une machine se sert directement à la pompe. C'est le même bouton, la cible décide.",
+                "« Distribution » : une machine se sert dans une citerne. Le stock de la citerne baisse d'autant.",
+                "« Relevé » : ce que la jauge indique vraiment, comparé au stock théorique.",
+                "« Historique des mouvements » : tout est là, filtrable par citerne, type et période.",
+                "Cliquez le code d'une citerne pour voir son flux : ce qui est entré, ce qui est sorti, et vers quelles machines.",
             ],
             "en": [
-                "Open \"Fuel\" then \"New fill-up\".",
-                "Pick the vehicle and the date.",
-                "Enter the amount (GNF) and the litres. The price per litre is computed for you in the list — a handy sanity check.",
-                "(Optional) Name the driver who filled up.",
-                "Pick the payment method (mobile money, cash, transfer, cheque, other) and, if you have one, the reference (transaction or receipt number).",
-                "Save.",
+                "Open \"Fuel\". Each citerne shows its stock and its capacity.",
+                "\"Refuel\": the citerne fills up at VIVO, or a machine takes fuel straight at the pump. Same button — the target decides.",
+                "\"Distribution\": a machine draws from a citerne. The tank goes down by that much.",
+                "\"Gauge reading\": what the gauge actually shows, against the theoretical stock.",
+                "\"Movement history\": everything is there, filterable by citerne, kind and period.",
+                "Click a citerne's code to see its flow: what came in, what went out, and to which machines.",
             ],
         },
         "tips": {
             "fr": [
-                "Le total du mois et le total des litres sont rappelés en haut de la liste.",
-                "Les pleins alimentent l'analyse carburant.",
-                "Sur les citernes, la saisie n'est jamais refusée : si une distribution vide la citerne au-delà de ce qu'elle avait, ou si une rentrée dépasse sa capacité, c'est enregistré et signalé. Le stock s'affiche alors en rouge, avec ce qu'il faut faire.",
-                "Un stock négatif veut dire qu'il manque une rentrée : saisissez-la à sa vraie date et le compte se remet d'aplomb tout seul.",
-                "Le badge « Historique à régulariser » apparaît quand le stock d'aujourd'hui est correct mais que la citerne est sortie de ses bornes à une date passée. Il mène droit aux mouvements concernés, surlignés dans la liste.",
+                "Le carburant n'a pas de montant : il ne passe pas par les dépenses et n'entre pas dans la caisse. On suit des litres.",
+                "La saisie n'est jamais refusée. Une distribution qui vide la citerne au-delà de ce qu'elle avait, ou une rentrée qui dépasse sa capacité, est enregistrée et signalée en rouge.",
+                "Un stock négatif veut dire qu'il manque une rentrée : saisissez-la à sa vraie date et le compte se remet d'aplomb.",
+                "Le tableau de bord affiche « En cuve », le total de vos citernes, en rouge dès que l'une d'elles est à régulariser.",
+                "Les litres du mois sur le tableau de bord comptent ce qui est parti dans les machines — distributions et pleins directs. Remplir une citerne n'est pas consommer.",
             ],
             "en": [
-                "The month's total and total litres are shown at the top of the list.",
-                "Fill-ups feed the fuel analysis.",
-                "On citernes, entry is never refused: a distribution that takes more than the tank held, or a fill past its capacity, is recorded and flagged. The stock then shows in red, with what to do about it.",
-                "A negative stock means a rentrée is missing: log it on its real date and the figure settles on its own.",
-                "The \"History to settle\" badge shows when today's stock is fine but the citerne went out of bounds on a past date. It leads straight to the movements, highlighted in the list.",
+                "Fuel carries no amount: it never reaches the expenses and never touches the cash box. What is followed is litres.",
+                "Entry is never refused. A distribution taking more than the tank held, or a fill past its capacity, is recorded and flagged in red.",
+                "A negative stock means a rentrée is missing: log it on its real date and the figure settles.",
+                "The dashboard shows \"In the tanks\", the total across your citernes, in red as soon as one needs settling.",
+                "The month's litres on the dashboard count what went into machines — distributions and direct fills. Filling a citerne is not burning fuel.",
             ],
         },
     },

@@ -24,10 +24,10 @@ from flask_migrate import Migrate
 
 import s3_storage
 from languages import TRANSLATIONS
-from models import (Alert, AppSetting, AuditLog, DailyEntry, Expense, Fleet,
-                    FleetRate, MaintenanceRecord, MaintenanceRule, Operator,
-                    PendingChange, Permission, Role, RolePermission, User,
-                    UserFleet, Vehicle, VehicleCategory, db)
+from models import (Alert, AppSetting, AuditLog, Citerne, DailyEntry, Expense,
+                    Fleet, FleetRate, FuelMovement, MaintenanceRecord,
+                    MaintenanceRule, Operator, PendingChange, Permission, Role,
+                    RolePermission, User, UserFleet, Vehicle, VehicleCategory, db)
 
 load_dotenv()
 
@@ -491,11 +491,15 @@ def _dashboard_charts(fleet_ids, now, lang):
     ranked.sort(key=lambda r: r[2], reverse=True)
     ranked = ranked[:10]
 
-    # 4. Litres filled per month (Expense carries its own fleet_id).
-    yme = db.func.substr(Expense.date, 1, 7)
-    q = (db.session.query(yme, co(db.func.sum(Expense.liters), 0.0))
-         .filter(Expense.category == "fuel", yme.in_(months)))
-    per_month_fuel = dict(scope(q, Expense).group_by(yme).all())
+    # 4. Litres that went into machines per month. Drawn from the movements —
+    #    a distribution out of a citerne, or a fill taken straight at the pump.
+    #    Rentrées are left out: filling a tank is not burning fuel, and counting
+    #    both would show every litre twice.
+    ymf = db.func.substr(FuelMovement.date, 1, 7)
+    q = (db.session.query(ymf, co(db.func.sum(FuelMovement.liters), 0.0))
+         .join(Vehicle, FuelMovement.vehicle_id == Vehicle.id)
+         .filter(FuelMovement.kind.in_(("distribution", "direct")), ymf.in_(months)))
+    per_month_fuel = dict(scope(q).group_by(ymf).all())
 
     return {
         "activity_trend": {
@@ -659,11 +663,24 @@ def dashboard():
         act = act.filter(Vehicle.fleet_id.in_(fleet_ids))
     hours, trips, km, active_vehicles = act.one()
 
-    # Litres filled this month (Expense carries its own fleet_id — no join).
-    fq_l = db.session.query(co(db.func.sum(Expense.liters), 0.0)).filter(
-        Expense.category == "fuel", Expense.date.like(like))
+    # Litres into machines this month, from the movements.
+    fq_l = (db.session.query(co(db.func.sum(FuelMovement.liters), 0.0))
+            .join(Vehicle, FuelMovement.vehicle_id == Vehicle.id)
+            .filter(FuelMovement.kind.in_(("distribution", "direct")),
+                    FuelMovement.date.like(like)))
     if fleet_ids is not None:
-        fq_l = fq_l.filter(Expense.fleet_id.in_(fleet_ids))
+        fq_l = fq_l.filter(Vehicle.fleet_id.in_(fleet_ids))
+
+    # What the citernes hold, and which of them do not add up. A tank under zero
+    # or over its capacity is the one thing on this page that needs acting on
+    # today, so it is counted here rather than waiting to be found on its page.
+    cq = Citerne.query.filter(Citerne.is_active.is_(True))
+    if fleet_ids is not None:
+        cq = cq.filter(Citerne.fleet_id.in_(fleet_ids))
+    citernes = cq.all()
+    citerne_stock = sum(c.stock for c in citernes)
+    citernes_off = [c for c in citernes if c.stock < 0 or c.stock > c.capacity_liters
+                    or c.anomaly]
 
     stats = {
         "hours": float(hours or 0),
@@ -674,6 +691,9 @@ def dashboard():
         "vehicles": vq.count(),
         "operators": oq.count(),
         "alerts_open": aq.count(),
+        "citernes": len(citernes),
+        "citerne_stock": citerne_stock,
+        "citernes_off": [c.code for c in citernes_off],
     }
 
     # Open alerts — newest first, scoped via the vehicle's fleet.

@@ -8,9 +8,10 @@ Three lenses, all fleet-scoped to the current user and filtered by month:
      fuel / maintenance / other.
   3. Idle / under-utilised vehicles — days since last activity + units logged.
 
-Costs all come from the one ledger (Expense): "fuel", "entretien" (written from
-a service record) and everything else. Splitting by category is what keeps the
-three cost columns disjoint — nothing is ever counted twice.
+Litres come from the fuel movements; costs come from the ledger (Expense):
+"entretien", written from a service record, and everything else. Fuel is not in
+the ledger at all — it is followed in litres — so the fuel cost column is always
+zero for now.
 """
 from datetime import datetime
 
@@ -18,7 +19,7 @@ from flask import Blueprint, render_template, request
 from flask_login import login_required
 
 from app import current_user_fleet_ids, require_perm
-from models import DailyEntry, Expense, Fleet, Vehicle, db
+from models import DailyEntry, Expense, Fleet, FuelMovement, Vehicle, db
 
 insights_bp = Blueprint("insights", __name__)
 
@@ -74,19 +75,19 @@ def _aggregate(vehicle_ids, month):
     ):
         act[vid] = {"trips": int(trips or 0), "hours": float(hours or 0), "km": float(km or 0)}
 
+    # Litres each machine actually took, from the fuel movements: drawn from a
+    # citerne, or filled straight at the pump. Fuel carries no money any more —
+    # it is followed in litres — so there is no amount to read alongside.
     fuel = {}
-    for vid, liters, amount in (
-        db.session.query(
-            Expense.vehicle_id,
-            co(db.func.sum(Expense.liters), 0.0),
-            co(db.func.sum(Expense.amount), 0))
-        .filter(Expense.vehicle_id.in_(vehicle_ids))
-        .filter(Expense.category == "fuel")
-        .filter(Expense.maintenance_record_id.is_(None))
-        .filter(Expense.date.like(like))
-        .group_by(Expense.vehicle_id).all()
+    for vid, liters in (
+        db.session.query(FuelMovement.vehicle_id,
+                         co(db.func.sum(FuelMovement.liters), 0.0))
+        .filter(FuelMovement.vehicle_id.in_(vehicle_ids))
+        .filter(FuelMovement.kind.in_(("distribution", "direct")))
+        .filter(FuelMovement.date.like(like))
+        .group_by(FuelMovement.vehicle_id).all()
     ):
-        fuel[vid] = {"liters": float(liters or 0), "amount": int(amount or 0)}
+        fuel[vid] = {"liters": float(liters or 0), "amount": 0}
 
     # Everything that is neither fuel nor a service — services are counted below.
     other = {}

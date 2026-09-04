@@ -1,14 +1,13 @@
-"""Expenses blueprint — the money ledger and its two entry screens.
+"""Expenses blueprint — the cash box and the ledger behind it.
 
-Every cost lives in one table (Expense), but is captured where it belongs:
+/expenses is a till: money is paid in, and the costs entered there spend it.
+Everything logged is a company cost, filed as société or terrain.
 
-  • /carburant — fuel, always tied to a vehicle, with litres
-  • /expenses  — the cash box: a named company cost, no vehicle, no fleet
-
-Maintenance costs also land in the ledger (category "entretien") but are written
-by the maintenance blueprint alongside their service record, so they show here
-read-only. A cost with no vehicle carries a `label`; a cost with no fleet is a
-company cost, visible to anyone allowed on the expenses page.
+Costs raised elsewhere land in the same table and show read-only where they
+belong: a service writes "entretien" alongside its record, a stock receipt
+writes "pieces". Neither is paid out of this till, so neither touches its
+balance. Fuel used to be here too; it is litres in the citerne module now and
+carries no money at all.
 """
 import calendar
 from datetime import date, datetime
@@ -19,12 +18,15 @@ from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, submit_change, with_current_fleet)
-from models import CashMovement, Expense, Fleet, Operator, Vehicle, db
+from models import CashMovement, Expense, Fleet, db
 
 expenses_bp = Blueprint("expenses", __name__)
 
 # Category codes (labels via expense.cat.<code>).
-FUEL_CATEGORY = "fuel"           # own screen: /carburant
+# Fuel used to be logged as an expense on a screen of its own. It is tracked in
+# litres by the citerne module now and carries no money, so nothing writes this
+# category any more — the code stays to keep old rows out of the cash box.
+FUEL_CATEGORY = "fuel"
 MAINTENANCE_CATEGORY = "entretien"  # written by the maintenance blueprint only
 PARTS_CATEGORY = "pieces"        # written by the stock blueprint only (a receipt)
 
@@ -61,24 +63,6 @@ def _accessible_fleets():
     if fids is not None:
         q = q.filter(Fleet.id.in_(fids))
     return q.all()
-
-
-def _accessible_vehicles():
-    # Entry picker: only vehicles on a live fleet — no new expense against a
-    # mothballed fleet. History stays reachable through the scoped list views.
-    q = Vehicle.query.filter(Vehicle.fleet.has(Fleet.is_active.is_(True)))
-    fids = current_user_fleet_ids()
-    if fids is not None:
-        q = q.filter(Vehicle.fleet_id.in_(fids))
-    return q.order_by(Vehicle.code).all()
-
-
-def _accessible_operators():
-    q = Operator.query.filter_by(is_active=True)
-    fids = current_user_fleet_ids()
-    if fids is not None:
-        q = q.filter(Operator.fleet_id.in_(fids))
-    return q.order_by(Operator.name).all()
 
 
 def _scoped_expenses():
@@ -178,58 +162,11 @@ def _read_expense_form(expense):
     return common, None
 
 
-def _read_fuel_form(expense):
-    """Carburant form: always a vehicle, always category "fuel", with litres."""
-    t = get_t()
-    common, error = _common_fields(t)
-    if error:
-        return None, error
-
-    vehicle_id = request.form.get("vehicle_id", type=int) or None
-    if not vehicle_id:
-        return None, t["expense.err.vehicle_required"]
-    v = db.session.get(Vehicle, vehicle_id)
-    if not v:
-        return None, t["expense.err.vehicle_required"]
-    fids = current_user_fleet_ids()
-    if fids is not None and v.fleet_id not in fids:
-        return None, t["error.forbidden"]
-
-    liters = None
-    lr = (request.form.get("liters") or "").strip().replace(",", ".")
-    if lr:
-        try:
-            liters = float(lr)
-        except ValueError:
-            return None, t["expense.err.bad_number"]
-        if liters <= 0:
-            return None, t["expense.err.bad_number"]
-
-    common.update(
-        category=FUEL_CATEGORY, vehicle_id=v.id, fleet_id=v.fleet_id,
-        label=None, liters=liters,
-        operator=(request.form.get("operator") or "").strip() or None,
-    )
-    return common, None
-
-
 def _form_context(expense):
     return {
         "payment_methods": CASH_METHODS,
         "categories": CASH_CATEGORIES,
         "field_category": FIELD_CATEGORY,
-        "today": date.today().isoformat(),
-    }
-
-
-def _fuel_form_context(expense):
-    """The Carburant form still picks a machine and its driver — a fill-up is
-    always a vehicle's. Only the Dépenses form dropped those."""
-    return {
-        "vehicles": _accessible_vehicles(),
-        "operators": _accessible_operators(),
-        "payment_methods": PAYMENT_METHODS,
-        "preset_vehicle": request.args.get("vehicle_id", type=int),
         "today": date.today().isoformat(),
     }
 
@@ -571,90 +508,3 @@ def deposit_delete(did):
     db.session.commit()
     flash("success|" + get_t().get("caisse.deposit_deleted", "Dépôt supprimé."))
     return redirect(request.referrer or url_for("expenses.index"))
-
-
-# ── Carburant ────────────────────────────────────────────────────────────────
-
-
-def _render_fuel_form(expense, error=None):
-    tpl = "_fuel_form.html" if is_modal_request() else "fuel_form.html"
-    status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, expense=expense, error=error,
-                           **_fuel_form_context(expense)), status
-
-
-@expenses_bp.route("/carburant")
-@login_required
-@require_perm("expense.view")
-def fuel_index():
-    rows = (_scoped_expenses().filter(Expense.category == FUEL_CATEGORY)
-            .order_by(Expense.date.desc(), Expense.id.desc()).limit(300).all())
-    total = sum(e.amount for e in rows)
-    total_liters = sum(e.liters or 0 for e in rows)
-    return render_template("fuel.html", expenses=rows, total=total,
-                           total_liters=total_liters)
-
-
-@expenses_bp.route("/carburant/new", methods=["GET", "POST"])
-@login_required
-@require_perm("expense.create")
-def fuel_new():
-    t = get_t()
-    if request.method == "POST":
-        data, error = _read_fuel_form(None)
-        if error:
-            return _render_fuel_form(None, error)
-        if needs_approval("expense.create"):
-            submit_change(resource_type="expense", action="create",
-                          fleet_id=data["fleet_id"], payload=data)
-            flash("success|" + t["expense.submitted"])
-            return modal_ok() if is_modal_request() else redirect(url_for("expenses.fuel_index"))
-        x = Expense(created_by=current_user.id, **data)
-        db.session.add(x)
-        db.session.flush()
-        log_action("CREATE", "expense", resource_id=x.id, fleet_id=x.fleet_id,
-                   detail=f"Logged fuel {x.amount} GNF")
-        db.session.commit()
-        flash("success|" + t["expense.created"])
-        return modal_ok() if is_modal_request() else redirect(url_for("expenses.fuel_index"))
-    return _render_fuel_form(None)
-
-
-@expenses_bp.route("/carburant/<int:xid>/edit", methods=["GET", "POST"])
-@login_required
-@require_perm("expense.edit")
-def fuel_edit(xid):
-    expense = _get_expense_or_404(xid)
-    t = get_t()
-    if request.method == "POST":
-        data, error = _read_fuel_form(expense)
-        if error:
-            return _render_fuel_form(expense, error)
-        if needs_approval("expense.edit", expense.created_by, expense.created_at):
-            submit_change(resource_type="expense", action="update",
-                          resource_id=expense.id, fleet_id=data["fleet_id"], payload=data)
-            flash("success|" + t["expense.submitted"])
-            return modal_ok() if is_modal_request() else redirect(url_for("expenses.fuel_index"))
-        for k, val in data.items():
-            setattr(expense, k, val)
-        log_action("UPDATE", "expense", resource_id=expense.id, fleet_id=expense.fleet_id,
-                   detail=f"Edited fuel expense #{expense.id}")
-        db.session.commit()
-        flash("success|" + t["expense.updated"])
-        return modal_ok() if is_modal_request() else redirect(url_for("expenses.fuel_index"))
-    return _render_fuel_form(expense)
-
-
-@expenses_bp.route("/carburant/<int:xid>/delete", methods=["POST"])
-@login_required
-@require_perm("expense.delete")
-def fuel_delete(xid):
-    expense = _get_expense_or_404(xid)
-    t = get_t()
-    fleet_id = expense.fleet_id
-    db.session.delete(expense)
-    log_action("DELETE", "expense", resource_id=xid, fleet_id=fleet_id,
-               detail=f"Deleted fuel expense #{xid}")
-    db.session.commit()
-    flash("success|" + t["expense.deleted"])
-    return redirect(request.referrer or url_for("expenses.fuel_index"))

@@ -34,6 +34,19 @@
             <div class="stat-label">{{ t['dash.month_liters'] }}</div>
         </div>
     </div>
+    {% if stats.citernes %}
+    <div class="stat-card">
+        <span class="stat-icon {{ 'stat-icon--red' if stats.citernes_off else 'stat-icon--teal' }} material-symbols-outlined">local_gas_station</span>
+        <div>
+            <div class="stat-value {% if stats.citernes_off %}stock-negative{% endif %}">{{ '{:,.0f}'.format(stats.citerne_stock) }}<span class="stat-unit"> L</span></div>
+            <div class="stat-label">{{ t['dash.citerne_stock'] }}</div>
+            {% if stats.citernes_off %}
+            <a class="muted small stock-negative" href="{{ url_for('carburant.index') }}">
+                {{ t['dash.citerne_off'] }} {{ stats.citernes_off|join(', ') }}</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
     <div class="stat-card">
         <span class="stat-icon stat-icon--green material-symbols-outlined">task_alt</span>
         <div>
