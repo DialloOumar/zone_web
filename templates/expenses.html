@@ -18,14 +18,14 @@
    do not stretch across the page. <details> does the opening on its own, so no
    script has to run for the filter to work. #}
 {% macro tickbox(name, label, rows, chosen, attr) %}
-<details class="filter-dd">
+<details class="filter-dd{% if chosen %} filter-dd--on{% endif %}">
     <summary>
         {{ label }}
         {% if chosen %}<span class="filter-dd__count">{{ chosen|length }}</span>{% endif %}
     </summary>
     <div class="filter-dd__panel">
         {% for r in rows %}
-        <label class="checkbox-item">
+        <label class="filter-dd__opt">
             <input type="checkbox" name="{{ name }}" value="{{ r.id }}" {% if r.id in chosen %}checked{% endif %}>
             <span>{{ r[attr] }}</span>
         </label>

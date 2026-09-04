@@ -558,46 +558,71 @@ a:hover { text-decoration: underline; }
 /* ── Filters that tick rather than pick one ──
    Each one is a <details>: the summary is the button, the tick boxes live in a
    panel that floats over the page. Native, so it opens with no script, and a
-   long list scrolls inside instead of pushing the page down. */
+   long list scrolls inside instead of pushing the page down.
+
+   The rows deliberately do NOT reuse .checkbox-item: that one draws a bordered
+   card per line, which stacked inside a small panel reads as a pile of boxes
+   rather than a list. Here a row is plain text until you point at it. */
 .filter-dd { position: relative; }
 .filter-dd > summary {
     list-style: none; cursor: pointer; user-select: none;
-    display: inline-flex; align-items: center; gap: 6px;
+    display: inline-flex; align-items: center; gap: 8px;
     border: 1px solid var(--md-outline); border-radius: 999px;
-    padding: 7px 14px; font-size: 0.82rem; background: var(--md-surface);
-    white-space: nowrap;
+    padding: 8px 14px; font-size: 0.84rem; background: var(--md-surface);
+    color: var(--md-on-surface); white-space: nowrap;
 }
+.filter-dd > summary:hover { background: var(--md-surface-container); }
 .filter-dd > summary::-webkit-details-marker { display: none; }
 /* The chevron is drawn, not lettered: the icon font is subset and one more
    name in it would mean regenerating the file. */
 .filter-dd > summary::after {
-    content: ""; width: 6px; height: 6px; margin-left: 2px;
+    content: ""; width: 6px; height: 6px; margin-left: 2px; opacity: .7;
     border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
     transform: translateY(-2px) rotate(45deg); transition: transform .15s;
 }
-.filter-dd[open] > summary { background: var(--md-secondary-container); border-color: transparent; }
 .filter-dd[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
+/* Open, or narrowing the list: either way the button stops looking neutral. */
+.filter-dd[open] > summary,
+.filter-dd--on > summary {
+    background: var(--md-secondary-container);
+    border-color: var(--md-secondary-container);
+    color: var(--md-on-secondary-container);
+    font-weight: 500;
+}
 .filter-dd__count {
-    background: var(--md-primary); color: #fff; border-radius: 999px;
-    font-size: 0.7rem; font-weight: 700; padding: 0 6px; min-width: 18px;
-    text-align: center;
+    background: var(--md-primary); color: var(--md-on-primary);
+    border-radius: 999px; font-size: 0.7rem; font-weight: 700;
+    padding: 1px 6px; min-width: 20px; text-align: center; line-height: 1.4;
 }
+
 .filter-dd__panel {
-    position: absolute; z-index: 20; top: calc(100% + 6px); left: 0;
-    min-width: 220px; max-height: 320px; overflow-y: auto;
-    display: flex; flex-direction: column; gap: 2px;
-    padding: 8px; border-radius: 12px;
-    background: var(--md-surface); border: 1px solid var(--md-outline-variant);
-    box-shadow: 0 2px 6px rgba(0,0,0,.20), 0 1px 2px rgba(0,0,0,.14);
+    position: absolute; z-index: 30; top: calc(100% + 8px); left: 0;
+    min-width: 250px; max-width: 340px; max-height: 340px; overflow-y: auto;
+    padding: 6px; border-radius: 14px;
+    background: var(--md-surface-container-low);
+    border: 1px solid var(--md-outline-variant);
+    box-shadow: 0 6px 16px rgba(0,0,0,.16), 0 2px 5px rgba(0,0,0,.10);
 }
-.filter-dd__panel .checkbox-item { padding: 5px 8px; border-radius: 8px; }
-.filter-dd__panel .checkbox-item:hover { background: var(--md-surface-container-high); }
+.filter-dd__opt {
+    display: flex; align-items: center; gap: 12px;
+    padding: 9px 12px; border-radius: 9px; cursor: pointer;
+    font-size: 0.87rem; line-height: 1.3; color: var(--md-on-surface);
+}
+.filter-dd__opt:hover { background: var(--md-surface-container-high); }
+.filter-dd__opt input {
+    accent-color: var(--md-primary); width: 17px; height: 17px;
+    flex-shrink: 0; margin: 0; cursor: pointer;
+}
+.filter-dd__opt:has(input:checked) { font-weight: 600; }
 
 /* The panel would be clipped off-screen on a phone, so it lies flat instead. */
 @media (max-width: 720px) {
     .filter-dd { width: 100%; }
     .filter-dd > summary { width: 100%; justify-content: space-between; }
-    .filter-dd__panel { position: static; min-width: 0; box-shadow: none; }
+    .filter-dd__panel {
+        position: static; min-width: 0; max-width: none; margin-top: 6px;
+        box-shadow: none;
+    }
 }
 
 /* What is left in the cash box, read first on the Dépenses page. */
