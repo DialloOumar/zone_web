@@ -669,6 +669,33 @@ a:hover { text-decoration: underline; }
     .tab-bar__actions { margin-left: 0; width: 100%; justify-content: flex-end; }
 }
 
+/* ── A block that folds away ── <details> again, so it opens with no script.
+   The closed line carries the figure worth knowing, so folding it costs the
+   reader nothing. */
+.fold { margin: 0 0 14px; border-radius: 12px; background: var(--md-surface-container-low); }
+.fold > summary {
+    list-style: none; cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; font-size: 0.86rem; font-weight: 500;
+    color: var(--md-on-surface);
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after {
+    content: ""; width: 6px; height: 6px; margin-left: 4px; opacity: .7;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); transition: transform .15s;
+    order: -1;
+}
+.fold[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
+.fold__count {
+    background: var(--md-surface-container-high); color: var(--md-on-surface-variant);
+    border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+    padding: 1px 8px; line-height: 1.5;
+}
+/* Pushed to the far end: it is the answer, the label is only the question. */
+.fold__aside { margin-left: auto; font-weight: 600; }
+.fold > .cost-split { margin: 0; padding: 0 14px 12px; }
+
 /* What is left in the cash box, read first on the Dépenses page. */
 .caisse-balance { display: flex; flex-direction: column; gap: 2px; }
 .caisse-balance__label { font-size: 0.74rem; color: var(--md-on-surface-variant); }

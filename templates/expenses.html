@@ -64,15 +64,27 @@
     </div>
 
     {% if accounts_summary %}
-    {# What the box still owes, and what came from the house. #}
-    <div class="cost-split">
-        {% for a in accounts_summary %}
-        <div class="cost-split__row">
-            <span>{{ a.account.name }}{% if a.account.is_repayable %} <span class="badge badge--info">{{ t['list.repayable_short'] }}</span>{% endif %}</span>
-            <strong class="{% if a.account.is_repayable and a.balance > 0 %}stock-negative{% endif %}">{{ '{:,}'.format(a.balance) }} {{ currency }}</strong>
+    {# What the box still owes, and what came from the house. Folded away by
+       default -- it is read now and then, not all day -- but what is owed shows
+       on the closed line, so nothing that matters hides behind a click. #}
+    {% set owed_total = accounts_summary | selectattr('account.is_repayable') | sum(attribute='balance') %}
+    <details class="fold">
+        <summary>
+            <span>{{ t['caisse.accounts'] }}</span>
+            <span class="fold__count">{{ accounts_summary | length }}</span>
+            {% if owed_total > 0 %}
+            <span class="fold__aside stock-negative">{{ t['caisse.owed'] }} : {{ '{:,}'.format(owed_total) }} {{ currency }}</span>
+            {% endif %}
+        </summary>
+        <div class="cost-split">
+            {% for a in accounts_summary %}
+            <div class="cost-split__row">
+                <span>{{ a.account.name }}{% if a.account.is_repayable %} <span class="badge badge--info">{{ t['list.repayable_short'] }}</span>{% endif %}</span>
+                <strong class="{% if a.account.is_repayable and a.balance > 0 %}stock-negative{% endif %}">{{ '{:,}'.format(a.balance) }} {{ currency }}</strong>
+            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
-    </div>
+    </details>
     {% endif %}
     {# What both tables answer to: the period, and the account the money moved
        through. A site or a machine is a property of a cost alone, so those two
