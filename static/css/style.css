@@ -563,14 +563,34 @@ a:hover { text-decoration: underline; }
    The rows deliberately do NOT reuse .checkbox-item: that one draws a bordered
    card per line, which stacked inside a small panel reads as a pile of boxes
    rather than a list. Here a row is plain text until you point at it. */
+/* Menus and dates match .btn--sm exactly -- 30px tall, same type size, same
+   pill -- so a filter bar reads as one row of controls rather than three sizes
+   of thing that happen to sit together. */
 .filter-dd { position: relative; }
 .filter-dd > summary {
     list-style: none; cursor: pointer; user-select: none;
     display: inline-flex; align-items: center; gap: 8px;
+    height: 30px; padding: 0 13px;
     border: 1px solid var(--md-outline); border-radius: 999px;
-    padding: 8px 14px; font-size: 0.84rem; background: var(--md-surface);
+    font-size: 0.78rem; background: var(--md-surface);
     color: var(--md-on-surface); white-space: nowrap;
 }
+.filter-date {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 30px; padding: 0 13px;
+    border: 1px solid var(--md-outline); border-radius: 999px;
+    font-size: 0.78rem; background: var(--md-surface); cursor: pointer;
+}
+.filter-date > span { color: var(--md-on-surface-variant); white-space: nowrap; }
+.filter-date input {
+    border: 0; background: none; padding: 0; min-width: 0; width: 108px;
+    font: inherit; color: var(--md-on-surface); cursor: pointer;
+}
+.filter-date input:focus { outline: none; }
+.filter-date:focus-within { border-color: var(--md-primary); }
+/* Everything in these bars is the same height now, so they close up and centre
+   instead of hanging off a baseline that no longer varies. */
+.filter-bar--live { align-items: center; gap: 8px; }
 .filter-dd > summary:hover { background: var(--md-surface-container); }
 .filter-dd > summary::-webkit-details-marker { display: none; }
 /* The chevron is drawn, not lettered: the icon font is subset and one more
@@ -591,8 +611,8 @@ a:hover { text-decoration: underline; }
 }
 .filter-dd__count {
     background: var(--md-primary); color: var(--md-on-primary);
-    border-radius: 999px; font-size: 0.7rem; font-weight: 700;
-    padding: 1px 6px; min-width: 20px; text-align: center; line-height: 1.4;
+    border-radius: 999px; font-size: 0.68rem; font-weight: 700;
+    padding: 0 6px; min-width: 18px; text-align: center; line-height: 1.6;
 }
 
 .filter-dd__panel {

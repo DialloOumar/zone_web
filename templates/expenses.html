@@ -95,14 +95,16 @@
     <form method="get" class="filter-bar filter-bar--live">
         <input type="hidden" name="tab" value="{{ tab }}">
         {{ carry('site', site_ids) }}{{ carry('vehicle', vehicle_ids) }}
-        <div class="field" style="min-width:150px;">
-            <input type="date" name="date_from" value="{{ date_from }}" placeholder=" ">
-            <label>{{ t['entry.from'] }}</label>
-        </div>
-        <div class="field" style="min-width:150px;">
-            <input type="date" name="date_to" value="{{ date_to }}" placeholder=" ">
-            <label>{{ t['entry.to'] }}</label>
-        </div>
+        {# Not the tall form field used for entering data: here a date is a
+           filter, and it stands beside buttons. Same height, same pill. #}
+        <label class="filter-date">
+            <span>{{ t['entry.from'] }}</span>
+            <input type="date" name="date_from" value="{{ date_from }}">
+        </label>
+        <label class="filter-date">
+            <span>{{ t['entry.to'] }}</span>
+            <input type="date" name="date_to" value="{{ date_to }}">
+        </label>
         {% if accounts %}{{ tickbox('account', t['caisse.accounts'], accounts, account_ids, 'name') }}{% endif %}
         {# A filter applies as it is chosen; the button is only for a browser
            running no script, which would otherwise have no way to send this. #}
