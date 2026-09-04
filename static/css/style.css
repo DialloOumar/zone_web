@@ -556,24 +556,48 @@ a:hover { text-decoration: underline; }
 .cash-in { color: var(--c-green); }
 
 /* ── Filters that tick rather than pick one ──
-   Sites, machines and accounts: several at a time, laid out as chips so a
-   short list reads at a glance and a long one wraps instead of scrolling. */
-.filter-bar--stacked { flex-direction: column; align-items: stretch; gap: 12px; }
-.filter-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-.filter-section { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-.filter-section__label {
-    font-size: 0.74rem; font-weight: 600; min-width: 74px;
-    color: var(--md-on-surface-variant);
+   Each one is a <details>: the summary is the button, the tick boxes live in a
+   panel that floats over the page. Native, so it opens with no script, and a
+   long list scrolls inside instead of pushing the page down. */
+.filter-dd { position: relative; }
+.filter-dd > summary {
+    list-style: none; cursor: pointer; user-select: none;
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--md-outline); border-radius: 999px;
+    padding: 7px 14px; font-size: 0.82rem; background: var(--md-surface);
+    white-space: nowrap;
 }
-.filter-group { display: flex; gap: 6px; flex-wrap: wrap; }
-.checkbox-item--chip {
-    border: 1px solid var(--md-outline-variant); border-radius: 999px;
-    padding: 3px 12px 3px 8px; font-size: 0.8rem; background: var(--md-surface);
+.filter-dd > summary::-webkit-details-marker { display: none; }
+/* The chevron is drawn, not lettered: the icon font is subset and one more
+   name in it would mean regenerating the file. */
+.filter-dd > summary::after {
+    content: ""; width: 6px; height: 6px; margin-left: 2px;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); transition: transform .15s;
 }
-.checkbox-item--chip:has(input:checked) {
-    background: var(--md-secondary-container);
-    border-color: var(--md-secondary-container);
-    color: var(--md-on-secondary-container);
+.filter-dd[open] > summary { background: var(--md-secondary-container); border-color: transparent; }
+.filter-dd[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
+.filter-dd__count {
+    background: var(--md-primary); color: #fff; border-radius: 999px;
+    font-size: 0.7rem; font-weight: 700; padding: 0 6px; min-width: 18px;
+    text-align: center;
+}
+.filter-dd__panel {
+    position: absolute; z-index: 20; top: calc(100% + 6px); left: 0;
+    min-width: 220px; max-height: 320px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 8px; border-radius: 12px;
+    background: var(--md-surface); border: 1px solid var(--md-outline-variant);
+    box-shadow: 0 2px 6px rgba(0,0,0,.20), 0 1px 2px rgba(0,0,0,.14);
+}
+.filter-dd__panel .checkbox-item { padding: 5px 8px; border-radius: 8px; }
+.filter-dd__panel .checkbox-item:hover { background: var(--md-surface-container-high); }
+
+/* The panel would be clipped off-screen on a phone, so it lies flat instead. */
+@media (max-width: 720px) {
+    .filter-dd { width: 100%; }
+    .filter-dd > summary { width: 100%; justify-content: space-between; }
+    .filter-dd__panel { position: static; min-width: 0; box-shadow: none; }
 }
 
 /* What is left in the cash box, read first on the Dépenses page. */

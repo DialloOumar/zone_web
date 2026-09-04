@@ -232,7 +232,7 @@ HELP_SECTIONS = [
         "tips": {
             "fr": [
                 "Le solde des comptes est affiché en haut : ce que la caisse doit encore à chacun, c'est-à-dire ce qu'il a avancé moins ce qui lui a été rendu. Un gérant remboursé retombe à zéro.",
-                "Les filtres sont des cases à cocher : plusieurs sites ou plusieurs véhicules à la fois.",
+                "Chaque filtre est un menu déroulant : ouvrez-le et cochez plusieurs sites ou plusieurs véhicules à la fois.",
                 "« Rapport » suit les filtres affichés. Sans filtre c'est le cahier de caisse complet, avec solde d'ouverture et de clôture ; restreint à un site, c'est la liste des dépenses de ce site.",
                 "Pour toutes les dépenses d'une machine, cochez-la dans le filtre Véhicule — ou ouvrez sa fiche, qui les montre à côté de son entretien et de ses pièces.",
                 "Le carburant, l'entretien et les achats de pièces ne sont pas payés par cette caisse et n'apparaissent pas ici.",
@@ -241,7 +241,7 @@ HELP_SECTIONS = [
             ],
             "en": [
                 "The account balances are at the top: what the box still owes each one — what it advanced, less what has been given back. A repaid agent falls back to zero.",
-                "The filters are tick boxes: several sites or several vehicles at a time.",
+                "Each filter is a dropdown: open it and tick several sites or several vehicles at a time.",
                 "\"Report\" follows the filters on screen. With none it is the full cash book, opening and closing balance included; narrowed to a site it is that site's list of costs.",
                 "For every cost of one machine, tick it under the Vehicle filter — or open its sheet, which shows them beside its services and parts.",
                 "Fuel, maintenance and parts purchases are not paid out of this box and do not appear here.",

@@ -14,15 +14,24 @@
     {% if not e.label and not e.vehicle and not e.quantity and not e.description %}<span class="muted">&mdash;</span>{% endif %}
 {%- endmacro %}
 
-{% macro tickbox(name, rows, chosen, attr) %}
-<div class="filter-group">
-    {% for r in rows %}
-    <label class="checkbox-item checkbox-item--chip">
-        <input type="checkbox" name="{{ name }}" value="{{ r.id }}" {% if r.id in chosen %}checked{% endif %}>
-        <span>{{ r[attr] }}</span>
-    </label>
-    {% endfor %}
-</div>
+{# A dropdown holding tick boxes: several can be chosen, and thirty machines
+   do not stretch across the page. <details> does the opening on its own, so no
+   script has to run for the filter to work. #}
+{% macro tickbox(name, label, rows, chosen, attr) %}
+<details class="filter-dd">
+    <summary>
+        {{ label }}
+        {% if chosen %}<span class="filter-dd__count">{{ chosen|length }}</span>{% endif %}
+    </summary>
+    <div class="filter-dd__panel">
+        {% for r in rows %}
+        <label class="checkbox-item">
+            <input type="checkbox" name="{{ name }}" value="{{ r.id }}" {% if r.id in chosen %}checked{% endif %}>
+            <span>{{ r[attr] }}</span>
+        </label>
+        {% endfor %}
+    </div>
+</details>
 {% endmacro %}
 
 {% block content %}
@@ -72,33 +81,21 @@
         <p class="muted small">{{ t['caisse.accounts_hint'] }}</p>
     </div>
     {% endif %}
-
-    {# Period first, then tick boxes: several sites or machines at a time. #}
-    <form method="get" class="filter-bar filter-bar--stacked">
-        <div class="filter-row">
-            <div class="field" style="min-width:150px;">
-                <input type="date" name="date_from" value="{{ date_from }}" placeholder=" ">
-                <label>{{ t['entry.from'] }}</label>
-            </div>
-            <div class="field" style="min-width:150px;">
-                <input type="date" name="date_to" value="{{ date_to }}" placeholder=" ">
-                <label>{{ t['entry.to'] }}</label>
-            </div>
-            <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
-            <a href="{{ url_for('expenses.index', date_from='', date_to='') }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
+    {# Period first, then the pickers: each opens a list you tick, several at a time. #}
+    <form method="get" class="filter-bar">
+        <div class="field" style="min-width:150px;">
+            <input type="date" name="date_from" value="{{ date_from }}" placeholder=" ">
+            <label>{{ t['entry.from'] }}</label>
         </div>
-        {% if sites %}
-        <div class="filter-section"><span class="filter-section__label">{{ t['expense.site'] }}</span>
-            {{ tickbox('site', sites, site_ids, 'name') }}</div>
-        {% endif %}
-        {% if vehicles %}
-        <div class="filter-section"><span class="filter-section__label">{{ t['expense.vehicle'] }}</span>
-            {{ tickbox('vehicle', vehicles, vehicle_ids, 'code') }}</div>
-        {% endif %}
-        {% if accounts %}
-        <div class="filter-section"><span class="filter-section__label">{{ t['caisse.accounts'] }}</span>
-            {{ tickbox('account', accounts, account_ids, 'name') }}</div>
-        {% endif %}
+        <div class="field" style="min-width:150px;">
+            <input type="date" name="date_to" value="{{ date_to }}" placeholder=" ">
+            <label>{{ t['entry.to'] }}</label>
+        </div>
+        {% if sites %}{{ tickbox('site', t['expense.site'], sites, site_ids, 'name') }}{% endif %}
+        {% if vehicles %}{{ tickbox('vehicle', t['expense.vehicle'], vehicles, vehicle_ids, 'code') }}{% endif %}
+        {% if accounts %}{{ tickbox('account', t['caisse.accounts'], accounts, account_ids, 'name') }}{% endif %}
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        <a href="{{ url_for('expenses.index', date_from='', date_to='') }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
     </form>
 
     <div class="expense-total">
