@@ -480,6 +480,11 @@ class Expense(db.Model):
     # Where the money was spent. Optional, and what tells a field cost from an
     # office one: with a site it is terrain, without it société.
     site_id               = db.Column(db.Integer, db.ForeignKey("sites.id"), nullable=True)
+    # Which purse the money came out of. Empty is the ordinary case: the cash in
+    # the box. Naming an account says the box never held this money -- someone
+    # advanced it -- and the matching money-in is written alongside so the box's
+    # balance ends where it started. See sync_account_movement().
+    account_id            = db.Column(db.Integer, db.ForeignKey("cash_accounts.id"), nullable=True)
 
     created_by = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -487,6 +492,16 @@ class Expense(db.Model):
     vehicle = db.relationship("Vehicle")
     fleet   = db.relationship("Fleet")
     site    = db.relationship("Site")
+    account = db.relationship("CashAccount")
+    # The money-in that pairs with this cost when an account paid it. It belongs
+    # to the cost: written, corrected and deleted with it, never on its own.
+    cash_movement = db.relationship(
+        "CashMovement", uselist=False,
+        primaryjoin="CashMovement.expense_id == Expense.id",
+        foreign_keys="CashMovement.expense_id",
+        back_populates="expense",
+        cascade="all, delete-orphan",
+    )
 
 
 class Site(db.Model):
@@ -556,10 +571,15 @@ class CashMovement(db.Model):
     method     = db.Column(db.String(20),  nullable=True)   # cash | mobile_money
     reference  = db.Column(db.String(60),  nullable=True)
     note       = db.Column(db.String(255), nullable=True)
+    # Set when this money-in was written for a cost an account paid directly.
+    # Such a line is not the cashier's to edit: it mirrors the cost.
+    expense_id = db.Column(db.Integer,     db.ForeignKey("expenses.id"), nullable=True, unique=True)
     created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
     account = db.relationship("CashAccount")
+    expense = db.relationship("Expense", back_populates="cash_movement",
+                              foreign_keys=[expense_id])
 
 
 # ── Workflow — approvals & audit ──────────────────────────────────────────────

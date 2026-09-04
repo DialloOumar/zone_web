@@ -11,7 +11,10 @@
     {% if e.vehicle %}<a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>{% endif %}
     {% if e.quantity %}<span class="muted">&times; {{ '{:.10g}'.format(e.quantity) }} {{ t['expense.parts'] }}</span>{% endif %}
     {% if e.description %}<div class="muted small">{{ e.description }}</div>{% endif %}
-    {% if not e.label and not e.vehicle and not e.quantity and not e.description %}<span class="muted">&mdash;</span>{% endif %}
+    {# Nothing is shown for the box: that is the ordinary case, and a chip on
+       every line would drown the ones that are worth noticing. #}
+    {% if e.account %}<div><span class="badge badge--info">{{ t['expense.paid_by'] % e.account.name }}</span></div>{% endif %}
+    {% if not e.label and not e.vehicle and not e.quantity and not e.description and not e.account %}<span class="muted">&mdash;</span>{% endif %}
 {%- endmacro %}
 
 {# A dropdown holding tick boxes: several can be chosen, and thirty machines
@@ -139,13 +142,17 @@
                 <td>{{ m.date }}</td>
                 <td><strong>{{ m.account.name if m.account else t['caisse.deposit'] }}</strong>
                     <span class="mv-chip {{ 'mv-chip--in' if m.kind == 'depot' else 'mv-chip--out' }}">{{ t['caisse.kind.' + m.kind] }}</span>
-                    {% if m.note %}<div class="muted small">{{ m.note }}</div>{% endif %}</td>
+                    {% if m.note %}<div class="muted small">{{ m.note }}</div>{% endif %}
+                    {% if m.expense_id %}<div class="muted small">{{ t['caisse.from_expense'] }}</div>{% endif %}</td>
                 <td class="col-secondary">{{ t['pay.' + m.method] if m.method else '&mdash;' }}
                     {% if m.reference %}<div class="muted small">{{ m.reference }}</div>{% endif %}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;"
                     class="{{ 'cash-in' if m.kind == 'depot' else 'stock-negative' }}">
                     {{ '+' if m.kind == 'depot' else '-' }} {{ '{:,}'.format(m.amount) }} {{ currency }}</td>
                 <td class="row-actions">
+                    {% if m.expense_id %}
+                    <span class="muted small">&mdash;</span>
+                    {% else %}
                     {% if has_perm('expense.edit') %}
                     <a href="{{ url_for('expenses.deposit_edit', did=m.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('expenses.deposit_edit', did=m.id) }}" data-modal-title="{{ t['caisse.movement'] }}"
@@ -156,6 +163,7 @@
                           data-confirm="{{ t['caisse.movement_delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
                         <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                     </form>
+                    {% endif %}
                     {% endif %}
                 </td>
             </tr>

@@ -15,6 +15,7 @@ from flask_login import current_user, login_required
 import maintenance_engine
 from app import current_user_fleet_ids, get_t, log_action
 from blueprints.entries import _recompute_cumulatives
+from blueprints.expenses import sync_account_movement
 from blueprints.maintenance import (MONEY_KEYS, PARTS_KEY, _close_alert_for_record,
                                     sync_record_parts, sync_service_expense)
 from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Operator,
@@ -82,6 +83,7 @@ _FIELD_LABELS = {
     "index_end": "index fin", "cost": "coût", "supplier": "fournisseur",
     "description": "description", "amount": "montant", "liters": "litres",
     "type": "type", "name": "nom", "code": "code", "parts": "pièces",
+    "account": "payé par", "site": "site",
 }
 
 
@@ -163,6 +165,11 @@ def _apply(pc):
         if vehicle_id is not None:
             _recompute_cumulatives(vehicle_id)
             maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, vehicle_id))
+    if pc.resource_type == "expense" and obj is not None:
+        # A cost an account paid carries a money-in beside it, written here too
+        # so an approved cost lands the same way one entered directly does.
+        db.session.flush()
+        sync_account_movement(obj)
     if pc.resource_type == "maintenance_record" and obj is not None:
         db.session.flush()
         sync_service_expense(obj, money or {})

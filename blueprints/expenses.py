@@ -206,10 +206,46 @@ def _read_expense_form(expense):
             if quantity <= 0:
                 return None, t.get("expense.err.quantity", "Quantité invalide.")
 
+    # Which purse it came out of. Empty means the cash in the box, which is the
+    # ordinary case and the default on the form.
+    account_id = request.form.get("account_id", type=int) or None
+    if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True).first():
+        return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
+
     common.update(vehicle_id=vehicle_id, fleet_id=None, label=None, operator=None,
                   supplier=None, site_id=site_id, liters=None, quantity=quantity,
+                  account_id=account_id,
                   category=FIELD_CATEGORY if site_id else OFFICE_CATEGORY)
     return common, None
+
+
+def sync_account_movement(expense):
+    """Keep the money-in that pairs with a cost an account paid directly.
+
+    The box never held that money: the account advanced it and the cost spent
+    it the same day. Writing only the cost would make the box read emptier than
+    it is, so the matching money-in is written beside it and the balance comes
+    out where it started -- in, then straight out, nothing left over. It is the
+    same two lines the cashier used to enter by hand, in one gesture.
+
+    Called after every write to a cost. Clearing the account removes the line.
+    """
+    mv = expense.cash_movement
+    if not expense.account_id:
+        if mv is not None:
+            db.session.delete(mv)
+            expense.cash_movement = None
+        return
+    if mv is None:
+        mv = CashMovement(kind="depot", created_by=expense.created_by)
+        expense.cash_movement = mv
+        db.session.add(mv)
+    mv.account_id = expense.account_id
+    mv.date = expense.date
+    mv.amount = expense.amount
+    mv.currency = expense.currency
+    mv.method = expense.payment_method
+    mv.reference = expense.payment_reference
 
 
 def _form_context(expense):
@@ -218,6 +254,7 @@ def _form_context(expense):
             .order_by(Expense.id.desc()).first())
     return {
         "payment_methods": CASH_METHODS,
+        "accounts": active_accounts(),
         "sites": active_sites(),
         "vehicles": _accessible_vehicles(),
         "last_site_id": last.site_id if last else None,
@@ -324,10 +361,9 @@ def index():
         q = q.filter(Expense.site_id.in_(site_ids))
     if vehicle_ids:
         q = q.filter(Expense.vehicle_id.in_(vehicle_ids))
-    # Asking for an account is asking about money in and out of it, which no
-    # cost carries — so the costs drop out rather than being filtered wrongly.
+    # A cost carries an account only when that account paid it directly.
     if account_ids:
-        q = q.filter(db.false())
+        q = q.filter(Expense.account_id.in_(account_ids))
     expenses = q.order_by(Expense.date.desc(), Expense.id.desc()).limit(300).all()
 
     mq = CashMovement.query
@@ -384,6 +420,7 @@ def new():
         x = Expense(created_by=current_user.id, **data)
         db.session.add(x)
         db.session.flush()
+        sync_account_movement(x)
         log_action("CREATE", "expense", resource_id=x.id, fleet_id=x.fleet_id,
                    detail=f"Logged {x.category} expense {x.amount} GNF")
         db.session.commit()
@@ -417,6 +454,7 @@ def edit(xid):
             return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
         for k, val in data.items():
             setattr(expense, k, val)
+        sync_account_movement(expense)
         log_action("UPDATE", "expense", resource_id=expense.id, fleet_id=expense.fleet_id,
                    detail=f"Edited expense #{expense.id}")
         db.session.commit()
@@ -467,7 +505,7 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids):
         if vehicle_ids:
             q = q.filter(Expense.vehicle_id.in_(vehicle_ids))
         if account_ids:
-            q = q.filter(db.false())
+            q = q.filter(Expense.account_id.in_(account_ids))
         return q
 
     def move_q():
@@ -797,6 +835,11 @@ def withdrawal_new():
 @require_perm("expense.edit")
 def deposit_edit(did):
     m = _get_movement_or_404(did)
+    if m.expense_id:
+        # It mirrors a cost an account paid. Correcting it here would let the
+        # two disagree, so the correction is made on the cost itself.
+        flash("error|" + get_t()["caisse.err.from_expense"])
+        return redirect(url_for("expenses.index", tab="mouvements"))
     return _movement_route(m.kind, m)
 
 
@@ -805,6 +848,9 @@ def deposit_edit(did):
 @require_perm("expense.delete")
 def deposit_delete(did):
     d = _get_movement_or_404(did)
+    if d.expense_id:
+        flash("error|" + get_t()["caisse.err.from_expense"])
+        return redirect(url_for("expenses.index", tab="mouvements"))
     kind, amount = d.kind, d.amount
     db.session.delete(d)
     log_action("DELETE", "cash_movement", resource_id=did,
