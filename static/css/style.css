@@ -254,13 +254,13 @@ a:hover { text-decoration: underline; }
     height: 100vh;
 }
 .sidebar-logo {
-    padding: 12px 12px 16px;
+    padding: 8px 12px 14px;
     display: flex;
 }
 .sidebar-logo-link { display: block; }
 .sidebar-logo-img {
     display: block;
-    width: 150px;
+    width: 118px;
     max-width: 100%;
     /* Reserve the box before the SVG loads so the nav never jumps. */
     aspect-ratio: 637 / 150;
@@ -655,13 +655,13 @@ a:hover { text-decoration: underline; }
 /* ── Tabs ── Links, not script: the chosen one is in the address, so it
    survives the reload that pressing Filtrer causes. */
 .tabs {
-    display: flex; gap: 4px; margin: 4px 0 16px;
+    display: flex; gap: 2px; margin: 0 0 10px;
     border-bottom: 1px solid var(--md-outline-variant);
 }
 .tab {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 10px 16px; text-decoration: none;
-    font-size: 0.9rem; color: var(--md-on-surface-variant);
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 12px; text-decoration: none;
+    font-size: 0.84rem; color: var(--md-on-surface-variant);
     border-bottom: 2px solid transparent; margin-bottom: -1px;
     white-space: nowrap;
 }
@@ -672,8 +672,8 @@ a:hover { text-decoration: underline; }
 }
 /* The count is what tells you the other tab is worth opening. */
 .tab__count {
-    font-size: 0.72rem; font-weight: 600; line-height: 1.5;
-    padding: 0 7px; border-radius: 999px;
+    font-size: 0.7rem; font-weight: 600; line-height: 1.5;
+    padding: 0 6px; border-radius: 999px;
     background: var(--md-surface-container-high); color: var(--md-on-surface-variant);
 }
 .tab--on .tab__count { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
@@ -681,8 +681,8 @@ a:hover { text-decoration: underline; }
 /* The row under the tabs: what belongs to the open tab and nothing else --
    its filters on the left, its report on the right. */
 .tab-bar {
-    display: flex; align-items: center; gap: 12px;
-    flex-wrap: wrap; margin: -6px 0 14px;
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap; margin: 0 0 10px;
 }
 .tab-bar__filters { margin: 0; flex: 1 1 auto; }
 .tab-bar__actions {
@@ -692,7 +692,7 @@ a:hover { text-decoration: underline; }
 
 @media (max-width: 720px) {
     .tabs { overflow-x: auto; }
-    .tab { padding: 10px 12px; font-size: 0.85rem; }
+    .tab { padding: 7px 10px; }
     .tab-bar__actions { margin-left: 0; width: 100%; justify-content: flex-end; }
 }
 
@@ -1766,8 +1766,26 @@ a.stat-card { text-decoration: none; color: inherit; }
 .fab:hover { box-shadow: var(--elev-2); }
 .fab .material-symbols-outlined { font-size: 17px; }
 
-.topbar { height: 56px; padding: 0 20px; }
-.page-title { font-size: 1.2rem; }
+/* ── Display type ──
+   The body text already came down by its root size; these are the headings and
+   the big figures, which were set when the rest was larger and now stood out
+   of proportion. Cut by roughly a tenth each, so the steps between them keep
+   the same ratios. Grouped here with the other density settings rather than
+   edited in place, so the scale can be read and retuned in one look. */
+.topbar { height: 52px; padding: 0 20px; }
+.page-title { font-size: 1.05rem; }
+.card-header h2, .modal__header h2, .help-section__head h2 { font-size: 0.98rem; }
+.confirm__title { font-size: 1.05rem; }
+.auth-card__title { font-size: 1.4rem; }
+.welcome-banner h2 { font-size: 1.08rem; }
+.welcome-hero h2 { font-size: 1.15rem; }
+.stat-value { font-size: 1.28rem; }
+/* The figures a page is read for: smaller, still the largest thing on it. */
+.caisse-balance strong { font-size: 1.2rem; }
+.expense-total strong { font-size: 1.05rem; }
+.invoice-total__value, .mv-total__val, .flux-machine__litres b { font-size: 1.32rem; }
+.flux-stock { font-size: 1.8rem; }
+.error-page h1 { font-size: 3.2rem; }
 
 .sidebar-nav a { height: 46px; font-size: 0.86rem; }
 .sidebar-nav a.sidebar-sub { height: 42px; }
@@ -1775,7 +1793,6 @@ a.stat-card { text-decoration: none; color: inherit; }
 .content { padding: 20px; gap: 18px; }
 .card { padding: 20px; }
 .card-header { margin-bottom: 14px; }
-.card-header h2 { font-size: 1.05rem; }
 
 .auth-form .btn { height: 44px; }
 
@@ -1783,10 +1800,8 @@ a.stat-card { text-decoration: none; color: inherit; }
 .data-table td { padding: 11px 14px; }
 
 .welcome-banner { padding: 22px 26px; }
-.welcome-banner h2 { font-size: 1.2rem; }
 .stat-card { padding: 16px; gap: 14px; }
 .stat-icon { width: 46px; height: 46px; font-size: 24px; }
-.stat-value { font-size: 1.45rem; }
 
 .chip { height: 24px; padding: 0 10px; }
 .filter-chip { height: 30px; padding: 0 14px; }
@@ -1805,7 +1820,7 @@ a.stat-card { text-decoration: none; color: inherit; }
     .sidebar.open { transform: translateX(0); }
     .main-content { margin-left: 0; }
     .topbar { padding: 0 12px; }
-    .page-title { font-size: 1.15rem; }
+    .page-title { font-size: 1rem; }
     .topbar .lang-toggle { display: none; }
     .content { padding: 16px; gap: 16px; overflow-x: hidden; }
     .card { padding: 18px; min-width: 0; }
