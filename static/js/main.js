@@ -380,6 +380,20 @@ document.addEventListener("click", function (e) {
         form.querySelectorAll('input[type="date"]').forEach(function (input) {
             input.addEventListener("change", function () { dirty = true; now(); });
         });
+        // The browser only opens the calendar from its own little icon, which
+        // nobody finds. The whole pill opens it -- except a click that lands on
+        // the numbers, which stays available for typing the date at the
+        // keyboard. showPicker() throws if the browser will not allow it (an
+        // untrusted event, or an older browser), so the icon remains the way in.
+        form.querySelectorAll("label.filter-date").forEach(function (pill) {
+            pill.addEventListener("click", function (e) {
+                var input = pill.querySelector('input[type="date"]');
+                if (!input || e.target === input) return;
+                if (typeof input.showPicker !== "function") return;
+                e.preventDefault();
+                try { input.showPicker(); } catch (err) { input.focus(); }
+            });
+        });
         form.querySelectorAll('details.filter-dd input[type="checkbox"]').forEach(
             function (box) { box.addEventListener("change", soon); });
         // Shutting the menu is a way of saying "that is my choice" -- no reason

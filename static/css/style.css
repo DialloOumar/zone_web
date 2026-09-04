@@ -589,9 +589,11 @@ a:hover { text-decoration: underline; }
     font-size: 0.78rem; background: var(--md-surface); cursor: pointer;
 }
 .filter-date > span { color: var(--md-on-surface-variant); white-space: nowrap; }
+/* Two zones, and the pointer says which is which: the pill opens the calendar,
+   the numbers take a date typed at the keyboard. */
 .filter-date input {
     border: 0; background: none; padding: 0; min-width: 0; width: 108px;
-    font: inherit; color: var(--md-on-surface); cursor: pointer;
+    font: inherit; color: var(--md-on-surface); cursor: text;
 }
 .filter-date input:focus { outline: none; }
 .filter-date:focus-within { border-color: var(--md-primary); }
@@ -1765,6 +1767,13 @@ a.stat-card { text-decoration: none; color: inherit; }
 .fab { height: 30px; padding: 0 14px; border-radius: var(--shape-md); font-size: 0.78rem; box-shadow: var(--elev-1); }
 .fab:hover { box-shadow: var(--elev-2); }
 .fab .material-symbols-outlined { font-size: 17px; }
+
+/* Plain text -- anything with no size of its own -- was left at the root size
+   while tables, fields and headings each came down. Inside a card that made an
+   ordinary sentence the largest thing on it, bigger than the card's own title.
+   It joins the table text at 0.9rem, which puts the ladder back in order:
+   heading 0.98, field 0.92, text and tables 0.9, muted 0.8. */
+body { font-size: 0.9rem; }
 
 /* ── Display type ──
    The body text already came down by its root size; these are the headings and
