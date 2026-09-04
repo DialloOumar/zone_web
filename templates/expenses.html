@@ -49,9 +49,9 @@
             </a>
             {% endif %}
             {% if has_perm('report.export_pdf') %}
-            <a href="{{ url_for('expenses.export_print', **request.args.to_dict(flat=False)) }}"
+            <a href="{{ url_for('expenses.export_print', **report_args) }}"
                class="btn btn--sm btn--outlined" target="_blank" rel="noopener">
-                <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['caisse.report'] }}
+                <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['caisse.report_all'] }}
             </a>
             {% endif %}
             {% if has_perm('expense.create') %}
@@ -120,6 +120,12 @@
            class="tab {% if tab == 'mouvements' %}tab--on{% endif %}">
             {{ t['caisse.tab_movements'] }}<span class="tab__count">{{ movements|length }}</span>
         </a>
+        {% if has_perm('report.export_pdf') %}
+        <a href="{{ url_for('expenses.export_print', part=tab, **report_args) }}"
+           class="btn btn--sm btn--outlined tabs__action" target="_blank" rel="noopener">
+            <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['caisse.report_section'] }}
+        </a>
+        {% endif %}
     </nav>
 
     {% if tab == 'mouvements' %}

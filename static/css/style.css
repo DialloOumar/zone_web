@@ -651,9 +651,14 @@ a:hover { text-decoration: underline; }
 }
 .tab--on .tab__count { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
 
+/* The section's own print button sits at the far end of the tab bar, where it
+   reads as belonging to the tab that is open. */
+.tabs__action { margin-left: auto; align-self: center; margin-bottom: 6px; }
+
 @media (max-width: 720px) {
     .tabs { overflow-x: auto; }
     .tab { padding: 10px 12px; font-size: 0.85rem; }
+    .tabs__action { flex-shrink: 0; }
 }
 
 /* What is left in the cash box, read first on the Dépenses page. */

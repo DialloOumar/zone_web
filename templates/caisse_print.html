@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ t['caisse.report_title'] }} — {{ subtitle }}</title>
+<title>{{ t['caisse.report_title'] }}{% if section_title %} — {{ section_title }}{% endif %} — {{ subtitle }}</title>
 <style>
 {% include '_export_style.html' %}
 
@@ -74,7 +74,7 @@
     <img class="brand-logo" src="{{ url_for('static', filename='images/logo.svg') }}"
          alt="{{ t['app.title'] }}">
     <div class="print-header-right">
-        <div class="print-report-title">{{ t['caisse.report_title'] }}</div>
+        <div class="print-report-title">{{ t['caisse.report_title'] }}{% if section_title %} — {{ section_title }}{% endif %}</div>
         <div class="print-meta">
             {{ subtitle }}<br>
             {{ t['export.generated'] }} {{ generated }} · {{ count }} {{ t['export.count'] }}
@@ -86,21 +86,27 @@
 <div class="print-summary">
     {# A narrowed document is a list of costs, not a cash book: an opening and a
        closing balance would answer a question nobody asked of it. #}
-    {% if not filtered %}
+    {% if not filtered and not part %}
     <div class="print-summary-box ps-navy"><span class="ps-label">{{ t['caisse.opening'] }}</span><span class="ps-value">{{ '{:,}'.format(opening) }}</span></div>
     {% endif %}
+    {% if part != 'depenses' %}
     <div class="print-summary-box ps-green"><span class="ps-label">{{ t['caisse.deposited'] }}</span><span class="ps-value">{{ '{:,}'.format(total_in) }}</span></div>
+    {% endif %}
+    {% if part != 'mouvements' %}
     <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['caisse.spent'] }}</span><span class="ps-value">{{ '{:,}'.format(total_spent) }}</span></div>
+    {% endif %}
+    {% if part != 'depenses' %}
     <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['caisse.withdrawn'] }}</span><span class="ps-value">{{ '{:,}'.format(total_withdrawn) }}</span></div>
-    {% if not filtered %}
+    {% endif %}
+    {% if not filtered and not part %}
     <div class="print-summary-box ps-blue"><span class="ps-label">{{ t['caisse.closing'] }}</span><span class="ps-value">{{ '{:,}'.format(closing) }}</span></div>
     {% endif %}
 </div>
 
-<p class="muted" style="margin:0 0 10px;">{{ t['caisse.tables_note'] }}</p>
+{% if not part %}<p class="muted" style="margin:0 0 10px;">{{ t['caisse.tables_note'] }}</p>{% endif %}
 
 {% if costs %}
-<h2 class="doc-section-title">{{ t['caisse.tab_expenses'] }}</h2>
+{% if not part %}<h2 class="doc-section-title">{{ t['caisse.tab_expenses'] }}</h2>{% endif %}
 <div class="doc-table">
 <table class="data-table">
     <thead>
@@ -137,7 +143,7 @@
 {% endif %}
 
 {% if moves %}
-<h2 class="doc-section-title">{{ t['caisse.tab_movements'] }}</h2>
+{% if not part %}<h2 class="doc-section-title">{{ t['caisse.tab_movements'] }}</h2>{% endif %}
 <div class="doc-table">
 <table class="data-table">
     <thead>
@@ -173,7 +179,7 @@
 </div>
 {% endif %}
 
-{% if accounts_summary and not filtered %}
+{% if accounts_summary and not filtered and part != 'depenses' %}
 <table class="data-table" style="margin-top:14px;">
     <thead><tr>
         <th>{{ t['caisse.account'] }}</th>

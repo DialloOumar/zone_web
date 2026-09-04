@@ -388,10 +388,12 @@ def index():
     kept = request.args.to_dict(flat=False)
     kept.pop("tab", None)
     tab_urls = {name: url_for("expenses.index", tab=name, **kept) for name in TABS}
+    # What a report link carries: the filters, never the tab or an earlier part.
+    report_args = {k: v for k, v in kept.items() if k != "part"}
 
     return render_template(
         "expenses.html", expenses=expenses, movements=movements,
-        tab=tab, tab_urls=tab_urls,
+        tab=tab, tab_urls=tab_urls, report_args=report_args,
         total=sum(e.amount for e in expenses),
         deposited=sum(m.amount for m in movements if m.kind == "depot"),
         withdrawn=sum(m.amount for m in movements if m.kind == "retrait"),
@@ -489,7 +491,7 @@ def delete(xid):
 REPORT_LIMIT = 1000   # rows in one document; flagged on the page when reached
 
 
-def _caisse_report(start, end, site_ids, vehicle_ids, account_ids):
+def _caisse_report(start, end, site_ids, vehicle_ids, account_ids, part=None):
     """The cash book for a window: what the box held when it opened, every
     movement in date order with the balance after each, and what is left.
 
@@ -520,7 +522,7 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids):
     # site or a machine the document is a list of costs, not a cash book, so it
     # starts from zero instead of quoting a figure that answers another question.
     opening = 0
-    if start and not filtered:
+    if start and not filtered and not part:
         paid = db.session.query(db.func.coalesce(db.func.sum(CashMovement.amount), 0))
         opening = ((paid.filter(CashMovement.kind == "depot",
                                 CashMovement.date < start).scalar() or 0)
@@ -559,6 +561,11 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids):
               "reference": x.payment_reference,
               "method": x.payment_method, "amount": x.amount}
              for x in cq.all()]
+    # One section on its own, when that is what was asked for.
+    if part == "depenses":
+        moves = []
+    elif part == "mouvements":
+        costs = []
     moves.sort(key=lambda r: r["date"])
     costs.sort(key=lambda r: r["date"])
     truncated = len(moves) + len(costs) > REPORT_LIMIT
@@ -569,6 +576,7 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids):
     total_spent = sum(r["amount"] for r in costs)
     return dict(
         moves=moves, costs=costs, opening=opening, filtered=filtered,
+        part=part,
         total_in=total_in, total_spent=total_spent,
         total_withdrawn=total_withdrawn,
         closing=opening + total_in - total_withdrawn - total_spent,
@@ -586,6 +594,12 @@ def export_print():
     t = get_t()
     start, end, date_from, date_to = _period_bounds()
     site_ids, vehicle_ids, account_ids = _ids("site"), _ids("vehicle"), _ids("account")
+    # Either half of the book can be printed on its own; anything else is both.
+    part = request.args.get("part")
+    if part not in TABS:
+        part = None
+    section_title = t["caisse.tab_expenses"] if part == "depenses" else (
+        t["caisse.tab_movements"] if part == "mouvements" else None)
 
     parts = []
     if start or end:
@@ -603,9 +617,9 @@ def export_print():
     return render_template(
         "caisse_print.html",
         back_url=url_for("expenses.index", **request.args.to_dict(flat=False)),
-        subtitle=subtitle,
+        subtitle=subtitle, section_title=section_title,
         generated=datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
-        **_caisse_report(start, end, site_ids, vehicle_ids, account_ids))
+        **_caisse_report(start, end, site_ids, vehicle_ids, account_ids, part))
 
 
 # ── The two short lists the cashier keeps ────────────────────────────────────
