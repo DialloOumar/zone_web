@@ -44,38 +44,23 @@
 {% block content %}
 <section class="card">
     <div class="card-header">
-        <div class="caisse-head">
-            <div class="caisse-balance {% if balance < 0 %}stock-negative{% endif %}">
-                <span class="caisse-balance__label">{{ t['caisse.balance'] }}</span>
-                <strong>{{ '{:,}'.format(balance) }} {{ currency }}</strong>
-            </div>
-            {# What moved over the period on screen. The balance above is the
-               whole box and carries over; these follow the filters. #}
-            <div class="expense-total">
-                {{ t['caisse.in_month'] }}<strong>{{ '{:,}'.format(deposited) }}</strong>
-                <span class="muted small">&middot;</span>
-                {{ t['caisse.out_month'] }}<strong>{{ '{:,}'.format(total) }}</strong>
-                {% if withdrawn %}
-                <span class="muted small">&middot;</span>
-                {{ t['caisse.withdrawn'] }}<strong>{{ '{:,}'.format(withdrawn) }}</strong>
-                {% endif %}
-                <span class="muted small">{{ currency }} &middot; {{ expenses|length }} {{ t['expense.count'] }}</span>
-            </div>
+        <div class="caisse-balance {% if balance < 0 %}stock-negative{% endif %}">
+            <span class="caisse-balance__label">{{ t['caisse.balance'] }}</span>
+            <strong>{{ '{:,}'.format(balance) }} {{ currency }}</strong>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
-            {# Icons with the words on hover: neither is a daily errand, and the
-               header should not compete with the buttons under the tabs. #}
+            {# The printer below goes without words; this one does not. Its icon
+               is a pair of sliders, which says nothing about sites or accounts,
+               and a tooltip is no help at all on a touch screen. #}
             {% if has_perm('expense.create') %}
-            <a href="{{ url_for('expenses.cash_lists') }}" class="btn btn--sm btn--outlined btn--icon"
-               title="{{ t['caisse.lists'] }}" aria-label="{{ t['caisse.lists'] }}">
-                <span class="material-symbols-outlined">tune</span>
+            <a href="{{ url_for('expenses.cash_lists') }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">tune</span> {{ t['caisse.lists'] }}
             </a>
             {% endif %}
             {% if has_perm('report.export_pdf') %}
             <a href="{{ url_for('expenses.export_print', **report_args) }}"
-               class="btn btn--sm btn--outlined btn--icon" target="_blank" rel="noopener"
-               title="{{ t['caisse.report_all'] }}" aria-label="{{ t['caisse.report_all'] }}">
-                <span class="material-symbols-outlined">picture_as_pdf</span>
+               class="btn btn--sm btn--outlined" target="_blank" rel="noopener">
+                <span class="material-symbols-outlined">print</span> {{ t['caisse.report_all'] }}
             </a>
             {% endif %}
         </div>
@@ -125,6 +110,17 @@
         <a href="{{ url_for('expenses.index', date_from='', date_to='', tab=tab) }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
     </form>
 
+    <div class="expense-total">
+        {{ t['caisse.in_month'] }}<strong>{{ '{:,}'.format(deposited) }}</strong>
+        <span class="muted small">&middot;</span>
+        {{ t['caisse.out_month'] }}<strong>{{ '{:,}'.format(total) }}</strong>
+        {% if withdrawn %}
+        <span class="muted small">&middot;</span>
+        {{ t['caisse.withdrawn'] }}<strong>{{ '{:,}'.format(withdrawn) }}</strong>
+        {% endif %}
+        <span class="muted small">{{ currency }} &middot; {{ expenses|length }} {{ t['expense.count'] }}</span>
+    </div>
+
     {# Two tabs rather than two tables stacked: money in and out is not a cost,
        and reading them one under the other invited adding them up. #}
     <nav class="tabs" role="tablist">
@@ -154,13 +150,13 @@
         {% endif %}
         <div class="tab-bar__actions">
             {% if has_perm('report.export_pdf') %}
-            {# The same icon as the report in the header: one mark for "this comes
-               out as a document", told apart by where it sits and what it says
-               on hover. #}
+            {# One word rather than "Imprimer cette section": it sits under the
+               tab it prints, so the tab already said which section. The whole
+               phrase stays on hover and for screen readers. #}
             <a href="{{ url_for('expenses.export_print', part=tab, **report_args) }}"
-               class="btn btn--sm btn--outlined btn--icon" target="_blank" rel="noopener"
+               class="btn btn--sm btn--outlined" target="_blank" rel="noopener"
                title="{{ t['caisse.report_section'] }}" aria-label="{{ t['caisse.report_section'] }}">
-                <span class="material-symbols-outlined">picture_as_pdf</span>
+                <span class="material-symbols-outlined">print</span> {{ t['caisse.report_short'] }}
             </a>
             {% endif %}
             {% if has_perm('expense.create') %}
@@ -170,12 +166,11 @@
                 <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
             </a>
             {% else %}
-            {# Money out of the box is the rarer of the two, so it is the one
-               that gives up its label. #}
-            <a href="{{ url_for('expenses.withdrawal_new') }}" class="btn btn--sm btn--tonal btn--icon"
-               data-modal-url="{{ url_for('expenses.withdrawal_new') }}" data-modal-title="{{ t['caisse.withdrawal_new'] }}"
-               title="{{ t['caisse.withdrawal_new'] }}" aria-label="{{ t['caisse.withdrawal_new'] }}">
-                <span class="material-symbols-outlined">logout</span>
+            {# Keeps its word: the icon is the door-and-arrow every other program
+               uses for signing out, and read that way here it would frighten. #}
+            <a href="{{ url_for('expenses.withdrawal_new') }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('expenses.withdrawal_new') }}" data-modal-title="{{ t['caisse.withdrawal_new'] }}">
+                <span class="material-symbols-outlined">logout</span> {{ t['caisse.withdrawal_new'] }}
             </a>
             <a href="{{ url_for('expenses.deposit_new') }}" class="btn btn--sm btn--primary"
                data-modal-url="{{ url_for('expenses.deposit_new') }}" data-modal-title="{{ t['caisse.deposit_new'] }}">
