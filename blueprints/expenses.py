@@ -28,15 +28,18 @@ FUEL_CATEGORY = "fuel"           # own screen: /carburant
 MAINTENANCE_CATEGORY = "entretien"  # written by the maintenance blueprint only
 PARTS_CATEGORY = "pieces"        # written by the stock blueprint only (a receipt)
 
-# Categories that manual costs used to be filed under. Nothing is filed by hand
-# any more — the Dépenses form asks for a label instead, which says far more
-# than a fixed list ever did — but old rows keep theirs, so the filters and the
-# labels stay. New ones all land in DEFAULT_CATEGORY.
+# What a cash-box cost is for. Two kinds, because that is the split that
+# actually changes what gets asked: a head-office cost is a sum and a date,
+# while one incurred on site often paid for a number of parts.
+CASH_CATEGORIES = ["societe", "terrain"]
+FIELD_CATEGORY = "terrain"        # the one that may carry a part count
+
+# What manual costs used to be filed under, before the two above. Nothing new
+# lands here, but old rows keep theirs so their label still reads.
 EXPENSE_CATEGORIES = ["accident", "lavage", "autre"]
-DEFAULT_CATEGORY = "autre"
 
 # Every category that can appear in the ledger (filters, labels).
-ALL_CATEGORIES = ([FUEL_CATEGORY] + EXPENSE_CATEGORIES
+ALL_CATEGORIES = ([FUEL_CATEGORY] + CASH_CATEGORIES + EXPENSE_CATEGORIES
                   + [MAINTENANCE_CATEGORY, PARTS_CATEGORY])
 
 PAYMENT_METHODS = ["mobile_money", "cash", "transfer", "cheque", "other"]
@@ -140,11 +143,10 @@ def _common_fields(t, methods=None):
 def _read_expense_form(expense):
     """Dépenses form: a cost named by `label`, on a fleet or on the company.
 
-    Nothing is asked for but a name, a date, an amount and how it was paid. No
-    category, no vehicle, no supplier, and no fleet: everything logged here is a
-    company cost. Costs that belong to a machine are recorded on its service
-    record instead. Rows saved earlier against a fleet keep it in the database;
-    it just stops being asked for, shown or filtered on.
+    A date, what the cost was for, an amount and how it was paid. No vehicle, no
+    supplier and no fleet: costs that belong to a machine are recorded on its
+    service record instead. Rows saved earlier with a name or a fleet keep both
+    in the database; they simply stop being asked for.
 
     Returns (data, None) or (None, err).
     """
@@ -153,24 +155,25 @@ def _read_expense_form(expense):
     if error:
         return None, error
 
-    label = (request.form.get("label") or "").strip()
-    if not label:
-        return None, t["expense.err.label_required"]
+    category = (request.form.get("category") or "").strip()
+    if category not in CASH_CATEGORIES:
+        return None, t["expense.err.category_required"]
 
-    # Optional: how many of whatever this paid for. Blank stays blank rather
-    # than becoming a zero nobody typed.
-    raw_qty = (request.form.get("quantity") or "").strip().replace(",", ".")
+    # A part count only belongs to a cost incurred on site, and only when the
+    # person has one. Blank stays blank rather than becoming a zero nobody typed.
     quantity = None
-    if raw_qty:
-        try:
-            quantity = float(raw_qty)
-        except ValueError:
-            return None, t.get("expense.err.quantity", "Quantité invalide.")
-        if quantity <= 0:
-            return None, t.get("expense.err.quantity", "Quantité invalide.")
+    if category == FIELD_CATEGORY:
+        raw_qty = (request.form.get("quantity") or "").strip().replace(",", ".")
+        if raw_qty:
+            try:
+                quantity = float(raw_qty)
+            except ValueError:
+                return None, t.get("expense.err.quantity", "Quantité invalide.")
+            if quantity <= 0:
+                return None, t.get("expense.err.quantity", "Quantité invalide.")
 
-    common.update(vehicle_id=None, fleet_id=None, label=label,
-                  operator=None, supplier=None, category=DEFAULT_CATEGORY,
+    common.update(vehicle_id=None, fleet_id=None, label=None,
+                  operator=None, supplier=None, category=category,
                   liters=None, quantity=quantity)
     return common, None
 
@@ -213,6 +216,8 @@ def _read_fuel_form(expense):
 def _form_context(expense):
     return {
         "payment_methods": CASH_METHODS,
+        "categories": CASH_CATEGORIES,
+        "field_category": FIELD_CATEGORY,
         "today": date.today().isoformat(),
     }
 
@@ -430,7 +435,9 @@ def _caisse_report(start, end):
                      "detail": d.note or d.reference, "method": d.method,
                      "in": d.amount, "out": 0})
     for x in xq.all():
-        rows.append({"date": x.date, "label": x.label or "—",
+        rows.append({"date": x.date,
+                     "label": x.label or get_t().get("expense.cat." + x.category,
+                                                     x.category),
                      "quantity": x.quantity,
                      "detail": x.description or x.payment_reference,
                      "method": x.payment_method,

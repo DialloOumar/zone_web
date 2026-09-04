@@ -3,12 +3,13 @@
 {% block title %}{{ t['nav.expenses'] }}{% endblock %}
 {% block page_title %}{{ t['nav.expenses'] }}{% endblock %}
 
-{% macro target_cell(e) -%}
-    {% if e.vehicle_id %}
-        <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
-    {% else %}
-        <strong>{{ e.label or '—' }}</strong>{% if e.quantity %} <span class="muted">× {{ '{:.10g}'.format(e.quantity) }}</span>{% endif %}
-    {% endif %}
+{# The category chip names the row; this is what else is known about it — the
+   old name when a row has one, the part count, the description. #}
+{% macro detail_cell(e) -%}
+    {% if e.label %}<strong>{{ e.label }}</strong>{% endif %}
+    {% if e.quantity %}<span class="muted">× {{ '{:.10g}'.format(e.quantity) }} {{ t['expense.parts'] }}</span>{% endif %}
+    {% if e.description %}<div class="muted small">{{ e.description }}</div>{% endif %}
+    {% if not e.label and not e.quantity and not e.description %}<span class="muted">—</span>{% endif %}
 {%- endmacro %}
 
 {% block content %}
@@ -109,9 +110,8 @@
             <tr>
                 <th>{{ t['expense.date'] }}</th>
                 <th>{{ t['expense.category'] }}</th>
-                <th>{{ t['expense.target'] }}</th>
+                <th>{{ t['expense.detail'] }}</th>
                 <th class="col-secondary">{{ t['expense.payment_method'] }}</th>
-                <th class="col-secondary">{{ t['expense.supplier'] }}</th>
                 <th style="text-align:right;">{{ t['expense.amount'] }}</th>
                 <th></th>
             </tr>
@@ -121,13 +121,12 @@
             <tr>
                 <td>{{ e.date }}</td>
                 <td><span class="chip">{{ t['expense.cat.' + e.category] }}</span></td>
-                <td>{{ target_cell(e) }}</td>
+                <td>{{ detail_cell(e) }}</td>
                 <td class="col-secondary">
                     {% if e.payment_method %}{{ t['pay.' + e.payment_method] }}
                         {% if e.payment_reference %}<div class="muted small">{{ e.payment_reference }}</div>{% endif %}
                     {% else %}—{% endif %}
                 </td>
-                <td class="col-secondary">{{ e.supplier or '—' }}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} {{ currency }}</td>
                 <td class="row-actions">
                     {% if e.maintenance_record_id or e.stock_movement_id %}
@@ -166,10 +165,10 @@
                 {% if e.vehicle_id %}
                 <span>· <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a></span>
                 {% else %}
-                <span>· <strong>{{ e.label or '—' }}</strong>{% if e.quantity %} <span class="muted">× {{ '{:.10g}'.format(e.quantity) }}</span>{% endif %}</span>
+                {% if e.quantity %}<span class="muted small">· × {{ '{:.10g}'.format(e.quantity) }} {{ t['expense.parts'] }}</span>{% endif %}
+                {% if e.description %}<span class="muted small">· {{ e.description }}</span>{% endif %}
                 {% endif %}
                 {% if e.payment_method %}<span class="muted small">· {{ t['pay.' + e.payment_method] }}</span>{% endif %}
-                {% if e.supplier %}<span class="muted small">· {{ e.supplier }}</span>{% endif %}
             </div>
             {% if e.maintenance_record_id or e.stock_movement_id %}
             <div class="muted small">{{ t['expense.from_stock'] if e.stock_movement_id else t['expense.from_maint'] }}</div>

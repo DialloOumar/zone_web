@@ -1,30 +1,35 @@
 {% set is_edit = expense is not none %}
-{# Everything logged here is a company cost, paid out of the cash box: no
-   fleet and no vehicle to pick. A machine's costs are recorded on its service
-   record, where the parts and the labour already are. #}
+{# Everything logged here is spent out of the cash box: no fleet and no vehicle
+   to pick. A machine's costs are recorded on its service record, where the
+   parts and the labour already are. #}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('expenses.edit', xid=expense.id) if is_edit else url_for('expenses.new') }}">
 
-    <div class="field">
-        <input type="text" id="label" name="label" placeholder=" " required
-               value="{{ request.form.get('label') or (expense.label if is_edit and expense.label else '') }}">
-        <label for="label">{{ t['expense.label'] }}</label>
-    </div>
-
     <div class="form-row">
-        <div class="field">
-            <input type="number" id="quantity" name="quantity" placeholder=" " min="0" step="any"
-                   value="{{ request.form.get('quantity') or ('{:.10g}'.format(expense.quantity) if is_edit and expense.quantity else '') }}">
-            <label for="quantity">{{ t['expense.quantity'] }}</label>
-        </div>
         <div class="field">
             <input type="date" id="date" name="date" placeholder=" " required
                    value="{{ request.form.get('date') or (expense.date if is_edit else today) }}">
             <label for="date">{{ t['expense.date'] }}</label>
         </div>
+        <div class="field field--select">
+            {% set sel_cat = request.form.get('category') or (expense.category if is_edit else '') %}
+            <select id="category" name="category" required>
+                <option value="" hidden></option>
+                {% for c in categories %}
+                <option value="{{ c }}" {% if c == sel_cat %}selected{% endif %}>{{ t['expense.cat.' + c] }}</option>
+                {% endfor %}
+            </select>
+            <label for="category">{{ t['expense.category'] }}</label>
+        </div>
     </div>
-    <div class="field-hint">{{ t['expense.quantity_hint'] }}</div>
+
+    {# Only a cost incurred on site tends to have a part count against it. #}
+    <div class="field" id="field-quantity">
+        <input type="number" id="quantity" name="quantity" placeholder=" " min="0" step="any"
+               value="{{ request.form.get('quantity') or ('{:.10g}'.format(expense.quantity) if is_edit and expense.quantity else '') }}">
+        <label for="quantity">{{ t['expense.quantity'] }}</label>
+    </div>
 
     <div class="form-row">
         <div class="field">
@@ -32,9 +37,6 @@
                    value="{{ request.form.get('amount') or (expense.amount if is_edit else '') }}">
             <label for="amount">{{ t['expense.amount'] }}</label>
         </div>
-    </div>
-
-    <div class="form-row">
         <div class="field field--select">
             <select id="payment_method" name="payment_method" required>
                 <option value="" hidden></option>
@@ -45,11 +47,12 @@
             </select>
             <label for="payment_method">{{ t['expense.payment_method'] }}</label>
         </div>
-        <div class="field">
-            <input type="text" id="payment_reference" name="payment_reference" placeholder=" "
-                   value="{{ request.form.get('payment_reference') or (expense.payment_reference if is_edit and expense.payment_reference else '') }}">
-            <label for="payment_reference">{{ t['expense.payment_reference'] }}</label>
-        </div>
+    </div>
+
+    <div class="field">
+        <input type="text" id="payment_reference" name="payment_reference" placeholder=" "
+               value="{{ request.form.get('payment_reference') or (expense.payment_reference if is_edit and expense.payment_reference else '') }}">
+        <label for="payment_reference">{{ t['expense.payment_reference'] }}</label>
     </div>
 
     <div class="field">
@@ -64,3 +67,20 @@
         <a href="{{ url_for('expenses.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
+
+<script>
+// The part count belongs to a cost incurred on site; it is out of the way for
+// the others rather than sitting there asking to be filled in.
+(function () {
+    var cat = document.getElementById("category"),
+        box = document.getElementById("field-quantity");
+    if (!cat || !box) return;
+    function apply() {
+        var on = cat.value === {{ field_category|tojson }};
+        box.style.display = on ? "" : "none";
+        if (!on) document.getElementById("quantity").value = "";
+    }
+    cat.addEventListener("change", apply);
+    apply();
+})();
+</script>
