@@ -194,6 +194,13 @@
    wide tables get their own .table-wrap scroller instead. */
 html { overflow-x: hidden; }
 
+/* Every text size on the site is a rem, so this one number sets them all.
+   15px instead of the browser's 16 takes about 6% off the lot. Icon sizes are
+   in px on purpose and do not follow -- an icon is sized by the button it sits
+   in, not by the sentence beside it. The printed reports have their own
+   stylesheet and are untouched: paper is read at arm's length. */
+html { font-size: 15px; }
+
 body {
     font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
     background: var(--md-background);
@@ -1743,14 +1750,21 @@ a.stat-card { text-decoration: none; color: inherit; }
 /* ── Compact density pass ──
    Tightens the default Material metrics for a denser, less bulky
    fleet-management UI. Kept as one block so sizing is easy to tune. */
-.btn { height: 36px; padding: 0 18px; font-size: 0.84rem; }
-.btn--sm { height: 30px; padding: 0 13px; font-size: 0.78rem; }
-/* Square at the compact height. Must come after .btn--sm above, which would
-   otherwise re-apply its horizontal padding to icon buttons. */
+/* One height for every button on the site. A 42px "add" beside a 36px
+   "cancel" beside a 30px row action was three scales doing one job, and the
+   tallest of them bought its width from nothing. .btn--sm is kept as an alias
+   so the templates that ask for it still read sensibly. */
+.btn, .btn--sm { height: 30px; padding: 0 13px; font-size: 0.78rem; }
+/* Square at that height. Must come after the rule above, which would otherwise
+   re-apply its horizontal padding to icon buttons. */
 .btn--icon, .btn--icon.btn--sm { width: 30px; padding: 0; }
-.fab { height: 42px; padding: 0 18px; border-radius: var(--shape-md); font-size: 0.85rem; box-shadow: var(--elev-1); }
+.btn .material-symbols-outlined { font-size: 17px; }
+.btn--icon .material-symbols-outlined { font-size: 18px; }
+/* The add button keeps its accent fill and its softer corner -- still the main
+   action of a page, no longer a taller one. */
+.fab { height: 30px; padding: 0 14px; border-radius: var(--shape-md); font-size: 0.78rem; box-shadow: var(--elev-1); }
 .fab:hover { box-shadow: var(--elev-2); }
-.fab .material-symbols-outlined { font-size: 20px; }
+.fab .material-symbols-outlined { font-size: 17px; }
 
 .topbar { height: 56px; padding: 0 20px; }
 .page-title { font-size: 1.2rem; }

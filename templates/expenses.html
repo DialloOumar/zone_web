@@ -163,7 +163,7 @@
             {% endif %}
             {% if has_perm('expense.create') %}
             {% if tab == 'depenses' %}
-            <a href="{{ url_for('expenses.new') }}" class="btn btn--sm btn--primary"
+            <a href="{{ url_for('expenses.new') }}" class="fab"
                data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
             </a>
@@ -174,7 +174,7 @@
                data-modal-url="{{ url_for('expenses.withdrawal_new') }}" data-modal-title="{{ t['caisse.withdrawal_new'] }}">
                 <span class="material-symbols-outlined">logout</span> {{ t['caisse.withdrawal_new'] }}
             </a>
-            <a href="{{ url_for('expenses.deposit_new') }}" class="btn btn--sm btn--primary"
+            <a href="{{ url_for('expenses.deposit_new') }}" class="fab"
                data-modal-url="{{ url_for('expenses.deposit_new') }}" data-modal-title="{{ t['caisse.deposit_new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['caisse.deposit_new'] }}
             </a>
