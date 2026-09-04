@@ -1,13 +1,13 @@
 """SQLAlchemy models for zone_web.
 
-Schema overview (23 tables, grouped):
+Schema overview (25 tables, grouped):
 
   Auth & access     User, Fleet, FleetRate, UserFleet, Role, Permission,
                     RolePermission
   Domain            VehicleCategory, Vehicle, Operator
   Daily ops         DailyEntry
   Maintenance       MaintenanceRule, MaintenanceRecord, Alert
-  Money             Expense, CashMovement
+  Money             Expense, CashMovement, CashAccount, Site
   Fuel              Citerne, FuelMovement
   Parts store       Part, StockMovement
   Workflow          PendingChange, AuditLog
@@ -477,41 +477,86 @@ class Expense(db.Model):
     maintenance_record_id = db.Column(db.Integer, db.ForeignKey("maintenance_records.id"), nullable=True)
     # … or when it IS a stock entry (parts bought for the store)
     stock_movement_id     = db.Column(db.Integer, db.ForeignKey("stock_movements.id"), nullable=True)
+    # Where the money was spent. Optional, and what tells a field cost from an
+    # office one: with a site it is terrain, without it société.
+    site_id               = db.Column(db.Integer, db.ForeignKey("sites.id"), nullable=True)
 
     created_by = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     vehicle = db.relationship("Vehicle")
     fleet   = db.relationship("Fleet")
+    site    = db.relationship("Site")
+
+
+class Site(db.Model):
+    """A place the company spends money: Siguiri, Mandiana, the yard.
+
+    A short list the cashier keeps herself, so "all of Siguiri's costs in March"
+    is a filter rather than a search through free text where one person wrote
+    Siguiri and the next wrote siguiri.
+    """
+    __tablename__ = "sites"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    name       = db.Column(db.String(80),  nullable=False, unique=True)
+    sort_order = db.Column(db.Integer,     nullable=False, default=0)
+    is_active  = db.Column(db.Boolean,     nullable=False, default=True)
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+
+class CashAccount(db.Model):
+    """Where the cash box's money comes from, and where it goes back to.
+
+    The boss's own account, the company's, a mobile-money agent who fronts the
+    money when the box runs dry. Money in names the account it came from, money
+    out names the one it went to, so each carries a running balance: what the
+    box has taken from it, less what it has given back.
+
+    `is_repayable` says how that balance reads. An agent's advance and the
+    boss's own money are owed back; what the company puts in is its own. Same
+    arithmetic, and without the flag the two would sit in one list looking alike.
+    """
+    __tablename__ = "cash_accounts"
+
+    id           = db.Column(db.Integer,     primary_key=True)
+    name         = db.Column(db.String(80),  nullable=False, unique=True)
+    is_repayable = db.Column(db.Boolean,     nullable=False, default=True)
+    sort_order   = db.Column(db.Integer,     nullable=False, default=0)
+    is_active    = db.Column(db.Boolean,     nullable=False, default=True)
+    created_at   = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
 
 # ── Caisse (petty cash) ───────────────────────────────────────────────────────
 
 
 class CashMovement(db.Model):
-    """Money put into the cash box.
+    """Money moving between the cash box and an account.
 
-    The other side — money going out — is already in the ledger: the costs
-    entered on the Dépenses page. So this table holds only what comes in, and
-    the balance is deposits minus those costs. One cash box for the company,
-    like the parts store.
+        depot   — money paid in, from an account (+)
+        retrait — money taken back out to one (−)
 
-    `kind` leaves room for a withdrawal or a correction later; only "depot"
-    exists today.
+    A withdrawal is not a cost: the boss taking his own money back spends
+    nothing on the company's behalf, and filing it as an expense would inflate
+    every cost total by his personal spending. The costs themselves stay in the
+    ledger, so the balance is deposits, less withdrawals, less those costs.
     """
     __tablename__ = "cash_movements"
 
     id         = db.Column(db.Integer,     primary_key=True)
-    kind       = db.Column(db.String(20),  nullable=False, default="depot")
+    kind       = db.Column(db.String(20),  nullable=False, default="depot")  # depot | retrait
     date       = db.Column(db.String(10),  nullable=False)              # YYYY-MM-DD
     amount     = db.Column(db.Integer,     nullable=False)              # GNF
     currency   = db.Column(db.String(5),   nullable=False, default="GNF")
-    source     = db.Column(db.String(120), nullable=True)   # who handed the money over
+    account_id = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=True)
+    source     = db.Column(db.String(120), nullable=True)   # free-text note, kept from before
     method     = db.Column(db.String(20),  nullable=True)   # cash | mobile_money
     reference  = db.Column(db.String(60),  nullable=True)
     note       = db.Column(db.String(255), nullable=True)
     created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    account = db.relationship("CashAccount")
 
 
 # ── Workflow — approvals & audit ──────────────────────────────────────────────

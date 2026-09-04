@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set title = t['caisse.withdrawal_new'] if kind == 'retrait' else t['caisse.deposit_new'] %}
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px;">
+    {% include "_movement_form.html" %}
+</section>
+{% endblock %}

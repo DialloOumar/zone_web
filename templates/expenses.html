@@ -3,14 +3,27 @@
 {% block title %}{{ t['nav.expenses'] }}{% endblock %}
 {% block page_title %}{{ t['nav.expenses'] }}{% endblock %}
 
-{# The category chip names the row; this is what else is known about it — the
-   old name when a row has one, the part count, the description. #}
+{# What is known about a cost beyond its site: the machine, the parts, the note. #}
 {% macro detail_cell(e) -%}
+    {# Costs saved before sites existed carry a name and nothing else; without
+       this they would show as an empty row. #}
     {% if e.label %}<strong>{{ e.label }}</strong>{% endif %}
-    {% if e.quantity %}<span class="muted">× {{ '{:.10g}'.format(e.quantity) }} {{ t['expense.parts'] }}</span>{% endif %}
+    {% if e.vehicle %}<a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>{% endif %}
+    {% if e.quantity %}<span class="muted">&times; {{ '{:.10g}'.format(e.quantity) }} {{ t['expense.parts'] }}</span>{% endif %}
     {% if e.description %}<div class="muted small">{{ e.description }}</div>{% endif %}
-    {% if not e.label and not e.quantity and not e.description %}<span class="muted">—</span>{% endif %}
+    {% if not e.label and not e.vehicle and not e.quantity and not e.description %}<span class="muted">&mdash;</span>{% endif %}
 {%- endmacro %}
+
+{% macro tickbox(name, rows, chosen, attr) %}
+<div class="filter-group">
+    {% for r in rows %}
+    <label class="checkbox-item checkbox-item--chip">
+        <input type="checkbox" name="{{ name }}" value="{{ r.id }}" {% if r.id in chosen %}checked{% endif %}>
+        <span>{{ r[attr] }}</span>
+    </label>
+    {% endfor %}
+</div>
+{% endmacro %}
 
 {% block content %}
 <section class="card">
@@ -20,16 +33,25 @@
             <strong>{{ '{:,}'.format(balance) }} {{ currency }}</strong>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+            {% if has_perm('expense.create') %}
+            <a href="{{ url_for('expenses.cash_lists') }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">tune</span> {{ t['caisse.lists'] }}
+            </a>
+            {% endif %}
             {% if has_perm('report.export_pdf') %}
-            <a href="{{ url_for('expenses.export_print', **request.args.to_dict()) }}"
+            <a href="{{ url_for('expenses.export_print', **request.args.to_dict(flat=False)) }}"
                class="btn btn--sm btn--outlined" target="_blank" rel="noopener">
                 <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['caisse.report'] }}
             </a>
             {% endif %}
             {% if has_perm('expense.create') %}
-            <a href="{{ url_for('expenses.deposit_new') }}" class="btn btn--tonal"
+            <a href="{{ url_for('expenses.deposit_new') }}" class="btn btn--sm btn--tonal"
                data-modal-url="{{ url_for('expenses.deposit_new') }}" data-modal-title="{{ t['caisse.deposit_new'] }}">
                 <span class="material-symbols-outlined">account_balance_wallet</span> {{ t['caisse.deposit_new'] }}
+            </a>
+            <a href="{{ url_for('expenses.withdrawal_new') }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('expenses.withdrawal_new') }}" data-modal-title="{{ t['caisse.withdrawal_new'] }}">
+                <span class="material-symbols-outlined">logout</span> {{ t['caisse.withdrawal_new'] }}
             </a>
             <a href="{{ url_for('expenses.new') }}" class="fab" data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
@@ -38,59 +60,90 @@
         </div>
     </div>
 
-    {# The period and nothing else: everything on this page is a company cost,
-       so there is no fleet left to narrow by. #}
-    <form method="get" class="filter-bar">
-        <div class="field" style="min-width:150px;">
-            <input type="date" name="date_from" value="{{ date_from }}" placeholder=" ">
-            <label>{{ t['entry.from'] }}</label>
+    {% if accounts_summary %}
+    {# What the box still owes, and what came from the house. #}
+    <div class="cost-split">
+        {% for a in accounts_summary %}
+        <div class="cost-split__row">
+            <span>{{ a.account.name }}{% if a.account.is_repayable %} <span class="badge badge--info">{{ t['list.repayable_short'] }}</span>{% endif %}</span>
+            <strong class="{% if a.account.is_repayable and a.balance > 0 %}stock-negative{% endif %}">{{ '{:,}'.format(a.balance) }} {{ currency }}</strong>
         </div>
-        <div class="field" style="min-width:150px;">
-            <input type="date" name="date_to" value="{{ date_to }}" placeholder=" ">
-            <label>{{ t['entry.to'] }}</label>
-        </div>
-        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
-        <a href="{{ url_for('expenses.index', date_from='', date_to='') }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
-    </form>
+        {% endfor %}
+        <p class="muted small">{{ t['caisse.accounts_hint'] }}</p>
+    </div>
+    {% endif %}
 
+    {# Period first, then tick boxes: several sites or machines at a time. #}
+    <form method="get" class="filter-bar filter-bar--stacked">
+        <div class="filter-row">
+            <div class="field" style="min-width:150px;">
+                <input type="date" name="date_from" value="{{ date_from }}" placeholder=" ">
+                <label>{{ t['entry.from'] }}</label>
+            </div>
+            <div class="field" style="min-width:150px;">
+                <input type="date" name="date_to" value="{{ date_to }}" placeholder=" ">
+                <label>{{ t['entry.to'] }}</label>
+            </div>
+            <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+            <a href="{{ url_for('expenses.index', date_from='', date_to='') }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
+        </div>
+        {% if sites %}
+        <div class="filter-section"><span class="filter-section__label">{{ t['expense.site'] }}</span>
+            {{ tickbox('site', sites, site_ids, 'name') }}</div>
+        {% endif %}
+        {% if vehicles %}
+        <div class="filter-section"><span class="filter-section__label">{{ t['expense.vehicle'] }}</span>
+            {{ tickbox('vehicle', vehicles, vehicle_ids, 'code') }}</div>
+        {% endif %}
+        {% if accounts %}
+        <div class="filter-section"><span class="filter-section__label">{{ t['caisse.accounts'] }}</span>
+            {{ tickbox('account', accounts, account_ids, 'name') }}</div>
+        {% endif %}
+    </form>
 
     <div class="expense-total">
         {{ t['caisse.in_month'] }}<strong>{{ '{:,}'.format(deposited) }}</strong>
-        <span class="muted small">·</span>
-        {{ t['caisse.out_month'] }}<strong>{{ '{:,}'.format(total) }} {{ currency }}</strong>
-        <span class="muted small">· {{ expenses|length }} {{ t['expense.count'] }}</span>
+        <span class="muted small">&middot;</span>
+        {{ t['caisse.out_month'] }}<strong>{{ '{:,}'.format(total) }}</strong>
+        {% if withdrawn %}
+        <span class="muted small">&middot;</span>
+        {{ t['caisse.withdrawn'] }}<strong>{{ '{:,}'.format(withdrawn) }}</strong>
+        {% endif %}
+        <span class="muted small">{{ currency }} &middot; {{ expenses|length }} {{ t['expense.count'] }}</span>
     </div>
 
-    {% if deposits %}
+    {% if movements %}
     <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['expense.date'] }}</th>
-                <th>{{ t['caisse.source'] }}</th>
+                <th>{{ t['caisse.account'] }}</th>
                 <th class="col-secondary">{{ t['expense.payment_method'] }}</th>
-                <th style="text-align:right;">{{ t['caisse.deposited'] }}</th>
+                <th style="text-align:right;">{{ t['caisse.movement'] }}</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
-            {% for d in deposits %}
+            {% for m in movements %}
             <tr>
-                <td>{{ d.date }}</td>
-                <td><strong>{{ d.source or t['caisse.deposit'] }}</strong>
-                    {% if d.note %}<div class="muted small">{{ d.note }}</div>{% endif %}</td>
-                <td class="col-secondary">{{ t['pay.' + d.method] if d.method else '—' }}
-                    {% if d.reference %}<div class="muted small">{{ d.reference }}</div>{% endif %}</td>
-                <td style="text-align:right; font-weight:600; white-space:nowrap; color:var(--c-green);">
-                    + {{ '{:,}'.format(d.amount) }} {{ currency }}</td>
+                <td>{{ m.date }}</td>
+                <td><strong>{{ m.account.name if m.account else t['caisse.deposit'] }}</strong>
+                    <span class="mv-chip {{ 'mv-chip--in' if m.kind == 'depot' else 'mv-chip--out' }}">{{ t['caisse.kind.' + m.kind] }}</span>
+                    {% if m.note %}<div class="muted small">{{ m.note }}</div>{% endif %}</td>
+                <td class="col-secondary">{{ t['pay.' + m.method] if m.method else '&mdash;' }}
+                    {% if m.reference %}<div class="muted small">{{ m.reference }}</div>{% endif %}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;"
+                    class="{{ 'cash-in' if m.kind == 'depot' else 'stock-negative' }}">
+                    {{ '+' if m.kind == 'depot' else '-' }} {{ '{:,}'.format(m.amount) }} {{ currency }}</td>
                 <td class="row-actions">
                     {% if has_perm('expense.edit') %}
-                    <a href="{{ url_for('expenses.deposit_edit', did=d.id) }}" class="btn btn--sm btn--tonal btn--icon"
-                       data-modal-url="{{ url_for('expenses.deposit_edit', did=d.id) }}" data-modal-title="{{ t['caisse.deposit_edit'] }}"
+                    <a href="{{ url_for('expenses.deposit_edit', did=m.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('expenses.deposit_edit', did=m.id) }}" data-modal-title="{{ t['caisse.movement'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% endif %}
                     {% if has_perm('expense.delete') %}
-                    <form method="post" action="{{ url_for('expenses.deposit_delete', did=d.id) }}"
-                          data-confirm="{{ t['caisse.deposit_delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
+                    <form method="post" action="{{ url_for('expenses.deposit_delete', did=m.id) }}"
+                          data-confirm="{{ t['caisse.movement_delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
                         <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                     </form>
                     {% endif %}
@@ -102,14 +155,12 @@
     {% endif %}
 
     {% if expenses %}
-
-    {# Desktop: full table #}
     <div class="table-desktop">
     <table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['expense.date'] }}</th>
-                <th>{{ t['expense.category'] }}</th>
+                <th>{{ t['expense.site'] }}</th>
                 <th>{{ t['expense.detail'] }}</th>
                 <th class="col-secondary">{{ t['expense.payment_method'] }}</th>
                 <th style="text-align:right;">{{ t['expense.amount'] }}</th>
@@ -120,18 +171,16 @@
             {% for e in expenses %}
             <tr>
                 <td>{{ e.date }}</td>
-                <td><span class="chip">{{ t['expense.cat.' + e.category] }}</span></td>
+                <td><span class="chip">{{ e.site.name if e.site else t['expense.cat.societe'] }}</span></td>
                 <td>{{ detail_cell(e) }}</td>
                 <td class="col-secondary">
                     {% if e.payment_method %}{{ t['pay.' + e.payment_method] }}
                         {% if e.payment_reference %}<div class="muted small">{{ e.payment_reference }}</div>{% endif %}
-                    {% else %}—{% endif %}
+                    {% else %}&mdash;{% endif %}
                 </td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} {{ currency }}</td>
                 <td class="row-actions">
                     {% if e.maintenance_record_id or e.stock_movement_id %}
-                    {# Owned by its service record or its stock receipt — edited
-                       there, so it can't drift. #}
                     <span class="muted small">{{ t['expense.from_stock'] if e.stock_movement_id else t['expense.from_maint'] }}</span>
                     {% else %}
                     {% if has_perm('expense.edit') %}
@@ -152,52 +201,27 @@
     </table>
     </div>
 
-    {# Mobile: one card per expense #}
     <div class="list-cards">
         {% for e in expenses %}
         <div class="list-card">
             <div class="list-card__top">
-                <span class="chip">{{ t['expense.cat.' + e.category] }}</span>
+                <span class="chip">{{ e.site.name if e.site else t['expense.cat.societe'] }}</span>
                 <span class="list-card__amount">{{ '{:,}'.format(e.amount) }} <span class="muted small">{{ currency }}</span></span>
             </div>
             <div class="list-card__meta">
                 <span class="muted small">{{ e.date }}</span>
-                {% if e.vehicle_id %}
-                <span>· <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a></span>
-                {% else %}
-                {% if e.quantity %}<span class="muted small">· × {{ '{:.10g}'.format(e.quantity) }} {{ t['expense.parts'] }}</span>{% endif %}
-                {% if e.description %}<span class="muted small">· {{ e.description }}</span>{% endif %}
-                {% endif %}
-                {% if e.payment_method %}<span class="muted small">· {{ t['pay.' + e.payment_method] }}</span>{% endif %}
+                {% if e.label %}<span class="muted small">&middot; {{ e.label }}</span>{% endif %}
+                {% if e.vehicle %}<span class="muted small">&middot; {{ e.vehicle.code }}</span>{% endif %}
+                {% if e.quantity %}<span class="muted small">&middot; &times; {{ '{:.10g}'.format(e.quantity) }} {{ t['expense.parts'] }}</span>{% endif %}
+                {% if e.description %}<span class="muted small">&middot; {{ e.description }}</span>{% endif %}
             </div>
-            {% if e.maintenance_record_id or e.stock_movement_id %}
-            <div class="muted small">{{ t['expense.from_stock'] if e.stock_movement_id else t['expense.from_maint'] }}</div>
-            {% elif has_perm('expense.edit') or has_perm('expense.delete') %}
-            <div class="list-card__actions">
-                {% if has_perm('expense.edit') %}
-                <a href="{{ url_for('expenses.edit', xid=e.id) }}" class="btn btn--sm btn--tonal"
-                   data-modal-url="{{ url_for('expenses.edit', xid=e.id) }}" data-modal-title="{{ t['expense.edit'] }}">{{ t['btn.edit'] }}</a>
-                {% endif %}
-                {% if has_perm('expense.delete') %}
-                <form method="post" action="{{ url_for('expenses.delete', xid=e.id) }}"
-                      data-confirm="{{ t['expense.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="flex:1;">
-                    <button type="submit" class="btn btn--sm btn--danger" style="width:100%;">{{ t['btn.delete'] }}</button>
-                </form>
-                {% endif %}
-            </div>
-            {% endif %}
         </div>
         {% endfor %}
     </div>
-    {% else %}
+    {% elif not movements %}
     <div class="empty-state">
         <span class="material-symbols-outlined">payments</span>
         <p>{{ t['expense.empty_month'] }}</p>
-        {% if has_perm('expense.create') %}
-        <a href="{{ url_for('expenses.new') }}" class="fab" data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
-            <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
-        </a>
-        {% endif %}
     </div>
     {% endif %}
 </section>

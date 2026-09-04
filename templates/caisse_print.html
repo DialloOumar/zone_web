@@ -80,10 +80,17 @@
 </div>
 
 <div class="print-summary">
+    {# A narrowed document is a list of costs, not a cash book: an opening and a
+       closing balance would answer a question nobody asked of it. #}
+    {% if not filtered %}
     <div class="print-summary-box ps-navy"><span class="ps-label">{{ t['caisse.opening'] }}</span><span class="ps-value">{{ '{:,}'.format(opening) }}</span></div>
+    {% endif %}
     <div class="print-summary-box ps-green"><span class="ps-label">{{ t['caisse.deposited'] }}</span><span class="ps-value">{{ '{:,}'.format(total_in) }}</span></div>
-    <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['caisse.spent'] }}</span><span class="ps-value">{{ '{:,}'.format(total_out) }}</span></div>
+    <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['caisse.spent'] }}</span><span class="ps-value">{{ '{:,}'.format(total_spent) }}</span></div>
+    <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['caisse.withdrawn'] }}</span><span class="ps-value">{{ '{:,}'.format(total_withdrawn) }}</span></div>
+    {% if not filtered %}
     <div class="print-summary-box ps-blue"><span class="ps-label">{{ t['caisse.closing'] }}</span><span class="ps-value">{{ '{:,}'.format(closing) }}</span></div>
+    {% endif %}
 </div>
 
 <div class="doc-table">
@@ -91,37 +98,63 @@
     <thead>
         <tr>
             <th>{{ t['expense.date'] }}</th>
-            <th>{{ t['expense.category'] }}</th>
-            <th>{{ t['expense.payment_method'] }}</th>
+            <th>{{ t['expense.site'] }}</th>
+            <th>{{ t['expense.detail'] }}</th>
             <th class="r">{{ t['caisse.deposited'] }}</th>
             <th class="r">{{ t['caisse.spent'] }}</th>
-            <th class="r">{{ t['caisse.balance'] }}</th>
+            {% if not filtered %}<th class="r">{{ t['caisse.balance'] }}</th>{% endif %}
         </tr>
     </thead>
     <tbody>
+        {% if not filtered %}
         <tr>
             <td colspan="5"><em>{{ t['caisse.opening'] }}</em></td>
             <td class="r cash-balance-col {% if opening < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(opening) }}</td>
         </tr>
+        {% endif %}
         {% for r in rows %}
         <tr>
             <td>{{ r.date }}</td>
-            <td>{{ r.label }}{% if r.quantity %} × {{ '{:.10g}'.format(r.quantity) }}{% endif %}{% if r.detail %}<div class="muted">{{ r.detail }}</div>{% endif %}</td>
-            <td>{{ t['pay.' + r.method] if r.method else '—' }}</td>
+            <td>{{ r.site or r.label }}</td>
+            <td>{% if r.vehicle %}<strong>{{ r.vehicle }}</strong> {% endif %}
+                {%- if r.quantity %}&times; {{ '{:.10g}'.format(r.quantity) }} {% endif %}
+                {%- if r.kind == 'retrait' %}<em>{{ t['caisse.kind.retrait'] }}</em> {% endif %}
+                {%- if r.detail %}<span class="muted">{{ r.detail }}</span>{% endif %}</td>
             <td class="r">{% if r['in'] %}{{ '{:,}'.format(r['in']) }}{% endif %}</td>
             <td class="r">{% if r.out %}{{ '{:,}'.format(r.out) }}{% endif %}</td>
-            <td class="r cash-balance-col {% if r.balance < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(r.balance) }}</td>
+            {% if not filtered %}<td class="r cash-balance-col {% if r.balance < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(r.balance) }}</td>{% endif %}
         </tr>
         {% endfor %}
         <tr>
-            <td colspan="3"><strong>{{ t['caisse.closing'] }}</strong></td>
+            <td colspan="3"><strong>{{ t['caisse.closing'] if not filtered else t['caisse.period_total'] }}</strong></td>
             <td class="r"><strong>{{ '{:,}'.format(total_in) }}</strong></td>
-            <td class="r"><strong>{{ '{:,}'.format(total_out) }}</strong></td>
-            <td class="r cash-balance-col {% if closing < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(closing) }}</td>
+            <td class="r"><strong>{{ '{:,}'.format(total_spent + total_withdrawn) }}</strong></td>
+            {% if not filtered %}<td class="r cash-balance-col {% if closing < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(closing) }}</td>{% endif %}
         </tr>
     </tbody>
 </table>
 </div>
+
+{% if accounts_summary and not filtered %}
+<table class="data-table" style="margin-top:14px;">
+    <thead><tr>
+        <th>{{ t['caisse.account'] }}</th>
+        <th class="r">{{ t['caisse.deposited'] }}</th>
+        <th class="r">{{ t['caisse.withdrawn'] }}</th>
+        <th class="r">{{ t['caisse.owed'] }}</th>
+    </tr></thead>
+    <tbody>
+        {% for a in accounts_summary %}
+        <tr>
+            <td>{{ a.account.name }}{% if not a.account.is_repayable %} <span class="muted">({{ t['list.internal'] }})</span>{% endif %}</td>
+            <td class="r">{{ '{:,}'.format(a['in']) }}</td>
+            <td class="r">{{ '{:,}'.format(a.out) }}</td>
+            <td class="r cash-balance-col">{{ '{:,}'.format(a.balance) if a.account.is_repayable else '—' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
 
 <div class="print-signatories">
     <div class="print-signatory">

@@ -205,8 +205,7 @@ def detail(oid):
     # Costs attributed to this driver — stacked by category over the 6 months
     # ending at the selected month (Expense.operator is the driver tag). Fuel and
     # services are ordinary ledger categories, so one query covers them all.
-    from blueprints.expenses import ALL_CATEGORIES
-    t = get_t()
+    from blueprints.expenses import category_label
     y, mo = int(month[:4]), int(month[5:7])
     months = []
     for i in range(5, -1, -1):
@@ -215,17 +214,19 @@ def detail(oid):
             mm += 12
             yy -= 1
         months.append("%04d-%02d" % (yy, mm))
-    series = {c: [0] * len(months) for c in ALL_CATEGORIES}
     idx = {m: i for i, m in enumerate(months)}
     ym = func.substr(Expense.date, 1, 7)
     rows = (db.session.query(ym, Expense.category, func.sum(Expense.amount))
             .filter(Expense.fleet_id == fid, Expense.operator == name, ym.in_(months))
             .group_by(ym, Expense.category).all())
+    # Built from the categories the rows actually carry, rather than a fixed
+    # list: nothing files costs by category any more, so the list would drift.
+    series = {}
     for m, cat, amt in rows:
-        if cat in series and m in idx:
-            series[cat][idx[m]] = int(amt or 0)
-    chart_series = [{"cat": c, "label": t["expense.cat." + c], "data": series[c]}
-                    for c in ALL_CATEGORIES if any(series[c])]
+        if m in idx:
+            series.setdefault(cat, [0] * len(months))[idx[m]] = int(amt or 0)
+    chart_series = [{"cat": c, "label": category_label(c), "data": series[c]}
+                    for c in sorted(series) if any(series[c])]
 
     expense_chart = {"months": months, "series": chart_series}
 

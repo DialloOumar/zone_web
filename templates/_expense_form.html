@@ -1,7 +1,6 @@
 {% set is_edit = expense is not none %}
-{# Everything logged here is spent out of the cash box: no fleet and no vehicle
-   to pick. A machine's costs are recorded on its service record, where the
-   parts and the labour already are. #}
+{# Spent out of the cash box, so no fleet to pick. Where it happened is the
+   site; which machine it was for is optional; the kind follows from the site. #}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('expenses.edit', xid=expense.id) if is_edit else url_for('expenses.new') }}">
@@ -13,22 +12,36 @@
             <label for="date">{{ t['expense.date'] }}</label>
         </div>
         <div class="field field--select">
-            {% set sel_cat = request.form.get('category') or (expense.category if is_edit else '') %}
-            <select id="category" name="category" required>
-                <option value="" hidden></option>
-                {% for c in categories %}
-                <option value="{{ c }}" {% if c == sel_cat %}selected{% endif %}>{{ t['expense.cat.' + c] }}</option>
+            {# Pre-set to the last site used: in a day most costs are the same one. #}
+            {% set sel_site = request.form.get('site_id')|int(0)
+                              or (expense.site_id if is_edit else (last_site_id or 0)) %}
+            <select id="site_id" name="site_id">
+                <option value="">{{ t['expense.no_site'] }}</option>
+                {% for s in sites %}
+                <option value="{{ s.id }}" {% if s.id == sel_site %}selected{% endif %}>{{ s.name }}</option>
                 {% endfor %}
             </select>
-            <label for="category">{{ t['expense.category'] }}</label>
+            <label for="site_id">{{ t['expense.site'] }}</label>
         </div>
     </div>
 
-    {# Only a cost incurred on site tends to have a part count against it. #}
-    <div class="field" id="field-quantity">
-        <input type="number" id="quantity" name="quantity" placeholder=" " min="0" step="any"
-               value="{{ request.form.get('quantity') or ('{:.10g}'.format(expense.quantity) if is_edit and expense.quantity else '') }}">
-        <label for="quantity">{{ t['expense.quantity'] }}</label>
+    <div class="form-row">
+        <div class="field field--select">
+            {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else 0) %}
+            <select id="vehicle_id" name="vehicle_id">
+                <option value="">{{ t['expense.no_vehicle'] }}</option>
+                {% for v in vehicles %}
+                <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>
+                {% endfor %}
+            </select>
+            <label for="vehicle_id">{{ t['expense.vehicle'] }}</label>
+        </div>
+        {# Parts belong to a cost that happened somewhere. #}
+        <div class="field" id="field-quantity">
+            <input type="number" id="quantity" name="quantity" placeholder=" " min="0" step="any"
+                   value="{{ request.form.get('quantity') or ('{:.10g}'.format(expense.quantity) if is_edit and expense.quantity else '') }}">
+            <label for="quantity">{{ t['expense.quantity'] }}</label>
+        </div>
     </div>
 
     <div class="form-row">
@@ -69,18 +82,18 @@
 </form>
 
 <script>
-// The part count belongs to a cost incurred on site; it is out of the way for
-// the others rather than sitting there asking to be filled in.
+// The part count only makes sense on a cost that happened on a site; it stays
+// out of the way on an office one rather than sitting there asking to be filled.
 (function () {
-    var cat = document.getElementById("category"),
+    var site = document.getElementById("site_id"),
         box = document.getElementById("field-quantity");
-    if (!cat || !box) return;
+    if (!site || !box) return;
     function apply() {
-        var on = cat.value === {{ field_category|tojson }};
+        var on = !!site.value;
         box.style.display = on ? "" : "none";
         if (!on) document.getElementById("quantity").value = "";
     }
-    cat.addEventListener("change", apply);
+    site.addEventListener("change", apply);
     apply();
 })();
 </script>

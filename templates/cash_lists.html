@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['caisse.lists'] }}{% endblock %}
+{% block page_title %}{{ t['caisse.lists'] }}{% endblock %}
+
+{% macro list_card(kind, rows, used, title, intro, add_label) %}
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ title }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:52ch;">{{ intro }}</p>
+        </div>
+        <a href="{{ url_for('expenses.cash_list_new', kind=kind) }}" class="fab"
+           data-modal-url="{{ url_for('expenses.cash_list_new', kind=kind) }}" data-modal-title="{{ add_label }}">
+            <span class="material-symbols-outlined">add</span> {{ add_label }}
+        </a>
+    </div>
+    {% if rows %}
+    <div class="table-wrap"><table class="data-table">
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td>
+                    <strong {% if not r.is_active %}class="muted"{% endif %}>{{ r.name }}</strong>
+                    {% if not r.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
+                    {% if kind == 'account' and r.is_repayable %}
+                    <span class="badge badge--info">{{ t['list.repayable_short'] }}</span>
+                    {% endif %}
+                </td>
+                <td class="row-actions">
+                    <a href="{{ url_for('expenses.cash_list_edit', kind=kind, row_id=r.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('expenses.cash_list_edit', kind=kind, row_id=r.id) }}" data-modal-title="{{ t['list.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% if not r.is_active %}
+                    <form method="post" action="{{ url_for('expenses.cash_list_action', kind=kind, row_id=r.id, what='reactivate') }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% if r.id not in used %}
+                    {# Nothing points at it, so there is no history to keep. #}
+                    <form method="post" action="{{ url_for('expenses.cash_list_action', kind=kind, row_id=r.id, what='delete') }}"
+                          data-confirm="{{ t['list.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% elif r.is_active %}
+                    <form method="post" action="{{ url_for('expenses.cash_list_action', kind=kind, row_id=r.id, what='archive') }}"
+                          data-confirm="{{ t['list.archive_confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['list.empty'] }}</p>
+    {% endif %}
+</section>
+{% endmacro %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('expenses.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+{{ list_card('site', sites, used_sites, t['list.sites'], t['list.sites_intro'], t['list.site_new']) }}
+{{ list_card('account', accounts, used_accounts, t['list.accounts'], t['list.accounts_intro'], t['list.account_new']) }}
+{% endblock %}

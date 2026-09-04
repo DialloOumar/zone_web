@@ -122,6 +122,12 @@ def set_language(lang):
     return redirect(request.referrer or url_for("dashboard"))
 
 
+def _category_label(code):
+    """Deferred import: blueprints are loaded at the bottom of this file."""
+    from blueprints.expenses import category_label
+    return category_label(code)
+
+
 @app.context_processor
 def _inject_globals():
     """Make `t`, `has_perm`, `lang`, `v` callable inside Jinja templates."""
@@ -160,6 +166,8 @@ def _inject_globals():
         # Fresh 1-hour presigned URL for a private S3 object (photo). Returns
         # None when the key is empty or storage isn't configured.
         "photo_url": s3_storage.signed_url,
+        # The name of a stored expense category, for the rows that still carry one.
+        "category_label": _category_label,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,

@@ -553,6 +553,28 @@ a:hover { text-decoration: underline; }
 /* A tank reading under zero: the figure itself carries the alarm, since the
    gauge bar cannot draw a negative fill and would just look empty. */
 .stock-negative { color: var(--c-red); }
+.cash-in { color: var(--c-green); }
+
+/* ── Filters that tick rather than pick one ──
+   Sites, machines and accounts: several at a time, laid out as chips so a
+   short list reads at a glance and a long one wraps instead of scrolling. */
+.filter-bar--stacked { flex-direction: column; align-items: stretch; gap: 12px; }
+.filter-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.filter-section { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.filter-section__label {
+    font-size: 0.74rem; font-weight: 600; min-width: 74px;
+    color: var(--md-on-surface-variant);
+}
+.filter-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.checkbox-item--chip {
+    border: 1px solid var(--md-outline-variant); border-radius: 999px;
+    padding: 3px 12px 3px 8px; font-size: 0.8rem; background: var(--md-surface);
+}
+.checkbox-item--chip:has(input:checked) {
+    background: var(--md-secondary-container);
+    border-color: var(--md-secondary-container);
+    color: var(--md-on-secondary-container);
+}
 
 /* What is left in the cash box, read first on the Dépenses page. */
 .caisse-balance { display: flex; flex-direction: column; gap: 2px; }

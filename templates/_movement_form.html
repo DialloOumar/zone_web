@@ -1,0 +1,67 @@
+{% set is_edit = movement is not none %}
+{% set is_out = kind == 'retrait' %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('expenses.deposit_edit', did=movement.id) if is_edit
+                else (url_for('expenses.withdrawal_new') if is_out else url_for('expenses.deposit_new')) }}">
+
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or (movement.date if is_edit else today) }}">
+            <label for="date">{{ t['expense.date'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+                   value="{{ request.form.get('amount') or (movement.amount if is_edit else '') }}">
+            <label for="amount">{{ t['caisse.amount'] }}</label>
+        </div>
+    </div>
+
+    {# Which account the money came from, or goes back to. #}
+    <div class="field field--select">
+        <select id="account_id" name="account_id" required>
+            <option value="" hidden></option>
+            {% set sel_a = request.form.get('account_id')|int(0) or (movement.account_id if is_edit else 0) %}
+            {% for a in accounts %}
+            <option value="{{ a.id }}" {% if a.id == sel_a %}selected{% endif %}>{{ a.name }}</option>
+            {% endfor %}
+        </select>
+        <label for="account_id">{{ t['caisse.account_out'] if is_out else t['caisse.account_in'] }}</label>
+    </div>
+    {% if not accounts %}
+    <div class="field-hint">{{ t['caisse.no_account'] }}
+        <a href="{{ url_for('expenses.cash_lists') }}">{{ t['caisse.lists'] }}</a>
+    </div>
+    {% endif %}
+
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="method" name="method" required>
+                <option value="" hidden></option>
+                {% set sel_m = request.form.get('method') or (movement.method if is_edit else '') %}
+                {% for m in methods %}
+                <option value="{{ m }}" {% if m == sel_m %}selected{% endif %}>{{ t['pay.' + m] }}</option>
+                {% endfor %}
+            </select>
+            <label for="method">{{ t['expense.payment_method'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="reference" name="reference" placeholder=" "
+                   value="{{ request.form.get('reference') or (movement.reference if is_edit and movement.reference else '') }}">
+            <label for="reference">{{ t['expense.payment_reference'] }}</label>
+        </div>
+    </div>
+
+    <div class="field">
+        <textarea id="note" name="note" rows="2">{{ request.form.get('note') or (movement.note if is_edit and movement.note else '') }}</textarea>
+        <label for="note">{{ t['expense.description'] }}</label>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('expenses.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

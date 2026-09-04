@@ -105,7 +105,7 @@
             {% for e in expenses %}
             <tr>
                 <td>{{ e.date }}</td>
-                <td><span class="chip">{{ t['expense.cat.' + e.category] }}</span></td>
+                <td><span class="chip">{{ category_label(e.category) }}</span></td>
                 <td>{{ e.supplier or '—' }}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} GNF</td>
             </tr>
