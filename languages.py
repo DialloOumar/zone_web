@@ -426,7 +426,7 @@ TRANSLATIONS = {
         "expense.target":         "Véhicule / Flotte",
         "expense.amount":         "Montant (GNF)",
         "expense.liters":         "Litres",
-        "expense.operator":       "Conducteur (optionnel)",
+        "expense.operator":       "Conducteur (facultatif)",
         "expense.supplier":       "Fournisseur",
         "expense.description":    "Description",
         "expense.total":          "Total : ",
@@ -453,7 +453,7 @@ TRANSLATIONS = {
         "expense.from_stock":     "Issue d'une réception",
         # Paiement
         "expense.payment_method":    "Moyen de paiement",
-        "expense.payment_reference": "Référence (optionnel)",
+        "expense.payment_reference": "Référence (facultatif)",
         "pay.mobile_money": "Mobile Money",
         "pay.cash":         "Espèces",
         "pay.transfer":     "Virement bancaire",
