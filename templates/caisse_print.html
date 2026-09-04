@@ -106,7 +106,7 @@
         {% for r in rows %}
         <tr>
             <td>{{ r.date }}</td>
-            <td>{{ r.label }}{% if r.detail %}<div class="muted">{{ r.detail }}</div>{% endif %}</td>
+            <td>{{ r.label }}{% if r.quantity %} × {{ '{:.10g}'.format(r.quantity) }}{% endif %}{% if r.detail %}<div class="muted">{{ r.detail }}</div>{% endif %}</td>
             <td>{{ t['pay.' + r.method] if r.method else '—' }}</td>
             <td class="r">{% if r['in'] %}{{ '{:,}'.format(r['in']) }}{% endif %}</td>
             <td class="r">{% if r.out %}{{ '{:,}'.format(r.out) }}{% endif %}</td>

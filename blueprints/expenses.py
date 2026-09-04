@@ -165,9 +165,21 @@ def _read_expense_form(expense):
         if not db.session.get(Fleet, fleet_id):
             return None, t["expense.err.fleet_required"]
 
+    # Optional: how many of whatever this paid for. Blank stays blank rather
+    # than becoming a zero nobody typed.
+    raw_qty = (request.form.get("quantity") or "").strip().replace(",", ".")
+    quantity = None
+    if raw_qty:
+        try:
+            quantity = float(raw_qty)
+        except ValueError:
+            return None, t.get("expense.err.quantity", "Quantité invalide.")
+        if quantity <= 0:
+            return None, t.get("expense.err.quantity", "Quantité invalide.")
+
     common.update(vehicle_id=None, fleet_id=fleet_id, label=label,
                   operator=None, supplier=None, category=DEFAULT_CATEGORY,
-                  liters=None)
+                  liters=None, quantity=quantity)
     return common, None
 
 
@@ -430,10 +442,12 @@ def _caisse_report(start, end, fleet_id):
     rows = []
     for d in dq.all():
         rows.append({"date": d.date, "label": d.source or get_t()["caisse.deposit"],
+                     "quantity": None,
                      "detail": d.note or d.reference, "method": d.method,
                      "in": d.amount, "out": 0})
     for x in xq.all():
         rows.append({"date": x.date, "label": x.label or "—",
+                     "quantity": x.quantity,
                      "detail": x.description or x.payment_reference,
                      "method": x.payment_method,
                      "in": 0, "out": x.amount})

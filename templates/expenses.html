@@ -7,7 +7,7 @@
     {% if e.vehicle_id %}
         <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
     {% else %}
-        <strong>{{ e.label or t['expense.fleet_wide'] }}</strong>
+        <strong>{{ e.label or t['expense.fleet_wide'] }}</strong>{% if e.quantity %} <span class="muted">× {{ '{:.10g}'.format(e.quantity) }}</span>{% endif %}
         <div class="muted small">{{ e.fleet.name if e.fleet else t['expense.company'] }}</div>
     {% endif %}
 {%- endmacro %}
@@ -176,7 +176,7 @@
                 {% if e.vehicle_id %}
                 <span>· <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a></span>
                 {% else %}
-                <span>· <strong>{{ e.label or t['expense.fleet_wide'] }}</strong></span>
+                <span>· <strong>{{ e.label or t['expense.fleet_wide'] }}</strong>{% if e.quantity %} <span class="muted">× {{ '{:.10g}'.format(e.quantity) }}</span>{% endif %}</span>
                 <span class="muted small">· {{ e.fleet.name if e.fleet else t['expense.company'] }}</span>
                 {% endif %}
                 {% if e.payment_method %}<span class="muted small">· {{ t['pay.' + e.payment_method] }}</span>{% endif %}

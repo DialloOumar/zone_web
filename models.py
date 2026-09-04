@@ -462,6 +462,9 @@ class Expense(db.Model):
     date                  = db.Column(db.String(10), nullable=False)
     amount                = db.Column(db.Integer,    nullable=False)                              # GNF
     liters                = db.Column(db.Float,      nullable=True)                               # for fuel category
+    # How many of whatever was bought, when the voucher says so ("5 ampoules").
+    # A note on the cost, nothing more: it moves no stock and joins to nothing.
+    quantity              = db.Column(db.Float,      nullable=True)
     currency              = db.Column(db.String(5),  nullable=False, default="GNF")
     payment_method        = db.Column(db.String(20),  nullable=True)                              # mobile_money | cash | transfer | cheque | other
     payment_reference     = db.Column(db.String(60),  nullable=True)                              # cheque no., transfer ref., transaction id…
