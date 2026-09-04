@@ -52,10 +52,13 @@
     .doc-table { overflow: visible !important; }
     .doc-table .data-table { min-width: 0 !important; }
 }
-/* The balance column carries the whole point of the document, so it is the one
-   thing set apart from the rest of the row. */
+/* Each table ends on its own total, which is the line the eye goes to. */
 .cash-balance-col { font-weight: 700; }
 .cash-neg { color: #b3261e; }
+.doc-section-title {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .04em; margin: 18px 0 6px; color: #0F74BC;
+}
 </style>
 </head>
 <body>
@@ -66,6 +69,7 @@
     <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
 </div>
 
+{% set show_qty = costs | selectattr('quantity') | list | length > 0 %}
 <div class="print-header">
     <img class="brand-logo" src="{{ url_for('static', filename='images/logo.svg') }}"
          alt="{{ t['app.title'] }}">
@@ -73,7 +77,7 @@
         <div class="print-report-title">{{ t['caisse.report_title'] }}</div>
         <div class="print-meta">
             {{ subtitle }}<br>
-            {{ t['export.generated'] }} {{ generated }} · {{ rows|length }} {{ t['export.count'] }}
+            {{ t['export.generated'] }} {{ generated }} · {{ count }} {{ t['export.count'] }}
             {% if truncated %}<br><strong>{{ t['export.truncated'] }}</strong>{% endif %}
         </div>
     </div>
@@ -93,47 +97,81 @@
     {% endif %}
 </div>
 
+<p class="muted" style="margin:0 0 10px;">{{ t['caisse.tables_note'] }}</p>
+
+{% if costs %}
+<h2 class="doc-section-title">{{ t['caisse.tab_expenses'] }}</h2>
 <div class="doc-table">
 <table class="data-table">
     <thead>
         <tr>
             <th>{{ t['expense.date'] }}</th>
             <th>{{ t['expense.site'] }}</th>
-            <th>{{ t['expense.detail'] }}</th>
-            <th class="r">{{ t['caisse.deposited'] }}</th>
-            <th class="r">{{ t['caisse.spent'] }}</th>
-            {% if not filtered %}<th class="r">{{ t['caisse.balance'] }}</th>{% endif %}
+            <th>{{ t['expense.vehicle'] }}</th>
+            {% if show_qty %}<th class="r">{{ t['expense.qty_col'] }}</th>{% endif %}
+            <th>{{ t['expense.description'] }}</th>
+            <th>{{ t['expense.paid_from'] }}</th>
+            <th class="r">{{ t['expense.amount'] }}</th>
         </tr>
     </thead>
     <tbody>
-        {% if not filtered %}
-        <tr>
-            <td colspan="5"><em>{{ t['caisse.opening'] }}</em></td>
-            <td class="r cash-balance-col {% if opening < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(opening) }}</td>
-        </tr>
-        {% endif %}
-        {% for r in rows %}
+        {% for r in costs %}
         <tr>
             <td>{{ r.date }}</td>
-            <td>{{ r.site or r.label }}</td>
-            <td>{% if r.vehicle %}<strong>{{ r.vehicle }}</strong> {% endif %}
-                {%- if r.quantity %}&times; {{ '{:.10g}'.format(r.quantity) }} {% endif %}
-                {%- if r.kind == 'retrait' %}<em>{{ t['caisse.kind.retrait'] }}</em> {% endif %}
-                {%- if r.detail %}<span class="muted">{{ r.detail }}</span>{% endif %}</td>
-            <td class="r">{% if r['in'] %}{{ '{:,}'.format(r['in']) }}{% endif %}</td>
-            <td class="r">{% if r.out %}{{ '{:,}'.format(r.out) }}{% endif %}</td>
-            {% if not filtered %}<td class="r cash-balance-col {% if r.balance < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(r.balance) }}</td>{% endif %}
+            <td>{{ r.site or t['expense.cat.societe'] }}</td>
+            <td>{% if r.vehicle %}<strong>{{ r.vehicle }}</strong>{% else %}&mdash;{% endif %}</td>
+            {% if show_qty %}<td class="r">{% if r.quantity %}{{ '{:.10g}'.format(r.quantity) }}{% else %}&mdash;{% endif %}</td>{% endif %}
+            <td>{{ r.label }}{% if r.description %}<div class="muted">{{ r.description }}</div>{% endif %}</td>
+            <td>{{ r.account or t['expense.paid_from_box'] }}</td>
+            <td class="r">{{ '{:,}'.format(r.amount) }}</td>
         </tr>
         {% endfor %}
         <tr>
-            <td colspan="3"><strong>{{ t['caisse.closing'] if not filtered else t['caisse.period_total'] }}</strong></td>
-            <td class="r"><strong>{{ '{:,}'.format(total_in) }}</strong></td>
-            <td class="r"><strong>{{ '{:,}'.format(total_spent + total_withdrawn) }}</strong></td>
-            {% if not filtered %}<td class="r cash-balance-col {% if closing < 0 %}cash-neg{% endif %}">{{ '{:,}'.format(closing) }}</td>{% endif %}
+            <td colspan="{{ 5 if show_qty else 4 }}"><strong>{{ t['caisse.period_total'] }}</strong></td>
+            <td></td>
+            <td class="r cash-balance-col">{{ '{:,}'.format(total_spent) }}</td>
         </tr>
     </tbody>
 </table>
 </div>
+{% endif %}
+
+{% if moves %}
+<h2 class="doc-section-title">{{ t['caisse.tab_movements'] }}</h2>
+<div class="doc-table">
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>{{ t['expense.date'] }}</th>
+            <th>{{ t['caisse.account'] }}</th>
+            <th>{{ t['caisse.type_col'] }}</th>
+            <th>{{ t['entry.note'] }}</th>
+            <th class="r">{{ t['caisse.deposited'] }}</th>
+            <th class="r">{{ t['caisse.withdrawn'] }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in moves %}
+        <tr>
+            <td>{{ r.date }}</td>
+            <td>{{ r.account }}</td>
+            <td>{{ t['caisse.kind.' + r.kind] }}</td>
+            <td>{% if r.from_expense %}{{ t['caisse.from_expense'] }}
+                {%- elif r.note or r.reference %}{{ r.note or r.reference }}
+                {%- else %}&mdash;{% endif %}</td>
+            <td class="r">{% if r['in'] %}{{ '{:,}'.format(r['in']) }}{% endif %}</td>
+            <td class="r">{% if r.out %}{{ '{:,}'.format(r.out) }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <td colspan="4"><strong>{{ t['caisse.period_total'] }}</strong></td>
+            <td class="r cash-balance-col">{{ '{:,}'.format(total_in) }}</td>
+            <td class="r cash-balance-col">{{ '{:,}'.format(total_withdrawn) }}</td>
+        </tr>
+    </tbody>
+</table>
+</div>
+{% endif %}
 
 {% if accounts_summary and not filtered %}
 <table class="data-table" style="margin-top:14px;">

@@ -538,39 +538,41 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids):
         cq = cq.filter(Expense.date <= end)
         mq = mq.filter(CashMovement.date <= end)
 
-    rows = []
-    for m in mq.all():
-        rows.append({"date": m.date,
-                     "label": (m.account.name if m.account
-                               else get_t()["caisse.deposit"]),
-                     "kind": m.kind, "site": None, "vehicle": None,
-                     "quantity": None, "detail": m.note or m.reference,
-                     "method": m.method,
-                     "in": m.amount if m.kind == "depot" else 0,
-                     "out": m.amount if m.kind == "retrait" else 0})
-    for x in cq.all():
-        rows.append({"date": x.date, "label": x.label or category_label(x.category),
-                     "kind": "depense",
-                     "site": x.site.name if x.site else None,
-                     "vehicle": x.vehicle.code if x.vehicle else None,
-                     "quantity": x.quantity,
-                     "detail": x.description or x.payment_reference,
-                     "method": x.payment_method, "in": 0, "out": x.amount})
-    rows.sort(key=lambda r: r["date"])
-    truncated = len(rows) > REPORT_LIMIT
-    rows = rows[:REPORT_LIMIT]
+    # Two lists, not one: a cost and a movement answer different questions and
+    # share almost no columns, and merged they made a table where every second
+    # line left half the headings meaningless. The arithmetic that joins them
+    # is stated in the summary instead.
+    t = get_t()
+    moves = [{"date": m.date,
+              "account": m.account.name if m.account else t["caisse.deposit"],
+              "kind": m.kind, "note": m.note, "reference": m.reference,
+              "method": m.method,
+              "in": m.amount if m.kind == "depot" else 0,
+              "out": m.amount if m.kind == "retrait" else 0,
+              "from_expense": m.expense_id is not None}
+             for m in mq.all()]
+    costs = [{"date": x.date, "label": x.label or category_label(x.category),
+              "site": x.site.name if x.site else None,
+              "vehicle": x.vehicle.code if x.vehicle else None,
+              "quantity": x.quantity, "description": x.description,
+              "account": x.account.name if x.account else None,
+              "reference": x.payment_reference,
+              "method": x.payment_method, "amount": x.amount}
+             for x in cq.all()]
+    moves.sort(key=lambda r: r["date"])
+    costs.sort(key=lambda r: r["date"])
+    truncated = len(moves) + len(costs) > REPORT_LIMIT
+    moves, costs = moves[:REPORT_LIMIT], costs[:REPORT_LIMIT]
 
-    running = opening
-    for r in rows:
-        running += r["in"] - r["out"]
-        r["balance"] = running
-
+    total_in = sum(r["in"] for r in moves)
+    total_withdrawn = sum(r["out"] for r in moves)
+    total_spent = sum(r["amount"] for r in costs)
     return dict(
-        rows=rows, opening=opening, filtered=filtered,
-        total_in=sum(r["in"] for r in rows),
-        total_spent=sum(r["out"] for r in rows if r["kind"] == "depense"),
-        total_withdrawn=sum(r["out"] for r in rows if r["kind"] == "retrait"),
-        closing=running, truncated=truncated,
+        moves=moves, costs=costs, opening=opening, filtered=filtered,
+        total_in=total_in, total_spent=total_spent,
+        total_withdrawn=total_withdrawn,
+        closing=opening + total_in - total_withdrawn - total_spent,
+        count=len(moves) + len(costs), truncated=truncated,
         accounts_summary=account_balances())
 
 

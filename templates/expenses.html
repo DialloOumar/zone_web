@@ -4,17 +4,15 @@
 {% block page_title %}{{ t['nav.expenses'] }}{% endblock %}
 
 {# What is known about a cost beyond its site: the machine, the parts, the note. #}
+{# What the cost was, in words. The machine, the site, the count and the purse
+   each have their own column now -- piling them in here is what made the table
+   unreadable. #}
 {% macro detail_cell(e) -%}
     {# Costs saved before sites existed carry a name and nothing else; without
        this they would show as an empty row. #}
     {% if e.label %}<strong>{{ e.label }}</strong>{% endif %}
-    {% if e.vehicle %}<a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>{% endif %}
-    {% if e.quantity %}<span class="muted">&times; {{ '{:.10g}'.format(e.quantity) }} {{ t['expense.parts'] }}</span>{% endif %}
     {% if e.description %}<div class="muted small">{{ e.description }}</div>{% endif %}
-    {# Nothing is shown for the box: that is the ordinary case, and a chip on
-       every line would drown the ones that are worth noticing. #}
-    {% if e.account %}<div><span class="badge badge--info">{{ t['expense.paid_by'] % e.account.name }}</span></div>{% endif %}
-    {% if not e.label and not e.vehicle and not e.quantity and not e.description and not e.account %}<span class="muted">&mdash;</span>{% endif %}
+    {% if not e.label and not e.description %}<span class="muted">&mdash;</span>{% endif %}
 {%- endmacro %}
 
 {# A dropdown holding tick boxes: several can be chosen, and thirty machines
@@ -131,6 +129,8 @@
             <tr>
                 <th>{{ t['expense.date'] }}</th>
                 <th>{{ t['caisse.account'] }}</th>
+                <th>{{ t['caisse.type_col'] }}</th>
+                <th>{{ t['entry.note'] }}</th>
                 <th class="col-secondary">{{ t['expense.payment_method'] }}</th>
                 <th style="text-align:right;">{{ t['caisse.movement'] }}</th>
                 <th></th>
@@ -140,10 +140,11 @@
             {% for m in movements %}
             <tr>
                 <td>{{ m.date }}</td>
-                <td><strong>{{ m.account.name if m.account else t['caisse.deposit'] }}</strong>
-                    <span class="mv-chip {{ 'mv-chip--in' if m.kind == 'depot' else 'mv-chip--out' }}">{{ t['caisse.kind.' + m.kind] }}</span>
-                    {% if m.note %}<div class="muted small">{{ m.note }}</div>{% endif %}
-                    {% if m.expense_id %}<div class="muted small">{{ t['caisse.from_expense'] }}</div>{% endif %}</td>
+                <td><strong>{{ m.account.name if m.account else t['caisse.deposit'] }}</strong></td>
+                <td><span class="mv-chip {{ 'mv-chip--in' if m.kind == 'depot' else 'mv-chip--out' }}">{{ t['caisse.kind.' + m.kind] }}</span></td>
+                <td>{% if m.note %}{{ m.note }}{% endif %}
+                    {% if m.expense_id %}<div class="muted small">{{ t['caisse.from_expense'] }}</div>{% endif %}
+                    {% if not m.note and not m.expense_id %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td class="col-secondary">{{ t['pay.' + m.method] if m.method else '&mdash;' }}
                     {% if m.reference %}<div class="muted small">{{ m.reference }}</div>{% endif %}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;"
@@ -181,11 +182,16 @@
     {% if expenses %}
     <div class="table-desktop">
     <table class="data-table">
+        {# The part count only earns a column on the days there is one. #}
+        {% set show_qty = expenses | selectattr('quantity') | list | length > 0 %}
         <thead>
             <tr>
                 <th>{{ t['expense.date'] }}</th>
                 <th>{{ t['expense.site'] }}</th>
-                <th>{{ t['expense.detail'] }}</th>
+                <th>{{ t['expense.vehicle'] }}</th>
+                {% if show_qty %}<th style="text-align:right;">{{ t['expense.qty_col'] }}</th>{% endif %}
+                <th>{{ t['expense.description'] }}</th>
+                <th>{{ t['expense.paid_from'] }}</th>
                 <th class="col-secondary">{{ t['expense.payment_method'] }}</th>
                 <th style="text-align:right;">{{ t['expense.amount'] }}</th>
                 <th></th>
@@ -196,7 +202,12 @@
             <tr>
                 <td>{{ e.date }}</td>
                 <td><span class="chip">{{ e.site.name if e.site else t['expense.cat.societe'] }}</span></td>
+                <td>{% if e.vehicle %}<a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
+                    {%- else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                {% if show_qty %}<td style="text-align:right;">{% if e.quantity %}{{ '{:.10g}'.format(e.quantity) }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endif %}
                 <td>{{ detail_cell(e) }}</td>
+                <td>{% if e.account %}<span class="badge badge--info">{{ e.account.name }}</span>
+                    {%- else %}<span class="muted">{{ t['expense.paid_from_box'] }}</span>{% endif %}</td>
                 <td class="col-secondary">
                     {% if e.payment_method %}{{ t['pay.' + e.payment_method] }}
                         {% if e.payment_reference %}<div class="muted small">{{ e.payment_reference }}</div>{% endif %}
