@@ -307,10 +307,17 @@ def _export_context():
     t = get_t()
     # Eager-load vehicle + category: the template touches both on every row, so
     # without this a 1000-row export fires ~2000 extra queries.
-    entries = (_apply_filters(_scoped_entries())
-               .options(joinedload(DailyEntry.vehicle).joinedload(Vehicle.category))
+    q = _apply_filters(_scoped_entries())
+    entries = (q.options(joinedload(DailyEntry.vehicle).joinedload(Vehicle.category))
                .order_by(DailyEntry.date.desc(), DailyEntry.id.desc())
                .limit(EXPORT_LIMIT).all())
+    # Summed over the whole selection, not over the rows the document could
+    # hold: past the cap the figures at the foot would quietly come up short.
+    co = db.func.coalesce
+    total_km, total_trips, total_hours = q.with_entities(
+        co(db.func.sum(DailyEntry.kilometers), 0),
+        co(db.func.sum(DailyEntry.trips), 0),
+        co(db.func.sum(DailyEntry.hours), 0.0)).one()
 
     f = _filter_values()
     parts = []
@@ -337,9 +344,7 @@ def _export_context():
     return dict(
         entries=entries, subtitle=subtitle,
         truncated=len(entries) >= EXPORT_LIMIT,
-        total_km=sum(e.kilometers or 0 for e in entries),
-        total_trips=sum(e.trips or 0 for e in entries),
-        total_hours=sum(e.hours or 0 for e in entries),
+        total_km=total_km, total_trips=total_trips, total_hours=total_hours,
         generated=datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
 
 

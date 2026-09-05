@@ -75,10 +75,12 @@ HELP_SECTIONS = [
         },
         "tips": {
             "fr": [
+                "Les longues listes sont découpées en pages de 50. Un bandeau en bas dit toujours où vous en êtes — « 1–50 sur 847 » — et vos filtres vous suivent d'une page à l'autre. Les totaux affichés en haut d'une page portent sur l'ensemble, jamais sur la seule page visible.",
                 "Si votre rôle l'exige, la saisie part en validation : elle apparaît dans « Mes demandes » (En attente) et devient définitive après approbation.",
                 "Pour voir/filtrer toutes les saisies, utilisez « Saisie quotidienne ».",
             ],
             "en": [
+                "Long lists come in pages of 50. A bar at the bottom always says where you are -- \"1-50 of 847\" -- and your filters follow you from page to page. The totals at the top of a page cover the whole list, never just the page in front of you.",
                 "If your role requires it, the entry goes to approval: it shows in \"My requests\" (Pending) and applies once approved.",
                 "To view/filter all entries, use \"Daily entries\".",
             ],
@@ -114,8 +116,10 @@ HELP_SECTIONS = [
             ],
         },
         "tips": {
-            "fr": ["Supprimer un véhicule l'archive (il disparaît de la liste) sans effacer son historique. Utilisez « Voir les archivés » pour le retrouver ou le réactiver."],
-            "en": ["Deleting a vehicle archives it (hidden from the list) without erasing its history. Use \"Show archived\" to find or reactivate it."],
+            "fr": [
+                "Le champ « Rechercher » trouve une machine par son code ou sa description, sans dérouler toute la liste. La catégorie choisie est conservée pendant la recherche.","Supprimer un véhicule l'archive (il disparaît de la liste) sans effacer son historique. Utilisez « Voir les archivés » pour le retrouver ou le réactiver."],
+            "en": [
+                "The search box finds a machine by its code or description, without scrolling the whole list. The category you picked is kept while you search.","Deleting a vehicle archives it (hidden from the list) without erasing its history. Use \"Show archived\" to find or reactivate it."],
         },
     },
     {
@@ -144,8 +148,10 @@ HELP_SECTIONS = [
             ],
         },
         "tips": {
-            "fr": ["Archiver un conducteur conserve tout son historique (ses pointages restent intacts)."],
-            "en": ["Archiving a driver keeps all their history (their entries stay intact)."],
+            "fr": [
+                "Le champ « Rechercher » trouve un conducteur par son nom.","Archiver un conducteur conserve tout son historique (ses pointages restent intacts)."],
+            "en": [
+                "The search box finds a driver by name.","Archiving a driver keeps all their history (their entries stay intact)."],
         },
     },
     {
@@ -300,11 +306,13 @@ HELP_SECTIONS = [
         },
         "tips": {
             "fr": [
+                "Le champ « Rechercher » cherche dans la description, le fournisseur, le conducteur et le code de la machine. Les longues listes sont découpées en pages de 50, et vos filtres suivent d'une page à l'autre.",
                 "Une alerte ne se résout QUE par un entretien enregistré (ou automatiquement si elle n'est plus due).",
                 "Le coût saisi sur une fiche d'entretien part automatiquement dans « Dépenses », catégorie « Entretien ». Vous n'avez rien à ressaisir.",
                 "Les règles en heures ne s'appliquent qu'aux engins suivis en heures, et les règles en voyages qu'aux engins suivis en voyages — c'est le mode de suivi de la catégorie qui décide.",
             ],
             "en": [
+                "The search box looks through the description, the supplier, the driver and the machine code. Long lists come in pages of 50, and your filters follow you from page to page.",
                 "An alert only resolves by logging a service (or automatically once it's no longer due).",
                 "The cost entered on a service record automatically lands in \"Expenses\" under \"Maintenance\". Nothing to re-enter.",
                 "Hour-based rules only apply to machines tracked in hours, and trip-based rules only to machines tracked in trips — the category's tracking mode decides.",

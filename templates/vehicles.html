@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% from "_search.html" import searchbox with context %}
+{% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.vehicles'] }}{% endblock %}
 {% block page_title %}{{ t['nav.vehicles'] }}{% endblock %}
@@ -42,6 +44,9 @@
         {% endfor %}
     </div>
     {% endif %}
+
+    {{ searchbox(search, {'category': active_code, 'archived': '1' if show_archived else '',
+                          'view': view}) }}
 
     {% if vehicles %}
     {% if view == 'cards' %}
@@ -119,6 +124,7 @@
         {% for v in vehicles %}{% include "_vehicle_card.html" %}{% endfor %}
     </div>
     {% endif %}
+    {{ pager(pagination, 'vehicles.index') }}
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">directions_bus</span>

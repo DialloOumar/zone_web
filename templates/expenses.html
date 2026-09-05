@@ -129,11 +129,11 @@
     <nav class="tabs" role="tablist">
         <a href="{{ tab_urls['depenses'] }}" role="tab" aria-selected="{{ 'true' if tab == 'depenses' else 'false' }}"
            class="tab {% if tab == 'depenses' %}tab--on{% endif %}">
-            {{ t['caisse.tab_expenses'] }}<span class="tab__count">{{ expenses|length }}</span>
+            {{ t['caisse.tab_expenses'] }}<span class="tab__count">{{ pagination.total }}</span>
         </a>
         <a href="{{ tab_urls['mouvements'] }}" role="tab" aria-selected="{{ 'true' if tab == 'mouvements' else 'false' }}"
            class="tab {% if tab == 'mouvements' %}tab--on{% endif %}">
-            {{ t['caisse.tab_movements'] }}<span class="tab__count">{{ movements|length }}</span>
+            {{ t['caisse.tab_movements'] }}<span class="tab__count">{{ mpagination.total }}</span>
         </a>
     </nav>
 
@@ -236,6 +236,7 @@
             {% endfor %}
         </tbody>
     </table></div>
+    {{ pager(mpagination, 'expenses.index') }}
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">payments</span>

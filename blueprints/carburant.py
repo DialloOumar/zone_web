@@ -27,6 +27,7 @@ carburant_bp = Blueprint("carburant", __name__, url_prefix="/carburant")
 # Tolerance (litres) beyond which a gauge écart is flagged as an anomaly.
 # A flat value for now; can become a per-citerne / setting later.
 SEUIL_ECART = 100
+PER_PAGE = 50        # rows on one screen of the ledger
 
 
 def _valid_date(s):
@@ -199,7 +200,8 @@ def history():
     fciterne = request.args.get("citerne", type=int)
     period = request.args.get("period") or date.today().strftime("%Y-%m")
 
-    rows = []
+    rows, pagination = [], None
+    totals = {"rentree": 0, "distribution": 0, "direct": 0, "conso": 0}
     if conds:
         q = FuelMovement.query.filter(db.or_(*conds))
         if ftype in MOVEMENT_KINDS:
@@ -208,18 +210,26 @@ def history():
             q = q.filter(FuelMovement.citerne_id == fciterne)
         if period != "all":
             q = q.filter(FuelMovement.date.like(period + "-%"))
-        rows = q.order_by(FuelMovement.date.desc(), FuelMovement.id.desc()).limit(1000).all()
-
-    totals = {"rentree": 0, "distribution": 0, "direct": 0, "conso": 0}
-    for m in rows:
-        if m.kind in totals:
-            totals[m.kind] += m.liters
+        # Litres are summed by the database over everything the filters match.
+        # Adding up the rows on screen would have made the totals shrink as the
+        # list got longer than a page.
+        for kind, litres in (q.with_entities(
+                FuelMovement.kind,
+                db.func.coalesce(db.func.sum(FuelMovement.liters), 0))
+                .group_by(FuelMovement.kind).all()):
+            if kind in totals:
+                totals[kind] = int(litres or 0)
+        pagination = (q.order_by(FuelMovement.date.desc(), FuelMovement.id.desc())
+                      .paginate(page=request.args.get("page", 1, type=int),
+                                per_page=PER_PAGE, error_out=False))
+        rows = pagination.items
     # What the client billed (everything taken at the client) vs what was
     # dispensed to machines from the citernes.
     client_total = totals["rentree"] + totals["direct"] + totals["conso"]
 
     return render_template(
-        "history.html", movements=rows, totals=totals, client_total=client_total,
+        "history.html", movements=rows, pagination=pagination,
+        totals=totals, client_total=client_total,
         seuil=SEUIL_ECART, months=_last_12_months(), period=period, ftype=ftype,
         fciterne=fciterne, kinds=MOVEMENT_KINDS,
         citernes=_scoped_citernes().order_by(Citerne.code).all())

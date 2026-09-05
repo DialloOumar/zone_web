@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% from "_search.html" import searchbox with context %}
+{% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.operators'] }}{% endblock %}
 {% block page_title %}{{ t['nav.operators'] }}{% endblock %}
@@ -28,6 +30,8 @@
         {% endfor %}
     </div>
     {% endif %}
+
+    {{ searchbox(search, {'fleet': active_fleet, 'archived': '1' if show_archived else ''}) }}
 
     {% if operators %}
     {# Desktop: full table #}
@@ -138,6 +142,7 @@
         </div>
         {% endfor %}
     </div>
+    {{ pager(pagination, 'operators.index') }}
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">badge</span>

@@ -23,6 +23,8 @@ from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Operator,
 
 approvals_bp = Blueprint("approvals", __name__)
 
+PER_PAGE = 50   # rows on one screen
+
 # resource_type -> (Model, creator attribute set to the original requester)
 RESOURCE_MODELS = {
     "vehicle": (Vehicle, "created_by"),
@@ -190,7 +192,10 @@ def index():
         q = q.filter(PendingChange.fleet_id.in_(ids))
     if show in ("pending", "approved", "rejected"):
         q = q.filter(PendingChange.status == show)
-    rows = q.order_by(PendingChange.requested_at.desc()).limit(200).all()
+    pagination = q.order_by(PendingChange.requested_at.desc()).paginate(
+        page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
+        error_out=False)
+    rows = pagination.items
 
     requesters = {u.id: u for u in User.query.all()}
     fleets = {f.id: f for f in Fleet.query.all()}
@@ -202,6 +207,7 @@ def index():
     if ids is not None:
         pending_q = pending_q.filter(PendingChange.fleet_id.in_(ids))
     return render_template("approvals.html", items=items, show=show,
+                           pagination=pagination,
                            pending_count=pending_q.count())
 
 
@@ -213,13 +219,17 @@ def my_requests():
     q = PendingChange.query.filter_by(requested_by=current_user.id)
     if show in ("pending", "approved", "rejected"):
         q = q.filter(PendingChange.status == show)
-    rows = q.order_by(PendingChange.requested_at.desc()).limit(200).all()
+    pagination = q.order_by(PendingChange.requested_at.desc()).paginate(
+        page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
+        error_out=False)
+    rows = pagination.items
     fleets = {f.id: f for f in Fleet.query.all()}
     items = [{"pc": pc, "fields": _describe(pc), "fleet": fleets.get(pc.fleet_id)}
              for pc in rows]
     pending_count = PendingChange.query.filter_by(
         requested_by=current_user.id, status="pending").count()
     return render_template("my_requests.html", items=items, show=show,
+                           pagination=pagination,
                            pending_count=pending_count)
 
 

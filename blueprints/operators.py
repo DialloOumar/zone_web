@@ -21,6 +21,8 @@ from models import (DailyEntry, Expense, Fleet, FuelMovement,
 
 operators_bp = Blueprint("operators", __name__)
 
+PER_PAGE = 50   # rows on one screen
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -144,11 +146,18 @@ def index():
     q = scoped(Operator).filter(Operator.is_active.is_(not show_archived))
     if active_fleet:
         q = q.filter(Operator.fleet_id == active_fleet)
-    operators = q.order_by(Operator.name).all()
+    search = (request.args.get("q") or "").strip()
+    if search:
+        q = q.filter(Operator.name.ilike("%" + search + "%"))
+    pagination = q.order_by(Operator.name).paginate(
+        page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
+        error_out=False)
+    operators = pagination.items
     archived_count = scoped(Operator).filter(Operator.is_active.is_(False)).count()
     usage = {o.id: _operator_usage(o) for o in operators}
 
     return render_template("operators.html", operators=operators, usage=usage,
+                           pagination=pagination, search=search,
                            filter_fleets=fleets, active_fleet=active_fleet,
                            show_archived=show_archived, archived_count=archived_count)
 

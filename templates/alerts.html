@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.alerts'] }}{% endblock %}
 {% block page_title %}{{ t['nav.alerts'] }}{% endblock %}
@@ -49,6 +50,7 @@
         </div>
         {% endfor %}
     </div>
+    {{ pager(pagination, 'maintenance.alerts') }}
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">check_circle</span>

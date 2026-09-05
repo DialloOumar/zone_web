@@ -606,6 +606,7 @@ a:hover { text-decoration: underline; }
     font: inherit; font-size: 0.78rem; outline: none;
 }
 .filter-search input:focus { border-color: var(--md-primary); }
+.filter-bar--search { align-items: center; gap: 8px; margin-bottom: 12px; }
 /* Everything in these bars is the same height now, so they close up and centre
    instead of hanging off a baseline that no longer varies. */
 .filter-bar--live { align-items: center; gap: 8px; }

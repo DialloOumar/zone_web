@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.my_requests'] }}{% endblock %}
 {% block page_title %}{{ t['nav.my_requests'] }}{% endblock %}
@@ -49,6 +50,7 @@
         </div>
         {% endfor %}
     </div>
+    {{ pager(pagination, 'approvals.my_requests') }}
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">task_alt</span>

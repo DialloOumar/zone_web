@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.maintenance_records'] }}{% endblock %}
 {% block page_title %}{{ t['nav.maintenance_records'] }}{% endblock %}
@@ -15,13 +16,17 @@
 
     <form method="get" class="filter-bar">
         <div class="field field--select" style="min-width: 220px;">
-            <select id="filter_vehicle" name="vehicle_id" onchange="this.form.submit()">
+            <select id="filter_vehicle" name="vehicle_id">
                 <option value="">{{ t['maint.all_vehicles'] }}</option>
                 {% for v in vehicles %}<option value="{{ v.id }}" {% if fv == v.id %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
             </select>
             <label for="filter_vehicle">{{ t['maint.vehicle'] }}</label>
         </div>
-        {% if fv %}<a href="{{ url_for('maintenance.records') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>{% endif %}
+        <label class="filter-search">
+            <input type="search" name="q" value="{{ search }}" placeholder="{{ t['search.placeholder'] }}">
+        </label>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        {% if fv or search %}<a href="{{ url_for('maintenance.records') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>{% endif %}
     </form>
 
     {% if records %}
@@ -109,6 +114,7 @@
         </div>
         {% endfor %}
     </div>
+    {{ pager(pagination, 'maintenance.records') }}
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">handyman</span>

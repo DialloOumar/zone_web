@@ -20,6 +20,8 @@ from models import (Alert, DailyEntry, Expense, Fleet, FuelMovement,
 
 vehicles_bp = Blueprint("vehicles", __name__)
 
+PER_PAGE = 50   # rows on one screen
+
 
 # Map an s3_storage error code to a localized message for the form.
 _PHOTO_ERR_KEYS = {
@@ -186,7 +188,16 @@ def index():
     q = scoped(Vehicle).filter(Vehicle.is_active.is_(not show_archived))
     if active_code and active_code in cat_by_code:
         q = q.filter(Vehicle.category_id == cat_by_code[active_code].id)
-    vehicles = q.order_by(Vehicle.code).all()
+    # A fleet of sixty scrolls forever; the code is what anyone types first.
+    search = (request.args.get("q") or "").strip()
+    if search:
+        like = "%" + search + "%"
+        q = q.filter(db.or_(Vehicle.code.ilike(like),
+                            Vehicle.description.ilike(like)))
+    pagination = q.order_by(Vehicle.code).paginate(
+        page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
+        error_out=False)
+    vehicles = pagination.items
     archived_count = scoped(Vehicle).filter(Vehicle.is_active.is_(False)).count()
 
     # Filter chips: only categories present in the user's accessible fleets.
@@ -205,7 +216,8 @@ def index():
             view = "cards"
 
     resp = make_response(render_template(
-        "vehicles.html", vehicles=vehicles, view=view,
+        "vehicles.html", vehicles=vehicles, pagination=pagination,
+        view=view, search=search,
         filter_cats=filter_cats, active_code=active_code,
         show_archived=show_archived, archived_count=archived_count))
     if explicit:

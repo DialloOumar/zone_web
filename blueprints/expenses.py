@@ -396,7 +396,18 @@ def index():
     # A site or a machine is a property of a cost, never of a movement, so those
     # two filters live under the costs tab and leave this list alone. Blanking it
     # instead would empty the other tab for a reason not visible from it.
-    movements = mq.order_by(CashMovement.date.desc(), CashMovement.id.desc()).all()
+    # Summed by the database, so the figures stay right once this list is paged.
+    def _moved(kind):
+        sub = mq.filter(CashMovement.kind == kind).with_entities(
+            CashMovement.amount.label("v")).subquery()
+        return int(db.session.query(
+            db.func.coalesce(db.func.sum(sub.c.v), 0)).scalar() or 0)
+
+    deposited, withdrawn = _moved("depot"), _moved("retrait")
+    mpagination = (mq.order_by(CashMovement.date.desc(), CashMovement.id.desc())
+                   .paginate(page=request.args.get("page", 1, type=int),
+                             per_page=PER_PAGE, error_out=False))
+    movements = mpagination.items
 
     # The tab lives in the address, not in the page: every filter press reloads,
     # and an unremembered tab would drop you back on the costs each time.
@@ -404,7 +415,8 @@ def index():
     if tab not in TABS:
         # Asking about an account empties the costs, asking about a site or a
         # machine empties the movements. Open on the side that has something.
-        tab = "mouvements" if movements and not expenses else "depenses"
+        tab = ("mouvements" if mpagination.total and not pagination.total
+               else "depenses")
     kept = request.args.to_dict(flat=False)
     kept.pop("tab", None)
     # Switching tab or printing starts at the top of the list, not on page 4 of
@@ -416,11 +428,10 @@ def index():
 
     return render_template(
         "expenses.html", expenses=expenses, movements=movements,
-        pagination=pagination, search=search,
+        pagination=pagination, mpagination=mpagination, search=search,
         tab=tab, tab_urls=tab_urls, report_args=report_args,
         total=spent, count=pagination.total,
-        deposited=sum(m.amount for m in movements if m.kind == "depot"),
-        withdrawn=sum(m.amount for m in movements if m.kind == "retrait"),
+        deposited=deposited, withdrawn=withdrawn,
         balance=cash_balance(), accounts_summary=account_balances(),
         date_from=date_from, date_to=date_to,
         sites=active_sites(), vehicles=_accessible_vehicles(),
@@ -598,9 +609,18 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids, part=None):
     truncated = len(moves) + len(costs) > REPORT_LIMIT
     moves, costs = moves[:REPORT_LIMIT], costs[:REPORT_LIMIT]
 
-    total_in = sum(r["in"] for r in moves)
-    total_withdrawn = sum(r["out"] for r in moves)
-    total_spent = sum(r["amount"] for r in costs)
+    # Totals from the database over everything the filters match -- never from
+    # the rows that fitted in the document. A cash book whose closing balance
+    # shrinks because the period got long is worse than no cash book at all.
+    def _sum_of(query, column):
+        sub = query.with_entities(column.label("v")).subquery()
+        return int(db.session.query(
+            db.func.coalesce(db.func.sum(sub.c.v), 0)).scalar() or 0)
+
+    total_spent = _sum_of(cq, Expense.amount)
+    total_in = _sum_of(mq.filter(CashMovement.kind == "depot"), CashMovement.amount)
+    total_withdrawn = _sum_of(mq.filter(CashMovement.kind == "retrait"),
+                              CashMovement.amount)
     return dict(
         moves=moves, costs=costs, opening=opening, filtered=filtered,
         part=part,

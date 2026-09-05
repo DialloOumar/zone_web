@@ -32,6 +32,7 @@ RECORD_TYPES = ["oil_change", "filter", "tires", "brakes", "repair", "parts",
                 "revision", "other"]
 SEVERITIES = ["info", "warning", "critical"]
 SNOOZE_DAYS = 7
+PER_PAGE = 50    # rows on one screen
 
 
 # ── Shared helpers ───────────────────────────────────────────────────────────
@@ -584,8 +585,26 @@ def records():
     q = _scoped_records()
     if fv:
         q = q.filter(MaintenanceRecord.vehicle_id == fv)
-    rows = q.order_by(MaintenanceRecord.date.desc(), MaintenanceRecord.id.desc()).limit(300).all()
-    return render_template("maintenance_records.html", records=rows,
+    search = (request.args.get("q") or "").strip()
+    if search:
+        # What is remembered about a service: what was done, who did it, and
+        # which machine it was on.
+        like = "%" + search + "%"
+        # The machine is matched through a sub-select rather than a join: the
+        # scoped query already joins vehicles, and a second join makes every
+        # column of it ambiguous.
+        q = q.filter(db.or_(
+            MaintenanceRecord.description.ilike(like),
+            MaintenanceRecord.supplier.ilike(like),
+            MaintenanceRecord.operator.ilike(like),
+            MaintenanceRecord.vehicle_id.in_(
+                db.session.query(Vehicle.id).filter(Vehicle.code.ilike(like)))))
+    pagination = (q.order_by(MaintenanceRecord.date.desc(),
+                             MaintenanceRecord.id.desc())
+                  .paginate(page=request.args.get("page", 1, type=int),
+                            per_page=PER_PAGE, error_out=False))
+    return render_template("maintenance_records.html", records=pagination.items,
+                           pagination=pagination, search=search,
                            vehicles=_accessible_vehicles(), fv=fv)
 
 
@@ -724,10 +743,13 @@ def alerts():
         q = q.filter(Alert.status == "open")
     elif show in ("snoozed", "resolved", "dismissed"):
         q = q.filter(Alert.status == show)
-    alerts_rows = q.order_by(Alert.triggered_at.desc()).limit(300).all()
+    pagination = q.order_by(Alert.triggered_at.desc()).paginate(
+        page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
+        error_out=False)
     active_count = _scoped_alerts().filter(Alert.status == "open").count()
     snoozed_count = _scoped_alerts().filter(Alert.status == "snoozed").count()
-    return render_template("alerts.html", alerts=alerts_rows, show=show,
+    return render_template("alerts.html", alerts=pagination.items,
+                           pagination=pagination, show=show,
                            active_count=active_count, snoozed_count=snoozed_count)
 
 

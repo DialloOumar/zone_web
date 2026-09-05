@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['movement.history'] }}{% endblock %}
 {% block page_title %}{{ t['movement.history'] }}{% endblock %}
@@ -43,6 +44,7 @@
 
     {% if movements %}
     {% include "_movement_table.html" %}
+    {{ pager(pagination, 'carburant.history') }}
     {% else %}
     <div class="empty-state empty-state--soft">
         <span class="material-symbols-outlined">history</span>
