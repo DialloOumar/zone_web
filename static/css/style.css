@@ -597,6 +597,15 @@ a:hover { text-decoration: underline; }
 }
 .filter-date input:focus { outline: none; }
 .filter-date:focus-within { border-color: var(--md-primary); }
+/* A search box shaped like the menus beside it. */
+.filter-search { display: inline-flex; align-items: center; }
+.filter-search input {
+    height: 30px; padding: 0 13px; width: 180px;
+    border: 1px solid var(--md-outline); border-radius: 999px;
+    background: var(--md-surface); color: var(--md-on-surface);
+    font: inherit; font-size: 0.78rem; outline: none;
+}
+.filter-search input:focus { border-color: var(--md-primary); }
 /* Everything in these bars is the same height now, so they close up and centre
    instead of hanging off a baseline that no longer varies. */
 .filter-bar--live { align-items: center; gap: 8px; }

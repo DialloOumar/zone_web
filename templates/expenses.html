@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.expenses'] }}{% endblock %}
 {% block page_title %}{{ t['nav.expenses'] }}{% endblock %}
@@ -120,7 +121,7 @@
         <span class="muted small">&middot;</span>
         {{ t['caisse.withdrawn'] }}<strong>{{ '{:,}'.format(withdrawn) }}</strong>
         {% endif %}
-        <span class="muted small">{{ currency }} &middot; {{ expenses|length }} {{ t['expense.count'] }}</span>
+        <span class="muted small">{{ currency }} &middot; {{ '{:,}'.format(count) }} {{ t['expense.count'] }}</span>
     </div>
 
     {# Two tabs rather than two tables stacked: money in and out is not a cost,
@@ -147,6 +148,9 @@
             {{ carry('account', account_ids) }}
             {% if sites %}{{ tickbox('site', t['expense.site'], sites, site_ids, 'name') }}{% endif %}
             {% if vehicles %}{{ tickbox('vehicle', t['expense.vehicle'], vehicles, vehicle_ids, 'code') }}{% endif %}
+            <label class="filter-search">
+                <input type="search" name="q" value="{{ search }}" placeholder="{{ t['search.placeholder'] }}">
+            </label>
             <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
         </form>
         {% endif %}
@@ -314,6 +318,7 @@
         </div>
         {% endfor %}
     </div>
+    {{ pager(pagination, 'expenses.index') }}
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">payments</span>

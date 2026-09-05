@@ -55,6 +55,8 @@ CASH_METHODS = ["cash", "mobile_money"]
 # The two halves of the cash book, shown one at a time.
 TABS = ("depenses", "mouvements")
 
+PER_PAGE = 50   # rows on one screen
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -364,7 +366,25 @@ def index():
     # A cost carries an account only when that account paid it directly.
     if account_ids:
         q = q.filter(Expense.account_id.in_(account_ids))
-    expenses = q.order_by(Expense.date.desc(), Expense.id.desc()).limit(300).all()
+    search = (request.args.get("q") or "").strip()
+    if search:
+        # What someone actually remembers about a cost: a word from what was
+        # written down, or the reference on the receipt.
+        like = "%" + search + "%"
+        q = q.filter(db.or_(Expense.description.ilike(like),
+                            Expense.label.ilike(like),
+                            Expense.payment_reference.ilike(like)))
+
+    # The totals are read off the query, not off the page. They used to be
+    # summed from the 300 rows the screen happened to hold, so past 300 costs in
+    # a period the figure at the top was quietly short.
+    amounts = q.with_entities(Expense.amount).subquery()
+    spent = db.session.query(
+        db.func.coalesce(db.func.sum(amounts.c.amount), 0)).scalar() or 0
+    pagination = q.order_by(Expense.date.desc(), Expense.id.desc()).paginate(
+        page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
+        error_out=False)
+    expenses = pagination.items
 
     mq = CashMovement.query
     if start:
@@ -387,14 +407,18 @@ def index():
         tab = "mouvements" if movements and not expenses else "depenses"
     kept = request.args.to_dict(flat=False)
     kept.pop("tab", None)
+    # Switching tab or printing starts at the top of the list, not on page 4 of
+    # the one you were reading.
+    kept.pop("page", None)
     tab_urls = {name: url_for("expenses.index", tab=name, **kept) for name in TABS}
     # What a report link carries: the filters, never the tab or an earlier part.
     report_args = {k: v for k, v in kept.items() if k != "part"}
 
     return render_template(
         "expenses.html", expenses=expenses, movements=movements,
+        pagination=pagination, search=search,
         tab=tab, tab_urls=tab_urls, report_args=report_args,
-        total=sum(e.amount for e in expenses),
+        total=spent, count=pagination.total,
         deposited=sum(m.amount for m in movements if m.kind == "depot"),
         withdrawn=sum(m.amount for m in movements if m.kind == "retrait"),
         balance=cash_balance(), accounts_summary=account_balances(),

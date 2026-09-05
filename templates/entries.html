@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.daily_entries'] }}{% endblock %}
 {% block page_title %}{{ t['nav.daily_entries'] }}{% endblock %}
@@ -197,6 +198,8 @@
         </div>
         {% endfor %}
     </div>
+
+    {{ pager(pagination, 'entries.index') }}
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">list_alt</span>

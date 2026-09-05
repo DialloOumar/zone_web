@@ -275,8 +275,14 @@ def _ghost_create(pc):
 @login_required
 @require_perm("entry.view")
 def index():
-    entries = (_apply_filters(_scoped_entries())
-               .order_by(DailyEntry.date.desc(), DailyEntry.id.desc()).limit(500).all())
+    # Paged rather than capped: one row per vehicle per day fills 500 in under
+    # three weeks on a fleet of thirty, and the rows past the cap simply were
+    # not there, with nothing on the page to say so.
+    pagination = (_apply_filters(_scoped_entries())
+                  .order_by(DailyEntry.date.desc(), DailyEntry.id.desc())
+                  .paginate(page=request.args.get("page", 1, type=int),
+                            per_page=PER_PAGE, error_out=False))
+    entries = pagination.items
     # The requester's own in-flight changes, so rows show "… en attente" and
     # locked actions, and pending creations appear as ghost rows on top.
     mine = (PendingChange.query
@@ -285,13 +291,14 @@ def index():
     pending_map = {pc.resource_id: pc.action for pc in mine
                    if pc.action in ("update", "delete") and pc.resource_id}
     ghost_creates = [_ghost_create(pc) for pc in mine if pc.action == "create"]
-    return render_template("entries.html", entries=entries,
+    return render_template("entries.html", entries=entries, pagination=pagination,
                            fleets=_accessible_fleets(), vehicles=_accessible_vehicles(),
                            categories=_accessible_categories(),
                            operators=_accessible_operators(), f=_filter_values(),
                            pending_map=pending_map, ghost_creates=ghost_creates)
 
 
+PER_PAGE = 50         # rows on one screen
 EXPORT_LIMIT = 1000   # hard cap on rows in one export; flagged on the document
 
 

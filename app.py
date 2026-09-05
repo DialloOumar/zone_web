@@ -177,7 +177,16 @@ def _inject_globals():
         # Billing rates only exist to feed facturation, so they follow it in
         # and out of hiding rather than needing a switch of their own.
         "billing_visible": "invoicing.view" not in HIDDEN_PERMS,
+        # Every query argument except the page number, so a pager can link to
+        # the next page without dropping the filters that made the list.
+        "page_args": _page_args,
     }
+
+
+def _page_args():
+    args = request.args.to_dict(flat=False)
+    args.pop("page", None)
+    return args
 
 
 # ── Access control: categories, permissions, scoping ─────────────────────────
