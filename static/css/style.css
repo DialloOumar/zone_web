@@ -1814,7 +1814,7 @@ body { font-size: 0.9rem; }
    of proportion. Cut by roughly a tenth each, so the steps between them keep
    the same ratios. Grouped here with the other density settings rather than
    edited in place, so the scale can be read and retuned in one look. */
-.topbar { height: 52px; padding: 0 20px; }
+.topbar { height: 52px; padding: 0 16px; }
 .page-title { font-size: 1.05rem; }
 .card-header h2, .modal__header h2, .help-section__head h2 { font-size: 0.98rem; }
 .confirm__title { font-size: 1.05rem; }
@@ -1832,17 +1832,17 @@ body { font-size: 0.9rem; }
 .sidebar-nav a { height: 46px; font-size: 0.86rem; }
 .sidebar-nav a.sidebar-sub { height: 42px; }
 
-.content { padding: 20px; gap: 18px; }
-.card { padding: 20px; }
-.card-header { margin-bottom: 14px; }
+.content { padding: 14px; gap: 12px; }
+.card { padding: 14px; }
+.card-header { margin-bottom: 10px; }
 
 .auth-form .btn { height: 44px; }
 
-.data-table th { padding: 9px 14px; }
-.data-table td { padding: 11px 14px; }
+.data-table th { padding: 7px 12px; }
+.data-table td { padding: 8px 12px; }
 
-.welcome-banner { padding: 22px 26px; }
-.stat-card { padding: 16px; gap: 14px; }
+.welcome-banner { padding: 16px 20px; }
+.stat-card { padding: 13px; gap: 12px; }
 .stat-icon { width: 46px; height: 46px; font-size: 24px; }
 
 .chip { height: 24px; padding: 0 10px; }
@@ -1864,8 +1864,10 @@ body { font-size: 0.9rem; }
     .topbar { padding: 0 12px; }
     .page-title { font-size: 1rem; }
     .topbar .lang-toggle { display: none; }
-    .content { padding: 16px; gap: 16px; overflow-x: hidden; }
-    .card { padding: 18px; min-width: 0; }
+    /* Tighter still on a phone, where every pixel of width is the content's.
+       Not below 10px: a card would look stuck to the edge of the screen. */
+    .content { padding: 10px; gap: 10px; overflow-x: hidden; }
+    .card { padding: 12px; min-width: 0; }
     .form-row { grid-template-columns: 1fr; }
     /* Keep the quantity and its remove button side by side when stacked */
     .parts-line { grid-template-columns: 1fr auto; gap: 12px; }
