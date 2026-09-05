@@ -75,11 +75,13 @@ HELP_SECTIONS = [
         },
         "tips": {
             "fr": [
+                "En haut à droite, l'icône de lune passe le portail en mode nuit, et le soleil le ramène au jour. Le choix est gardé un an sur cet appareil. Sans choix, le portail suit le réglage de l'ordinateur ou du téléphone.",
                 "Les longues listes sont découpées en pages de 50. Un bandeau en bas dit toujours où vous en êtes — « 1–50 sur 847 » — et vos filtres vous suivent d'une page à l'autre. Les totaux affichés en haut d'une page portent sur l'ensemble, jamais sur la seule page visible.",
                 "Si votre rôle l'exige, la saisie part en validation : elle apparaît dans « Mes demandes » (En attente) et devient définitive après approbation.",
                 "Pour voir/filtrer toutes les saisies, utilisez « Saisie quotidienne ».",
             ],
             "en": [
+                "Top right, the moon puts the portal into night mode and the sun brings it back to day. The choice is kept for a year on that device. Without one, the portal follows the computer's or phone's own setting.",
                 "Long lists come in pages of 50. A bar at the bottom always says where you are -- \"1-50 of 847\" -- and your filters follow you from page to page. The totals at the top of a page cover the whole list, never just the page in front of you.",
                 "If your role requires it, the entry goes to approval: it shows in \"My requests\" (Pending) and applies once approved.",
                 "To view/filter all entries, use \"Daily entries\".",

@@ -122,6 +122,23 @@ def set_language(lang):
     return redirect(request.referrer or url_for("dashboard"))
 
 
+THEMES = ("light", "dark")
+
+
+@app.route("/set-theme/<theme>")
+def set_theme(theme):
+    """Remember light or dark for a year.
+
+    A cookie rather than the session: the choice has to survive closing the
+    browser, and it has to apply to the login page, before anyone is known.
+    """
+    if theme not in THEMES:
+        abort(404)
+    resp = redirect(request.referrer or url_for("dashboard"))
+    resp.set_cookie("theme", theme, max_age=60 * 60 * 24 * 365, samesite="Lax")
+    return resp
+
+
 def _category_label(code):
     """Deferred import: blueprints are loaded at the bottom of this file."""
     from blueprints.expenses import category_label
@@ -180,6 +197,9 @@ def _inject_globals():
         # Every query argument except the page number, so a pager can link to
         # the next page without dropping the filters that made the list.
         "page_args": _page_args,
+        # "light", "dark", or empty when nobody has chosen and the machine's own
+        # setting decides.
+        "theme": request.cookies.get("theme") if request.cookies.get("theme") in THEMES else "",
     }
 
 

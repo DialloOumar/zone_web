@@ -380,4 +380,23 @@ document.addEventListener("click", function (e) {
     });
 })();
 
+// ── Night mode button ──
+// The server knows the theme only once someone has chosen one. Until then the
+// head script sets it from the machine, and this brings the button into line --
+// otherwise a reader whose computer is already dark would be offered "switch to
+// dark", and clicking it would appear to do nothing.
+(function () {
+    var btn = document.getElementById("theme-toggle");
+    if (!btn) return;
+    var dark = document.documentElement.getAttribute("data-theme") === "dark";
+    var icon = btn.querySelector(".material-symbols-outlined");
+    var label = btn.getAttribute(dark ? "data-label-light" : "data-label-dark");
+    btn.href = btn.getAttribute(dark ? "data-to-light" : "data-to-dark");
+    if (icon) icon.textContent = dark ? "light_mode" : "dark_mode";
+    if (label) {
+        btn.title = label;
+        btn.setAttribute("aria-label", label);
+    }
+})();
+
 console.log("Zone Web booted");

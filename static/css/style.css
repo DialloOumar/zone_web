@@ -25,15 +25,15 @@
    templates — missing those is exactly how `close` ended up invisible, and
    later how the parts store and the cash box shipped with no icon at all.
 
-   The list as of v5 (47 names):
+   The list as of v6 (49 names):
      account_balance_wallet, add, admin_panel_settings, archive, arrow_back,
      badge, bedtime, category, check_circle, chevron_left, chevron_right,
-     close, delete, directions_bus, donut_large, edit, error, fact_check,
-     group, handyman, help, history, info, inventory, list_alt,
-     local_gas_station, lock_reset, logout, menu, payments, pending_actions,
-     photo_camera, picture_as_pdf, print, query_stats, request_quote, rule,
-     save, settings, shelves, space_dashboard, task_alt, translate, tune,
-     unarchive, warning, workspaces */
+     close, dark_mode, delete, directions_bus, donut_large, edit, error,
+     fact_check, group, handyman, help, history, info, inventory, light_mode,
+     list_alt, local_gas_station, lock_reset, logout, menu, payments,
+     pending_actions, photo_camera, picture_as_pdf, print, query_stats,
+     request_quote, rule, save, settings, shelves, space_dashboard, task_alt,
+     translate, tune, unarchive, warning, workspaces */
 @font-face {
     font-family: "Roboto";
     font-style: normal;
@@ -60,7 +60,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2?v=5") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=6") format("woff2");
 }
 
 /* ── Design tokens (light) ── */
@@ -139,8 +139,13 @@
     --accent-gradient: linear-gradient(135deg, #1488d6, #0F74BC);
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
+/* ── Night mode ──
+   Driven by data-theme on <html>, not by the operating system alone: the
+   attribute is written server-side from the reader's own choice, and when they
+   have not chosen, a two-line script in <head> sets it from the system before
+   the first paint. One switch, no flash, and nothing duplicated between a media
+   query and a selector. */
+:root[data-theme="dark"] {
         --c-indigo: #aeb2ff; --c-indigo-bg: #262463;
         --c-blue:   #7eb0ff; --c-blue-bg:   #1e3a5f;
         --c-cyan:   #5fd4e6; --c-cyan-bg:   #164e57;
@@ -151,11 +156,9 @@
         --c-red:    #ff9a8f; --c-red-bg:    #4a1515;
         --c-purple: #c4a6ff; --c-purple-bg: #2e1d52;
         --c-pink:   #ff9ecb; --c-pink-bg:   #4a1733;
-    }
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
+:root[data-theme="dark"] {
         --md-primary:                 #8ecaff;
         --md-on-primary:              #00344f;
         --md-primary-container:       #0a5285;
@@ -184,8 +187,11 @@
         --md-surface-variant:         #46464f;
         --md-inverse-surface:         #e4e1e6;
         --md-inverse-on-surface:      #303034;
-    }
 }
+
+/* Tells the browser to draw its own furniture -- scrollbars, form controls,
+   the space beyond the page -- to match. */
+:root[data-theme="dark"] { color-scheme: dark; }
 
 /* ── Reset & base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1597,6 +1603,23 @@ a.stat-card { text-decoration: none; color: inherit; }
     .help-section, .help-tip { break-inside: avoid; }
     a { color: inherit !important; text-decoration: none !important; }
     body { background: #fff !important; }
+    /* Paper is white whatever the screen is, so night mode has to step aside
+       here -- printed from a dark screen the page would otherwise come out as
+       pale grey text on white. The light values, restored for the print only. */
+    :root[data-theme="dark"] {
+        --md-background:              #fdfbff;
+        --md-surface:                 #fdfbff;
+        --md-surface-dim:             #dad9e0;
+        --md-surface-container-low:   #f5f3fb;
+        --md-surface-container:       #efedf5;
+        --md-surface-container-high:  #e9e7ef;
+        --md-on-surface:              #1b1b1f;
+        --md-on-surface-variant:      #46464f;
+        --md-outline:                 #777680;
+        --md-outline-variant:         #c7c5d0;
+        --md-surface-variant:         #e4e1ec;
+        color-scheme: light;
+    }
 }
 
 /* Driver sheet — vehicles-driven pills */
