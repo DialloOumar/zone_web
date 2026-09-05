@@ -1412,9 +1412,10 @@ td.row-actions > * + * { margin-left: 6px; }
 }
 
 /* ── Empty state ── */
-.empty-state { text-align: center; padding: 56px 20px; color: var(--md-on-surface-variant); }
-.empty-state .material-symbols-outlined { font-size: 48px; color: var(--md-outline); }
-.empty-state .btn, .empty-state .fab { margin-top: 16px; }
+/* Nothing to show is not worth half a screen. */
+.empty-state { text-align: center; padding: 30px 16px; color: var(--md-on-surface-variant); }
+.empty-state .material-symbols-outlined { font-size: 38px; color: var(--md-outline); }
+.empty-state .btn, .empty-state .fab { margin-top: 12px; }
 
 /* ── Auth (login) ── */
 .auth-body {
@@ -1489,10 +1490,14 @@ td.row-actions > * + * { margin-left: 6px; }
     .tour-step__desc { display: none; }
 }
 
+/* The dashboard's three blocks are children of .content, which already spaces
+   them with its own gap. They each carried a margin-top on top of it, so the
+   dashboard sat at 32px between blocks while every other page sat at 12. The
+   margin goes; the gaps inside the grids match the rest. */
 .stat-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-    gap: 16px;
+    gap: 12px;
 }
 .stat-card {
     display: flex;
@@ -1527,13 +1532,12 @@ a.stat-card { text-decoration: none; color: inherit; }
 .dash-panels {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 16px;
-    margin-top: 20px;
+    gap: 12px;
 }
 .dash-panel { margin: 0; }
 .link-more { font-size: 0.82rem; font-weight: 600; color: var(--c-blue); text-decoration: none; }
 .link-more:hover { text-decoration: underline; }
-.empty-state--soft { padding: 28px 16px; }
+.empty-state--soft { padding: 18px 14px; }
 .empty-state--soft .material-symbols-outlined { color: var(--c-green); }
 
 .activity-list { list-style: none; margin: 0; padding: 0; }
@@ -1551,8 +1555,7 @@ a.stat-card { text-decoration: none; color: inherit; }
 .dash-charts {
     display: grid;
     grid-template-columns: 2fr 1fr;
-    gap: 16px;
-    margin-top: 20px;
+    gap: 12px;
 }
 @media (max-width: 860px) {
     .dash-charts { grid-template-columns: 1fr; }
