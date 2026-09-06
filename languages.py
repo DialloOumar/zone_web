@@ -599,6 +599,8 @@ TRANSLATIONS = {
         "pay.cash":         "Espèces",
         "pay.transfer":     "Virement bancaire",
         "pay.cheque":       "Chèque",
+        # Plus proposé à la saisie : gardé pour que les anciennes lignes
+        # enregistrées en « Autre » restent lisibles dans les listes.
         "pay.other":        "Autre",
         # Carburant
         "nav.fuel":          "Carburant",
@@ -1786,6 +1788,8 @@ TRANSLATIONS = {
         "pay.cash":         "Cash",
         "pay.transfer":     "Bank transfer",
         "pay.cheque":       "Cheque",
+        # No longer offered when saving; kept so rows recorded as "Other"
+        # before still read on the lists.
         "pay.other":        "Other",
         # Fuel
         "nav.fuel":          "Fuel",

@@ -253,7 +253,7 @@ HELP_SECTIONS = [
             "« Imprimer cette section » n'imprime que l'onglet ouvert — les dépenses seules, ou les entrées et retraits seuls. Les filtres et la période sont les mêmes que ceux affichés.",
                 "Pour toutes les dépenses d'une machine, cochez-la dans le filtre Véhicule — ou ouvrez sa fiche, qui les montre à côté de son entretien et de ses pièces.",
                 "Le carburant, l'entretien et les achats de pièces ne sont pas payés par cette caisse et n'apparaissent pas ici.",
-                "Le paiement se fait en espèces ou en mobile money.",
+                "Le paiement se fait en espèces, en mobile money, par virement bancaire ou par chèque — les quatre mêmes choix partout dans l'application.",
                 "Si le solde passe en négatif, il s'affiche en rouge : il manque une entrée d'argent à enregistrer.",
             ],
             "en": [
@@ -267,7 +267,7 @@ HELP_SECTIONS = [
             "\"Print this section\" prints only the open tab -- the costs alone, or the money in and out alone. The filters and the period are the ones on screen.",
                 "For every cost of one machine, tick it under the Vehicle filter — or open its sheet, which shows them beside its services and parts.",
                 "Fuel, maintenance and parts purchases are not paid out of this box and do not appear here.",
-                "Payment is cash or mobile money.",
+                "Payment is cash, mobile money, bank transfer or cheque — the same four choices everywhere in the app.",
                 "If the balance goes negative it shows in red: money in has not been logged yet.",
             ],
         },

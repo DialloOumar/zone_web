@@ -45,12 +45,16 @@ EXPENSE_CATEGORIES = ["accident", "lavage", "autre"]
 # was not paid out of the cash box, so it never touches its balance.
 SYSTEM_CATEGORIES = [FUEL_CATEGORY, MAINTENANCE_CATEGORY, PARTS_CATEGORY]
 
-PAYMENT_METHODS = ["mobile_money", "cash", "transfer", "cheque", "other"]
-
-# The Dépenses page is the cash box: money is handed over, and spent out of it.
-# Only the two ways that float actually moves are offered there. Older rows keep
-# whatever they were saved with and still read fine.
-CASH_METHODS = ["cash", "mobile_money"]
+# How money changes hands, on this page and on every other screen that records
+# a payment -- a service, a stock receipt, a supplier's bill. Cash and mobile
+# money are the everyday two and lead; a transfer or a cheque is how the larger
+# bills get settled.
+#
+# There is one list rather than a narrower one for the cash box: every way
+# listed here is a way the box's float really moves. Older rows keep whatever
+# they were saved with -- an "Autre" from before still reads on the list, it
+# is simply no longer offered when saving.
+PAYMENT_METHODS = ["cash", "mobile_money", "transfer", "cheque"]
 
 # The two halves of the cash book, shown one at a time.
 TABS = ("depenses", "mouvements")
@@ -181,7 +185,7 @@ def _read_expense_form(expense):
     Returns (data, None) or (None, err).
     """
     t = get_t()
-    common, error = _common_fields(t, CASH_METHODS)
+    common, error = _common_fields(t)
     if error:
         return None, error
 
@@ -255,7 +259,7 @@ def _form_context(expense):
     last = (Expense.query.filter(Expense.site_id.isnot(None))
             .order_by(Expense.id.desc()).first())
     return {
-        "payment_methods": CASH_METHODS,
+        "payment_methods": PAYMENT_METHODS,
         "accounts": active_accounts(),
         "sites": active_sites(),
         "vehicles": _accessible_vehicles(),
@@ -823,7 +827,7 @@ def _read_movement_form(kind):
         return None, t["expense.err.amount_required"]
 
     method = (request.form.get("method") or "").strip()
-    if method not in CASH_METHODS:
+    if method not in PAYMENT_METHODS:
         return None, t["expense.err.payment_required"]
 
     account_id = request.form.get("account_id", type=int) or None
@@ -843,7 +847,7 @@ def _render_movement_form(movement, kind, error=None):
     tpl = "_movement_form.html" if is_modal_request() else "movement_form.html"
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, movement=movement, kind=kind, error=error,
-                           methods=CASH_METHODS, accounts=active_accounts(),
+                           methods=PAYMENT_METHODS, accounts=active_accounts(),
                            today=date.today().isoformat()), status
 
 

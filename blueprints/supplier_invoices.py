@@ -20,13 +20,12 @@ from flask_login import current_user, login_required
 
 import s3_storage
 from app import get_t, is_modal_request, log_action, modal_ok, require_perm
+# The one list of ways money changes hands, shared with the cash box and every
+# other screen that records a payment, so a method added there shows up here.
+from blueprints.expenses import PAYMENT_METHODS
 from models import Supplier, SupplierInvoice, db
 
 supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
-
-# A bill may be settled any way at all — an envelope of cash, a transfer, a
-# cheque — so unlike the cash box this offers the full list.
-PAYMENT_METHODS = ["mobile_money", "cash", "transfer", "cheque", "other"]
 
 # The two halves of the page, shown one at a time: the bills, and the people
 # who send them.
