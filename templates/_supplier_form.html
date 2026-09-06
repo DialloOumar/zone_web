@@ -1,0 +1,32 @@
+{% set is_edit = row is not none %}
+{# Who sends the bills. A name is enough; the rest is there for the day someone
+   has to call them about one. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('supplier_invoices.supplier_edit', sid=row.id) if is_edit
+                else url_for('supplier_invoices.supplier_new') }}">
+
+    <div class="field">
+        <input type="text" id="name" name="name" placeholder=" " required
+               value="{{ request.form.get('name') or (row.name if is_edit else '') }}">
+        <label for="name">{{ t['invoice.supplier_name'] }}</label>
+    </div>
+
+    <div class="field">
+        <input type="text" id="contact" name="contact" placeholder=" "
+               value="{{ request.form.get('contact') or (row.contact or '' if is_edit else '') }}">
+        <label for="contact">{{ t['invoice.contact'] }}</label>
+    </div>
+
+    <div class="field">
+        <textarea id="note" name="note" placeholder=" " rows="2">{{ request.form.get('note') or (row.note or '' if is_edit else '') }}</textarea>
+        <label for="note">{{ t['entry.note'] }}</label>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('supplier_invoices.index', tab='fournisseurs') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

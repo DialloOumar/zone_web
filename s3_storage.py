@@ -52,6 +52,7 @@ PHOTO_PREFIX    = S3_PREFIX + "shift-photos/"
 VEHICLE_PREFIX  = S3_PREFIX + "vehicles/"      # one photo per vehicle
 CITERNE_PREFIX  = S3_PREFIX + "citernes/"      # one photo per citerne
 PART_PREFIX     = S3_PREFIX + "parts/"         # one photo per stock part
+INVOICE_PREFIX  = S3_PREFIX + "invoices/"      # supplier invoices, foldered by month
 MAX_BYTES       = 12 * 1024 * 1024   # 12 MB raw upload cap
 RESIZE_MAX      = 1920               # longest edge after resize
 JPEG_QUALITY    = 85
@@ -192,6 +193,21 @@ def upload_citerne_photo(file_storage, code: str = "") -> Tuple[Optional[str], O
 def upload_part_photo(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
     """Resize and upload a stock part photo to {S3_PREFIX}parts/."""
     return _upload_photo(file_storage, PART_PREFIX, code)
+
+
+def upload_invoice_photo(file_storage, code: str = "", month: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """Resize and upload a supplier invoice photo to {S3_PREFIX}invoices/.
+
+    Filed under a month folder (invoices/2026-09/…) rather than in one flat
+    heap: an invoice is looked for by the month it belongs to, and a bucket
+    holding a year of them is unreadable otherwise. A missing or malformed
+    month drops the file straight into invoices/ rather than into a folder
+    named after a typo.
+    """
+    prefix = INVOICE_PREFIX
+    if len(month) == 7 and month[4] == "-" and month[:4].isdigit() and month[5:].isdigit():
+        prefix += month + "/"
+    return _upload_photo(file_storage, prefix, code)
 
 
 def signed_url(photo_key: str, expires_in: int = SIGNED_URL_TTL) -> Optional[str]:

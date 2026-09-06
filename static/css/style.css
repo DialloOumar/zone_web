@@ -602,6 +602,13 @@ a:hover { text-decoration: underline; }
     font: inherit; color: var(--md-on-surface); cursor: text;
 }
 .filter-date input:focus { outline: none; }
+/* A short list of states reads as one of these pills too, not as a boxed
+   dropdown parked between them. */
+.filter-date select {
+    border: 0; background: none; padding: 0; min-width: 0;
+    font: inherit; color: var(--md-on-surface); cursor: pointer;
+}
+.filter-date select:focus { outline: none; }
 .filter-date:focus-within { border-color: var(--md-primary); }
 /* A search box shaped like the menus beside it. */
 .filter-search { display: inline-flex; align-items: center; }

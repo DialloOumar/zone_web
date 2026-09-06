@@ -273,6 +273,60 @@ HELP_SECTIONS = [
         },
     },
     {
+        "id": "factures",
+        "icon": "receipt_long",
+        "gate": {"perms": ["supplier_invoice.view"]},
+        "title": {"fr": "Les factures à payer", "en": "The bills you owe"},
+        "intro": {
+            "fr": "La page « Factures », c'est ce que l'entreprise doit : les "
+                  "factures que vos fournisseurs vous envoient. En haut, le "
+                  "reste à payer, tous fournisseurs confondus.",
+            "en": "The \"Invoices\" page is what the company owes: the bills "
+                  "your suppliers send you. At the top, what is still to pay, "
+                  "all suppliers together.",
+        },
+        "steps": {
+            "fr": [
+                "Commencez par l'onglet « Fournisseurs » : ce sont ceux qui vous envoient des factures — un garage, un magasin de pièces, un bailleur. Un nom suffit ; le contact sert le jour où il faut les appeler.",
+                "Onglet « Factures », « Nouvelle facture » : le fournisseur, la date de la facture, le montant. Le n° de facture et l'objet sont facultatifs mais aident à la retrouver.",
+                "« À payer avant le » est facultatif. Rempli, la facture passe en rouge et s'affiche « En retard » une fois la date dépassée.",
+                "Vous pouvez ajouter une photo de la facture papier. Elle s'ouvre ensuite depuis la liste.",
+                "Quand la facture est payée, le bouton avec la coche (✓) ouvre le paiement : le montant est déjà rempli avec ce qui reste à payer, mettez la date et comment ça a été payé.",
+                "Un paiement partiel, c'est le même bouton avec un montant plus petit. La facture passe en « Partielle » et le reste continue de compter dans le total du haut.",
+                "Un paiement enregistré par erreur s'annule en remettant 0 dans le montant payé.",
+            ],
+            "en": [
+                "Start with the \"Suppliers\" tab: these are the people who send you bills — a garage, a parts shop, a landlord. A name is enough; the contact is there for the day you have to call them.",
+                "\"Invoices\" tab, \"New invoice\": the supplier, the invoice date, the amount. The invoice number and what it was for are optional but make it findable.",
+                "\"Due by\" is optional. Filled in, the invoice turns red and reads \"Overdue\" once the date has passed.",
+                "You can add a photo of the paper invoice. It opens from the list afterwards.",
+                "When the bill is paid, the tick button opens the payment: the amount is already filled in with what is still owed, add the date and how it was paid.",
+                "A part payment is the same button with a smaller amount. The invoice reads \"Part-paid\" and the rest keeps counting in the total at the top.",
+                "A payment entered by mistake is undone by putting 0 back in the amount paid.",
+            ],
+        },
+        "tips": {
+            "fr": [
+                "Cette page n'est pas la caisse : enregistrer une facture ici ne sort aucun argent et ne change aucun total de la page Dépenses. Quand l'argent sort vraiment, il se saisit en dépense comme d'habitude.",
+                "C'est voulu : si une facture comptait des deux côtés, la même somme serait comptée deux fois et tous vos totaux seraient faux.",
+                "Le filtre « Statut » : « À payer » montre tout ce qui reste dû, « En retard » seulement ce qui a dépassé sa date, « Payée » ce qui est soldé.",
+                "L'onglet « Fournisseurs » affiche, en face de chacun, ce qu'on lui doit encore et sur combien de factures.",
+                "Un fournisseur qui a déjà des factures ne peut pas être supprimé — archivez-le : il sort des menus et son historique reste lisible.",
+                "La photo doit être une photo ou une capture d'écran. Un PDF n'est pas accepté.",
+                "Ne confondez pas avec « Facturation », qui est l'inverse : les factures que l'entreprise envoie à ses clients.",
+            ],
+            "en": [
+                "This page is not the cash box: recording an invoice here moves no money and changes no total on the Expenses page. When the money actually leaves, it is logged as an expense as usual.",
+                "That is on purpose: if an invoice counted on both sides, the same sum would be counted twice and every total would be wrong.",
+                "The \"Status\" filter: \"To pay\" shows everything still owed, \"Overdue\" only what is past its date, \"Paid\" what is settled.",
+                "The \"Suppliers\" tab shows, beside each one, what is still owed and across how many invoices.",
+                "A supplier that already has invoices cannot be deleted — archive it: it leaves the pickers and its history stays readable.",
+                "The photo has to be a photo or a screenshot. A PDF is not accepted.",
+                "Not to be confused with \"Facturation\", which is the other direction: the invoices the company sends its clients.",
+            ],
+        },
+    },
+    {
         "id": "entretien",
         "icon": "handyman",
         "gate": {"perms": ["alert.view", "maintenance_record.view", "maintenance_rule.view"]},

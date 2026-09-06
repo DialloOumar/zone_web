@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = invoice is not none %}
+{% block title %}{{ t['invoice.edit'] if is_edit else t['invoice.new'] }}{% endblock %}
+{% block page_title %}{{ t['invoice.edit'] if is_edit else t['invoice.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_invoice_form.html" %}
+</section>
+{% endblock %}

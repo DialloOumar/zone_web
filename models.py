@@ -13,7 +13,7 @@ Schema overview (25 tables, grouped):
   Workflow          PendingChange, AuditLog
   Config            AppSetting
 """
-from datetime import datetime
+from datetime import date, datetime
 
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
@@ -580,6 +580,85 @@ class CashMovement(db.Model):
     account = db.relationship("CashAccount")
     expense = db.relationship("Expense", back_populates="cash_movement",
                               foreign_keys=[expense_id])
+
+
+# ── Factures fournisseurs (invoices the company owes) ─────────────────
+
+
+class Supplier(db.Model):
+    """Someone who sends the company a bill: a garage, a parts shop, a landlord.
+
+    Kept as a short list rather than free text for the same reason sites are:
+    so "everything we owe Garage Diallo" is a filter and not a search through
+    six spellings of the same name.
+    """
+    __tablename__ = "suppliers"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    name       = db.Column(db.String(80),  nullable=False, unique=True)
+    contact    = db.Column(db.String(80))                   # phone, or whoever answers
+    note       = db.Column(db.String(255))
+    sort_order = db.Column(db.Integer,     nullable=False, default=0)
+    is_active  = db.Column(db.Boolean,     nullable=False, default=True)
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+
+class SupplierInvoice(db.Model):
+    """A bill the company has received and owes — the other direction from the
+    facturation screen, which bills clients.
+
+    This is a register, not a till: nothing here touches the cash box or the
+    expense ledger. The money leaving is logged as an expense like any other,
+    and an invoice recorded here as well would be the same money counted twice.
+    What it answers is "what do we owe, and to whom".
+
+    Nothing about the payment is stored that can be worked out: `paid_amount`
+    alone tells paid from part-paid from untouched, so a status column can
+    never drift away from the figures.
+    """
+    __tablename__ = "supplier_invoices"
+
+    id          = db.Column(db.Integer, primary_key=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id"), nullable=False)
+    number      = db.Column(db.String(60))                  # the supplier's own reference
+    date        = db.Column(db.String(10), nullable=False)  # YYYY-MM-DD, the invoice's date
+    due_date    = db.Column(db.String(10))                  # when it falls due, if it says
+    amount      = db.Column(db.Integer,    nullable=False)  # GNF
+    currency    = db.Column(db.String(5),  nullable=False, default="GNF")
+    description = db.Column(db.String(255))
+    photo_key   = db.Column(db.String(200))                 # S3 photo of the paper
+
+    # What has been settled so far. Part payments are ordinary here, so this is
+    # an amount and not a tick box.
+    paid_amount       = db.Column(db.Integer,    nullable=False, default=0)
+    paid_date         = db.Column(db.String(10))
+    payment_method    = db.Column(db.String(20))            # cash | mobile_money | transfer | cheque | other
+    payment_reference = db.Column(db.String(60))
+
+    created_by = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    supplier = db.relationship("Supplier")
+
+    @property
+    def remaining(self):
+        """What is still owed on it — never below zero, so an overpayment
+        recorded by mistake cannot quietly subtract from the page total."""
+        return max((self.amount or 0) - (self.paid_amount or 0), 0)
+
+    @property
+    def status(self):
+        """paid | partial | unpaid — read off the figures, never stored."""
+        if self.remaining <= 0:
+            return "paid"
+        return "partial" if (self.paid_amount or 0) > 0 else "unpaid"
+
+    def is_overdue(self, today=None):
+        """Past its due date with money still on it. Dates are YYYY-MM-DD
+        strings, so comparing them as text is comparing them as dates."""
+        if not self.due_date or self.remaining <= 0:
+            return False
+        return self.due_date < (today or date.today().isoformat())
 
 
 # ── Workflow — approvals & audit ──────────────────────────────────────────────

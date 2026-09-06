@@ -20,6 +20,9 @@ maintenance rules, and a unified expense view.
   alerts to fleet managers.
 - **Expenses** unified across fuel / maintenance / other, with cost-per-km KPI
   and back-chargeable flag for client billing.
+- **Supplier invoices** — the bills the company owes, with their due dates,
+  part payments and an optional photo of the paper. A register only: it never
+  touches the cash box, so no sum is ever counted twice.
 
 ## Roles at a glance
 
@@ -55,7 +58,7 @@ Then visit http://localhost:8000.
 ```
 zone_web/
 ├── app.py              # Flask app, routes, CLI commands
-├── models.py           # SQLAlchemy models — 17 tables
+├── models.py           # SQLAlchemy models — 27 tables
 ├── languages.py        # FR/EN translation dictionaries
 ├── s3_storage.py       # Photo upload/sign helpers (Linode S3)
 ├── migrations/         # Alembic
