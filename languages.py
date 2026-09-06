@@ -122,8 +122,6 @@ TRANSLATIONS = {
 
         # Personnel (première pierre du module RH)
         "staff.on_payroll":       "Personnel actif",
-        "staff.tab_people":       "Personnel",
-        "staff.tab_positions":    "Postes",
         "staff.new":              "Nouveau membre du personnel",
         "staff.edit":             "Modifier la fiche",
         "staff.name":             "Nom et prénom",
@@ -152,6 +150,8 @@ TRANSLATIONS = {
         "staff.err.delete_blocked": "Impossible de supprimer : des dépenses sont enregistrées à ce nom. Archivez la fiche à la place.",
 
         # Les postes
+        "staff.positions":        "Postes",
+        "staff.positions_intro":  "Les métiers de la maison : mécanicien, magasinier, gardien. On les nomme une fois, et chaque personne en reçoit un.",
         "staff.position_new":     "Nouveau poste",
         "staff.position_edit":    "Modifier le poste",
         "staff.position_name":    "Nom du poste",
@@ -1356,8 +1356,6 @@ TRANSLATIONS = {
 
         # Staff (the first stone of an HR module)
         "staff.on_payroll":       "On the payroll",
-        "staff.tab_people":       "Staff",
-        "staff.tab_positions":    "Positions",
         "staff.new":              "New staff member",
         "staff.edit":             "Edit staff member",
         "staff.name":             "Full name",
@@ -1386,6 +1384,8 @@ TRANSLATIONS = {
         "staff.err.delete_blocked": "Cannot delete: costs are recorded in this name. Archive the person instead.",
 
         # Positions
+        "staff.positions":        "Positions",
+        "staff.positions_intro":  "The jobs of the house: mechanic, storekeeper, watchman. Named once, and each person is given one.",
         "staff.position_new":     "New position",
         "staff.position_edit":    "Edit position",
         "staff.position_name":    "Position name",

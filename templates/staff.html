@@ -28,11 +28,16 @@
             <span class="caisse-balance__label">{{ t['staff.on_payroll'] }}</span>
             <strong>{{ total_active }}</strong>
         </div>
+        {# The jobs are named once and then left alone, so they live on a page
+           of their own rather than beside the list read every day. #}
+        {% if has_perm('staff.create') %}
+        <a href="{{ url_for('staff.positions') }}" class="btn btn--sm btn--outlined">
+            <span class="material-symbols-outlined">tune</span> {{ t['staff.positions'] }}
+        </a>
+        {% endif %}
     </div>
 
-    {% if tab == 'personnel' %}
     <form method="get" class="filter-bar filter-bar--live">
-        <input type="hidden" name="tab" value="{{ tab }}">
         {% if positions %}{{ tickbox('position', t['staff.position'], positions, position_ids, 'name') }}{% endif %}
         <label class="filter-search">
             <input type="search" name="q" value="{{ search }}" placeholder="{{ t['staff.search'] }}">
@@ -44,92 +49,18 @@
         </label>
         <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
     </form>
-    {% endif %}
-
-    <nav class="tabs" role="tablist">
-        <a href="{{ tab_urls['personnel'] }}" role="tab" aria-selected="{{ 'true' if tab == 'personnel' else 'false' }}"
-           class="tab {% if tab == 'personnel' %}tab--on{% endif %}">
-            {{ t['staff.tab_people'] }}<span class="tab__count">{{ pagination.total }}</span>
-        </a>
-        <a href="{{ tab_urls['postes'] }}" role="tab" aria-selected="{{ 'true' if tab == 'postes' else 'false' }}"
-           class="tab {% if tab == 'postes' %}tab--on{% endif %}">
-            {{ t['staff.tab_positions'] }}<span class="tab__count">{{ positions | length }}</span>
-        </a>
-    </nav>
 
     <div class="tab-bar">
         <div class="tab-bar__actions">
             {% if has_perm('staff.create') %}
-            {% if tab == 'personnel' %}
             <a href="{{ url_for('staff.new') }}" class="fab"
                data-modal-url="{{ url_for('staff.new') }}" data-modal-title="{{ t['staff.new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['staff.new'] }}
             </a>
-            {% else %}
-            <a href="{{ url_for('staff.position_new') }}" class="fab"
-               data-modal-url="{{ url_for('staff.position_new') }}" data-modal-title="{{ t['staff.position_new'] }}">
-                <span class="material-symbols-outlined">add</span> {{ t['staff.position_new'] }}
-            </a>
-            {% endif %}
             {% endif %}
         </div>
     </div>
 
-    {% if tab == 'postes' %}
-    {% if positions %}
-    <div class="table-wrap"><table class="data-table">
-        <thead>
-            <tr>
-                <th>{{ t['staff.position'] }}</th>
-                <th style="text-align:right;">{{ t['staff.held_by'] }}</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for q in positions %}
-            <tr>
-                <td>
-                    <strong {% if not q.is_active %}class="muted"{% endif %}>{{ q.name }}</strong>
-                    {% if not q.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
-                </td>
-                <td style="text-align:right;">
-                    {% if held.get(q.id) %}{{ held[q.id] }}{% else %}<span class="muted">&mdash;</span>{% endif %}
-                </td>
-                <td class="row-actions">
-                    {% if has_perm('staff.create') %}
-                    <a href="{{ url_for('staff.position_edit', qid=q.id) }}" class="btn btn--sm btn--tonal btn--icon"
-                       data-modal-url="{{ url_for('staff.position_edit', qid=q.id) }}" data-modal-title="{{ t['staff.position_edit'] }}"
-                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
-                    {% if not q.is_active %}
-                    <form method="post" action="{{ url_for('staff.position_action', qid=q.id, what='reactivate') }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
-                    </form>
-                    {% endif %}
-                    {% if not held.get(q.id) %}
-                    <form method="post" action="{{ url_for('staff.position_action', qid=q.id, what='delete') }}"
-                          data-confirm="{{ t['list.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
-                    </form>
-                    {% elif q.is_active %}
-                    <form method="post" action="{{ url_for('staff.position_action', qid=q.id, what='archive') }}"
-                          data-confirm="{{ t['list.archive_confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
-                    </form>
-                    {% endif %}
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table></div>
-    {% else %}
-    <div class="empty-state">
-        <span class="material-symbols-outlined">work</span>
-        <p>{{ t['staff.positions_empty'] }}</p>
-    </div>
-    {% endif %}
-
-    {% else %}
     {% if people %}
     <div class="table-desktop">
     <table class="data-table">
@@ -218,7 +149,6 @@
         <span class="material-symbols-outlined">engineering</span>
         <p>{{ t['staff.empty'] }}</p>
     </div>
-    {% endif %}
     {% endif %}
 </section>
 {% endblock %}

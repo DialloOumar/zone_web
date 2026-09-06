@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['staff.positions'] }}{% endblock %}
+{% block page_title %}{{ t['staff.positions'] }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('staff.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['staff.positions'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:52ch;">{{ t['staff.positions_intro'] }}</p>
+        </div>
+        {% if has_perm('staff.create') %}
+        <a href="{{ url_for('staff.position_new') }}" class="fab"
+           data-modal-url="{{ url_for('staff.position_new') }}" data-modal-title="{{ t['staff.position_new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['staff.position_new'] }}
+        </a>
+        {% endif %}
+    </div>
+
+    {% if positions %}
+    <div class="table-wrap"><table class="data-table">
+        <tbody>
+            {% for q in positions %}
+            <tr>
+                <td>
+                    <strong {% if not q.is_active %}class="muted"{% endif %}>{{ q.name }}</strong>
+                    {% if not q.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
+                    {% if held.get(q.id) %}
+                    <div class="muted small">{{ held[q.id] }} {{ t['staff.held_by'] | lower }}</div>
+                    {% endif %}
+                </td>
+                <td class="row-actions">
+                    {% if has_perm('staff.create') %}
+                    <a href="{{ url_for('staff.position_edit', qid=q.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('staff.position_edit', qid=q.id) }}" data-modal-title="{{ t['staff.position_edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% if not q.is_active %}
+                    <form method="post" action="{{ url_for('staff.position_action', qid=q.id, what='reactivate') }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% if not held.get(q.id) %}
+                    {# Nobody holds it, so there is no history to keep. #}
+                    <form method="post" action="{{ url_for('staff.position_action', qid=q.id, what='delete') }}"
+                          data-confirm="{{ t['list.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% elif q.is_active %}
+                    <form method="post" action="{{ url_for('staff.position_action', qid=q.id, what='archive') }}"
+                          data-confirm="{{ t['list.archive_confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['staff.positions_empty'] }}</p>
+    {% endif %}
+</section>
+{% endblock %}

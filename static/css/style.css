@@ -25,7 +25,7 @@
    templates — missing those is exactly how `close` ended up invisible, and
    later how the parts store and the cash box shipped with no icon at all.
 
-   The list as of v8 (55 names):
+   The list as of v9 (54 names):
      account_balance_wallet, add, admin_panel_settings, archive,
      arrow_back, badge, bedtime, category, check_circle, chevron_left,
      chevron_right, close, dark_mode, delete, directions_bus,
@@ -35,7 +35,7 @@
      pending_actions, photo_camera, picture_as_pdf, price_check, print,
      query_stats, receipt_long, request_quote, rule, save, settings,
      shelves, space_dashboard, store, task_alt, translate, tune,
-     unarchive, warning, work, workspaces */
+     unarchive, warning, workspaces */
 @font-face {
     font-family: "Roboto";
     font-style: normal;
@@ -62,7 +62,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2?v=8") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=9") format("woff2");
 }
 
 /* ── Design tokens (light) ── */

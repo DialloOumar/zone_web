@@ -173,16 +173,16 @@ HELP_SECTIONS = [
         },
         "steps": {
             "fr": [
-                "Commencez par l'onglet « Postes » : les métiers de la maison — mécanicien, magasinier, gardien, chauffeur. Une liste que vous tenez vous-même, comme les sites et les comptes.",
-                "Onglet « Personnel », « Nouveau membre du personnel » : le nom suffit. Le poste, le téléphone, le matricule et la date d'embauche sont facultatifs.",
+                "Commencez par le bouton « Postes », en haut de la page : les métiers de la maison — mécanicien, magasinier, gardien, chauffeur. Une liste que vous tenez vous-même, comme « Sites et comptes » sur la page Dépenses. On la remplit une fois et on n'y revient presque jamais.",
+                "Puis « Nouveau membre du personnel » : le nom suffit. Le poste, le téléphone, le matricule et la date d'embauche sont facultatifs.",
                 "Ensuite, sur une dépense, un champ « Personnel concerné » apparaît. Il est facultatif : la plupart des dépenses ne sont pour personne en particulier.",
                 "Utilisez-le quand l'argent sort pour quelqu'un : une avance, des frais de mission, un billet de transport.",
                 "Sur la page Personnel, la colonne « Dépensé pour » donne le total par personne. Cliquez dessus : vous arrivez sur la liste de ses dépenses.",
                 "Quand quelqu'un part, archivez-le. Il disparaît des menus, et les dépenses déjà enregistrées restent à son nom.",
             ],
             "en": [
-                "Start with the \"Positions\" tab: the jobs of the house — mechanic, storekeeper, watchman, driver. A list you keep yourself, like the sites and the accounts.",
-                "\"Staff\" tab, \"New staff member\": the name is enough. Position, phone, staff number and hiring date are optional.",
+                "Start with the \"Positions\" button at the top of the page: the jobs of the house — mechanic, storekeeper, watchman, driver. A list you keep yourself, like \"Sites and accounts\" on the Expenses page. Filled in once and hardly ever revisited.",
+                "Then \"New staff member\": the name is enough. Position, phone, staff number and hiring date are optional.",
                 "A \"Staff member\" field then appears on a cost. It is optional: most costs are for nobody in particular.",
                 "Use it when the money goes out for someone: an advance, mission expenses, a bus ticket.",
                 "On the Staff page, the \"Spent on\" column gives the total per person. Click it and you land on that person's costs.",

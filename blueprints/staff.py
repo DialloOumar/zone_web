@@ -20,9 +20,6 @@ from models import Expense, Staff, StaffPosition, db
 
 staff_bp = Blueprint("staff", __name__)
 
-# The two halves of the page: the people, and the jobs they hold.
-TABS = ("personnel", "postes")
-
 PER_PAGE = 50
 
 
@@ -141,29 +138,10 @@ def index():
         page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
         error_out=False)
 
-    positions = StaffPosition.query.order_by(
-        StaffPosition.sort_order, StaffPosition.name).all()
-    # How many people hold each job, so a position that nothing points at can be
-    # told apart from one in use.
-    held = {r[0]: int(r[1]) for r in db.session.query(
-        Staff.position_id, db.func.count(Staff.id)).group_by(
-        Staff.position_id).all()}
-
-    tab = request.args.get("tab")
-    if tab not in TABS:
-        # Nobody and no job yet: open where the work starts, which is naming
-        # the jobs the people will hold.
-        tab = "postes" if (not pagination.total and not positions) else "personnel"
-    kept = request.args.to_dict(flat=False)
-    kept.pop("tab", None)
-    kept.pop("page", None)
-    tab_urls = {name: url_for("staff.index", tab=name, **kept) for name in TABS}
-
     return render_template(
         "staff.html", people=pagination.items, pagination=pagination,
-        positions=positions, held=held, spend=_spend_by_staff(),
-        tab=tab, tab_urls=tab_urls, position_ids=position_ids, search=search,
-        show_archived=show_archived,
+        positions=active_positions(), spend=_spend_by_staff(),
+        position_ids=position_ids, search=search, show_archived=show_archived,
         total_active=Staff.query.filter(Staff.is_active.is_(True)).count(),
     )
 
@@ -259,7 +237,26 @@ def delete(pid):
 
 
 def _positions_url():
-    return url_for("staff.index", tab="postes")
+    return url_for("staff.positions")
+
+
+@staff_bp.route("/personnel/postes")
+@login_required
+@require_perm("staff.view")
+def positions():
+    """Kept off the Personnel list and behind a button, like the cashier's
+    sites and accounts: the jobs are named once when the company is set up and
+    then left alone, and a tab beside the people gave a once-a-year list the
+    same standing as the one read every day."""
+    # How many people hold each job, so one nothing points at can be told from
+    # one in use -- and only that one may be deleted outright.
+    held = {r[0]: int(r[1]) for r in db.session.query(
+        Staff.position_id, db.func.count(Staff.id)).group_by(
+        Staff.position_id).all()}
+    return render_template(
+        "staff_positions.html", held=held,
+        positions=StaffPosition.query.order_by(
+            StaffPosition.sort_order, StaffPosition.name).all())
 
 
 def _save_position(row):
