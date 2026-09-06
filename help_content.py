@@ -157,6 +157,58 @@ HELP_SECTIONS = [
         },
     },
     {
+        "id": "personnel",
+        "icon": "engineering",
+        "gate": {"perms": ["staff.view"]},
+        "title": {"fr": "Le personnel", "en": "Staff"},
+        "intro": {
+            "fr": "La page « Personnel », c'est qui travaille pour l'entreprise : "
+                  "mécaniciens, magasiniers, gardiens, administratifs. Aujourd'hui "
+                  "elle sert à une chose — pouvoir dire pour qui une dépense est "
+                  "sortie. C'est la première pierre d'un module RH plus complet.",
+            "en": "The \"Staff\" page is who works for the company: mechanics, "
+                  "storekeepers, watchmen, office staff. Today it does one job — "
+                  "letting a cost say who it went out for. It is the first stone "
+                  "of a fuller HR module.",
+        },
+        "steps": {
+            "fr": [
+                "Commencez par l'onglet « Postes » : les métiers de la maison — mécanicien, magasinier, gardien, chauffeur. Une liste que vous tenez vous-même, comme les sites et les comptes.",
+                "Onglet « Personnel », « Nouveau membre du personnel » : le nom suffit. Le poste, le téléphone, le matricule et la date d'embauche sont facultatifs.",
+                "Ensuite, sur une dépense, un champ « Personnel concerné » apparaît. Il est facultatif : la plupart des dépenses ne sont pour personne en particulier.",
+                "Utilisez-le quand l'argent sort pour quelqu'un : une avance, des frais de mission, un billet de transport.",
+                "Sur la page Personnel, la colonne « Dépensé pour » donne le total par personne. Cliquez dessus : vous arrivez sur la liste de ses dépenses.",
+                "Quand quelqu'un part, archivez-le. Il disparaît des menus, et les dépenses déjà enregistrées restent à son nom.",
+            ],
+            "en": [
+                "Start with the \"Positions\" tab: the jobs of the house — mechanic, storekeeper, watchman, driver. A list you keep yourself, like the sites and the accounts.",
+                "\"Staff\" tab, \"New staff member\": the name is enough. Position, phone, staff number and hiring date are optional.",
+                "A \"Staff member\" field then appears on a cost. It is optional: most costs are for nobody in particular.",
+                "Use it when the money goes out for someone: an advance, mission expenses, a bus ticket.",
+                "On the Staff page, the \"Spent on\" column gives the total per person. Click it and you land on that person's costs.",
+                "When someone leaves, archive them. They drop out of the pickers, and the costs already recorded stay in their name.",
+            ],
+        },
+        "tips": {
+            "fr": [
+                "Le personnel et les conducteurs sont deux listes séparées, et c'est voulu : un conducteur appartient à la flotte d'un client et sert au pointage, alors qu'un mécanicien est à l'entreprise. Un chauffeur qui est aussi salarié figure donc dans les deux, pour l'instant.",
+                "La colonne « Pour qui » n'apparaît sur la liste des dépenses que les jours où au moins une dépense nomme quelqu'un — inutile d'occuper de la place le reste du temps.",
+                "Le filtre « Personnel concerné » suit aussi le bouton « Rapport » : ce que vous imprimez est exactement ce que vous voyez à l'écran.",
+                "Deux personnes ne peuvent pas porter exactement le même nom dans la liste. S'il y a deux Mamadou Diallo, distinguez-les — le poste ou le matricule entre parenthèses suffit.",
+                "On ne supprime une fiche que si aucune dépense n'est à son nom. Sinon, archivez : sans ça, une dépense se retrouverait à ne nommer personne.",
+                "Les salaires, contrats, congés et absences ne sont pas encore là. C'est le module RH complet, pour plus tard.",
+            ],
+            "en": [
+                "Staff and operators are two separate lists, on purpose: an operator belongs to a client's fleet and feeds the roster, while a mechanic belongs to the company. A driver who is also on the payroll therefore appears in both, for now.",
+                "The \"For whom\" column only shows on the expenses list on days at least one cost names somebody — no point taking up room the rest of the time.",
+                "The staff filter follows the \"Report\" button too: what you print is exactly what you see on screen.",
+                "Two people cannot carry exactly the same name. If there are two Mamadou Diallo, tell them apart — the position or the staff number in brackets is enough.",
+                "A person is only deleted when no cost is in their name. Otherwise archive them: without that, a cost would end up naming nobody.",
+                "Pay, contracts, leave and absences are not here yet. That is the full HR module, for later.",
+            ],
+        },
+    },
+    {
         "id": "carburant",
         "icon": "local_gas_station",
         "gate": {"perms": ["carburant.view"]},
@@ -227,6 +279,7 @@ HELP_SECTIONS = [
                 "Sur une dépense, « Payé par » reste sur « La caisse » dans la plupart des cas. Choisissez un compte quand quelqu'un a payé directement — le gérant Orange Money, le boss — sans que l'argent passe par la caisse.",
                 "Dans ce cas la caisse écrit les deux lignes d'un coup : l'avance qui entre et la dépense qui sort. Le solde ne bouge donc pas, la dépense compte quand même, et le compte affiche ce qu'on lui doit. N'enregistrez pas en plus une entrée d'argent à la main : ce serait compté deux fois.",
                 "Sur une dépense avec un site, un champ « Nombre de pièces » apparaît. Il est facultatif.",
+                "Si vous avez enregistré du personnel, un champ « Personnel concerné » apparaît aussi : à remplir quand l'argent sort pour quelqu'un — une avance, des frais de mission.",
                 "Le site reste sur le dernier utilisé : dans une journée on saisit souvent le même.",
             ],
             "en": [
@@ -238,6 +291,7 @@ HELP_SECTIONS = [
                 "On a cost, \"Paid from\" stays on \"The cash box\" most of the time. Pick an account when someone paid directly — the Orange Money agent, the boss — without the money passing through the box.",
                 "The box then writes both lines at once: the advance coming in and the cost going out. The balance therefore does not move, the cost still counts, and the account shows what it is owed. Do not also log money in by hand: that would count it twice.",
                 "On a cost with a site, a \"Number of parts\" field appears. It is optional.",
+                "Once staff are recorded, a \"Staff member\" field appears too: fill it when the money goes out for someone — an advance, mission expenses.",
                 "The site stays on the last one used: in a day you usually log the same one.",
             ],
         },

@@ -44,6 +44,22 @@
         </div>
     </div>
 
+    {# Who the money went out for. Hidden entirely until there is somebody to
+       pick: an empty dropdown on every cost teaches people to ignore it. #}
+    {% if staff %}
+    <div class="field field--select">
+        {% set sel_staff = request.form.get('staff_id')|int(0) or (expense.staff_id if is_edit else 0) %}
+        <select id="staff_id" name="staff_id">
+            <option value="">{{ t['expense.no_staff'] }}</option>
+            {% for p in staff %}
+            <option value="{{ p.id }}" {% if p.id == sel_staff %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+        </select>
+        <label for="staff_id">{{ t['expense.staff'] }}</label>
+    </div>
+    <div class="field-hint">{{ t['expense.staff_hint'] }}</div>
+    {% endif %}
+
     <div class="form-row">
         <div class="field">
             <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required

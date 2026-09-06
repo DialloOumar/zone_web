@@ -36,6 +36,15 @@
             </a></li>
             {% endif %}
 
+            {# The payroll, next to the drivers. The two lists are separate on
+               purpose: a driver belongs to a client's fleet, a mechanic to the
+               company. #}
+            {% if has_perm('staff.view') %}
+            <li><a href="{{ url_for('staff.index') }}" class="{% if request.blueprint == 'staff' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">engineering</span> {{ t['nav.staff'] }}
+            </a></li>
+            {% endif %}
+
             {% if has_perm('entry.view') %}
             <li><a href="{{ url_for('entries.roster_index') }}" class="{% if request.endpoint in ['entries.roster', 'entries.roster_index'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">fact_check</span> {{ t['nav.roster'] }}

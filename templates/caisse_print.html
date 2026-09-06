@@ -70,6 +70,7 @@
 </div>
 
 {% set show_qty = costs | selectattr('quantity') | list | length > 0 %}
+{% set show_staff = costs | selectattr('staff') | list | length > 0 %}
 <div class="print-header">
     <img class="brand-logo" src="{{ url_for('static', filename='images/logo.svg') }}"
          alt="{{ t['app.title'] }}">
@@ -115,6 +116,7 @@
             <th>{{ t['expense.site'] }}</th>
             <th>{{ t['expense.vehicle'] }}</th>
             {% if show_qty %}<th class="r">{{ t['expense.qty_col'] }}</th>{% endif %}
+            {% if show_staff %}<th>{{ t['expense.staff_col'] }}</th>{% endif %}
             <th>{{ t['expense.description'] }}</th>
             <th>{{ t['expense.paid_from'] }}</th>
             <th class="r">{{ t['expense.amount'] }}</th>
@@ -127,13 +129,14 @@
             <td>{{ r.site or t['expense.cat.societe'] }}</td>
             <td>{% if r.vehicle %}<strong>{{ r.vehicle }}</strong>{% else %}&mdash;{% endif %}</td>
             {% if show_qty %}<td class="r">{% if r.quantity %}{{ '{:.10g}'.format(r.quantity) }}{% else %}&mdash;{% endif %}</td>{% endif %}
+            {% if show_staff %}<td>{{ r.staff or '—' }}</td>{% endif %}
             <td>{{ r.label }}{% if r.description %}<div class="muted">{{ r.description }}</div>{% endif %}</td>
             <td>{{ r.account or t['expense.paid_from_box'] }}</td>
             <td class="r">{{ '{:,}'.format(r.amount) }}</td>
         </tr>
         {% endfor %}
         <tr>
-            <td colspan="{{ 5 if show_qty else 4 }}"><strong>{{ t['caisse.period_total'] }}</strong></td>
+            <td colspan="{{ 4 + (1 if show_qty else 0) + (1 if show_staff else 0) }}"><strong>{{ t['caisse.period_total'] }}</strong></td>
             <td></td>
             <td class="r cash-balance-col">{{ '{:,}'.format(total_spent) }}</td>
         </tr>

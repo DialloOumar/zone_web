@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
+
+{% block title %}{{ t['nav.staff'] }}{% endblock %}
+{% block page_title %}{{ t['nav.staff'] }}{% endblock %}
+
+{% macro tickbox(name, label, rows, chosen, attr) %}
+<details class="filter-dd{% if chosen %} filter-dd--on{% endif %}">
+    <summary>
+        {{ label }}
+        {% if chosen %}<span class="filter-dd__count">{{ chosen|length }}</span>{% endif %}
+    </summary>
+    <div class="filter-dd__panel">
+        {% for r in rows %}
+        <label class="filter-dd__opt">
+            <input type="checkbox" name="{{ name }}" value="{{ r.id }}" {% if r.id in chosen %}checked{% endif %}>
+            <span>{{ r[attr] }}</span>
+        </label>
+        {% endfor %}
+    </div>
+</details>
+{% endmacro %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <div class="caisse-balance">
+            <span class="caisse-balance__label">{{ t['staff.on_payroll'] }}</span>
+            <strong>{{ total_active }}</strong>
+        </div>
+    </div>
+
+    {% if tab == 'personnel' %}
+    <form method="get" class="filter-bar filter-bar--live">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        {% if positions %}{{ tickbox('position', t['staff.position'], positions, position_ids, 'name') }}{% endif %}
+        <label class="filter-search">
+            <input type="search" name="q" value="{{ search }}" placeholder="{{ t['staff.search'] }}">
+        </label>
+        {# Someone who has left is out of the way, not gone. #}
+        <label class="filter-date">
+            <input type="checkbox" name="archived" value="1" {% if show_archived %}checked{% endif %}>
+            <span>{{ t['staff.show_archived'] }}</span>
+        </label>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+    </form>
+    {% endif %}
+
+    <nav class="tabs" role="tablist">
+        <a href="{{ tab_urls['personnel'] }}" role="tab" aria-selected="{{ 'true' if tab == 'personnel' else 'false' }}"
+           class="tab {% if tab == 'personnel' %}tab--on{% endif %}">
+            {{ t['staff.tab_people'] }}<span class="tab__count">{{ pagination.total }}</span>
+        </a>
+        <a href="{{ tab_urls['postes'] }}" role="tab" aria-selected="{{ 'true' if tab == 'postes' else 'false' }}"
+           class="tab {% if tab == 'postes' %}tab--on{% endif %}">
+            {{ t['staff.tab_positions'] }}<span class="tab__count">{{ positions | length }}</span>
+        </a>
+    </nav>
+
+    <div class="tab-bar">
+        <div class="tab-bar__actions">
+            {% if has_perm('staff.create') %}
+            {% if tab == 'personnel' %}
+            <a href="{{ url_for('staff.new') }}" class="fab"
+               data-modal-url="{{ url_for('staff.new') }}" data-modal-title="{{ t['staff.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['staff.new'] }}
+            </a>
+            {% else %}
+            <a href="{{ url_for('staff.position_new') }}" class="fab"
+               data-modal-url="{{ url_for('staff.position_new') }}" data-modal-title="{{ t['staff.position_new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['staff.position_new'] }}
+            </a>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    {% if tab == 'postes' %}
+    {% if positions %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['staff.position'] }}</th>
+                <th style="text-align:right;">{{ t['staff.held_by'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for q in positions %}
+            <tr>
+                <td>
+                    <strong {% if not q.is_active %}class="muted"{% endif %}>{{ q.name }}</strong>
+                    {% if not q.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
+                </td>
+                <td style="text-align:right;">
+                    {% if held.get(q.id) %}{{ held[q.id] }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td class="row-actions">
+                    {% if has_perm('staff.create') %}
+                    <a href="{{ url_for('staff.position_edit', qid=q.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('staff.position_edit', qid=q.id) }}" data-modal-title="{{ t['staff.position_edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% if not q.is_active %}
+                    <form method="post" action="{{ url_for('staff.position_action', qid=q.id, what='reactivate') }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% if not held.get(q.id) %}
+                    <form method="post" action="{{ url_for('staff.position_action', qid=q.id, what='delete') }}"
+                          data-confirm="{{ t['list.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% elif q.is_active %}
+                    <form method="post" action="{{ url_for('staff.position_action', qid=q.id, what='archive') }}"
+                          data-confirm="{{ t['list.archive_confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">work</span>
+        <p>{{ t['staff.positions_empty'] }}</p>
+    </div>
+    {% endif %}
+
+    {% else %}
+    {% if people %}
+    <div class="table-desktop">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['staff.name'] }}</th>
+                <th>{{ t['staff.position'] }}</th>
+                <th>{{ t['staff.phone'] }}</th>
+                <th class="col-secondary">{{ t['staff.hired_on'] }}</th>
+                <th style="text-align:right;">{{ t['staff.spent_on'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in people %}
+            {% set sp = spend.get(p.id) %}
+            <tr>
+                <td>
+                    <strong {% if not p.is_active %}class="muted"{% endif %}>{{ p.name }}</strong>
+                    {% if not p.is_active %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
+                    {% if p.matricule %}<div class="muted small">{{ t['staff.matricule_short'] }} {{ p.matricule }}</div>{% endif %}
+                    {% if p.note %}<div class="muted small">{{ p.note }}</div>{% endif %}
+                </td>
+                <td>{% if p.position %}<span class="chip">{{ p.position.name }}</span>
+                    {%- else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td>{% if p.phone %}{{ p.phone }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td class="col-secondary">{% if p.hired_on %}{{ p.hired_on }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if sp %}
+                    <a href="{{ url_for('expenses.index', staff=p.id, date_from='', date_to='') }}">
+                        <strong>{{ '{:,}'.format(sp.total) }} {{ currency }}</strong>
+                    </a>
+                    <div class="muted small">{{ sp.count }} {{ t['expense.count'] }}</div>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td class="row-actions">
+                    {% if has_perm('staff.edit') %}
+                    <a href="{{ url_for('staff.edit', pid=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('staff.edit', pid=p.id) }}" data-modal-title="{{ t['staff.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% if not p.is_active %}
+                    <form method="post" action="{{ url_for('staff.action', pid=p.id, what='reactivate') }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('staff.action', pid=p.id, what='archive') }}"
+                          data-confirm="{{ t['staff.archive_confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                    {% if has_perm('staff.delete') and not sp %}
+                    {# No cost has ever named them, so there is no history to keep. #}
+                    <form method="post" action="{{ url_for('staff.delete', pid=p.id) }}"
+                          data-confirm="{{ t['staff.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    <div class="list-cards">
+        {% for p in people %}
+        {% set sp = spend.get(p.id) %}
+        <div class="list-card">
+            <div class="list-card__top">
+                <strong>{{ p.name }}</strong>
+                {% if sp %}<span class="list-card__amount">{{ '{:,}'.format(sp.total) }} <span class="muted small">{{ currency }}</span></span>{% endif %}
+            </div>
+            <div class="list-card__meta">
+                {% if p.position %}<span class="chip">{{ p.position.name }}</span>{% endif %}
+                {% if p.phone %}<span class="muted small">&middot; {{ p.phone }}</span>{% endif %}
+                {% if p.matricule %}<span class="muted small">&middot; {{ t['staff.matricule_short'] }} {{ p.matricule }}</span>{% endif %}
+                {% if not p.is_active %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {{ pager(pagination, 'staff.index') }}
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">engineering</span>
+        <p>{{ t['staff.empty'] }}</p>
+    </div>
+    {% endif %}
+    {% endif %}
+</section>
+{% endblock %}

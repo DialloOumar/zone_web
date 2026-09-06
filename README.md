@@ -23,6 +23,9 @@ maintenance rules, and a unified expense view.
 - **Supplier invoices** — the bills the company owes, with their due dates,
   part payments and an optional photo of the paper. A register only: it never
   touches the cash box, so no sum is ever counted twice.
+- **Staff** — who is on the payroll and what they do, so a cost can name the
+  person it went out for (an advance, a mission). Deliberately separate from
+  the operators list, and the seed of a fuller HR module later.
 
 ## Roles at a glance
 
@@ -58,7 +61,7 @@ Then visit http://localhost:8000.
 ```
 zone_web/
 ├── app.py              # Flask app, routes, CLI commands
-├── models.py           # SQLAlchemy models — 27 tables
+├── models.py           # SQLAlchemy models — 29 tables
 ├── languages.py        # FR/EN translation dictionaries
 ├── s3_storage.py       # Photo upload/sign helpers (Linode S3)
 ├── migrations/         # Alembic

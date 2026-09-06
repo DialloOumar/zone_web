@@ -1,0 +1,56 @@
+{% set is_edit = row is not none %}
+{# Who they are and what they do. Everything an HR module will want later --
+   contract, pay, leave -- hangs off this row; none of it is asked here. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('staff.edit', pid=row.id) if is_edit else url_for('staff.new') }}">
+
+    <div class="field">
+        <input type="text" id="name" name="name" placeholder=" " required
+               value="{{ request.form.get('name') or (row.name if is_edit else '') }}">
+        <label for="name">{{ t['staff.name'] }}</label>
+    </div>
+
+    <div class="form-row">
+        <div class="field field--select">
+            {% set sel_q = request.form.get('position_id')|int(0) or (row.position_id if is_edit else 0) %}
+            <select id="position_id" name="position_id">
+                <option value="">{{ t['staff.no_position'] }}</option>
+                {% for q in positions %}
+                <option value="{{ q.id }}" {% if q.id == sel_q %}selected{% endif %}>{{ q.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="position_id">{{ t['staff.position'] }}</label>
+        </div>
+        <div class="field">
+            <input type="tel" id="phone" name="phone" placeholder=" "
+                   value="{{ request.form.get('phone') or (row.phone or '' if is_edit else '') }}">
+            <label for="phone">{{ t['staff.phone'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="matricule" name="matricule" placeholder=" "
+                   value="{{ request.form.get('matricule') or (row.matricule or '' if is_edit else '') }}">
+            <label for="matricule">{{ t['staff.matricule'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="hired_on" name="hired_on" placeholder=" "
+                   value="{{ request.form.get('hired_on') or (row.hired_on or '' if is_edit else '') }}">
+            <label for="hired_on">{{ t['staff.hired_on'] }}</label>
+        </div>
+    </div>
+
+    <div class="field">
+        <textarea id="note" name="note" placeholder=" " rows="2">{{ request.form.get('note') or (row.note or '' if is_edit else '') }}</textarea>
+        <label for="note">{{ t['entry.note'] }}</label>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('staff.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

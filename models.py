@@ -277,6 +277,61 @@ class Operator(db.Model):
     fleet = db.relationship("Fleet")
 
 
+# ── Personnel (the seed of an HR module) ─────────────────────────────────────
+
+
+class StaffPosition(db.Model):
+    """What someone does: mécanicien, magasinier, gardien.
+
+    A short list kept by hand rather than free text on each person, for the
+    reason sites are a list: "all the mechanics" has to be a filter, and typed
+    by hand the same job ends up spelled three ways.
+    """
+    __tablename__ = "staff_positions"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    name       = db.Column(db.String(80),  nullable=False, unique=True)
+    sort_order = db.Column(db.Integer,     nullable=False, default=0)
+    is_active  = db.Column(db.Boolean,     nullable=False, default=True)
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+
+class Staff(db.Model):
+    """Someone on the company's payroll.
+
+    Deliberately not the same table as Operator. An operator is a driver
+    attached to one client's fleet, and that list feeds the roster and the
+    daily entries; the storekeeper and the accountant have no business in a
+    pointing dropdown. So a driver who is also on the payroll sits in both
+    lists for now, and the two can be tied together the day the HR module
+    proper is built.
+
+    The company's, not a client's: like sites, accounts and suppliers, a
+    person carries no fleet.
+
+    Today it exists so a cost can name who it was for. Everything an HR module
+    needs later — contracts, leave, pay — hangs off this row.
+    """
+    __tablename__ = "staff"
+
+    id          = db.Column(db.Integer,     primary_key=True)
+    name        = db.Column(db.String(120), nullable=False, unique=True)
+    position_id = db.Column(db.Integer,     db.ForeignKey("staff_positions.id"), nullable=True)
+    phone       = db.Column(db.String(30))
+    # The number the company knows them by, when it uses one.
+    matricule   = db.Column(db.String(40))
+    hired_on    = db.Column(db.String(10))            # YYYY-MM-DD
+    note        = db.Column(db.String(255))
+    # Someone who leaves is archived, never deleted: the costs recorded against
+    # them have to keep naming them.
+    is_active   = db.Column(db.Boolean,     nullable=False, default=True)
+
+    created_by  = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
+    created_at  = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    position = db.relationship("StaffPosition")
+
+
 # ── Daily operations ──────────────────────────────────────────────────────────
 
 
@@ -480,6 +535,10 @@ class Expense(db.Model):
     # Where the money was spent. Optional, and what tells a field cost from an
     # office one: with a site it is terrain, without it société.
     site_id               = db.Column(db.Integer, db.ForeignKey("sites.id"), nullable=True)
+    # Who the money went out for: an advance, a mission, a phone bill. A real
+    # link, unlike the `operator` name above it, so one person is one row and
+    # not three spellings.
+    staff_id              = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=True)
     # Which purse the money came out of. Empty is the ordinary case: the cash in
     # the box. Naming an account says the box never held this money -- someone
     # advanced it -- and the matching money-in is written alongside so the box's
@@ -493,6 +552,7 @@ class Expense(db.Model):
     fleet   = db.relationship("Fleet")
     site    = db.relationship("Site")
     account = db.relationship("CashAccount")
+    staff   = db.relationship("Staff")
     # The money-in that pairs with this cost when an account paid it. It belongs
     # to the cost: written, corrected and deleted with it, never on its own.
     cash_movement = db.relationship(

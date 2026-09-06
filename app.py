@@ -569,6 +569,7 @@ def _home_url():
         ("vehicle.view", "vehicles.index"),
         ("entry.view", "entries.roster_index"),
         ("operator.view", "operators.index"),
+        ("staff.view", "staff.index"),
         ("carburant.view", "carburant.index"),
         ("expense.view", "expenses.index"),
         ("supplier_invoice.view", "supplier_invoices.index"),
@@ -894,6 +895,12 @@ PERMISSIONS_CATALOG = [
     # Key kept as-is (it is seeded into the DB and granted to roles); the PDF
     # export it was named for is now a browser print view.
     ("report.export_pdf", "Print / export reports",   "Reports", "report", "export"),
+    # Personnel (the seed of an HR module). Creating someone also lets you
+    # keep the list of positions they hold.
+    ("staff.view",   "View staff",   "Staff", "staff", "view"),
+    ("staff.create", "Add staff",    "Staff", "staff", "create"),
+    ("staff.edit",   "Edit staff",   "Staff", "staff", "edit"),
+    ("staff.delete", "Delete staff", "Staff", "staff", "delete"),
     # Factures fournisseurs (bills the company owes). Managing the supplier
     # list rides on "create": whoever files a bill is whoever names who sent it.
     ("supplier_invoice.view",   "View supplier invoices",   "Supplier invoices", "supplier_invoice", "view"),
@@ -952,6 +959,7 @@ SYSTEM_ROLES = {
         "alert.view", "alert.resolve", "alert.dismiss",
         "expense.view", "expense.create", "expense.edit", "expense.delete",
         "supplier_invoice.view", "supplier_invoice.create", "supplier_invoice.edit", "supplier_invoice.delete",
+        "staff.view", "staff.create", "staff.edit", "staff.delete",
         "carburant.view", "carburant.create", "carburant.manage",
         "stock.view", "stock.manage",
         "insights.view", "report.view", "report.export_pdf",
@@ -966,6 +974,7 @@ SYSTEM_ROLES = {
         "alert.view", "alert.resolve",
         "expense.view", "expense.create",
         "supplier_invoice.view", "supplier_invoice.create",
+        "staff.view",
         "insights.view", "report.view",
     ]),
     "inspector":     ("Inspector",       False, [
@@ -977,6 +986,7 @@ SYSTEM_ROLES = {
         "alert.view",
         "expense.view",
         "supplier_invoice.view",
+        "staff.view",
         "insights.view", "report.view",
     ]),
     "external":      ("External",        False, [
@@ -1834,6 +1844,7 @@ from blueprints.insights import insights_bp  # noqa: E402
 from blueprints.invoicing import invoicing_bp  # noqa: E402
 from blueprints.stock import stock_bp  # noqa: E402
 from blueprints.supplier_invoices import supplier_invoices_bp  # noqa: E402
+from blueprints.staff import staff_bp  # noqa: E402
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(vehicles_bp)
@@ -1847,6 +1858,7 @@ app.register_blueprint(insights_bp)
 app.register_blueprint(invoicing_bp)
 app.register_blueprint(stock_bp)
 app.register_blueprint(supplier_invoices_bp)
+app.register_blueprint(staff_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = row is not none %}
+{% block title %}{{ t['staff.edit'] if is_edit else t['staff.new'] }}{% endblock %}
+{% block page_title %}{{ t['staff.edit'] if is_edit else t['staff.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_staff_form.html" %}
+</section>
+{% endblock %}

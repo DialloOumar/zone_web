@@ -19,7 +19,7 @@ from flask_login import current_user, login_required
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, submit_change, with_current_fleet)
 from models import (CashAccount, CashMovement, Expense, Fleet, Site,
-                    Vehicle, db)
+                    Staff, Vehicle, db)
 
 expenses_bp = Blueprint("expenses", __name__)
 
@@ -92,6 +92,13 @@ def active_accounts():
     """Where the box's money comes from and goes back to."""
     return (CashAccount.query.filter(CashAccount.is_active.is_(True))
             .order_by(CashAccount.sort_order, CashAccount.name).all())
+
+
+def active_staff():
+    """Who a cost can be recorded for. Someone who has left keeps the costs
+    already against their name, they are simply no longer offered."""
+    return (Staff.query.filter(Staff.is_active.is_(True))
+            .order_by(Staff.name).all())
 
 
 def _accessible_vehicles():
@@ -218,9 +225,15 @@ def _read_expense_form(expense):
     if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True).first():
         return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
 
+    # Who the money went out for -- an advance, a mission, a phone bill. Most
+    # costs are for nobody in particular, so it stays optional.
+    staff_id = request.form.get("staff_id", type=int) or None
+    if staff_id and not Staff.query.filter_by(id=staff_id, is_active=True).first():
+        return None, t["expense.err.staff"]
+
     common.update(vehicle_id=vehicle_id, fleet_id=None, label=None, operator=None,
                   supplier=None, site_id=site_id, liters=None, quantity=quantity,
-                  account_id=account_id,
+                  account_id=account_id, staff_id=staff_id,
                   category=FIELD_CATEGORY if site_id else OFFICE_CATEGORY)
     return common, None
 
@@ -263,6 +276,7 @@ def _form_context(expense):
         "accounts": active_accounts(),
         "sites": active_sites(),
         "vehicles": _accessible_vehicles(),
+        "staff": active_staff(),
         "last_site_id": last.site_id if last else None,
         "today": date.today().isoformat(),
     }
@@ -357,6 +371,7 @@ def index():
     """
     start, end, date_from, date_to = _period_bounds()
     site_ids, vehicle_ids, account_ids = _ids("site"), _ids("vehicle"), _ids("account")
+    staff_ids = _ids("staff")
 
     q = _cash_expenses()
     if start:
@@ -370,6 +385,8 @@ def index():
     # A cost carries an account only when that account paid it directly.
     if account_ids:
         q = q.filter(Expense.account_id.in_(account_ids))
+    if staff_ids:
+        q = q.filter(Expense.staff_id.in_(staff_ids))
     search = (request.args.get("q") or "").strip()
     if search:
         # What someone actually remembers about a cost: a word from what was
@@ -439,8 +456,9 @@ def index():
         balance=cash_balance(), accounts_summary=account_balances(),
         date_from=date_from, date_to=date_to,
         sites=active_sites(), vehicles=_accessible_vehicles(),
-        accounts=active_accounts(),
+        accounts=active_accounts(), staff=active_staff(),
         site_ids=site_ids, vehicle_ids=vehicle_ids, account_ids=account_ids,
+        staff_ids=staff_ids,
         maintenance_category=MAINTENANCE_CATEGORY)
 
 
@@ -530,14 +548,15 @@ def delete(xid):
 REPORT_LIMIT = 1000   # rows in one document; flagged on the page when reached
 
 
-def _caisse_report(start, end, site_ids, vehicle_ids, account_ids, part=None):
+def _caisse_report(start, end, site_ids, vehicle_ids, account_ids,
+                   staff_ids=(), part=None):
     """The cash book for a window: what the box held when it opened, every
     movement in date order with the balance after each, and what is left.
 
     Ordered oldest first — a running balance only reads forward — which is the
     opposite of the screen, where the newest line matters most.
     """
-    filtered = bool(site_ids or vehicle_ids or account_ids)
+    filtered = bool(site_ids or vehicle_ids or account_ids or staff_ids)
 
     def cost_q():
         q = _cash_expenses()
@@ -547,6 +566,8 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids, part=None):
             q = q.filter(Expense.vehicle_id.in_(vehicle_ids))
         if account_ids:
             q = q.filter(Expense.account_id.in_(account_ids))
+        if staff_ids:
+            q = q.filter(Expense.staff_id.in_(staff_ids))
         return q
 
     def move_q():
@@ -556,7 +577,7 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids, part=None):
         # On paper it is one document, so a request for one site's costs drops
         # the movements rather than printing every one of them beneath a heading
         # the reader would take to mean that site.
-        if site_ids or vehicle_ids:
+        if site_ids or vehicle_ids or staff_ids:
             q = q.filter(db.false())
         return q
 
@@ -600,6 +621,7 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids, part=None):
               "vehicle": x.vehicle.code if x.vehicle else None,
               "quantity": x.quantity, "description": x.description,
               "account": x.account.name if x.account else None,
+              "staff": x.staff.name if x.staff else None,
               "reference": x.payment_reference,
               "method": x.payment_method, "amount": x.amount}
              for x in cq.all()]
@@ -645,6 +667,7 @@ def export_print():
     t = get_t()
     start, end, date_from, date_to = _period_bounds()
     site_ids, vehicle_ids, account_ids = _ids("site"), _ids("vehicle"), _ids("account")
+    staff_ids = _ids("staff")
     # Either half of the book can be printed on its own; anything else is both.
     part = request.args.get("part")
     if part not in TABS:
@@ -657,6 +680,7 @@ def export_print():
         parts.append("%s → %s" % (start or "…", end or "…"))
     for model, ids, attr in ((Site, site_ids, "name"),
                              (Vehicle, vehicle_ids, "code"),
+                             (Staff, staff_ids, "name"),
                              (CashAccount, account_ids, "name")):
         names = [getattr(o, attr) for o in
                  model.query.filter(model.id.in_(ids)).all()] if ids else []
@@ -670,7 +694,8 @@ def export_print():
         back_url=url_for("expenses.index", **request.args.to_dict(flat=False)),
         subtitle=subtitle, section_title=section_title,
         generated=datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
-        **_caisse_report(start, end, site_ids, vehicle_ids, account_ids, part))
+        **_caisse_report(start, end, site_ids, vehicle_ids, account_ids,
+                         staff_ids, part))
 
 
 # ── The two short lists the cashier keeps ────────────────────────────────────

@@ -95,7 +95,7 @@
        live under the costs tab instead of here. #}
     <form method="get" class="filter-bar filter-bar--live">
         <input type="hidden" name="tab" value="{{ tab }}">
-        {{ carry('site', site_ids) }}{{ carry('vehicle', vehicle_ids) }}
+        {{ carry('site', site_ids) }}{{ carry('vehicle', vehicle_ids) }}{{ carry('staff', staff_ids) }}
         {# Not the tall form field used for entering data: here a date is a
            filter, and it stands beside buttons. Same height, same pill. #}
         <label class="filter-date">
@@ -140,7 +140,7 @@
     {# Under the tab, what belongs to the tab: its own filters on the left, its
        own report on the right. #}
     <div class="tab-bar">
-        {% if tab == 'depenses' and (sites or vehicles) %}
+        {% if tab == 'depenses' and (sites or vehicles or staff) %}
         <form method="get" class="filter-bar filter-bar--live tab-bar__filters">
             <input type="hidden" name="tab" value="{{ tab }}">
             <input type="hidden" name="date_from" value="{{ date_from }}">
@@ -148,6 +148,7 @@
             {{ carry('account', account_ids) }}
             {% if sites %}{{ tickbox('site', t['expense.site'], sites, site_ids, 'name') }}{% endif %}
             {% if vehicles %}{{ tickbox('vehicle', t['expense.vehicle'], vehicles, vehicle_ids, 'code') }}{% endif %}
+            {% if staff %}{{ tickbox('staff', t['expense.staff'], staff, staff_ids, 'name') }}{% endif %}
             <label class="filter-search">
                 <input type="search" name="q" value="{{ search }}" placeholder="{{ t['search.placeholder'] }}">
             </label>
@@ -250,12 +251,14 @@
     <table class="data-table">
         {# The part count only earns a column on the days there is one. #}
         {% set show_qty = expenses | selectattr('quantity') | list | length > 0 %}
+        {% set show_staff = expenses | selectattr('staff_id') | list | length > 0 %}
         <thead>
             <tr>
                 <th>{{ t['expense.date'] }}</th>
                 <th>{{ t['expense.site'] }}</th>
                 <th>{{ t['expense.vehicle'] }}</th>
                 {% if show_qty %}<th style="text-align:right;">{{ t['expense.qty_col'] }}</th>{% endif %}
+                {% if show_staff %}<th>{{ t['expense.staff_col'] }}</th>{% endif %}
                 <th>{{ t['expense.description'] }}</th>
                 <th>{{ t['expense.paid_from'] }}</th>
                 <th class="col-secondary">{{ t['expense.payment_method'] }}</th>
@@ -271,6 +274,7 @@
                 <td>{% if e.vehicle %}<a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
                     {%- else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 {% if show_qty %}<td style="text-align:right;">{% if e.quantity %}{{ '{:.10g}'.format(e.quantity) }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endif %}
+                {% if show_staff %}<td>{% if e.staff %}<span class="chip">{{ e.staff.name }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endif %}
                 <td>{{ detail_cell(e) }}</td>
                 <td>{% if e.account %}<span class="badge badge--info">{{ e.account.name }}</span>
                     {%- else %}<span class="muted">{{ t['expense.paid_from_box'] }}</span>{% endif %}</td>
@@ -313,6 +317,7 @@
                 <span class="muted small">{{ e.date }}</span>
                 {% if e.label %}<span class="muted small">&middot; {{ e.label }}</span>{% endif %}
                 {% if e.vehicle %}<span class="muted small">&middot; {{ e.vehicle.code }}</span>{% endif %}
+                {% if e.staff %}<span class="muted small">&middot; {{ e.staff.name }}</span>{% endif %}
                 {% if e.quantity %}<span class="muted small">&middot; &times; {{ '{:.10g}'.format(e.quantity) }} {{ t['expense.parts'] }}</span>{% endif %}
                 {% if e.description %}<span class="muted small">&middot; {{ e.description }}</span>{% endif %}
             </div>
