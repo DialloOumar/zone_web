@@ -15,7 +15,8 @@ from flask_login import current_user, login_required
 import maintenance_engine
 from app import current_user_fleet_ids, get_t, log_action
 from blueprints.entries import _recompute_cumulatives
-from blueprints.expenses import sync_account_movement
+from blueprints.expenses import (INVOICE_KEY, sync_account_movement,
+                                 sync_invoice_payment)
 from blueprints.maintenance import (MONEY_KEYS, PARTS_KEY, _close_alert_for_record,
                                     sync_record_parts, sync_service_expense)
 from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Operator,
@@ -138,6 +139,10 @@ def _apply(pc):
     # record itself exists.
     is_service = pc.resource_type == "maintenance_record"
     money = ({k: payload.pop(k, None) for k in MONEY_KEYS} if is_service else None)
+    # A cost may settle a supplier's bill. That rides beside the columns, so it
+    # is set aside here and applied once the cost itself exists.
+    invoice_id = (payload.pop(INVOICE_KEY, None)
+                  if pc.resource_type == "expense" else None)
     parts = (payload.pop(PARTS_KEY, None) or []) if is_service else []
     if pc.action == "create":
         obj = Model(**payload)
@@ -169,9 +174,11 @@ def _apply(pc):
             maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, vehicle_id))
     if pc.resource_type == "expense" and obj is not None:
         # A cost an account paid carries a money-in beside it, written here too
-        # so an approved cost lands the same way one entered directly does.
+        # so an approved cost lands the same way one entered directly does --
+        # and so does the instalment, when the cost settles a bill.
         db.session.flush()
         sync_account_movement(obj)
+        sync_invoice_payment(obj, invoice_id)
     if pc.resource_type == "maintenance_record" and obj is not None:
         db.session.flush()
         sync_service_expense(obj, money or {})

@@ -1,6 +1,7 @@
-{# What has been settled on this bill, as one figure. Pre-filled with the whole
-   of what is still owed, because that is what is usually paid; type less for a
-   part payment, or zero to undo one entered by mistake. #}
+{% set is_edit = payment is not none %}
+{# One instalment against the bill. The cash box's own payments never come
+   through here -- they are entered on the Dépenses page and arrive on their
+   own -- so this form is for money that came from anywhere else. #}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 
 <div class="expense-total" style="margin-top:0;">
@@ -14,45 +15,49 @@
 </div>
 
 <form method="post" class="entry-form" data-modal-form
-      action="{{ url_for('supplier_invoices.payment', iid=invoice.id) }}">
+      action="{{ url_for('supplier_invoices.payment_edit', iid=invoice.id, pid=payment.id) if is_edit
+                else url_for('supplier_invoices.payment_new', iid=invoice.id) }}">
 
     <div class="form-row">
         <div class="field">
-            {% set default_paid = invoice.paid_amount if invoice.paid_amount else invoice.amount %}
-            <input type="text" inputmode="numeric" id="paid_amount" name="paid_amount" placeholder="{{ t['ph.expense.amount'] }}" required
-                   value="{{ request.form.get('paid_amount') or default_paid }}">
-            <label for="paid_amount">{{ t['invoice.paid_amount'] }}</label>
+            {# Pre-filled with the whole of what is still owed, because that is
+               what is usually paid; type less for a part payment. #}
+            {% set default_amount = payment.amount if is_edit else invoice.remaining %}
+            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+                   value="{{ request.form.get('amount') or default_amount }}">
+            <label for="amount">{{ t['invoice.paid_amount'] }}</label>
         </div>
         <div class="field">
-            <input type="date" id="paid_date" name="paid_date" placeholder=" "
-                   value="{{ request.form.get('paid_date') or invoice.paid_date or today }}">
-            <label for="paid_date">{{ t['invoice.paid_date'] }}</label>
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or (payment.date if is_edit else today) }}">
+            <label for="date">{{ t['invoice.paid_date'] }}</label>
         </div>
     </div>
-    <div class="field-hint">{{ t['invoice.paid_amount_hint'] }}</div>
 
     <div class="form-row">
         <div class="field field--select">
-            {% set sel_pm = request.form.get('payment_method') or invoice.payment_method or '' %}
-            <select id="payment_method" name="payment_method">
+            {% set sel_pm = request.form.get('method') or (payment.method if is_edit else '') %}
+            <select id="method" name="method" required>
                 <option value="" hidden></option>
                 {% for p in payment_methods %}
                 <option value="{{ p }}" {% if p == sel_pm %}selected{% endif %}>{{ t['pay.' + p] }}</option>
                 {% endfor %}
             </select>
-            <label for="payment_method">{{ t['expense.payment_method'] }}</label>
+            <label for="method">{{ t['expense.payment_method'] }}</label>
         </div>
         <div class="field">
-            <input type="text" id="payment_reference" name="payment_reference" placeholder=" "
-                   value="{{ request.form.get('payment_reference') or invoice.payment_reference or '' }}">
-            <label for="payment_reference">{{ t['expense.payment_reference'] }}</label>
+            <input type="text" id="reference" name="reference" placeholder=" "
+                   value="{{ request.form.get('reference') or (payment.reference or '' if is_edit else '') }}">
+            <label for="reference">{{ t['expense.payment_reference'] }}</label>
         </div>
     </div>
+
+    <div class="field-hint">{{ t['invoice.cash_box_note'] }}</div>
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
         </button>
-        <a href="{{ url_for('supplier_invoices.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+        <a href="{{ url_for('supplier_invoices.payments', iid=invoice.id) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>

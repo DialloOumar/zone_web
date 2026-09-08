@@ -44,6 +44,28 @@
         </div>
     </div>
 
+    {# The supplier's bill this cost settles. Only shown when there is a bill
+       still owing something: most costs settle nothing. Choosing one records
+       the instalment on that bill -- this is the only way the cash box's money
+       reaches a bill, so it is never entered twice. #}
+    {% if invoices %}
+    <div class="field field--select">
+        {% set cur_inv = expense.supplier_payment.invoice_id if is_edit and expense.supplier_payment else 0 %}
+        {% set sel_inv = request.form.get('invoice_id')|int(0) or cur_inv %}
+        <select id="invoice_id" name="invoice_id">
+            <option value="">{{ t['expense.no_invoice'] }}</option>
+            {% for i in invoices %}
+            <option value="{{ i.id }}" {% if i.id == sel_inv %}selected{% endif %}>
+                {{ i.supplier.name }}{% if i.number %} — {{ i.number }}{% endif %}
+                — {{ t['invoice.remaining'] | lower }} {{ '{:,}'.format(i.remaining) }} {{ currency }}
+            </option>
+            {% endfor %}
+        </select>
+        <label for="invoice_id">{{ t['expense.invoice'] }}</label>
+    </div>
+    <div class="field-hint">{{ t['expense.invoice_hint'] }}</div>
+    {% endif %}
+
     {# Who the money went out for. Hidden entirely until there is somebody to
        pick: an empty dropdown on every cost teaches people to ignore it. #}
     {% if staff %}

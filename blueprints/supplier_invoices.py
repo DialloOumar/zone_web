@@ -8,9 +8,16 @@ It is a register, not a till. Nothing written here touches the cash box or the
 expense ledger: the money actually leaving is logged as an expense like any
 other, and an invoice counted in both places would be the same money twice.
 
+A bill is settled in instalments, each with its own date and method. Where the
+money came from decides where the instalment is entered, and the two never
+overlap: the cash box's payments are entered on the Dépenses page and write
+their instalment beside the cost, everyone else's are entered here. So the
+money that left the box is described in exactly one place and can never be
+counted twice.
+
 Nothing about a payment is stored that can be worked out. Paid, part-paid and
-untouched all follow from `paid_amount`, so a status can never drift away from
-the figures it is supposed to describe.
+untouched all follow from the instalments, so a status can never drift away
+from the figures it is supposed to describe.
 """
 from datetime import date, datetime
 
@@ -23,7 +30,7 @@ from app import get_t, is_modal_request, log_action, modal_ok, require_perm
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
 from blueprints.expenses import PAYMENT_METHODS
-from models import Supplier, SupplierInvoice, db
+from models import Supplier, SupplierInvoice, SupplierPayment, db
 
 supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
 
@@ -56,16 +63,26 @@ def active_suppliers():
             .order_by(Supplier.sort_order, Supplier.name).all())
 
 
+def _paid_sum():
+    """What a bill has been paid, as SQL: its instalments added up.
+
+    Every filter and every total on this page goes through here, so the screen
+    and the database can never disagree about what is settled.
+    """
+    return (db.select(db.func.coalesce(db.func.sum(SupplierPayment.amount), 0))
+            .where(SupplierPayment.invoice_id == SupplierInvoice.id)
+            .scalar_subquery())
+
+
 def _paid_expr():
-    """What has been paid, never counting past the invoice's own amount.
+    """The same sum, never counting past the invoice's own amount.
 
     An overpayment keyed in by mistake would otherwise eat into what other
     invoices still owe, and the total at the top would read short.
     """
-    return db.case(
-        (SupplierInvoice.paid_amount > SupplierInvoice.amount, SupplierInvoice.amount),
-        else_=SupplierInvoice.paid_amount,
-    )
+    paid = _paid_sum()
+    return db.case((paid > SupplierInvoice.amount, SupplierInvoice.amount),
+                   else_=paid)
 
 
 def _ids(name):
@@ -214,9 +231,9 @@ def index():
         q = q.filter(db.or_(SupplierInvoice.number.ilike(like),
                             SupplierInvoice.description.ilike(like)))
     if status == "paid":
-        q = q.filter(SupplierInvoice.paid_amount >= SupplierInvoice.amount)
+        q = q.filter(_paid_sum() >= SupplierInvoice.amount)
     elif status in ("due", "overdue"):
-        q = q.filter(SupplierInvoice.paid_amount < SupplierInvoice.amount)
+        q = q.filter(_paid_sum() < SupplierInvoice.amount)
         if status == "overdue":
             q = q.filter(SupplierInvoice.due_date.isnot(None),
                          SupplierInvoice.due_date < today)
@@ -280,7 +297,7 @@ def new():
         data, error = _read_invoice_form()
         if error:
             return _render_invoice_form(None, error)
-        inv = SupplierInvoice(created_by=current_user.id, paid_amount=0, **data)
+        inv = SupplierInvoice(created_by=current_user.id, **data)
         db.session.add(inv)
         db.session.flush()   # the photo's name is built from the row's own id
         perr = _apply_photo_change(inv)
@@ -343,54 +360,134 @@ def delete(iid):
 # ── Routes: paying it ────────────────────────────────────────────────────────
 
 
-def _render_payment_form(inv, error=None):
+@supplier_invoices_bp.route("/factures/<int:iid>/versements")
+@login_required
+@require_perm("supplier_invoice.view")
+def payments(iid):
+    """Everything paid against one bill, oldest first, and what is left."""
+    inv = _get_invoice_or_404(iid)
+    return render_template("invoice_payments.html", invoice=inv,
+                           today=date.today().isoformat())
+
+
+def _get_payment_or_404(iid, pid):
+    pay = db.session.get(SupplierPayment, pid)
+    if not pay or pay.invoice_id != iid:
+        abort(404)
+    return pay
+
+
+def _render_payment_form(inv, pay, error=None):
     tpl = "_payment_form.html" if is_modal_request() else "payment_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, invoice=inv, error=error,
+    return render_template(tpl, invoice=inv, payment=pay, error=error,
                            payment_methods=PAYMENT_METHODS,
                            today=date.today().isoformat()), status
 
 
-@supplier_invoices_bp.route("/factures/<int:iid>/paiement", methods=["GET", "POST"])
+def _read_payment_form(inv, pay):
+    """One instalment: when, how much, how. Returns (data, None) or (None, err).
+
+    The amount is held to what is still owed, counting every other instalment
+    but this one — so correcting a payment downwards is never blocked by
+    itself.
+    """
+    t = get_t()
+    amount, error = _amount(request.form.get("amount"), t)
+    if error:
+        return None, error
+    if amount <= 0:
+        return None, t["invoice.err.amount"]
+
+    others = sum(p.amount or 0 for p in inv.payments
+                 if pay is None or p.id != pay.id)
+    if amount > (inv.amount or 0) - others:
+        return None, t["invoice.err.overpaid"]
+
+    date_str = (request.form.get("date") or "").strip()
+    if not _valid_date(date_str):
+        return None, t["invoice.err.paid_date"]
+
+    method = (request.form.get("method") or "").strip()
+    if method not in PAYMENT_METHODS:
+        return None, t["invoice.err.method"]
+
+    return dict(
+        date=date_str, amount=amount, method=method,
+        reference=(request.form.get("reference") or "").strip() or None,
+    ), None
+
+
+@supplier_invoices_bp.route("/factures/<int:iid>/versements/nouveau",
+                            methods=["GET", "POST"])
 @login_required
 @require_perm("supplier_invoice.edit")
-def payment(iid):
-    """What has been settled on this bill. One figure, corrected as it is paid:
-    part of it today, the rest next month, and zero to undo a mistake."""
+def payment_new(iid):
+    """An instalment paid by somebody other than the cash box — accounting
+    wiring the balance, the boss settling it himself. What the box pays is
+    entered on the Dépenses page instead, and arrives here on its own."""
     inv = _get_invoice_or_404(iid)
     t = get_t()
     if request.method == "POST":
-        amount, error = _amount(request.form.get("paid_amount"), t)
+        data, error = _read_payment_form(inv, None)
         if error:
-            return _render_payment_form(inv, error)
-        if amount < 0:
-            return _render_payment_form(inv, t["invoice.err.amount"])
-        if amount > inv.amount:
-            return _render_payment_form(inv, t["invoice.err.overpaid"])
-
-        paid_date = (request.form.get("paid_date") or "").strip()
-        method = (request.form.get("payment_method") or "").strip()
-        if amount > 0:
-            if not _valid_date(paid_date):
-                return _render_payment_form(inv, t["invoice.err.paid_date"])
-            if method not in PAYMENT_METHODS:
-                return _render_payment_form(inv, t["invoice.err.method"])
-
-        inv.paid_amount = amount
-        if amount > 0:
-            inv.paid_date = paid_date
-            inv.payment_method = method
-            inv.payment_reference = (request.form.get("payment_reference") or "").strip() or None
-        else:
-            # Nothing paid leaves nothing to remember about a payment.
-            inv.paid_date = inv.payment_method = inv.payment_reference = None
-        log_action("UPDATE", "supplier_invoice", resource_id=inv.id,
-                   detail="Payment on invoice #%s now %s GNF" % (inv.id, amount))
+            return _render_payment_form(inv, None, error)
+        pay = SupplierPayment(invoice_id=inv.id, created_by=current_user.id, **data)
+        db.session.add(pay)
+        log_action("CREATE", "supplier_payment", resource_id=inv.id,
+                   detail="Paid %s GNF on invoice #%s" % (data["amount"], inv.id))
         db.session.commit()
         flash("success|" + t["invoice.payment_saved"])
         return modal_ok() if is_modal_request() else redirect(
-            url_for("supplier_invoices.index"))
-    return _render_payment_form(inv)
+            url_for("supplier_invoices.payments", iid=inv.id))
+    return _render_payment_form(inv, None)
+
+
+@supplier_invoices_bp.route("/factures/<int:iid>/versements/<int:pid>/modifier",
+                            methods=["GET", "POST"])
+@login_required
+@require_perm("supplier_invoice.edit")
+def payment_edit(iid, pid):
+    inv = _get_invoice_or_404(iid)
+    pay = _get_payment_or_404(iid, pid)
+    t = get_t()
+    if pay.from_cash_box:
+        # It mirrors a cost in the cash box. Correcting it here would let the
+        # bill and the box disagree about the same money.
+        flash("error|" + t["invoice.err.cash_locked"])
+        return redirect(url_for("supplier_invoices.payments", iid=inv.id))
+    if request.method == "POST":
+        data, error = _read_payment_form(inv, pay)
+        if error:
+            return _render_payment_form(inv, pay, error)
+        for k, val in data.items():
+            setattr(pay, k, val)
+        log_action("UPDATE", "supplier_payment", resource_id=pay.id,
+                   detail="Edited payment #%s on invoice #%s" % (pay.id, inv.id))
+        db.session.commit()
+        flash("success|" + t["invoice.payment_saved"])
+        return modal_ok() if is_modal_request() else redirect(
+            url_for("supplier_invoices.payments", iid=inv.id))
+    return _render_payment_form(inv, pay)
+
+
+@supplier_invoices_bp.route("/factures/<int:iid>/versements/<int:pid>/supprimer",
+                            methods=["POST"])
+@login_required
+@require_perm("supplier_invoice.edit")
+def payment_delete(iid, pid):
+    inv = _get_invoice_or_404(iid)
+    pay = _get_payment_or_404(iid, pid)
+    t = get_t()
+    if pay.from_cash_box:
+        flash("error|" + t["invoice.err.cash_locked"])
+        return redirect(url_for("supplier_invoices.payments", iid=inv.id))
+    db.session.delete(pay)
+    log_action("DELETE", "supplier_payment", resource_id=pid,
+               detail="Deleted payment #%s on invoice #%s" % (pid, inv.id))
+    db.session.commit()
+    flash("success|" + t["invoice.payment_deleted"])
+    return redirect(url_for("supplier_invoices.payments", iid=inv.id))
 
 
 # ── Routes: the suppliers ────────────────────────────────────────────────────

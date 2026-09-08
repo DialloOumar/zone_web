@@ -223,13 +223,14 @@
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td>{{ status_chip(inv) }}
-                    {% if inv.paid_date %}<div class="muted small">{{ t['invoice.paid_on'] }} {{ inv.paid_date }}</div>{% endif %}
+                    {% if inv.payments %}
+                    <div class="muted small">{{ inv.payments | length }} {{ t['invoice.payment_count'] }}</div>
+                    {% endif %}
                 </td>
                 <td class="row-actions">
+                    <a href="{{ url_for('supplier_invoices.payments', iid=inv.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       title="{{ t['invoice.payments'] }}" aria-label="{{ t['invoice.payments'] }}"><span class="material-symbols-outlined">price_check</span></a>
                     {% if has_perm('supplier_invoice.edit') %}
-                    <a href="{{ url_for('supplier_invoices.payment', iid=inv.id) }}" class="btn btn--sm btn--tonal btn--icon"
-                       data-modal-url="{{ url_for('supplier_invoices.payment', iid=inv.id) }}" data-modal-title="{{ t['invoice.payment'] }}"
-                       title="{{ t['invoice.payment'] }}" aria-label="{{ t['invoice.payment'] }}"><span class="material-symbols-outlined">price_check</span></a>
                     <a href="{{ url_for('supplier_invoices.edit', iid=inv.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('supplier_invoices.edit', iid=inv.id) }}" data-modal-title="{{ t['invoice.edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>

@@ -553,6 +553,16 @@ class Expense(db.Model):
     site    = db.relationship("Site")
     account = db.relationship("CashAccount")
     staff   = db.relationship("Staff")
+    # The instalment this cost settles, when it was paid against a supplier's
+    # bill. Like the money-in below it, it belongs to the cost: written,
+    # corrected and deleted with it, never on its own.
+    supplier_payment = db.relationship(
+        "SupplierPayment", uselist=False,
+        primaryjoin="SupplierPayment.expense_id == Expense.id",
+        foreign_keys="SupplierPayment.expense_id",
+        back_populates="expense",
+        cascade="all, delete-orphan",
+    )
     # The money-in that pairs with this cost when an account paid it. It belongs
     # to the cost: written, corrected and deleted with it, never on its own.
     cash_movement = db.relationship(
@@ -672,9 +682,14 @@ class SupplierInvoice(db.Model):
     and an invoice recorded here as well would be the same money counted twice.
     What it answers is "what do we owe, and to whom".
 
-    Nothing about the payment is stored that can be worked out: `paid_amount`
-    alone tells paid from part-paid from untouched, so a status column can
-    never drift away from the figures.
+    A bill is settled in instalments: the cash box pays part of it in cash
+    this week, accounting wires the rest next month. Each of those is a
+    SupplierPayment of its own, with its own date and its own method, so the
+    history reads as it happened instead of collapsing into one figure.
+
+    Nothing about the payment is stored here that can be worked out: what is
+    paid is the sum of those rows, and paid / part-paid / untouched follows
+    from it, so no stored figure can drift away from the instalments.
     """
     __tablename__ = "supplier_invoices"
 
@@ -688,30 +703,33 @@ class SupplierInvoice(db.Model):
     description = db.Column(db.String(255))
     photo_key   = db.Column(db.String(200))                 # S3 photo of the paper
 
-    # What has been settled so far. Part payments are ordinary here, so this is
-    # an amount and not a tick box.
-    paid_amount       = db.Column(db.Integer,    nullable=False, default=0)
-    paid_date         = db.Column(db.String(10))
-    payment_method    = db.Column(db.String(20))            # cash | mobile_money | transfer | cheque | other
-    payment_reference = db.Column(db.String(60))
-
     created_by = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     supplier = db.relationship("Supplier")
+    payments = db.relationship(
+        "SupplierPayment", back_populates="invoice",
+        order_by="SupplierPayment.date",
+        cascade="all, delete-orphan")
+
+    @property
+    def paid_amount(self):
+        """The instalments added up, never counting past the bill itself: an
+        overpayment keyed in by mistake must not make other bills read as
+        owing less than they do."""
+        return min(sum(p.amount or 0 for p in self.payments), self.amount or 0)
 
     @property
     def remaining(self):
-        """What is still owed on it — never below zero, so an overpayment
-        recorded by mistake cannot quietly subtract from the page total."""
-        return max((self.amount or 0) - (self.paid_amount or 0), 0)
+        """What is still owed on it."""
+        return max((self.amount or 0) - self.paid_amount, 0)
 
     @property
     def status(self):
-        """paid | partial | unpaid — read off the figures, never stored."""
+        """paid | partial | unpaid — read off the instalments, never stored."""
         if self.remaining <= 0:
             return "paid"
-        return "partial" if (self.paid_amount or 0) > 0 else "unpaid"
+        return "partial" if self.payments else "unpaid"
 
     def is_overdue(self, today=None):
         """Past its due date with money still on it. Dates are YYYY-MM-DD
@@ -719,6 +737,53 @@ class SupplierInvoice(db.Model):
         if not self.due_date or self.remaining <= 0:
             return False
         return self.due_date < (today or date.today().isoformat())
+
+
+class SupplierPayment(db.Model):
+    """One instalment against a supplier's bill.
+
+    Where the money came from decides where it is entered, and the two never
+    overlap:
+
+      • the cash box paid it — then it is entered on the Dépenses page like any
+        other cost, and the cost writes this row beside itself. It belongs to
+        that cost: corrected and deleted with it, never on its own, so the
+        money that left the box is described in exactly one place.
+
+      • anyone else paid it — accounting wiring the balance, say. Those people
+        have no business in the cash box and no access to it, so they enter the
+        instalment on the invoice itself and `expense_id` stays empty. Nothing
+        touches the box, because nothing left it.
+
+    That split is what keeps a payment from being counted twice: a row with an
+    expense is the cash box's and cannot be edited from the invoice; a row
+    without one never reaches the cash box at all.
+    """
+    __tablename__ = "supplier_payments"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    invoice_id = db.Column(db.Integer,     db.ForeignKey("supplier_invoices.id"),
+                           nullable=False)
+    date       = db.Column(db.String(10),  nullable=False)   # YYYY-MM-DD
+    amount     = db.Column(db.Integer,     nullable=False)   # GNF
+    method     = db.Column(db.String(20))                    # cash | mobile_money | transfer | cheque
+    reference  = db.Column(db.String(60))                    # cheque no., transfer ref…
+    # Set when the cash box paid: the cost this instalment mirrors.
+    expense_id = db.Column(db.Integer,     db.ForeignKey("expenses.id"),
+                           nullable=True, unique=True)
+
+    created_by = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    invoice = db.relationship("SupplierInvoice", back_populates="payments")
+    expense = db.relationship("Expense", back_populates="supplier_payment",
+                              foreign_keys=[expense_id])
+
+    @property
+    def from_cash_box(self):
+        """True when this instalment is the cash box's, and so is read-only on
+        the invoice."""
+        return self.expense_id is not None
 
 
 # ── Workflow — approvals & audit ──────────────────────────────────────────────

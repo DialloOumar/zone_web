@@ -19,7 +19,7 @@ from flask_login import current_user, login_required
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, submit_change, with_current_fleet)
 from models import (CashAccount, CashMovement, Expense, Fleet, Site,
-                    Staff, Vehicle, db)
+                    Staff, SupplierInvoice, SupplierPayment, Vehicle, db)
 
 expenses_bp = Blueprint("expenses", __name__)
 
@@ -61,6 +61,11 @@ TABS = ("depenses", "mouvements")
 
 PER_PAGE = 50   # rows on one screen
 
+# The bill a cost settles travels with the form data, but it is not a column on
+# the cost -- it names the instalment written beside it. Approvals pops the same
+# key when replaying an approved cost, so it is defined once and imported there.
+INVOICE_KEY = "_invoice_id"
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -92,6 +97,17 @@ def active_accounts():
     """Where the box's money comes from and goes back to."""
     return (CashAccount.query.filter(CashAccount.is_active.is_(True))
             .order_by(CashAccount.sort_order, CashAccount.name).all())
+
+
+def open_invoices(current=None):
+    """Supplier bills a cost can settle: the ones still owing something, plus
+    whichever this cost already settles, so editing a cost that closed a bill
+    does not drop the bill out of its own picker."""
+    rows = [i for i in SupplierInvoice.query.order_by(SupplierInvoice.date.desc()).all()
+            if i.remaining > 0]
+    if current is not None and current not in rows:
+        rows.insert(0, current)
+    return rows
 
 
 def active_staff():
@@ -225,6 +241,23 @@ def _read_expense_form(expense):
     if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True).first():
         return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
 
+    # The supplier's bill this cost settles, when it settles one. The cash
+    # box's money reaches a bill only through here: the invoice screen cannot
+    # claim the box paid, so the same money is never entered twice.
+    invoice_id = request.form.get("invoice_id", type=int) or None
+    if invoice_id:
+        inv = db.session.get(SupplierInvoice, invoice_id)
+        if not inv:
+            return None, t["expense.err.invoice"]
+        # What is left on the bill, counting every instalment except the one
+        # this cost already carries -- otherwise editing a cost downwards
+        # would be blocked by its own payment.
+        mine = expense.supplier_payment if expense is not None else None
+        others = sum(p.amount or 0 for p in inv.payments
+                     if mine is None or p.id != mine.id)
+        if common["amount"] > (inv.amount or 0) - others:
+            return None, t["expense.err.invoice_overpaid"]
+
     # Who the money went out for -- an advance, a mission, a phone bill. Most
     # costs are for nobody in particular, so it stays optional.
     staff_id = request.form.get("staff_id", type=int) or None
@@ -235,7 +268,37 @@ def _read_expense_form(expense):
                   supplier=None, site_id=site_id, liters=None, quantity=quantity,
                   account_id=account_id, staff_id=staff_id,
                   category=FIELD_CATEGORY if site_id else OFFICE_CATEGORY)
+    # Not a column on the cost: it names the bill the instalment belongs to,
+    # and rides beside the data rather than in it.
+    common[INVOICE_KEY] = invoice_id
     return common, None
+
+
+def sync_invoice_payment(expense, invoice_id):
+    """Keep the instalment that pairs with a cost settling a supplier's bill.
+
+    The bill and the cash box describe the same money, so only one of them may
+    be written by hand: the cost is entered here, and the instalment is its
+    mirror -- written, corrected and deleted with it, never on its own. On the
+    invoice screen it shows as the box's and cannot be touched.
+
+    Called after every write to a cost. Clearing the bill removes the line.
+    """
+    pay = expense.supplier_payment
+    if not invoice_id:
+        if pay is not None:
+            db.session.delete(pay)
+            expense.supplier_payment = None
+        return
+    if pay is None:
+        pay = SupplierPayment(created_by=expense.created_by)
+        expense.supplier_payment = pay
+        db.session.add(pay)
+    pay.invoice_id = invoice_id
+    pay.date = expense.date
+    pay.amount = expense.amount
+    pay.method = expense.payment_method
+    pay.reference = expense.payment_reference
 
 
 def sync_account_movement(expense):
@@ -277,6 +340,9 @@ def _form_context(expense):
         "sites": active_sites(),
         "vehicles": _accessible_vehicles(),
         "staff": active_staff(),
+        "invoices": open_invoices(
+            expense.supplier_payment.invoice if expense is not None
+            and expense.supplier_payment else None),
         "last_site_id": last.site_id if last else None,
         "today": date.today().isoformat(),
     }
@@ -476,10 +542,12 @@ def new():
                           fleet_id=data["fleet_id"], payload=data)
             flash("success|" + t["expense.submitted"])
             return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
+        invoice_id = data.pop(INVOICE_KEY, None)
         x = Expense(created_by=current_user.id, **data)
         db.session.add(x)
         db.session.flush()
         sync_account_movement(x)
+        sync_invoice_payment(x, invoice_id)
         log_action("CREATE", "expense", resource_id=x.id, fleet_id=x.fleet_id,
                    detail=f"Logged {x.category} expense {x.amount} GNF")
         db.session.commit()
@@ -511,9 +579,11 @@ def edit(xid):
                           resource_id=expense.id, fleet_id=data["fleet_id"], payload=data)
             flash("success|" + t["expense.submitted"])
             return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
+        invoice_id = data.pop(INVOICE_KEY, None)
         for k, val in data.items():
             setattr(expense, k, val)
         sync_account_movement(expense)
+        sync_invoice_payment(expense, invoice_id)
         log_action("UPDATE", "expense", resource_id=expense.id, fleet_id=expense.fleet_id,
                    detail=f"Edited expense #{expense.id}")
         db.session.commit()
