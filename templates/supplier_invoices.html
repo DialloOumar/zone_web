@@ -197,7 +197,11 @@
         <tbody>
             {% for inv in invoices %}
             <tr>
-                <td style="white-space:nowrap;">{{ inv.date }}</td>
+                <td style="white-space:nowrap;">{{ inv.date }}
+                    {% if inv.received_on and inv.received_on != inv.date %}
+                    <div class="muted small">{{ t['invoice.received_short'] }} {{ inv.received_on }}</div>
+                    {% endif %}
+                </td>
                 <td>
                     <strong>{{ inv.supplier.name }}</strong>
                     {% if inv.number %}<div class="muted small">{{ t['invoice.number_short'] }} {{ inv.number }}</div>{% endif %}
@@ -258,6 +262,7 @@
             <div class="list-card__meta">
                 <span class="muted small">{{ inv.date }}</span>
                 {% if inv.number %}<span class="muted small">&middot; {{ t['invoice.number_short'] }} {{ inv.number }}</span>{% endif %}
+                {% if inv.received_on and inv.received_on != inv.date %}<span class="muted small">&middot; {{ t['invoice.received_short'] }} {{ inv.received_on }}</span>{% endif %}
                 {% if inv.description %}<span class="muted small">&middot; {{ inv.description }}</span>{% endif %}
                 {% if inv.due_date %}<span class="muted small">&middot; {{ t['invoice.due_short'] }} {{ inv.due_date }}</span>{% endif %}
             </div>

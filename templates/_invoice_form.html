@@ -23,25 +23,33 @@
                    value="{{ request.form.get('date') or (invoice.date if is_edit else today) }}">
             <label for="date">{{ t['invoice.date'] }}</label>
         </div>
+        {# Pre-set to today on a new bill: it is recorded the day it arrives,
+           nearly always. Left as it was on an old one, blank included. #}
+        <div class="field">
+            <input type="date" id="received_on" name="received_on" placeholder=" "
+                   value="{{ request.form.get('received_on') or (invoice.received_on or '' if is_edit else today) }}">
+            <label for="received_on">{{ t['invoice.received_on'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
         <div class="field">
             <input type="date" id="due_date" name="due_date" placeholder=" "
                    value="{{ request.form.get('due_date') or (invoice.due_date or '' if is_edit else '') }}">
             <label for="due_date">{{ t['invoice.due_date'] }}</label>
-        </div>
-    </div>
-    <div class="field-hint">{{ t['invoice.due_date_hint'] }}</div>
-
-    <div class="form-row">
-        <div class="field">
-            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
-                   value="{{ request.form.get('amount') or (invoice.amount if is_edit else '') }}">
-            <label for="amount">{{ t['invoice.amount'] }}</label>
         </div>
         <div class="field">
             <input type="text" id="number" name="number" placeholder=" "
                    value="{{ request.form.get('number') or (invoice.number or '' if is_edit else '') }}">
             <label for="number">{{ t['invoice.number'] }}</label>
         </div>
+    </div>
+    <div class="field-hint">{{ t['invoice.due_date_hint'] }}</div>
+
+    <div class="field">
+        <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+               value="{{ request.form.get('amount') or (invoice.amount if is_edit else '') }}">
+        <label for="amount">{{ t['invoice.amount'] }}</label>
     </div>
 
     <div class="field">

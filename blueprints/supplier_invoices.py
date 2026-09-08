@@ -148,6 +148,13 @@ def _read_invoice_form():
     if not _valid_date(date_str):
         return None, t["invoice.err.date"]
 
+    # When the paper reached us. Not checked against the invoice's own date:
+    # a supplier post-dating a bill is odd but real, and refusing it would only
+    # send someone looking for a way round.
+    received_on = (request.form.get("received_on") or "").strip()
+    if received_on and not _valid_date(received_on):
+        return None, t["invoice.err.received_on"]
+
     due_date = (request.form.get("due_date") or "").strip()
     if due_date and not _valid_date(due_date):
         return None, t["invoice.err.due_date"]
@@ -164,6 +171,7 @@ def _read_invoice_form():
         supplier_id=supplier_id,
         number=(request.form.get("number") or "").strip() or None,
         date=date_str,
+        received_on=received_on or None,
         due_date=due_date or None,
         amount=amount,
         currency="GNF",

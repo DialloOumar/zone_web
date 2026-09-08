@@ -15,6 +15,7 @@
             <p class="muted small" style="margin:4px 0 0;">
                 {% if invoice.number %}{{ t['invoice.number_short'] }} {{ invoice.number }} &middot; {% endif %}
                 {{ invoice.date }}
+                {% if invoice.received_on %} &middot; {{ t['invoice.received_short'] }} {{ invoice.received_on }}{% endif %}
                 {% if invoice.due_date %} &middot; {{ t['invoice.due_short'] }} {{ invoice.due_date }}{% endif %}
                 {% if invoice.description %}<br>{{ invoice.description }}{% endif %}
             </p>

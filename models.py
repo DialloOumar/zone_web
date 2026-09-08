@@ -697,6 +697,10 @@ class SupplierInvoice(db.Model):
     supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id"), nullable=False)
     number      = db.Column(db.String(60))                  # the supplier's own reference
     date        = db.Column(db.String(10), nullable=False)  # YYYY-MM-DD, the invoice's date
+    # The day the paper actually reached the company, which is rarely the day
+    # the supplier wrote on it. It is the one that says whether a bill has been
+    # sitting on someone's desk, so it is asked for separately.
+    received_on = db.Column(db.String(10))
     due_date    = db.Column(db.String(10))                  # when it falls due, if it says
     amount      = db.Column(db.Integer,    nullable=False)  # GNF
     currency    = db.Column(db.String(5),  nullable=False, default="GNF")

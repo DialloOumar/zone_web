@@ -345,6 +345,7 @@ HELP_SECTIONS = [
             "fr": [
                 "Commencez par l'onglet « Fournisseurs » : ce sont ceux qui vous envoient des factures — un garage, un magasin de pièces, un bailleur. Un nom suffit ; le contact sert le jour où il faut les appeler.",
                 "Onglet « Factures », « Nouvelle facture » : le fournisseur, la date de la facture, le montant. Le n° de facture et l'objet sont facultatifs mais aident à la retrouver.",
+                "« Reçue le » est le jour où le papier vous est arrivé, qui n'est presque jamais celui que le fournisseur a écrit dessus. C'est cette date qui dit qu'une facture est restée trois semaines sur un bureau. Elle est pré-remplie à aujourd'hui.",
                 "« À payer avant le » est facultatif. Rempli, la facture passe en rouge et s'affiche « En retard » une fois la date dépassée.",
                 "Vous pouvez ajouter une photo de la facture papier. Elle s'ouvre ensuite depuis la liste.",
                 "Le bouton avec la coche (✓) ouvre les versements de la facture : tout ce qui a déjà été payé dessus, et ce qui reste.",
@@ -356,6 +357,7 @@ HELP_SECTIONS = [
             "en": [
                 "Start with the \"Suppliers\" tab: these are the people who send you bills — a garage, a parts shop, a landlord. A name is enough; the contact is there for the day you have to call them.",
                 "\"Invoices\" tab, \"New invoice\": the supplier, the invoice date, the amount. The invoice number and what it was for are optional but make it findable.",
+                "\"Received on\" is the day the paper reached you, which is hardly ever the day the supplier wrote on it. It is the date that shows a bill sat on someone's desk for three weeks. It comes pre-filled with today.",
                 "\"Due by\" is optional. Filled in, the invoice turns red and reads \"Overdue\" once the date has passed.",
                 "You can add a photo of the paper invoice. It opens from the list afterwards.",
                 "The tick button opens the bill's payments: everything already paid on it, and what is left.",
