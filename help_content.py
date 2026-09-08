@@ -173,16 +173,14 @@ HELP_SECTIONS = [
         },
         "steps": {
             "fr": [
-                "Commencez par le bouton « Postes », en haut de la page : les métiers de la maison — mécanicien, magasinier, gardien, chauffeur. Une liste que vous tenez vous-même, comme « Sites et comptes » sur la page Dépenses. On la remplit une fois et on n'y revient presque jamais.",
-                "Puis « Nouveau membre du personnel » : le nom suffit. Le poste, le téléphone, le matricule et la date d'embauche sont facultatifs.",
+                "« Nouveau membre du personnel » : le nom et le prénom, et c'est tout. Rien d'autre n'est demandé pour l'instant.",
                 "Ensuite, sur une dépense, un champ « Personnel concerné » apparaît. Il est facultatif : la plupart des dépenses ne sont pour personne en particulier.",
                 "Utilisez-le quand l'argent sort pour quelqu'un : une avance, des frais de mission, un billet de transport.",
                 "Sur la page Personnel, la colonne « Dépensé pour » donne le total par personne. Cliquez dessus : vous arrivez sur la liste de ses dépenses.",
                 "Quand quelqu'un part, archivez-le. Il disparaît des menus, et les dépenses déjà enregistrées restent à son nom.",
             ],
             "en": [
-                "Start with the \"Positions\" button at the top of the page: the jobs of the house — mechanic, storekeeper, watchman, driver. A list you keep yourself, like \"Sites and accounts\" on the Expenses page. Filled in once and hardly ever revisited.",
-                "Then \"New staff member\": the name is enough. Position, phone, staff number and hiring date are optional.",
+                "\"New staff member\": the full name, and that is all. Nothing else is asked for yet.",
                 "A \"Staff member\" field then appears on a cost. It is optional: most costs are for nobody in particular.",
                 "Use it when the money goes out for someone: an advance, mission expenses, a bus ticket.",
                 "On the Staff page, the \"Spent on\" column gives the total per person. Click it and you land on that person's costs.",
@@ -196,6 +194,7 @@ HELP_SECTIONS = [
                 "Le filtre « Personnel concerné » suit aussi le bouton « Rapport » : ce que vous imprimez est exactement ce que vous voyez à l'écran.",
                 "Deux personnes ne peuvent pas porter exactement le même nom dans la liste. S'il y a deux Mamadou Diallo, distinguez-les — le poste ou le matricule entre parenthèses suffit.",
                 "On ne supprime une fiche que si aucune dépense n'est à son nom. Sinon, archivez : sans ça, une dépense se retrouverait à ne nommer personne.",
+                "Pour l'instant on ne saisit que le nom. Le poste, le téléphone, le matricule et la date d'embauche existent déjà dans l'application mais sont mis de côté ; ils reviendront avec le module RH, et les fiches qui en portent déjà ne perdent rien entre-temps.",
                 "Les salaires, contrats, congés et absences ne sont pas encore là. C'est le module RH complet, pour plus tard.",
             ],
             "en": [
@@ -204,6 +203,7 @@ HELP_SECTIONS = [
                 "The staff filter follows the \"Report\" button too: what you print is exactly what you see on screen.",
                 "Two people cannot carry exactly the same name. If there are two Mamadou Diallo, tell them apart — the position or the staff number in brackets is enough.",
                 "A person is only deleted when no cost is in their name. Otherwise archive them: without that, a cost would end up naming nobody.",
+                "For now only the name is asked for. Position, phone, staff number and hiring date are already in the app but folded away; they come back with the HR module, and the records that already carry them lose nothing meanwhile.",
                 "Pay, contracts, leave and absences are not here yet. That is the full HR module, for later.",
             ],
         },

@@ -30,7 +30,7 @@
         </div>
         {# The jobs are named once and then left alone, so they live on a page
            of their own rather than beside the list read every day. #}
-        {% if has_perm('staff.create') %}
+        {% if extra_fields and has_perm('staff.create') %}
         <a href="{{ url_for('staff.positions') }}" class="btn btn--sm btn--outlined">
             <span class="material-symbols-outlined">tune</span> {{ t['staff.positions'] }}
         </a>
@@ -67,9 +67,11 @@
         <thead>
             <tr>
                 <th>{{ t['staff.name'] }}</th>
+                {% if extra_fields %}
                 <th>{{ t['staff.position'] }}</th>
                 <th>{{ t['staff.phone'] }}</th>
                 <th class="col-secondary">{{ t['staff.hired_on'] }}</th>
+                {% endif %}
                 <th style="text-align:right;">{{ t['staff.spent_on'] }}</th>
                 <th></th>
             </tr>
@@ -81,13 +83,17 @@
                 <td>
                     <strong {% if not p.is_active %}class="muted"{% endif %}>{{ p.name }}</strong>
                     {% if not p.is_active %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
+                    {% if extra_fields %}
                     {% if p.matricule %}<div class="muted small">{{ t['staff.matricule_short'] }} {{ p.matricule }}</div>{% endif %}
                     {% if p.note %}<div class="muted small">{{ p.note }}</div>{% endif %}
+                    {% endif %}
                 </td>
+                {% if extra_fields %}
                 <td>{% if p.position %}<span class="chip">{{ p.position.name }}</span>
                     {%- else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td>{% if p.phone %}{{ p.phone }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td class="col-secondary">{% if p.hired_on %}{{ p.hired_on }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                {% endif %}
                 <td style="text-align:right; white-space:nowrap;">
                     {% if sp %}
                     <a href="{{ url_for('expenses.index', staff=p.id, date_from='', date_to='') }}">
@@ -135,9 +141,11 @@
                 {% if sp %}<span class="list-card__amount">{{ sp.total | num }} <span class="muted small">{{ currency }}</span></span>{% endif %}
             </div>
             <div class="list-card__meta">
+                {% if extra_fields %}
                 {% if p.position %}<span class="chip">{{ p.position.name }}</span>{% endif %}
                 {% if p.phone %}<span class="muted small">&middot; {{ p.phone }}</span>{% endif %}
                 {% if p.matricule %}<span class="muted small">&middot; {{ t['staff.matricule_short'] }} {{ p.matricule }}</span>{% endif %}
+                {% endif %}
                 {% if not p.is_active %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
             </div>
         </div>

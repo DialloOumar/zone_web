@@ -20,6 +20,14 @@ from models import Expense, Staff, StaffPosition, db
 
 staff_bp = Blueprint("staff", __name__)
 
+# Only the name is asked for while the HR module is unbuilt. Position, phone,
+# staff number, hiring date and the note are all still here -- the columns, the
+# form fields, the list, the positions page -- and this one name brings them
+# back. Nothing is deleted meanwhile, and a person who already carries a phone
+# or a position keeps it: the hidden fields are left out of the save rather than
+# written empty.
+EXTRA_FIELDS_VISIBLE = False
+
 PER_PAGE = 50
 
 
@@ -84,6 +92,9 @@ def _read_staff_form(row):
     if clash.first():
         return None, t["staff.err.name_taken"]
 
+    if not EXTRA_FIELDS_VISIBLE:
+        return dict(name=name), None
+
     position_id = request.form.get("position_id", type=int) or None
     if position_id and not StaffPosition.query.filter_by(
             id=position_id, is_active=True).first():
@@ -108,6 +119,7 @@ def _render_staff_form(row, error=None):
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, row=row, error=error,
                            positions=active_positions(),
+                           extra_fields=EXTRA_FIELDS_VISIBLE,
                            today=date.today().isoformat()), status
 
 
@@ -118,7 +130,7 @@ def _render_staff_form(row, error=None):
 @login_required
 @require_perm("staff.view")
 def index():
-    position_ids = _ids("position")
+    position_ids = _ids("position") if EXTRA_FIELDS_VISIBLE else []
     search = (request.args.get("q") or "").strip()
     # Archived people are out of the way by default, and one tick brings the
     # whole payroll back — including whoever left in March.
@@ -131,8 +143,11 @@ def index():
         q = q.filter(Staff.position_id.in_(position_ids))
     if search:
         like = "%" + search + "%"
-        q = q.filter(db.or_(Staff.name.ilike(like), Staff.matricule.ilike(like),
-                            Staff.phone.ilike(like)))
+        if EXTRA_FIELDS_VISIBLE:
+            q = q.filter(db.or_(Staff.name.ilike(like), Staff.matricule.ilike(like),
+                                Staff.phone.ilike(like)))
+        else:
+            q = q.filter(Staff.name.ilike(like))
 
     pagination = q.order_by(Staff.name).paginate(
         page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
@@ -140,7 +155,8 @@ def index():
 
     return render_template(
         "staff.html", people=pagination.items, pagination=pagination,
-        positions=active_positions(), spend=_spend_by_staff(),
+        positions=active_positions() if EXTRA_FIELDS_VISIBLE else [],
+        spend=_spend_by_staff(), extra_fields=EXTRA_FIELDS_VISIBLE,
         position_ids=position_ids, search=search, show_archived=show_archived,
         total_active=Staff.query.filter(Staff.is_active.is_(True)).count(),
     )
@@ -244,10 +260,14 @@ def _positions_url():
 @login_required
 @require_perm("staff.view")
 def positions():
-    """Kept off the Personnel list and behind a button, like the cashier's
+    """Closed with the rest of the HR fields for now.
+
+    Kept off the Personnel list and behind a button, like the cashier's
     sites and accounts: the jobs are named once when the company is set up and
     then left alone, and a tab beside the people gave a once-a-year list the
     same standing as the one read every day."""
+    if not EXTRA_FIELDS_VISIBLE:
+        abort(404)
     # How many people hold each job, so one nothing points at can be told from
     # one in use -- and only that one may be deleted outright.
     held = {r[0]: int(r[1]) for r in db.session.query(
@@ -294,6 +314,8 @@ def _render_position_form(row, error=None):
 @login_required
 @require_perm("staff.create")
 def position_new():
+    if not EXTRA_FIELDS_VISIBLE:
+        abort(404)
     if request.method == "POST":
         error = _save_position(None)
         if error:
@@ -307,6 +329,8 @@ def position_new():
 @login_required
 @require_perm("staff.create")
 def position_edit(qid):
+    if not EXTRA_FIELDS_VISIBLE:
+        abort(404)
     row = db.session.get(StaffPosition, qid)
     if not row:
         abort(404)
@@ -324,6 +348,8 @@ def position_edit(qid):
 @login_required
 @require_perm("staff.create")
 def position_action(qid, what):
+    if not EXTRA_FIELDS_VISIBLE:
+        abort(404)
     row = db.session.get(StaffPosition, qid)
     if not row:
         abort(404)

@@ -1,3 +1,4 @@
+{% from "_hint.html" import hint with context %}
 {% set is_edit = row is not none %}
 {# Who they are and what they do. Everything an HR module will want later --
    contract, pay, leave -- hangs off this row; none of it is asked here. #}
@@ -8,9 +9,13 @@
     <div class="field">
         <input type="text" id="name" name="name" placeholder=" " required
                value="{{ request.form.get('name') or (row.name if is_edit else '') }}">
-        <label for="name">{{ t['staff.name'] }}</label>
+        <label for="name">{{ t['staff.name'] }} {{ hint("", t['staff.name_hint']) }}</label>
     </div>
 
+    {# Everything below waits for the HR module. It is kept rather than cut:
+       one switch in blueprints/staff.py brings it all back, and a person who
+       already carries a phone or a position keeps it meanwhile. #}
+    {% if extra_fields %}
     <div class="form-row">
         <div class="field field--select">
             {% set sel_q = request.form.get('position_id')|int(0) or (row.position_id if is_edit else 0) %}
@@ -46,6 +51,7 @@
         <textarea id="note" name="note" placeholder=" " rows="2">{{ request.form.get('note') or (row.note or '' if is_edit else '') }}</textarea>
         <label for="note">{{ t['entry.note'] }}</label>
     </div>
+    {% endif %}
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
