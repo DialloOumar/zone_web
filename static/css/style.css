@@ -562,6 +562,45 @@ a:hover { text-decoration: underline; }
 .field .field-hint { font-size: 0.72rem; color: var(--md-on-surface-variant); }
 .form-actions { display: flex; gap: 10px; margin-top: 4px; }
 
+/* ── The "?" beside a hint ──
+   The long explanation a field used to carry underneath it, folded away. Shown
+   on hover and on focus: focus is what makes it work on a phone, where a tap
+   focuses the button and there is no hover to rely on.
+
+   It opens upwards. These forms usually sit in a modal whose body scrolls, and
+   a bubble hanging below a field near the bottom would be clipped by it. */
+.hint-dot {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px; padding: 0; margin-left: 2px;
+    vertical-align: -2px;
+    border: 0; border-radius: 50%;
+    background: var(--md-surface-container-high); color: var(--md-on-surface-variant);
+    font: inherit; font-size: 0.66rem; font-weight: 700; line-height: 1;
+    cursor: help;
+}
+.hint-dot:hover, .hint-dot:focus-visible {
+    background: var(--md-primary); color: var(--md-on-primary);
+}
+/* The mark is the anchor, so the bubble is placed against it. */
+.field-hint { position: relative; }
+.hint-dot::after {
+    content: attr(data-hint);
+    position: absolute; left: 0; right: 0; bottom: calc(100% + 8px);
+    z-index: 30;
+    padding: 9px 12px;
+    border-radius: var(--shape-sm);
+    background: var(--md-inverse-surface);
+    color: var(--md-inverse-on-surface);
+    font-size: 0.74rem; font-weight: 400; line-height: 1.45; text-align: left;
+    white-space: normal;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .28);
+    opacity: 0; visibility: hidden;
+    transition: opacity .12s ease;
+}
+.hint-dot:hover::after, .hint-dot:focus::after {
+    opacity: 1; visibility: visible;
+}
+
 /* Two-column form rows (collapse to one column on narrow screens) */
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 

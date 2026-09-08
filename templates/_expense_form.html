@@ -1,3 +1,4 @@
+{% from "_hint.html" import hint with context %}
 {% set is_edit = expense is not none %}
 {# Spent out of the cash box, so no fleet to pick. Where it happened is the
    site; which machine it was for is optional; the kind follows from the site. #}
@@ -58,7 +59,7 @@
         </select>
         <label for="invoice_id">{{ t['expense.invoice'] }}</label>
     </div>
-    <div class="field-hint">{{ t['expense.invoice_hint'] }}</div>
+    {{ hint(t['form.optional'], t['expense.invoice_hint']) }}
     {% endif %}
 
     {# Who the money went out for. Hidden entirely until there is somebody to
@@ -74,7 +75,7 @@
         </select>
         <label for="staff_id">{{ t['expense.staff'] }}</label>
     </div>
-    <div class="field-hint">{{ t['expense.staff_hint'] }}</div>
+    {{ hint(t['form.optional'], t['expense.staff_hint']) }}
     {% endif %}
 
     <div class="form-row">
@@ -107,7 +108,7 @@
         </select>
         <label for="account_id">{{ t['expense.paid_from'] }}</label>
     </div>
-    <div class="field-hint">{{ t['expense.paid_from_hint'] }}</div>
+    {{ hint(t['expense.paid_from_short'], t['expense.paid_from_hint']) }}
 
     <div class="field">
         <input type="text" id="payment_reference" name="payment_reference" placeholder=" "

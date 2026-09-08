@@ -97,7 +97,6 @@
         overlay.querySelector(".modal__header h2").textContent = title || "";
         document.body.appendChild(overlay);
         requestAnimationFrame(function () { overlay.classList.add("open"); });
-        overlay.addEventListener("click", function (e) { if (e.target === overlay) close(); });
         overlay.querySelector(".modal__close").addEventListener("click", close);
         document.addEventListener("keydown", onKey);
     }
