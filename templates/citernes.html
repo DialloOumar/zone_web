@@ -65,7 +65,7 @@
                 </td>
                 <td>{{ c.fleet.name }}</td>
                 <td style="text-align:right; white-space:nowrap;">
-                    <strong {% if under or over %}class="stock-negative"{% endif %}>{{ '{:,}'.format(c.stock) }}</strong> <span class="muted small">L</span>
+                    <strong {% if under or over %}class="stock-negative"{% endif %}>{{ c.stock | num }}</strong> <span class="muted small">L</span>
                     {% if under %}
                     <div><span class="badge badge--critical" title="{{ t['citerne.negative_hint'] }}">{{ t['citerne.negative'] }}</span></div>
                     {% elif over %}
@@ -80,7 +80,7 @@
                             title="{{ t['citerne.past_hint'] }}">{{ t['citerne.past_anomaly'] }}</a></div>
                     {% endif %}
                 </td>
-                <td class="col-secondary">{{ '{:,}'.format(c.capacity_liters) }} L</td>
+                <td class="col-secondary">{{ c.capacity_liters | num }} L</td>
                 <td class="row-actions">
                     {% if has_perm('carburant.create') and c.is_active %}
                     <a href="{{ url_for('carburant.distribution_new', citerne=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
@@ -121,7 +121,7 @@
         <div class="list-card">
             <div class="list-card__top">
                 <a href="{{ url_for('carburant.citerne_flux', cid=c.id) }}"><strong>{{ c.code }}</strong></a>
-                <span class="list-card__amount {% if under or over %}stock-negative{% endif %}">{{ '{:,}'.format(c.stock) }} <span class="muted small">/ {{ '{:,}'.format(c.capacity_liters) }} L</span></span>
+                <span class="list-card__amount {% if under or over %}stock-negative{% endif %}">{{ c.stock | num }} <span class="muted small">/ {{ c.capacity_liters | num }} L</span></span>
             </div>
             {% if under %}
             <div><span class="badge badge--critical">{{ t['citerne.negative'] }}</span>

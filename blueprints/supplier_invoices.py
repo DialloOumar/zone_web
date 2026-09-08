@@ -26,7 +26,8 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 import s3_storage
-from app import get_t, is_modal_request, log_action, modal_ok, require_perm
+from app import (get_t, is_modal_request, log_action, modal_ok,
+                 parse_amount, require_perm)
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
 from blueprints.expenses import PAYMENT_METHODS
@@ -106,13 +107,12 @@ def _valid_date(s):
 
 
 def _amount(raw, t):
-    """A money field as it gets typed — spaces, commas and all.
+    """A money field as it gets typed — grouped digits and all.
     Returns (int, None) or (None, error)."""
-    raw = (raw or "").strip().replace(" ", "").replace(",", "")
-    try:
-        return int(round(float(raw))), None
-    except (TypeError, ValueError):
+    value = parse_amount(raw)
+    if value is None:
         return None, t["invoice.err.amount"]
+    return value, None
 
 
 def _get_invoice_or_404(iid):

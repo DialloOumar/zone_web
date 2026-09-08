@@ -38,7 +38,7 @@
             <label for="opening_quantity">{{ t['part.opening'] }}</label>
         </div>
         <div class="field">
-            <input type="number" id="opening_price" name="opening_price" placeholder=" " min="0"
+            <input data-money type="text" inputmode="numeric" id="opening_price" name="opening_price" placeholder=" "
                    value="{{ request.form.get('opening_price') or (opening_mv.unit_price if opening_mv and opening_mv.unit_price is not none else '') }}">
             <label for="opening_price">{{ t['part.opening_price'] }}</label>
         </div>

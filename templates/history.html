@@ -32,13 +32,13 @@
 
     <div class="mv-totals">
         <div class="mv-total">
-            <span class="mv-total__val">{{ '{:,}'.format(totals.distribution) }} <small>L</small></span>
+            <span class="mv-total__val">{{ totals.distribution | num }} <small>L</small></span>
             <span class="mv-total__lbl">{{ t['movement.total_distributed'] }}</span>
         </div>
         <div class="mv-total mv-total--client">
-            <span class="mv-total__val">{{ '{:,}'.format(client_total) }} <small>L</small></span>
+            <span class="mv-total__val">{{ client_total | num }} <small>L</small></span>
             <span class="mv-total__lbl">{{ t['movement.total_client'] }}</span>
-            <span class="mv-total__sub">{{ t['movement.rentree'] }} {{ '{:,}'.format(totals.rentree) }} · {{ t['movement.direct'] }} {{ '{:,}'.format(totals.direct) }} · {{ t['movement.conso'] }} {{ '{:,}'.format(totals.conso) }}</span>
+            <span class="mv-total__sub">{{ t['movement.rentree'] }} {{ totals.rentree | num }} · {{ t['movement.direct'] }} {{ totals.direct | num }} · {{ t['movement.conso'] }} {{ totals.conso | num }}</span>
         </div>
     </div>
 

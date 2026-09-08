@@ -17,7 +17,8 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
-                 modal_ok, needs_approval, require_perm, submit_change, with_current_fleet)
+                 modal_ok, needs_approval, parse_amount, require_perm,
+                 submit_change, with_current_fleet)
 from models import (CashAccount, CashMovement, Expense, Fleet, Site,
                     Staff, SupplierInvoice, SupplierPayment, Vehicle, db)
 
@@ -175,12 +176,8 @@ def _common_fields(t, methods=None):
     if not date_str or not _valid_date(date_str):
         return None, t["expense.err.date_required"]
 
-    raw = (request.form.get("amount") or "").strip().replace(" ", "").replace(",", "")
-    try:
-        amount = int(round(float(raw)))
-    except (TypeError, ValueError):
-        return None, t["expense.err.amount_required"]
-    if amount <= 0:
+    amount = parse_amount(request.form.get("amount"))
+    if amount is None or amount <= 0:
         return None, t["expense.err.amount_required"]
 
     method = (request.form.get("payment_method") or "").strip()
@@ -913,12 +910,8 @@ def _read_movement_form(kind):
     if not date_str or not _valid_date(date_str):
         return None, t["expense.err.date_required"]
 
-    raw = (request.form.get("amount") or "").strip().replace(" ", "").replace(",", "")
-    try:
-        amount = int(round(float(raw)))
-    except (TypeError, ValueError):
-        return None, t["expense.err.amount_required"]
-    if amount <= 0:
+    amount = parse_amount(request.form.get("amount"))
+    if amount is None or amount <= 0:
         return None, t["expense.err.amount_required"]
 
     method = (request.form.get("method") or "").strip()

@@ -43,7 +43,7 @@
 
         <div class="flux-client" id="flux-client">
             <img src="{{ url_for('static', filename='images/vivo-new-logo.svg') }}" alt="{{ t['flux.client'] }}" class="brand-logo flux-client__logo">
-            <div class="flux-client__sub">{{ t['flux.taken'] }} <b>{{ '{:,}'.format(rentree_total + conso_total) }}</b> L</div>
+            <div class="flux-client__sub">{{ t['flux.taken'] }} <b>{{ rentree_total + conso_total | num }}</b> L</div>
         </div>
 
         <div class="flux-tank-row">
@@ -74,7 +74,7 @@
             </div>
             <div class="flux-readout">
                 <div class="flux-name"><span class="material-symbols-outlined fuel-mark" title="{{ t['fuel.source_citerne'] }}" aria-hidden="true">local_gas_station</span> {{ citerne.name }} · {{ citerne.code }}</div>
-                <div class="flux-stock {% if citerne.stock < 0 or citerne.stock > citerne.capacity_liters %}stock-negative{% endif %}">{{ '{:,}'.format(citerne.stock) }} <small>/ {{ '{:,}'.format(citerne.capacity_liters) }} L</small></div>
+                <div class="flux-stock {% if citerne.stock < 0 or citerne.stock > citerne.capacity_liters %}stock-negative{% endif %}">{{ citerne.stock | num }} <small>/ {{ citerne.capacity_liters | num }} L</small></div>
                 {% set anom = citerne.anomaly %}
                 {% if citerne.stock < 0 %}
                 <div class="flux-line"><span class="badge badge--critical">{{ t['citerne.negative'] }}</span>
@@ -91,10 +91,10 @@
                     {% if anom.high %}<span class="muted small">{{ t['citerne.worst_high'] % {'n': anom.high, 'd': anom.high_date} }}</span>{% endif %}
                 </div>
                 {% endif %}
-                <div class="flux-line">{{ t['flux.distributed'] }} : <b>{{ '{:,}'.format(distributed_total) }}</b> L</div>
+                <div class="flux-line">{{ t['flux.distributed'] }} : <b>{{ distributed_total | num }}</b> L</div>
                 {% if conso_total %}
                 <div class="flux-engine"><span class="material-symbols-outlined" aria-hidden="true">directions_bus</span>
-                    {{ t['flux.conso'] }} : <b>{{ '{:,}'.format(conso_total) }}</b> L</div>
+                    {{ t['flux.conso'] }} : <b>{{ conso_total | num }}</b> L</div>
                 {% endif %}
             </div>
         </div>
@@ -114,7 +114,7 @@
                         <div class="flux-machine__cat">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</div>
                     </div>
                 </div>
-                <div class="flux-machine__litres"><b>{{ '{:,}'.format(liters) }}</b> L</div>
+                <div class="flux-machine__litres"><b>{{ liters | num }}</b> L</div>
             </div>
             {% endfor %}
         </div>

@@ -47,7 +47,7 @@
     <div class="card-header">
         <div class="caisse-balance {% if balance < 0 %}stock-negative{% endif %}">
             <span class="caisse-balance__label">{{ t['caisse.balance'] }}</span>
-            <strong>{{ '{:,}'.format(balance) }} {{ currency }}</strong>
+            <strong>{{ balance | num }} {{ currency }}</strong>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
             {# The printer below goes without words; this one does not. Its icon
@@ -77,14 +77,14 @@
             <span>{{ t['caisse.accounts'] }}</span>
             <span class="fold__count">{{ accounts_summary | length }}</span>
             {% if owed_total > 0 %}
-            <span class="fold__aside stock-negative">{{ t['caisse.owed'] }} : {{ '{:,}'.format(owed_total) }} {{ currency }}</span>
+            <span class="fold__aside stock-negative">{{ t['caisse.owed'] }} : {{ owed_total | num }} {{ currency }}</span>
             {% endif %}
         </summary>
         <div class="cost-split">
             {% for a in accounts_summary %}
             <div class="cost-split__row">
                 <span>{{ a.account.name }}{% if a.account.is_repayable %} <span class="badge badge--info">{{ t['list.repayable_short'] }}</span>{% endif %}</span>
-                <strong class="{% if a.account.is_repayable and a.balance > 0 %}stock-negative{% endif %}">{{ '{:,}'.format(a.balance) }} {{ currency }}</strong>
+                <strong class="{% if a.account.is_repayable and a.balance > 0 %}stock-negative{% endif %}">{{ a.balance | num }} {{ currency }}</strong>
             </div>
             {% endfor %}
         </div>
@@ -114,14 +114,14 @@
     </form>
 
     <div class="expense-total">
-        {{ t['caisse.in_month'] }}<strong>{{ '{:,}'.format(deposited) }}</strong>
+        {{ t['caisse.in_month'] }}<strong>{{ deposited | num }}</strong>
         <span class="muted small">&middot;</span>
-        {{ t['caisse.out_month'] }}<strong>{{ '{:,}'.format(total) }}</strong>
+        {{ t['caisse.out_month'] }}<strong>{{ total | num }}</strong>
         {% if withdrawn %}
         <span class="muted small">&middot;</span>
-        {{ t['caisse.withdrawn'] }}<strong>{{ '{:,}'.format(withdrawn) }}</strong>
+        {{ t['caisse.withdrawn'] }}<strong>{{ withdrawn | num }}</strong>
         {% endif %}
-        <span class="muted small">{{ currency }} &middot; {{ '{:,}'.format(count) }} {{ t['expense.count'] }}</span>
+        <span class="muted small">{{ currency }} &middot; {{ count | num }} {{ t['expense.count'] }}</span>
     </div>
 
     {# Two tabs rather than two tables stacked: money in and out is not a cost,
@@ -215,7 +215,7 @@
                     {% if m.reference %}<div class="muted small">{{ m.reference }}</div>{% endif %}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;"
                     class="{{ 'cash-in' if m.kind == 'depot' else 'stock-negative' }}">
-                    {{ '+' if m.kind == 'depot' else '-' }} {{ '{:,}'.format(m.amount) }} {{ currency }}</td>
+                    {{ '+' if m.kind == 'depot' else '-' }} {{ m.amount | num }} {{ currency }}</td>
                 <td class="row-actions">
                     {% if m.expense_id %}
                     <span class="muted small">&mdash;</span>
@@ -283,7 +283,7 @@
                         {% if e.payment_reference %}<div class="muted small">{{ e.payment_reference }}</div>{% endif %}
                     {% else %}&mdash;{% endif %}
                 </td>
-                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(e.amount) }} {{ currency }}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ e.amount | num }} {{ currency }}</td>
                 <td class="row-actions">
                     {% if e.maintenance_record_id or e.stock_movement_id %}
                     <span class="muted small">{{ t['expense.from_stock'] if e.stock_movement_id else t['expense.from_maint'] }}</span>
@@ -311,7 +311,7 @@
         <div class="list-card">
             <div class="list-card__top">
                 <span class="chip">{{ e.site.name if e.site else t['expense.cat.societe'] }}</span>
-                <span class="list-card__amount">{{ '{:,}'.format(e.amount) }} <span class="muted small">{{ currency }}</span></span>
+                <span class="list-card__amount">{{ e.amount | num }} <span class="muted small">{{ currency }}</span></span>
             </div>
             <div class="list-card__meta">
                 <span class="muted small">{{ e.date }}</span>

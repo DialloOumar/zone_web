@@ -8,7 +8,7 @@
                 <option value="" hidden></option>
                 {% set sel_p = request.form.get('part_id')|int(0) or preset_part %}
                 {% for p in parts %}
-                <option value="{{ p.id }}" {% if p.id == sel_p %}selected{% endif %}>{{ p.name }} — {{ t['mv.on_hand'] }} {{ '{:,.10g}'.format(p.quantity) }}</option>
+                <option value="{{ p.id }}" {% if p.id == sel_p %}selected{% endif %}>{{ p.name }} — {{ t['mv.on_hand'] }} {{ p.quantity | qty }}</option>
                 {% endfor %}
             </select>
             <label for="part_id">{{ t['mv.part'] }}</label>

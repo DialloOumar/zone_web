@@ -9,7 +9,7 @@
             {% if citernes %}
             <optgroup label="{{ t['rav.citernes'] }}">
                 {% for c in citernes %}
-                <option value="c:{{ c.id }}" {% if sel_t == 'c:%d' % c.id %}selected{% endif %}>{{ c.code }} — {{ '{:,}'.format(c.stock) }} L</option>
+                <option value="c:{{ c.id }}" {% if sel_t == 'c:%d' % c.id %}selected{% endif %}>{{ c.code }} — {{ c.stock | num }} L</option>
                 {% endfor %}
             </optgroup>
             {% endif %}

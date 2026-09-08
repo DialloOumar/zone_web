@@ -88,19 +88,19 @@
     {# A narrowed document is a list of costs, not a cash book: an opening and a
        closing balance would answer a question nobody asked of it. #}
     {% if not filtered and not part %}
-    <div class="print-summary-box ps-navy"><span class="ps-label">{{ t['caisse.opening'] }}</span><span class="ps-value">{{ '{:,}'.format(opening) }}</span></div>
+    <div class="print-summary-box ps-navy"><span class="ps-label">{{ t['caisse.opening'] }}</span><span class="ps-value">{{ opening | num }}</span></div>
     {% endif %}
     {% if part != 'depenses' %}
-    <div class="print-summary-box ps-green"><span class="ps-label">{{ t['caisse.deposited'] }}</span><span class="ps-value">{{ '{:,}'.format(total_in) }}</span></div>
+    <div class="print-summary-box ps-green"><span class="ps-label">{{ t['caisse.deposited'] }}</span><span class="ps-value">{{ total_in | num }}</span></div>
     {% endif %}
     {% if part != 'mouvements' %}
-    <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['caisse.spent'] }}</span><span class="ps-value">{{ '{:,}'.format(total_spent) }}</span></div>
+    <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['caisse.spent'] }}</span><span class="ps-value">{{ total_spent | num }}</span></div>
     {% endif %}
     {% if part != 'depenses' %}
-    <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['caisse.withdrawn'] }}</span><span class="ps-value">{{ '{:,}'.format(total_withdrawn) }}</span></div>
+    <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['caisse.withdrawn'] }}</span><span class="ps-value">{{ total_withdrawn | num }}</span></div>
     {% endif %}
     {% if not filtered and not part %}
-    <div class="print-summary-box ps-blue"><span class="ps-label">{{ t['caisse.closing'] }}</span><span class="ps-value">{{ '{:,}'.format(closing) }}</span></div>
+    <div class="print-summary-box ps-blue"><span class="ps-label">{{ t['caisse.closing'] }}</span><span class="ps-value">{{ closing | num }}</span></div>
     {% endif %}
 </div>
 
@@ -132,13 +132,13 @@
             {% if show_staff %}<td>{{ r.staff or '—' }}</td>{% endif %}
             <td>{{ r.label }}{% if r.description %}<div class="muted">{{ r.description }}</div>{% endif %}</td>
             <td>{{ r.account or t['expense.paid_from_box'] }}</td>
-            <td class="r">{{ '{:,}'.format(r.amount) }}</td>
+            <td class="r">{{ r.amount | num }}</td>
         </tr>
         {% endfor %}
         <tr>
             <td colspan="{{ 4 + (1 if show_qty else 0) + (1 if show_staff else 0) }}"><strong>{{ t['caisse.period_total'] }}</strong></td>
             <td></td>
-            <td class="r cash-balance-col">{{ '{:,}'.format(total_spent) }}</td>
+            <td class="r cash-balance-col">{{ total_spent | num }}</td>
         </tr>
     </tbody>
 </table>
@@ -168,14 +168,14 @@
             <td>{% if r.from_expense %}{{ t['caisse.from_expense'] }}
                 {%- elif r.note or r.reference %}{{ r.note or r.reference }}
                 {%- else %}&mdash;{% endif %}</td>
-            <td class="r">{% if r['in'] %}{{ '{:,}'.format(r['in']) }}{% endif %}</td>
-            <td class="r">{% if r.out %}{{ '{:,}'.format(r.out) }}{% endif %}</td>
+            <td class="r">{% if r['in'] %}{{ r['in'] | num }}{% endif %}</td>
+            <td class="r">{% if r.out %}{{ r.out | num }}{% endif %}</td>
         </tr>
         {% endfor %}
         <tr>
             <td colspan="4"><strong>{{ t['caisse.period_total'] }}</strong></td>
-            <td class="r cash-balance-col">{{ '{:,}'.format(total_in) }}</td>
-            <td class="r cash-balance-col">{{ '{:,}'.format(total_withdrawn) }}</td>
+            <td class="r cash-balance-col">{{ total_in | num }}</td>
+            <td class="r cash-balance-col">{{ total_withdrawn | num }}</td>
         </tr>
     </tbody>
 </table>
@@ -194,9 +194,9 @@
         {% for a in accounts_summary %}
         <tr>
             <td>{{ a.account.name }}{% if not a.account.is_repayable %} <span class="muted">({{ t['list.internal'] }})</span>{% endif %}</td>
-            <td class="r">{{ '{:,}'.format(a['in']) }}</td>
-            <td class="r">{{ '{:,}'.format(a.out) }}</td>
-            <td class="r cash-balance-col">{{ '{:,}'.format(a.balance) if a.account.is_repayable else '—' }}</td>
+            <td class="r">{{ a['in'] | num }}</td>
+            <td class="r">{{ a.out | num }}</td>
+            <td class="r cash-balance-col">{{ a.balance | num if a.account.is_repayable else '—' }}</td>
         </tr>
         {% endfor %}
     </tbody>

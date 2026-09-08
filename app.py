@@ -209,6 +209,71 @@ def _page_args():
     return args
 
 
+# ── Money, read and written ──────────────────────────────────────────────────
+#
+# Amounts here run to seven and eight digits, and a wall of them is unreadable:
+# 5000000 and 50000000 look alike long enough to key one for the other. So every
+# figure on screen is grouped in threes, and so is every figure being typed --
+# main.js groups a money field as it is filled in.
+#
+# The separator is a no-break space, not a comma. French reads a comma as the
+# decimal mark, so "1,500,000" says something else entirely to the people using
+# this, and the space is what they write by hand anyway. No-break so a figure
+# never breaks across two lines.
+THIN_SPACE = "\u00a0"
+
+
+@app.template_filter("num")
+def _num(value):
+    """An integer grouped for reading: 1 500 000. Anything that is not a number
+    is handed back untouched, so a filter can never blank a field."""
+    try:
+        n = int(round(float(value)))
+    except (TypeError, ValueError):
+        return value
+    return "{:,}".format(n).replace(",", THIN_SPACE)
+
+
+@app.template_filter("qty")
+def _qty(value):
+    """A quantity, which unlike money may not be whole: 1 250, or 2.5 litres.
+
+    Grouped the same way, and for the same reason — and the fraction keeps its
+    point, because a comma there would be read as the thousands separator by
+    exactly the readers a comma every three digits already misleads.
+    """
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return value
+    text = "{:.10g}".format(f)
+    if "e" in text or "E" in text:      # too big or too small to group sensibly
+        return text
+    sign, text = ("-", text[1:]) if text.startswith("-") else ("", text)
+    whole, _, frac = text.partition(".")
+    whole = "{:,}".format(int(whole or 0)).replace(",", THIN_SPACE)
+    return sign + whole + ("." + frac if frac else "")
+
+
+# Everything the grouping puts in, plus what someone might type themselves: the
+# spaces, the no-break spaces the page inserts, an apostrophe, a comma out of
+# habit. In a currency without decimals they all mean the same thing -- nothing.
+_AMOUNT_JUNK = str.maketrans("", "", " \u00a0\u202f\u2009,'")
+
+
+def parse_amount(raw):
+    """A money field as it was typed, back to a whole number.
+
+    Returns None when it is not a number at all, which every caller reports as
+    "give a valid amount" -- one reading of a money field for the whole app, so
+    a separator the page itself inserted can never be rejected on save.
+    """
+    try:
+        return int(round(float((raw or "").strip().translate(_AMOUNT_JUNK))))
+    except (TypeError, ValueError):
+        return None
+
+
 # ── Access control: categories, permissions, scoping ─────────────────────────
 
 

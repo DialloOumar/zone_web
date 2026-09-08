@@ -7,10 +7,10 @@
 <div class="expense-total" style="margin-top:0;">
     {{ t['invoice.supplier'] }} <strong>{{ invoice.supplier.name }}</strong>
     <span class="muted small">&middot;</span>
-    {{ t['invoice.amount'] }} <strong>{{ '{:,}'.format(invoice.amount) }} {{ currency }}</strong>
+    {{ t['invoice.amount'] }} <strong>{{ invoice.amount | num }} {{ currency }}</strong>
     {% if invoice.remaining > 0 %}
     <span class="muted small">&middot;</span>
-    {{ t['invoice.remaining'] }} <strong class="stock-negative">{{ '{:,}'.format(invoice.remaining) }}</strong>
+    {{ t['invoice.remaining'] }} <strong class="stock-negative">{{ invoice.remaining | num }}</strong>
     {% endif %}
 </div>
 
@@ -23,7 +23,7 @@
             {# Pre-filled with the whole of what is still owed, because that is
                what is usually paid; type less for a part payment. #}
             {% set default_amount = payment.amount if is_edit else invoice.remaining %}
-            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
                    value="{{ request.form.get('amount') or default_amount }}">
             <label for="amount">{{ t['invoice.paid_amount'] }}</label>
         </div>

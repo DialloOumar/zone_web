@@ -10,7 +10,7 @@
             <label for="date">{{ t['expense.date'] }}</label>
         </div>
         <div class="field">
-            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
                    value="{{ request.form.get('amount') or (deposit.amount if is_edit else '') }}">
             <label for="amount">{{ t['caisse.amount'] }}</label>
         </div>

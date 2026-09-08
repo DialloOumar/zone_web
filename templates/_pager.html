@@ -7,8 +7,8 @@
 {% if pagination.total %}
 <div class="pager">
     <span class="pager-info">
-        {{ '{:,}'.format(pagination.first) }}&ndash;{{ '{:,}'.format(pagination.last) }}
-        {{ t['pager.of'] }} {{ '{:,}'.format(pagination.total) }}
+        {{ pagination.first | num }}&ndash;{{ pagination.last | num }}
+        {{ t['pager.of'] }} {{ pagination.total | num }}
     </span>
     {% if pagination.pages > 1 %}
     {% if pagination.has_prev %}

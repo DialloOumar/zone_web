@@ -6,7 +6,7 @@
 {% block content %}
 <section class="card">
     <div class="card-header card-header--end">
-        <span class="muted small">{{ '{:,}'.format(pagination.total) }} {{ t['audit.entries'] }}</span>
+        <span class="muted small">{{ pagination.total | num }} {{ t['audit.entries'] }}</span>
     </div>
 
     <form method="get" class="filter-bar">

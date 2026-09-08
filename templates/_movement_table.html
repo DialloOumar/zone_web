@@ -29,31 +29,31 @@
            at when a tank's history does not add up. #}
         <tr {% if m.out_of_range %}class="mv-row--out"{% endif %}>
             <td>{{ m.date }}{% if m.time %}<div class="muted small">{{ m.time }}</div>{% endif %}
-                {% if m.out_of_range %}<div class="muted small stock-negative">{{ '{:,}'.format(m.level_after) }} L</div>{% endif %}</td>
+                {% if m.out_of_range %}<div class="muted small stock-negative">{{ m.level_after | num }} L</div>{% endif %}</td>
             {% if m.kind == 'releve' %}
             {% set ec = m.ecart %}
             {% set bad = ec is not none and (ec > seuil or ec < -seuil) %}
             <td><span class="mv-chip mv-chip--gauge">{{ t['movement.releve'] }}</span></td>
             <td>{{ m.citerne.code }}</td>
             <td><span class="muted">—</span></td>
-            <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ '{:,}'.format(m.liters) }} L</td>
+            <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ m.liters | num }} L</td>
             <td class="col-secondary">
                 {% if ec is none or ec == 0 %}<span class="ecart-ok">{{ t['releve.consistent'] }}</span>
-                {% elif ec > 0 %}<span class="{{ 'ecart-bad' if bad else 'muted' }}">{{ '{:,}'.format(ec) }} L {{ t['releve.missing'] }}</span>
-                {% else %}<span class="{{ 'ecart-bad' if bad else 'muted' }}">{{ '{:,}'.format(-ec) }} L {{ t['releve.surplus'] }}</span>{% endif %}
+                {% elif ec > 0 %}<span class="{{ 'ecart-bad' if bad else 'muted' }}">{{ ec | num }} L {{ t['releve.missing'] }}</span>
+                {% else %}<span class="{{ 'ecart-bad' if bad else 'muted' }}">{{ -ec | num }} L {{ t['releve.surplus'] }}</span>{% endif %}
                 {% if bad %} <span class="material-symbols-outlined ecart-bad" style="font-size:16px; vertical-align:-3px;">warning</span>{% endif %}
             </td>
             {% elif m.kind == 'conso' %}
             <td><span class="mv-chip mv-chip--conso">{{ t['movement.conso'] }}</span></td>
             <td>{{ m.citerne.code }}</td>
             <td>{{ machine_cell(m.vehicle) }}</td>
-            <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ '{:,}'.format(m.liters) }} L</td>
+            <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ m.liters | num }} L</td>
             <td class="col-secondary muted">{{ m.operator or t['conso.own'] }}</td>
             {% elif m.kind == 'direct' %}
             <td><span class="mv-chip mv-chip--direct">{{ t['movement.direct'] }}</span></td>
             <td><span class="muted">{{ t['distribution.client'] }}</span></td>
             <td>{{ machine_cell(m.vehicle) }}</td>
-            <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ '{:,}'.format(m.liters) }} L</td>
+            <td style="text-align:right; font-weight:700; white-space:nowrap;">{{ m.liters | num }} L</td>
             <td class="col-secondary muted">{{ m.operator or '—' }}</td>
             {% else %}
             {% set is_in = m.kind == 'rentree' %}
@@ -61,7 +61,7 @@
             <td>{{ m.citerne.code }}</td>
             <td>{{ machine_cell(m.vehicle) }}</td>
             <td style="text-align:right; font-weight:700; white-space:nowrap;" class="{{ 'lit-in' if is_in else 'lit-out' }}">
-                {{ '+' if is_in else '−' }}{{ '{:,}'.format(m.liters) }} L
+                {{ '+' if is_in else '−' }}{{ m.liters | num }} L
             </td>
             <td class="col-secondary muted">{{ m.operator or m.note or '—' }}</td>
             {% endif %}

@@ -9,28 +9,28 @@
     <div class="stat-card">
         <span class="stat-icon stat-icon--blue material-symbols-outlined">history</span>
         <div>
-            <div class="stat-value">{{ '{:,.0f}'.format(stats.hours) }}<span class="stat-unit"> h</span></div>
+            <div class="stat-value">{{ stats.hours | num }}<span class="stat-unit"> h</span></div>
             <div class="stat-label">{{ t['dash.month_hours'] }}</div>
         </div>
     </div>
     <div class="stat-card">
         <span class="stat-icon stat-icon--indigo material-symbols-outlined">directions_bus</span>
         <div>
-            <div class="stat-value">{{ '{:,}'.format(stats.trips) }}</div>
+            <div class="stat-value">{{ stats.trips | num }}</div>
             <div class="stat-label">{{ t['dash.month_trips'] }}</div>
         </div>
     </div>
     <div class="stat-card">
         <span class="stat-icon stat-icon--teal material-symbols-outlined">donut_large</span>
         <div>
-            <div class="stat-value">{{ '{:,.0f}'.format(stats.km) }}<span class="stat-unit"> km</span></div>
+            <div class="stat-value">{{ stats.km | num }}<span class="stat-unit"> km</span></div>
             <div class="stat-label">{{ t['dash.month_km'] }}</div>
         </div>
     </div>
     <div class="stat-card">
         <span class="stat-icon stat-icon--amber material-symbols-outlined">local_gas_station</span>
         <div>
-            <div class="stat-value">{{ '{:,.0f}'.format(stats.liters) }}<span class="stat-unit"> L</span></div>
+            <div class="stat-value">{{ stats.liters | num }}<span class="stat-unit"> L</span></div>
             <div class="stat-label">{{ t['dash.month_liters'] }}</div>
         </div>
     </div>
@@ -38,7 +38,7 @@
     <div class="stat-card">
         <span class="stat-icon {{ 'stat-icon--red' if stats.citernes_off else 'stat-icon--teal' }} material-symbols-outlined">local_gas_station</span>
         <div>
-            <div class="stat-value {% if stats.citernes_off %}stock-negative{% endif %}">{{ '{:,.0f}'.format(stats.citerne_stock) }}<span class="stat-unit"> L</span></div>
+            <div class="stat-value {% if stats.citernes_off %}stock-negative{% endif %}">{{ stats.citerne_stock | num }}<span class="stat-unit"> L</span></div>
             <div class="stat-label">{{ t['dash.citerne_stock'] }}</div>
             {% if stats.citernes_off %}
             <a class="muted small stock-negative" href="{{ url_for('carburant.index') }}">

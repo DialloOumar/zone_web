@@ -91,7 +91,7 @@
                 <td style="text-align:right; white-space:nowrap;">
                     {% if sp %}
                     <a href="{{ url_for('expenses.index', staff=p.id, date_from='', date_to='') }}">
-                        <strong>{{ '{:,}'.format(sp.total) }} {{ currency }}</strong>
+                        <strong>{{ sp.total | num }} {{ currency }}</strong>
                     </a>
                     <div class="muted small">{{ sp.count }} {{ t['expense.count'] }}</div>
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
@@ -132,7 +132,7 @@
         <div class="list-card">
             <div class="list-card__top">
                 <strong>{{ p.name }}</strong>
-                {% if sp %}<span class="list-card__amount">{{ '{:,}'.format(sp.total) }} <span class="muted small">{{ currency }}</span></span>{% endif %}
+                {% if sp %}<span class="list-card__amount">{{ sp.total | num }} <span class="muted small">{{ currency }}</span></span>{% endif %}
             </div>
             <div class="list-card__meta">
                 {% if p.position %}<span class="chip">{{ p.position.name }}</span>{% endif %}

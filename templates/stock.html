@@ -7,7 +7,7 @@
 <section class="card">
     <div class="card-header">
         <div style="display:flex; gap:14px; align-items:baseline; flex-wrap:wrap;">
-            <span class="muted small">{{ t['stock.total_value'] }} <strong>{{ '{:,}'.format(total_value) }}</strong> GNF</span>
+            <span class="muted small">{{ t['stock.total_value'] }} <strong>{{ total_value | num }}</strong> GNF</span>
             {% if low_count %}
             <span class="badge badge--warning">{{ low_count }} {{ t['stock.to_reorder'] }}</span>
             {% endif %}
@@ -76,17 +76,17 @@
                     </span>
                 </td>
                 <td style="text-align:right; white-space:nowrap;">
-                    <strong>{{ '{:,.10g}'.format(p.quantity) }}</strong>
+                    <strong>{{ p.quantity | qty }}</strong>
                     {% if p.below_reorder %}
-                    <span class="badge badge--warning" title="{{ t['part.reorder_at'] }} {{ '{:,.10g}'.format(p.reorder_level) }}">{{ t['stock.reorder'] }}</span>
+                    <span class="badge badge--warning" title="{{ t['part.reorder_at'] }} {{ p.reorder_level | qty }}">{{ t['stock.reorder'] }}</span>
                     {% endif %}
                 </td>
                 <td class="col-secondary" style="text-align:right; white-space:nowrap;">
-                    {% if p.average_cost_as_of() is not none %}{{ '{:,}'.format(p.average_cost_as_of()) }}
+                    {% if p.average_cost_as_of() is not none %}{{ p.average_cost_as_of() | num }}
                     {% else %}<span class="muted">—</span>{% endif %}
                 </td>
                 <td class="col-secondary" style="text-align:right; white-space:nowrap;">
-                    {% if p.stock_value is not none %}{{ '{:,}'.format(p.stock_value) }}
+                    {% if p.stock_value is not none %}{{ p.stock_value | num }}
                     {% else %}<span class="muted">—</span>{% endif %}
                 </td>
                 <td class="row-actions">
@@ -124,11 +124,11 @@
         <div class="list-card">
             <div class="list-card__top">
                 <strong>{{ p.name }}</strong>
-                <span class="list-card__amount">{{ '{:,.10g}'.format(p.quantity) }} <span class="muted small">{{ t['unit.' + p.unit] }}</span></span>
+                <span class="list-card__amount">{{ p.quantity | qty }} <span class="muted small">{{ t['unit.' + p.unit] }}</span></span>
             </div>
             <div class="list-card__meta">
                 <span class="muted small">
-                    {% if p.stock_value is not none %}{{ '{:,}'.format(p.stock_value) }} GNF{% else %}—{% endif %}
+                    {% if p.stock_value is not none %}{{ p.stock_value | num }} GNF{% else %}—{% endif %}
                 </span>
                 {% if p.below_reorder %}<span class="badge badge--warning">{{ t['stock.reorder'] }}</span>{% endif %}
             </div>

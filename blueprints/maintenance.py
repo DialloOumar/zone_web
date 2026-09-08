@@ -17,6 +17,7 @@ from flask_login import current_user, login_required
 
 import maintenance_engine
 from app import (current_user_categories, current_user_fleet_ids, get_t,
+                 parse_amount,
                  is_modal_request, log_action, modal_ok, needs_approval,
                  require_perm, scoped, submit_change, with_current_fleet)
 from blueprints.expenses import MAINTENANCE_CATEGORY, PAYMENT_METHODS
@@ -358,9 +359,9 @@ def _read_record_form(record):
     if not date_str or not _valid_date(date_str):
         return None, t["maint.err.date_required"]
 
-    cost, e3 = _num(request.form.get("cost"),
-                    lambda s: int(round(float(s.replace(" ", "")))))
-    if e3:
+    raw_cost = (request.form.get("cost") or "").strip()
+    cost = parse_amount(raw_cost) if raw_cost else None
+    if raw_cost and cost is None:
         return None, t["maint.err.bad_number"]
 
     # A cost has to say how it was paid, since it becomes a ledger row.

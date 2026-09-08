@@ -33,7 +33,7 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
                    value="{{ request.form.get('amount') or (invoice.amount if is_edit else '') }}">
             <label for="amount">{{ t['invoice.amount'] }}</label>
         </div>

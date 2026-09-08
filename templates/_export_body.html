@@ -16,9 +16,9 @@
     </div>
 
     <div class="print-summary">
-        <div class="print-summary-box ps-blue"><span class="ps-label">{{ t['export.voyages'] }}</span><span class="ps-value">{{ '{:,}'.format(total_trips|round|int) }}</span></div>
+        <div class="print-summary-box ps-blue"><span class="ps-label">{{ t['export.voyages'] }}</span><span class="ps-value">{{ total_trips|round|int | num }}</span></div>
         <div class="print-summary-box ps-green"><span class="ps-label">{{ t['export.heures'] }}</span><span class="ps-value">{{ total_hours }} h</span></div>
-        <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['export.km'] }}</span><span class="ps-value">{{ '{:,}'.format(total_km|round|int) }} km</span></div>
+        <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['export.km'] }}</span><span class="ps-value">{{ total_km|round|int | num }} km</span></div>
         <div class="print-summary-box ps-navy"><span class="ps-label">{{ t['export.count'] }}</span><span class="ps-value">{{ entries|length }}</span></div>
     </div>
 
@@ -63,7 +63,7 @@
         <tfoot>
             <tr>
                 <td colspan="4">{{ entries|length }} {{ t['export.count']|lower }}</td>
-                <td class="r">{{ '{:,}'.format(total_km|round|int) }} km</td>
+                <td class="r">{{ total_km|round|int | num }} km</td>
                 <td colspan="2"></td>
             </tr>
         </tfoot>

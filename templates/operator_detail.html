@@ -58,7 +58,7 @@
         </div>
         <div class="stat-card">
             <span class="stat-icon stat-icon--green material-symbols-outlined">donut_large</span>
-            <div><div class="stat-value">{{ '{:,.0f}'.format(tot_km) }}</div><div class="stat-label">{{ t['operator.kpi.km'] }}</div></div>
+            <div><div class="stat-value">{{ tot_km | num }}</div><div class="stat-label">{{ t['operator.kpi.km'] }}</div></div>
         </div>
     </div>
 </section>
@@ -116,7 +116,7 @@
                 <td>{{ m.date }}</td>
                 <td><a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a></td>
                 <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
-                <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ '{:,}'.format(m.cost) }} {{ currency }}{% else %}—{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ m.cost | num }} {{ currency }}{% else %}—{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>

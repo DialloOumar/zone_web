@@ -19,7 +19,8 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 import s3_storage
-from app import get_t, is_modal_request, log_action, modal_ok, require_perm
+from app import (get_t, is_modal_request, log_action, modal_ok,
+                 parse_amount, require_perm)
 from blueprints.expenses import PARTS_CATEGORY, PAYMENT_METHODS
 from models import Expense, Part, StockMovement, db
 
@@ -154,8 +155,9 @@ def _read_part_form(part):
     # What the opening stock is worth per unit. Attached to those parts and to
     # nothing else — there is no catalogue price on a part, so no second price
     # to wonder about.
-    opening_price, bad = _num(request.form.get("opening_price"),
-                              lambda s: int(round(float(s))))
+    raw_price = (request.form.get("opening_price") or "").strip()
+    opening_price = parse_amount(raw_price) if raw_price else None
+    bad = bool(raw_price) and opening_price is None
     if bad or (opening_price is not None and opening_price < 0):
         return None, t.get("part.err.price", "Prix invalide.")
 
@@ -403,7 +405,9 @@ def _read_entree_form():
         return None, t.get("mv.err.quantity", "Quantité invalide.")
 
     try:
-        unit_price = int(round(float((request.form.get("unit_price") or "").replace(" ", ""))))
+        unit_price = parse_amount(request.form.get("unit_price"))
+        if unit_price is None:
+            raise ValueError
     except ValueError:
         return None, t.get("mv.err.price", "Prix invalide.")
     if unit_price < 0:

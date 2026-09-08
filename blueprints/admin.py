@@ -312,7 +312,8 @@ def _save_fleet(fleet):
     in_force = current_rates(fleet.id)
     rate_changes = 0
     for code in categories:
-        raw = (request.form.get("rate_" + code) or "").strip().replace(" ", "")
+        raw = ((request.form.get("rate_" + code) or "")
+               .strip().replace(" ", "").replace("\u00a0", ""))
         if not raw:
             continue
         try:

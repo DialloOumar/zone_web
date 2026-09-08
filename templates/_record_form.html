@@ -31,7 +31,7 @@
             <label for="date">{{ t['maint.date'] }}</label>
         </div>
         <div class="field">
-            <input type="text" inputmode="numeric" id="cost" name="cost" placeholder="{{ t['ph.record.cost'] }}"
+            <input data-money type="text" inputmode="numeric" id="cost" name="cost" placeholder="{{ t['ph.record.cost'] }}"
                    value="{{ request.form.get('cost') or (record.cost if is_edit and record.cost is not none else '') }}">
             <label for="cost">{{ t['maint.cost'] }}</label>
         </div>
@@ -98,7 +98,7 @@
                     <select name="part_id">
                         <option value="">{{ t['form.select'] }}</option>
                         {% for p in stock_parts %}
-                        <option value="{{ p.id }}" {% if pid == p.id|string %}selected{% endif %}>{{ p.name }} — {{ '{:,.10g}'.format(p.quantity) }} {{ t['unit.' + p.unit] }}</option>
+                        <option value="{{ p.id }}" {% if pid == p.id|string %}selected{% endif %}>{{ p.name }} — {{ p.quantity | qty }} {{ t['unit.' + p.unit] }}</option>
                         {% endfor %}
                     </select>
                     <label>{{ t['mv.part'] }}</label>
@@ -126,7 +126,7 @@
                 <select name="part_id">
                     <option value="">{{ t['form.select'] }}</option>
                     {% for p in stock_parts %}
-                    <option value="{{ p.id }}">{{ p.name }} — {{ '{:,.10g}'.format(p.quantity) }} {{ t['unit.' + p.unit] }}</option>
+                    <option value="{{ p.id }}">{{ p.name }} — {{ p.quantity | qty }} {{ t['unit.' + p.unit] }}</option>
                     {% endfor %}
                 </select>
                 <label>{{ t['mv.part'] }}</label>

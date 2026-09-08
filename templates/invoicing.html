@@ -35,7 +35,7 @@
 
     <div class="invoice-total">
         <span class="invoice-total__label">{{ t['invoicing.total_client'] }}</span>
-        <span class="invoice-total__value">{{ '{:,.0f}'.format(total) }} <span class="stat-unit">{{ currency }}</span></span>
+        <span class="invoice-total__value">{{ total | num }} <span class="stat-unit">{{ currency }}</span></span>
     </div>
 
     <div class="table-desktop">
@@ -56,16 +56,16 @@
                 <td><span class="chip chip--{{ r.v.category.code|lower }}">{{ r.v.category.label_fr if lang == 'fr' else r.v.category.label }}</span></td>
                 <td style="text-align:right;">{{ '%.0f'|format(r.units) }} {{ t['unit.' + r.unit_type] }}</td>
                 <td style="text-align:right;">
-                    {% if r.ref_rate is not none %}{{ '{:,.0f}'.format(r.ref_rate) }}/{{ t['unit.' + r.unit_type] }}{% else %}<span class="variance--danger">{{ t['invoicing.no_rate'] }}</span>{% endif %}
+                    {% if r.ref_rate is not none %}{{ r.ref_rate | num }}/{{ t['unit.' + r.unit_type] }}{% else %}<span class="variance--danger">{{ t['invoicing.no_rate'] }}</span>{% endif %}
                 </td>
-                <td style="text-align:right;"><strong>{{ '{:,.0f}'.format(r.amount) }}</strong>{% if r.missing %} <span class="variance--danger" title="{{ t['invoicing.missing_rate_warn'] }}">*</span>{% endif %}</td>
+                <td style="text-align:right;"><strong>{{ r.amount | num }}</strong>{% if r.missing %} <span class="variance--danger" title="{{ t['invoicing.missing_rate_warn'] }}">*</span>{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>
         <tfoot>
             <tr>
                 <td colspan="4" style="text-align:right;"><strong>{{ t['invoicing.total_client'] }}</strong></td>
-                <td style="text-align:right;"><strong>{{ '{:,.0f}'.format(total) }} {{ currency }}</strong></td>
+                <td style="text-align:right;"><strong>{{ total | num }} {{ currency }}</strong></td>
             </tr>
         </tfoot>
     </table>
@@ -77,12 +77,12 @@
         <div class="list-card">
             <div class="list-card__top">
                 <a href="{{ url_for('vehicles.detail', vid=r.v.id) }}"><strong>{{ r.v.code }}</strong></a>
-                <span class="list-card__amount">{{ '{:,.0f}'.format(r.amount) }} <span class="muted small">{{ currency }}</span>{% if r.missing %} <span class="variance--danger">*</span>{% endif %}</span>
+                <span class="list-card__amount">{{ r.amount | num }} <span class="muted small">{{ currency }}</span>{% if r.missing %} <span class="variance--danger">*</span>{% endif %}</span>
             </div>
             <div class="list-card__meta">
                 <span class="chip chip--{{ r.v.category.code|lower }}">{{ r.v.category.label_fr if lang == 'fr' else r.v.category.label }}</span>
                 <span class="muted small">{{ '%.0f'|format(r.units) }} {{ t['unit.' + r.unit_type] }}</span>
-                {% if r.ref_rate is not none %}<span class="muted small">× {{ '{:,.0f}'.format(r.ref_rate) }}</span>{% else %}<span class="variance--danger small">{{ t['invoicing.no_rate'] }}</span>{% endif %}
+                {% if r.ref_rate is not none %}<span class="muted small">× {{ r.ref_rate | num }}</span>{% else %}<span class="variance--danger small">{{ t['invoicing.no_rate'] }}</span>{% endif %}
             </div>
         </div>
         {% endfor %}

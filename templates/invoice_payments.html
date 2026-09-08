@@ -21,14 +21,14 @@
         </div>
         <div class="caisse-balance {% if invoice.remaining > 0 %}stock-negative{% endif %}">
             <span class="caisse-balance__label">{{ t['invoice.remaining'] }}</span>
-            <strong>{{ '{:,}'.format(invoice.remaining) }} {{ currency }}</strong>
+            <strong>{{ invoice.remaining | num }} {{ currency }}</strong>
         </div>
     </div>
 
     <div class="expense-total">
-        {{ t['invoice.amount'] }} <strong>{{ '{:,}'.format(invoice.amount) }}</strong>
+        {{ t['invoice.amount'] }} <strong>{{ invoice.amount | num }}</strong>
         <span class="muted small">&middot;</span>
-        {{ t['invoice.paid'] }}<strong>{{ '{:,}'.format(invoice.paid_amount) }}</strong>
+        {{ t['invoice.paid'] }}<strong>{{ invoice.paid_amount | num }}</strong>
         <span class="muted small">{{ currency }} &middot; {{ invoice.payments | length }} {{ t['invoice.payment_count'] }}</span>
     </div>
 
@@ -63,7 +63,7 @@
             {% for p in invoice.payments %}
             <tr>
                 <td style="white-space:nowrap;">{{ p.date }}</td>
-                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ '{:,}'.format(p.amount) }} {{ currency }}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ p.amount | num }} {{ currency }}</td>
                 <td>{% if p.method %}{{ t['pay.' + p.method] }}{% else %}<span class="muted">&mdash;</span>{% endif %}
                     {% if p.reference %}<div class="muted small">{{ p.reference }}</div>{% endif %}</td>
                 <td>

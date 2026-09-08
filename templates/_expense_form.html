@@ -57,7 +57,7 @@
             {% for i in invoices %}
             <option value="{{ i.id }}" {% if i.id == sel_inv %}selected{% endif %}>
                 {{ i.supplier.name }}{% if i.number %} — {{ i.number }}{% endif %}
-                — {{ t['invoice.remaining'] | lower }} {{ '{:,}'.format(i.remaining) }} {{ currency }}
+                — {{ t['invoice.remaining'] | lower }} {{ i.remaining | num }} {{ currency }}
             </option>
             {% endfor %}
         </select>
@@ -84,7 +84,7 @@
 
     <div class="form-row">
         <div class="field">
-            <input type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
                    value="{{ request.form.get('amount') or (expense.amount if is_edit else '') }}">
             <label for="amount">{{ t['expense.amount'] }}</label>
         </div>

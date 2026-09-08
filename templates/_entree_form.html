@@ -28,7 +28,7 @@
             <label for="quantity">{{ t['entree.quantity'] }}</label>
         </div>
         <div class="field">
-            <input type="number" id="unit_price" name="unit_price" placeholder=" " min="0" required
+            <input data-money type="text" inputmode="numeric" id="unit_price" name="unit_price" placeholder=" " required
                    value="{{ request.form.get('unit_price') or '' }}">
             <label for="unit_price">{{ t['entree.unit_price'] }}</label>
         </div>

@@ -399,4 +399,71 @@ document.addEventListener("click", function (e) {
     }
 })();
 
+// ── Money fields ──
+// Amounts here run to seven and eight digits. Typed bare, 5000000 and 50000000
+// are the same shape to the eye, and one gets keyed for the other. So a money
+// field groups itself in threes while it is being filled in, exactly as the
+// figures elsewhere on the page are grouped.
+//
+// The separator is a no-break space, and every reader of a money field on the
+// server takes it back out again (parse_amount), so what is typed and what is
+// saved never disagree. A field with no JavaScript running still works: bare
+// digits are read the same way.
+(function () {
+    var NBSP = "\u00a0";
+
+    function group(digits) {
+        // From the right, because that is where the grouping starts.
+        var out = "", n = 0;
+        for (var i = digits.length - 1; i >= 0; i--) {
+            out = digits[i] + out;
+            if (++n % 3 === 0 && i > 0) out = NBSP + out;
+        }
+        return out;
+    }
+
+    function format(el) {
+        var before = el.value;
+        // Where the caret sits, counted in digits rather than characters: the
+        // separators move about, the digits do not.
+        var caret = el.selectionStart === null ? before.length : el.selectionStart;
+        var digitsBefore = before.slice(0, caret).replace(/\D/g, "").length;
+
+        var digits = before.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+        var after = group(digits);
+        if (after === before) return;
+        el.value = after;
+
+        // Put the caret back where the same digit is now.
+        if (el.selectionStart === null) return;
+        var seen = 0, pos = after.length;
+        for (var i = 0; i < after.length; i++) {
+            if (seen === digitsBefore) { pos = i; break; }
+            if (/\d/.test(after[i])) seen++;
+        }
+        if (seen === digitsBefore && pos === after.length) pos = after.length;
+        try { el.setSelectionRange(pos, pos); } catch (err) { /* not a text field */ }
+    }
+
+    function bind(root) {
+        (root || document).querySelectorAll("input[data-money]").forEach(function (el) {
+            if (el.dataset.moneyBound) return;
+            el.dataset.moneyBound = "1";
+            el.addEventListener("input", function () { format(el); });
+            el.addEventListener("blur", function () { format(el); });
+            format(el);   // whatever the server put there, grouped too
+        });
+    }
+
+    bind(document);
+    // A form can arrive after the page has: the modal fetches one and drops it
+    // in. Watching for added nodes catches those without the modal code having
+    // to know this exists.
+    new MutationObserver(function (records) {
+        for (var i = 0; i < records.length; i++) {
+            if (records[i].addedNodes.length) { bind(document); return; }
+        }
+    }).observe(document.body, { childList: true, subtree: true });
+})();
+
 console.log("Zone Web booted");

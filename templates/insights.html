@@ -29,7 +29,7 @@
     <div class="stat-card">
         <span class="stat-icon stat-icon--green material-symbols-outlined">payments</span>
         <div>
-            <div class="stat-value">{{ '{:,.0f}'.format(fleet_total) }}<span class="stat-unit"> {{ currency }}</span></div>
+            <div class="stat-value">{{ fleet_total | num }}<span class="stat-unit"> {{ currency }}</span></div>
             <div class="stat-label">{{ t['insights.fleet_total'] }}</div>
         </div>
     </div>
@@ -124,12 +124,12 @@
                 <td>
                     <a href="{{ url_for('vehicles.detail', vid=r.v.id) }}"><strong>{{ r.v.code }}</strong></a>
                 </td>
-                <td style="text-align:right;">{{ '{:,.0f}'.format(r.fuel) }}</td>
-                <td style="text-align:right;">{{ '{:,.0f}'.format(r.maint) }}</td>
-                <td style="text-align:right;">{{ '{:,.0f}'.format(r.other) }}</td>
-                <td style="text-align:right;"><strong>{{ '{:,.0f}'.format(r.total) }}</strong></td>
-                <td style="text-align:right;">{% if r.per_unit is not none %}{{ '{:,.0f}'.format(r.per_unit) }}/{{ unit(t, r.unit_type) }}{% else %}—{% endif %}</td>
-                <td style="text-align:right;">{% if r.per_km is not none %}{{ '{:,.0f}'.format(r.per_km) }}/km{% else %}—{% endif %}</td>
+                <td style="text-align:right;">{{ r.fuel | num }}</td>
+                <td style="text-align:right;">{{ r.maint | num }}</td>
+                <td style="text-align:right;">{{ r.other | num }}</td>
+                <td style="text-align:right;"><strong>{{ r.total | num }}</strong></td>
+                <td style="text-align:right;">{% if r.per_unit is not none %}{{ r.per_unit | num }}/{{ unit(t, r.unit_type) }}{% else %}—{% endif %}</td>
+                <td style="text-align:right;">{% if r.per_km is not none %}{{ r.per_km | num }}/km{% else %}—{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>
