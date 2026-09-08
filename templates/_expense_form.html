@@ -57,9 +57,8 @@
             </option>
             {% endfor %}
         </select>
-        <label for="invoice_id">{{ t['expense.invoice'] }}</label>
+        <label for="invoice_id">{{ t['expense.invoice'] }} {{ hint(t['form.optional'], t['expense.invoice_hint']) }}</label>
     </div>
-    {{ hint(t['form.optional'], t['expense.invoice_hint']) }}
     {% endif %}
 
     {# Who the money went out for. Hidden entirely until there is somebody to
@@ -73,9 +72,8 @@
             <option value="{{ p.id }}" {% if p.id == sel_staff %}selected{% endif %}>{{ p.name }}</option>
             {% endfor %}
         </select>
-        <label for="staff_id">{{ t['expense.staff'] }}</label>
+        <label for="staff_id">{{ t['expense.staff'] }} {{ hint(t['form.optional'], t['expense.staff_hint']) }}</label>
     </div>
-    {{ hint(t['form.optional'], t['expense.staff_hint']) }}
     {% endif %}
 
     <div class="form-row">
@@ -106,9 +104,8 @@
             <option value="{{ a.id }}" {% if a.id | string == sel_acc %}selected{% endif %}>{{ a.name }}</option>
             {% endfor %}
         </select>
-        <label for="account_id">{{ t['expense.paid_from'] }}</label>
+        <label for="account_id">{{ t['expense.paid_from'] }} {{ hint(t['form.optional'], t['expense.paid_from_hint']) }}</label>
     </div>
-    {{ hint(t['expense.paid_from_short'], t['expense.paid_from_hint']) }}
 
     <div class="field">
         <input type="text" id="payment_reference" name="payment_reference" placeholder=" "

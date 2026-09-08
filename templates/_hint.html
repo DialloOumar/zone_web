@@ -14,8 +14,8 @@
            {{ hint("", t['expense.paid_from_hint']) }}   {# mark alone #}
 #}
 {% macro hint(short, help) -%}
-<div class="field-hint">{{ short }}
+<span class="field-hint">{% if short %}{{ short }}{% endif %}
     <button type="button" class="hint-dot" aria-label="{{ t['hint.explain'] }}"
             data-hint="{{ help }}">?</button>
-</div>
+</span>
 {%- endmacro %}

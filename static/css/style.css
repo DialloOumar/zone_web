@@ -559,7 +559,16 @@ a:hover { text-decoration: underline; }
 .field select:focus { border-color: var(--md-primary); }
 .field input:disabled { opacity: 0.6; cursor: not-allowed; }
 .field input::placeholder, .field textarea::placeholder { color: var(--md-outline); }
-.field .field-hint { font-size: 0.72rem; color: var(--md-on-surface-variant); }
+.field .field-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--md-on-surface-variant);
+    text-transform: none;
+    letter-spacing: 0;
+}
 .form-actions { display: flex; gap: 10px; margin-top: 4px; }
 
 /* ── The "?" beside a hint ──
@@ -585,7 +594,9 @@ a:hover { text-decoration: underline; }
 .field-hint { position: relative; }
 .hint-dot::after {
     content: attr(data-hint);
-    position: absolute; left: 0; right: 0; bottom: calc(100% + 8px);
+    position: absolute; left: 50%; right: auto; bottom: calc(100% + 8px);
+    width: max-content; max-width: min(280px, calc(100vw - 32px));
+    transform: translateX(-50%);
     z-index: 30;
     padding: 9px 12px;
     border-radius: var(--shape-sm);
