@@ -38,7 +38,7 @@ def active_staff():
     """Who a cost can be attributed to. Someone archived keeps the costs
     already recorded against them, they are simply no longer offered."""
     return (Staff.query.filter(Staff.is_active.is_(True))
-            .order_by(Staff.name).all())
+            .order_by(Staff.last_name, Staff.first_name).all())
 
 
 def active_positions():
@@ -82,18 +82,25 @@ def _spend_by_staff():
 def _read_staff_form(row):
     """Returns (data, None) or (None, error)."""
     t = get_t()
-    name = (request.form.get("name") or "").strip()
-    if not name:
+    last_name = (request.form.get("last_name") or "").strip()
+    # The given name is optional: somebody known by a single name should not be
+    # kept out of the list altogether.
+    first_name = (request.form.get("first_name") or "").strip()
+    if not last_name:
         return None, t["staff.err.name_required"]
 
-    clash = Staff.query.filter(db.func.lower(Staff.name) == name.lower())
+    # The pair is what has to be unique. Two Diallo are ordinary; two Mamadou
+    # Diallo are the ones worth stopping.
+    clash = Staff.query.filter(
+        db.func.lower(Staff.last_name) == last_name.lower(),
+        db.func.lower(db.func.coalesce(Staff.first_name, "")) == first_name.lower())
     if row:
         clash = clash.filter(Staff.id != row.id)
     if clash.first():
         return None, t["staff.err.name_taken"]
 
     if not EXTRA_FIELDS_VISIBLE:
-        return dict(name=name), None
+        return dict(last_name=last_name, first_name=first_name or None), None
 
     position_id = request.form.get("position_id", type=int) or None
     if position_id and not StaffPosition.query.filter_by(
@@ -105,7 +112,8 @@ def _read_staff_form(row):
         return None, t["staff.err.hired_on"]
 
     return dict(
-        name=name,
+        last_name=last_name,
+        first_name=first_name or None,
         position_id=position_id,
         phone=(request.form.get("phone") or "").strip() or None,
         matricule=(request.form.get("matricule") or "").strip() or None,
@@ -143,13 +151,14 @@ def index():
         q = q.filter(Staff.position_id.in_(position_ids))
     if search:
         like = "%" + search + "%"
+        halves = db.or_(Staff.last_name.ilike(like), Staff.first_name.ilike(like))
         if EXTRA_FIELDS_VISIBLE:
-            q = q.filter(db.or_(Staff.name.ilike(like), Staff.matricule.ilike(like),
+            q = q.filter(db.or_(halves, Staff.matricule.ilike(like),
                                 Staff.phone.ilike(like)))
         else:
-            q = q.filter(Staff.name.ilike(like))
+            q = q.filter(halves)
 
-    pagination = q.order_by(Staff.name).paginate(
+    pagination = q.order_by(Staff.last_name, Staff.first_name).paginate(
         page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
         error_out=False)
 

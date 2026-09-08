@@ -313,9 +313,19 @@ class Staff(db.Model):
     needs later — contracts, leave, pay — hangs off this row.
     """
     __tablename__ = "staff"
+    __table_args__ = (
+        # Two people may share a surname, and two may share a given name; the
+        # pair is what has to be unique.
+        db.UniqueConstraint("last_name", "first_name", name="uq_staff_last_first"),
+    )
 
     id          = db.Column(db.Integer,     primary_key=True)
-    name        = db.Column(db.String(120), nullable=False, unique=True)
+    # Kept apart rather than as one line of text: a list of people is sorted and
+    # searched by surname, and neither is possible once the two are run together.
+    last_name   = db.Column(db.String(80),  nullable=False)
+    # Optional, because somebody known by a single name should not be blocked
+    # from being recorded at all.
+    first_name  = db.Column(db.String(80))
     position_id = db.Column(db.Integer,     db.ForeignKey("staff_positions.id"), nullable=True)
     phone       = db.Column(db.String(30))
     # The number the company knows them by, when it uses one.
@@ -330,6 +340,13 @@ class Staff(db.Model):
     created_at  = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     position = db.relationship("StaffPosition")
+
+    @property
+    def name(self):
+        """Surname then given name, which is the order a list of people is read
+        in here. Everything on screen asks for this rather than the two halves,
+        so how a person is written stays decided in one place."""
+        return " ".join(part for part in (self.last_name, self.first_name) if part)
 
 
 # ── Daily operations ──────────────────────────────────────────────────────────

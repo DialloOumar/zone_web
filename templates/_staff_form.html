@@ -6,10 +6,17 @@
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('staff.edit', pid=row.id) if is_edit else url_for('staff.new') }}">
 
-    <div class="field">
-        <input type="text" id="name" name="name" placeholder=" " required
-               value="{{ request.form.get('name') or (row.name if is_edit else '') }}">
-        <label for="name">{{ t['staff.name'] }} {{ hint("", t['staff.name_hint']) }}</label>
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="last_name" name="last_name" placeholder=" " required
+                   value="{{ request.form.get('last_name') or (row.last_name if is_edit else '') }}">
+            <label for="last_name">{{ t['staff.last_name'] }} {{ hint("", t['staff.name_hint']) }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="first_name" name="first_name" placeholder=" "
+                   value="{{ request.form.get('first_name') or (row.first_name or '' if is_edit else '') }}">
+            <label for="first_name">{{ t['staff.first_name'] }} {{ hint(t['form.optional'], t['staff.first_name_hint']) }}</label>
+        </div>
     </div>
 
     {# Everything below waits for the HR module. It is kept rather than cut:

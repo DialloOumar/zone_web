@@ -115,7 +115,7 @@ def active_staff():
     """Who a cost can be recorded for. Someone who has left keeps the costs
     already against their name, they are simply no longer offered."""
     return (Staff.query.filter(Staff.is_active.is_(True))
-            .order_by(Staff.name).all())
+            .order_by(Staff.last_name, Staff.first_name).all())
 
 
 def _accessible_vehicles():
