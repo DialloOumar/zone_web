@@ -213,24 +213,17 @@ def _read_expense_form(expense):
     if site_id and not Site.query.filter_by(id=site_id, is_active=True).first():
         return None, t.get("site.err.unknown", "Choisissez un site actif.")
 
-    vehicle_id = request.form.get("vehicle_id", type=int) or None
+    # A machine belongs to a cost that happened somewhere. With no site this is
+    # the office's own spending, which is for no machine -- the form hides the
+    # field, and the rule is held here too so it is true either way.
+    vehicle_id = None
+    if site_id:
+        vehicle_id = request.form.get("vehicle_id", type=int) or None
     if vehicle_id:
         v = db.session.get(Vehicle, vehicle_id)
         fids = current_user_fleet_ids()
         if not v or (fids is not None and v.fleet_id not in fids):
             return None, t["expense.err.vehicle_required"]
-
-    # Only a cost that happened on a site tends to have parts against it.
-    quantity = None
-    if site_id:
-        raw_qty = (request.form.get("quantity") or "").strip().replace(",", ".")
-        if raw_qty:
-            try:
-                quantity = float(raw_qty)
-            except ValueError:
-                return None, t.get("expense.err.quantity", "Quantité invalide.")
-            if quantity <= 0:
-                return None, t.get("expense.err.quantity", "Quantité invalide.")
 
     # Which purse it came out of. Empty means the cash in the box, which is the
     # ordinary case and the default on the form.
@@ -262,7 +255,7 @@ def _read_expense_form(expense):
         return None, t["expense.err.staff"]
 
     common.update(vehicle_id=vehicle_id, fleet_id=None, label=None, operator=None,
-                  supplier=None, site_id=site_id, liters=None, quantity=quantity,
+                  supplier=None, site_id=site_id, liters=None,
                   account_id=account_id, staff_id=staff_id,
                   category=FIELD_CATEGORY if site_id else OFFICE_CATEGORY)
     # Not a column on the cost: it names the bill the instalment belongs to,

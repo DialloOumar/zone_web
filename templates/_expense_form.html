@@ -25,23 +25,18 @@
         </div>
     </div>
 
-    <div class="form-row">
-        <div class="field field--select">
-            {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else 0) %}
-            <select id="vehicle_id" name="vehicle_id">
-                <option value="">{{ t['expense.no_vehicle'] }}</option>
-                {% for v in vehicles %}
-                <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>
-                {% endfor %}
-            </select>
-            <label for="vehicle_id">{{ t['expense.vehicle'] }}</label>
-        </div>
-        {# Parts belong to a cost that happened somewhere. #}
-        <div class="field" id="field-quantity">
-            <input type="number" id="quantity" name="quantity" placeholder=" " min="0" step="any"
-                   value="{{ request.form.get('quantity') or ('{:.10g}'.format(expense.quantity) if is_edit and expense.quantity else '') }}">
-            <label for="quantity">{{ t['expense.quantity'] }}</label>
-        </div>
+    {# A machine belongs to a cost that happened somewhere. Without a site this
+       is the office's own spending, which is for no machine, so the field is
+       not merely empty -- it is not there. #}
+    <div class="field field--select" id="field-vehicle">
+        {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else 0) %}
+        <select id="vehicle_id" name="vehicle_id">
+            <option value="">{{ t['expense.no_vehicle'] }}</option>
+            {% for v in vehicles %}
+            <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>
+            {% endfor %}
+        </select>
+        <label for="vehicle_id">{{ t['expense.vehicle'] }}</label>
     </div>
 
     {# The supplier's bill this cost settles. Only shown when there is a bill
@@ -134,16 +129,18 @@
 </form>
 
 <script>
-// The part count only makes sense on a cost that happened on a site; it stays
-// out of the way on an office one rather than sitting there asking to be filled.
+// A cost with no site is the office's, and the office has no machines. The
+// field goes rather than sitting there empty, and its value is dropped with it
+// so nothing invisible rides along on the save. The server holds the same rule,
+// so it is true whether or not this runs.
 (function () {
     var site = document.getElementById("site_id"),
-        box = document.getElementById("field-quantity");
+        box = document.getElementById("field-vehicle");
     if (!site || !box) return;
     function apply() {
         var on = !!site.value;
-        box.style.display = on ? "" : "none";
-        if (!on) document.getElementById("quantity").value = "";
+        box.hidden = !on;
+        if (!on) document.getElementById("vehicle_id").value = "";
     }
     site.addEventListener("change", apply);
     apply();
