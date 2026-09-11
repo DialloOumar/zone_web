@@ -476,9 +476,12 @@ def _read_distribution_form():
         return None, t.get("distribution.err.citerne", "Choisissez une citerne active.")
     if fids is not None and c.fleet_id not in fids:
         return None, t.get("error.forbidden", "Action non autorisée.")
-    if v.fleet_id != c.fleet_id:
-        return None, t.get("distribution.err.fleet_mismatch",
-                           "La machine et la citerne doivent être de la même flotte.")
+    # Deliberately no check that the two are in the same fleet: a tank on site
+    # serves whatever turns up at it, and which fleet a machine is booked under
+    # is an office arrangement the fuel knows nothing about. Refusing the draw
+    # only meant it got written down somewhere else, or not at all. The picker
+    # names each machine's fleet, so whoever records it can see what they are
+    # doing.
     # Entry never refuses: the fuel left the tank, whatever the paperwork says.
     # What is missing is a rentrée, and saying so beats turning the person away
     # — refused, they would shift the date or the litres until it went through.
