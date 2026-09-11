@@ -130,7 +130,7 @@
         </div>
         <div class="cost-split__row cost-split__row--total">
             <span>{{ t['vehicle.cost_total'] }}</span>
-            <strong>{{ direct_total + parts_total | num }} GNF</strong>
+            <strong>{{ (direct_total + parts_total) | num }} GNF</strong>
         </div>
         <p class="muted small">{{ t['vehicle.cost_hint_parts'] }}</p>
     </div>

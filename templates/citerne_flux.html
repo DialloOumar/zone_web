@@ -43,7 +43,7 @@
 
         <div class="flux-client" id="flux-client">
             <img src="{{ url_for('static', filename='images/vivo-new-logo.svg') }}" alt="{{ t['flux.client'] }}" class="brand-logo flux-client__logo">
-            <div class="flux-client__sub">{{ t['flux.taken'] }} <b>{{ rentree_total + conso_total | num }}</b> L</div>
+            <div class="flux-client__sub">{{ t['flux.taken'] }} <b>{{ (rentree_total + conso_total) | num }}</b> L</div>
         </div>
 
         <div class="flux-tank-row">
