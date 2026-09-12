@@ -20,6 +20,7 @@ import io
 import os
 import re
 import sys
+import tempfile
 from datetime import date, datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -120,6 +121,35 @@ def do_list():
     return len(rows)
 
 
+def do_fetch(key):
+    """Write one stored dump to standard output, so it can be redirected to a
+    file or piped straight into psql. Nothing else is printed on stdout —
+    anything mixed in would corrupt the archive."""
+    if not s3_storage.is_configured():
+        print("Object storage is not configured.", file=sys.stderr)
+        return 2
+    fd, tmp = tempfile.mkstemp(suffix=".sql.gz")
+    os.close(fd)
+    err = s3_storage.download_backup(key, tmp)
+    if err:
+        print("Download failed: %s" % err, file=sys.stderr)
+        return 1
+    try:
+        with open(tmp, "rb") as fh:
+            while True:
+                chunk = fh.read(1 << 20)
+                if not chunk:
+                    break
+                sys.stdout.buffer.write(chunk)
+        sys.stdout.buffer.flush()
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    return 0
+
+
 def do_upload():
     if not s3_storage.is_configured():
         print("Object storage is not configured: nothing to upload to.",
@@ -160,8 +190,12 @@ def main():
                     help="thin the folder without taking a new dump")
     ap.add_argument("--dry-run", action="store_true",
                     help="with --rotate-only, say what would go without going")
+    ap.add_argument("--fetch", metavar="KEY",
+                    help="write one stored dump to standard output")
     args = ap.parse_args()
 
+    if args.fetch:
+        return do_fetch(args.fetch)
     if args.list:
         do_list()
         return 0

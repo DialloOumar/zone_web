@@ -42,18 +42,7 @@ trap 'rm -rf "$TMP"' EXIT
 LOCAL="$TMP/restore.sql.gz"
 
 echo "Fetching…"
-docker compose exec -T web python - "$KEY" > "$LOCAL" <<'PYEOF'
-import sys, os
-sys.path.insert(0, "/app")
-import s3_storage
-err = s3_storage.download_backup(sys.argv[1], "/tmp/_restore.sql.gz")
-if err:
-    sys.stderr.write("Download failed: %s\n" % err)
-    sys.exit(1)
-with open("/tmp/_restore.sql.gz", "rb") as fh:
-    sys.stdout.buffer.write(fh.read())
-os.remove("/tmp/_restore.sql.gz")
-PYEOF
+docker compose exec -T web python scripts/backup_db.py --fetch "$KEY" > "$LOCAL"
 
 if [ ! -s "$LOCAL" ]; then
     echo "Nothing came back. Nothing was touched."
