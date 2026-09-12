@@ -34,6 +34,9 @@ bash.exe.stackdump
 # Generated artifacts
 test_report.pdf
 
+# The safety dump restore-db.sh takes before it replaces anything.
+backup-before-restore-*.sql.gz
+
 # Local dev scratch: screenshot/render temp files and throwaway browser profiles.
 # Anchored to the repo root — unanchored these also swallowed templates/_*.html,
 # i.e. every Jinja partial.

@@ -104,3 +104,71 @@ Then have the new super admin reset their password via the CLI.
 docker compose logs -f web        # follow Flask logs
 docker compose logs --tail=200 web | grep -E "S3|upload|ERROR"
 ```
+
+## Database backups
+
+Everything the company has recorded lives in one Postgres volume on one server.
+The Docker volume survives a redeploy; it does not survive a failed disk, a
+`docker compose down -v`, or the server being lost. These backups are the copy
+that lives somewhere else.
+
+### What happens
+
+A dump is taken, gzipped and sent to object storage, into its own `backups/`
+folder foldered by month — nowhere near the photos. The dump never touches the
+server's disk: it is piped from the database container straight to the upload.
+
+Kept: **every dump of the last 30 days**, then **the first dump of each month
+for a year**. Older ones are deleted. A file whose name the rotation cannot
+read is never deleted, so nothing else in the bucket is ever at risk.
+
+### Set it up
+
+Object storage must be configured (`S3_*` in `.env`) — the same bucket and keys
+the photos use. Then, once, on the server:
+
+```bash
+crontab -e
+```
+
+and add, adjusting the path:
+
+```cron
+# Backup zone_web every night at 03:00
+0 3 * * * cd /srv/zone_web && ./scripts/backup-db.sh >> /var/log/zone-backup.log 2>&1
+```
+
+### Check it
+
+```bash
+./scripts/backup-db.sh                                    # run one now
+docker compose exec -T web python scripts/backup_db.py --list
+tail -20 /var/log/zone-backup.log
+```
+
+`--list` prints every stored dump with its size and date. A dump of a few
+kilobytes means the database is nearly empty; a dump of a few bytes never gets
+uploaded at all — the script refuses anything too small to be real, because a
+failed `pg_dump` still produces a valid, tiny, useless gzip, and replacing a
+good backup with one of those is the only way this can quietly fail.
+
+### Restore
+
+**This replaces everything in the database.** It asks for the database name
+before doing anything, and it keeps the current database aside first, in
+`backup-before-restore-<date>.sql.gz`, in case the wrong backup was chosen.
+
+```bash
+./scripts/restore-db.sh                                   # list what is there
+./scripts/restore-db.sh backups/2026-09/zone-2026-09-12-0300.sql.gz
+```
+
+Afterwards, check the app opens and the figures look right, then delete the
+safety file.
+
+### Thin the folder without taking a backup
+
+```bash
+docker compose exec -T web python scripts/backup_db.py --rotate-only --dry-run
+docker compose exec -T web python scripts/backup_db.py --rotate-only
+```

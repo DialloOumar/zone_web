@@ -53,6 +53,7 @@ VEHICLE_PREFIX  = S3_PREFIX + "vehicles/"      # one photo per vehicle
 CITERNE_PREFIX  = S3_PREFIX + "citernes/"      # one photo per citerne
 PART_PREFIX     = S3_PREFIX + "parts/"         # one photo per stock part
 INVOICE_PREFIX  = S3_PREFIX + "invoices/"      # supplier invoices, foldered by month
+BACKUP_PREFIX   = S3_PREFIX + "backups/"       # database dumps, and nothing else
 MAX_BYTES       = 12 * 1024 * 1024   # 12 MB raw upload cap
 RESIZE_MAX      = 1920               # longest edge after resize
 JPEG_QUALITY    = 85
@@ -208,6 +209,85 @@ def upload_invoice_photo(file_storage, code: str = "", month: str = "") -> Tuple
     if len(month) == 7 and month[4] == "-" and month[:4].isdigit() and month[5:].isdigit():
         prefix += month + "/"
     return _upload_photo(file_storage, prefix, code)
+
+
+# ── Database backups ─────────────────────────────────────────────────────────
+#
+# Their own folder in the bucket, away from the photos: the two are looked at by
+# different people for different reasons, and a dump has no business turning up
+# in a listing of a vehicle's pictures. Nothing here resizes or re-encodes --
+# a backup that is not byte-for-byte what pg_dump wrote is not a backup.
+
+
+def upload_backup(stream, month: str, name: str) -> Tuple[Optional[str], Optional[str]]:
+    """Send a dump to {S3_PREFIX}backups/<month>/<name>, the month being
+    "YYYY-MM". `stream` is read in chunks, so a large dump never has to be held
+    in memory at once.
+
+    Returns (key, None) or (None, error_code).
+    """
+    s3 = _client()
+    if s3 is None:
+        return None, ERR_NOT_CONFIGURED
+    key = BACKUP_PREFIX + (month + "/" if month else "") + name
+    try:
+        s3.upload_fileobj(stream, S3_BUCKET, key)
+        return key, None
+    except (BotoCoreError, ClientError) as e:
+        log.exception("Backup upload failed: %s", e)
+        return None, ERR_S3
+    except Exception as e:
+        log.exception("Unexpected error during backup upload: %s", e)
+        return None, ERR_UNKNOWN
+
+
+def list_backups():
+    """Every dump in the bucket, newest first: [(key, size, last_modified)]."""
+    s3 = _client()
+    if s3 is None:
+        return []
+    out, token = [], None
+    while True:
+        kw = {"Bucket": S3_BUCKET, "Prefix": BACKUP_PREFIX}
+        if token:
+            kw["ContinuationToken"] = token
+        resp = s3.list_objects_v2(**kw)
+        for obj in resp.get("Contents", []):
+            out.append((obj["Key"], obj["Size"], obj["LastModified"]))
+        if not resp.get("IsTruncated"):
+            break
+        token = resp.get("NextContinuationToken")
+    out.sort(key=lambda r: r[0], reverse=True)
+    return out
+
+
+def download_backup(key: str, dest_path: str) -> Optional[str]:
+    """Fetch one dump to a local file. Returns an error code, or None on success."""
+    s3 = _client()
+    if s3 is None:
+        return ERR_NOT_CONFIGURED
+    try:
+        with open(dest_path, "wb") as fh:
+            s3.download_fileobj(S3_BUCKET, key, fh)
+        return None
+    except (BotoCoreError, ClientError) as e:
+        log.exception("Backup download failed: %s", e)
+        return ERR_S3
+
+
+def delete_backup(key: str) -> bool:
+    """Remove one dump. Used by the rotation, never by the app."""
+    s3 = _client()
+    if s3 is None or not key.startswith(BACKUP_PREFIX):
+        # Refusing a key outside the backups folder is the whole guard: the
+        # rotation must never be able to reach a photo.
+        return False
+    try:
+        s3.delete_object(Bucket=S3_BUCKET, Key=key)
+        return True
+    except (BotoCoreError, ClientError) as e:
+        log.exception("Backup delete failed: %s", e)
+        return False
 
 
 def signed_url(photo_key: str, expires_in: int = SIGNED_URL_TTL) -> Optional[str]:
