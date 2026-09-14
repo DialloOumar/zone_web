@@ -220,10 +220,14 @@ def _vehicle_image(v):
         url = s3_storage.signed_url(v.photo_key)
         if url:
             return {"url": url, "drawing": False}
-    from vehicle_images import is_default_image
+    from vehicle_images import drawing_tag, is_default_image
     cat = v.category
     if cat is not None and is_default_image(cat.default_image):
-        return {"url": url_for("vehicles.image", vid=v.id), "drawing": True}
+        # The tag in the address changes with the type, its drawing and the
+        # number; without it the browser kept showing the old type's picture.
+        return {"url": url_for("vehicles.image", vid=v.id,
+                               v=drawing_tag(cat.default_image, v.code)),
+                "drawing": True}
     return None
 
 

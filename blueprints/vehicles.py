@@ -11,7 +11,6 @@ from flask import (Blueprint, abort, flash, make_response, redirect,
                    render_template, request, url_for)
 from flask_login import current_user, login_required
 
-import hashlib
 
 import s3_storage
 import vehicle_images
@@ -320,12 +319,11 @@ def image(vid):
     # could run script. These carry none, and the policy makes sure of it.
     resp.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'"
     resp.headers["X-Content-Type-Options"] = "nosniff"
-    resp.headers["Cache-Control"] = "private, max-age=300"
-    # Hashed rather than spelled out: the code is typed by users and may hold a
-    # double quote, which an ETag cannot carry.
-    tag = hashlib.sha1(("%s|%s|%s" % (name, vehicle_images.drawing_version(name),
-                                      v.code)).encode("utf-8")).hexdigest()
-    resp.set_etag(tag)
+    # Pages link here with ?v=<drawing_tag>, which changes with the type, the
+    # drawing and the number, so the browser may keep a picture as long as it
+    # likes: anything that would change it changes the address too.
+    resp.headers["Cache-Control"] = "private, max-age=86400"
+    resp.set_etag(vehicle_images.drawing_tag(name, v.code))
     return resp.make_conditional(request)
 
 

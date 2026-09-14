@@ -11,6 +11,7 @@ drawing may have several (the body, and the door); every one gets the code.
 A slot should also carry data-max-width: how wide the panel under it is, in
 the drawing's own units. That is what a long code is fitted into.
 """
+import hashlib
 import os
 import re
 from xml.sax.saxutils import escape, quoteattr
@@ -74,6 +75,18 @@ def drawing_version(name):
         return int(os.stat(os.path.join(DEFAULT_IMAGE_DIR, name)).st_mtime)
     except OSError:
         return 0
+
+
+def drawing_tag(name, code):
+    """A short fingerprint of what the vehicle's picture shows: which drawing,
+    that drawing's version, and the number written in. Put in the picture's
+    address, so a change of type, of drawing or of number is a new address and
+    the browser cannot keep showing the old picture from its cache.
+
+    Hashed rather than spelled out: the code is typed by users and may hold a
+    double quote or an "&", which neither an ETag nor an address can carry."""
+    raw = "%s|%s|%s" % (name, drawing_version(name), code)
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def text_width_em(text):
