@@ -183,6 +183,9 @@ def _inject_globals():
         # Fresh 1-hour presigned URL for a private S3 object (photo). Returns
         # None when the key is empty or storage isn't configured.
         "photo_url": s3_storage.signed_url,
+        # A vehicle's picture wherever one is shown: its photo, or else its
+        # category's drawing with its number written in, or None for neither.
+        "vehicle_image": _vehicle_image,
         # The name of a stored expense category, for the rows that still carry one.
         "category_label": _category_label,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
@@ -201,6 +204,27 @@ def _inject_globals():
         # setting decides.
         "theme": request.cookies.get("theme") if request.cookies.get("theme") in THEMES else "",
     }
+
+
+def _vehicle_image(v):
+    """{"url", "drawing"} for the picture to show for a vehicle, or None.
+
+    Its own photo comes first. Without one — or when storage cannot sign the
+    photo's URL — its category's drawing is used, if the category has one.
+    `drawing` tells the page to show the whole picture rather than crop it to
+    a square, which on a wide drawing would leave a slice of bodywork.
+    """
+    if v is None:
+        return None
+    if v.photo_key:
+        url = s3_storage.signed_url(v.photo_key)
+        if url:
+            return {"url": url, "drawing": False}
+    from vehicle_images import is_default_image
+    cat = v.category
+    if cat is not None and is_default_image(cat.default_image):
+        return {"url": url_for("vehicles.image", vid=v.id), "drawing": True}
+    return None
 
 
 def _page_args():

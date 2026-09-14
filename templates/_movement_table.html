@@ -1,10 +1,10 @@
 {# Shared fuel-movement table. Expects `movements` (list) and `seuil` (int). #}
 {% macro machine_cell(v) %}
     {% if v %}
-    {% set purl = photo_url(v.photo_key) if v.photo_key else None %}
+    {% set vimg = vehicle_image(v) %}
     <span class="vehicle-cell">
-        <span class="vehicle-thumb vehicle-thumb--sm {% if not purl %}vehicle-thumb--empty{% endif %}">
-            {% if purl %}<img src="{{ purl }}" alt="" loading="lazy">
+        <span class="vehicle-thumb vehicle-thumb--sm {% if not vimg %}vehicle-thumb--empty{% elif vimg.drawing %}vehicle-thumb--drawing{% endif %}">
+            {% if vimg %}<img src="{{ vimg.url }}" alt="" loading="lazy">
             {% else %}<span class="material-symbols-outlined">{{ 'directions_bus' if v.category.code == 'BUS' else 'handyman' }}</span>{% endif %}
         </span>
         <strong>{{ v.code }}</strong>

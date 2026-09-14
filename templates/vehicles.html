@@ -73,9 +73,9 @@
             <tr>
                 <td>
                     <a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="vehicle-cell">
-                        {% set turl = photo_url(v.photo_key) if v.photo_key else None %}
-                        <span class="vehicle-thumb {% if not turl %}vehicle-thumb--empty{% endif %}">
-                            {% if turl %}<img src="{{ turl }}" alt="" loading="lazy">
+                        {% set vimg = vehicle_image(v) %}
+                        <span class="vehicle-thumb {% if not vimg %}vehicle-thumb--empty{% elif vimg.drawing %}vehicle-thumb--drawing{% endif %}">
+                            {% if vimg %}<img src="{{ vimg.url }}" alt="" loading="lazy">
                             {% else %}<span class="material-symbols-outlined">{{ 'directions_bus' if v.category.code == 'BUS' else 'handyman' }}</span>{% endif %}
                         </span>
                         <strong>{{ v.code }}</strong>

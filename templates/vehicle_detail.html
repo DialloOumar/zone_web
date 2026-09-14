@@ -5,10 +5,10 @@
 
 {% block content %}
 <section class="card vehicle-hero">
-    {% set purl = photo_url(vehicle.photo_key) if vehicle.photo_key else None %}
-    <div class="vehicle-hero__media {% if not purl %}vehicle-hero__media--empty{% endif %}">
-        {% if purl %}
-        <a href="{{ purl }}" target="_blank" rel="noopener"><img src="{{ purl }}" alt="{{ vehicle.code }}"></a>
+    {% set vimg = vehicle_image(vehicle) %}
+    <div class="vehicle-hero__media {% if not vimg %}vehicle-hero__media--empty{% elif vimg.drawing %}vehicle-hero__media--drawing{% endif %}">
+        {% if vimg %}
+        <a href="{{ vimg.url }}" target="_blank" rel="noopener"><img src="{{ vimg.url }}" alt="{{ vehicle.code }}"></a>
         {% else %}
         <span class="material-symbols-outlined">{{ 'directions_bus' if vehicle.category.code == 'BUS' else 'local_gas_station' if citerne else 'handyman' }}</span>
         {% endif %}

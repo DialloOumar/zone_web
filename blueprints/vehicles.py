@@ -11,7 +11,10 @@ from flask import (Blueprint, abort, flash, make_response, redirect,
                    render_template, request, url_for)
 from flask_login import current_user, login_required
 
+import hashlib
+
 import s3_storage
+import vehicle_images
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
 from models import (Alert, DailyEntry, Expense, Fleet, FuelMovement,
@@ -289,6 +292,41 @@ def _render_vehicle_form(vehicle, error=None):
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, vehicle=vehicle, error=error,
                            **_form_context(vehicle)), status
+
+
+@vehicles_bp.route("/vehicles/<int:vid>/image.svg")
+@login_required
+def image(vid):
+    """The vehicle's category drawing with its own number written in, for a
+    vehicle that has no photo.
+
+    Drawn on each request rather than stored, so it never goes stale: rename
+    the vehicle and the number follows, give it a photo and the photo wins,
+    change the category's drawing and every vehicle without a photo follows.
+
+    No vehicle.view check, deliberately. The thumbnail appears on the roster,
+    on a citerne's page and in fuel movements, to people who may see those but
+    not the vehicle page; the fleet scoping in _get_vehicle_or_404 is what keeps
+    one fleet's machines from another's users.
+    """
+    v = _get_vehicle_or_404(vid)
+    name = v.category.default_image if v.category else None
+    body = vehicle_images.render_vehicle_drawing(name, v.code)
+    if body is None:
+        abort(404)
+    resp = make_response(body)
+    resp.headers["Content-Type"] = "image/svg+xml; charset=utf-8"
+    # Opened on its own rather than in an <img>, an SVG is a document that
+    # could run script. These carry none, and the policy makes sure of it.
+    resp.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Cache-Control"] = "private, max-age=300"
+    # Hashed rather than spelled out: the code is typed by users and may hold a
+    # double quote, which an ETag cannot carry.
+    tag = hashlib.sha1(("%s|%s|%s" % (name, vehicle_images.drawing_version(name),
+                                      v.code)).encode("utf-8")).hexdigest()
+    resp.set_etag(tag)
+    return resp.make_conditional(request)
 
 
 @vehicles_bp.route("/vehicles/new", methods=["GET", "POST"])

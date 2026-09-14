@@ -1,10 +1,10 @@
 {# One vehicle as a photo-forward card. Expects `v`. Used by the cards view
    and as the phone fallback for the table view. #}
-{% set turl = photo_url(v.photo_key) if v.photo_key else None %}
+{% set vimg = vehicle_image(v) %}
 <div class="vehicle-card {% if not v.is_active %}vehicle-card--archived{% endif %}">
     <a href="{{ url_for('vehicles.detail', vid=v.id) }}"
-       class="vehicle-card__media {% if not turl %}vehicle-card__media--empty{% endif %}">
-        {% if turl %}<img src="{{ turl }}" alt="{{ v.code }}" loading="lazy">
+       class="vehicle-card__media {% if not vimg %}vehicle-card__media--empty{% elif vimg.drawing %}vehicle-card__media--drawing{% endif %}">
+        {% if vimg %}<img src="{{ vimg.url }}" alt="{{ v.code }}" loading="lazy">
         {% else %}<span class="material-symbols-outlined">{{ 'directions_bus' if v.category.code == 'BUS' else 'handyman' }}</span>{% endif %}
         {% if v.is_active %}
         <span class="badge badge--active vehicle-card__status">{{ t['vehicle.active'] }}</span>
