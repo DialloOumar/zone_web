@@ -34,13 +34,6 @@
         </div>
     </div>
 
-    <div class="field">
-        <input type="number" id="initial_liters" name="initial_liters" placeholder=" " min="0"
-               value="{{ request.form.get('initial_liters') or (citerne.opening_stock if is_edit else '') }}">
-        <label for="initial_liters">{{ t['citerne.initial'] }}</label>
-    </div>
-    <div class="field-hint">{{ t['citerne.initial_hint'] }}</div>
-
     {% set photo_current = photo_url(citerne.photo_key) if is_edit and citerne.photo_key else None %}
     {% set photo_alt = citerne.code if is_edit else '' %}
     {% include "_photo_field.html" %}

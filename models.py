@@ -884,8 +884,8 @@ class Citerne(db.Model):
 
     @property
     def stock(self):
-        """Litres currently in the tank = opening + rentrées − distributions,
-        computed from the movement log. Relevés and conso do NOT move the
+        """Litres currently in the tank = rentrées − distributions, computed
+        from the movement log. A citerne starts empty. Relevés and conso do NOT move the
         reservoir stock (a relevé is a measurement; conso is fuel the citerne
         took at the client for its own engine, never from its reservoir)."""
         return self.stock_as_of(None)
@@ -895,13 +895,9 @@ class Citerne(db.Model):
         (None = all). Used both for the live stock and for a relevé's écart."""
         total = 0
         for m in self.movements:
-            # The opening balance is not a dated event: it is what the tank
-            # held before any of this was logged, so it counts on every date,
-            # including one earlier than the day the citerne was created.
-            if (date_str is not None and m.date > date_str
-                    and m.kind != "initial"):
+            if date_str is not None and m.date > date_str:
                 continue
-            if m.kind in ("initial", "rentree"):
+            if m.kind == "rentree":
                 total += m.liters
             elif m.kind == "distribution":
                 total -= m.liters
@@ -912,10 +908,8 @@ class Citerne(db.Model):
         are left out: a relevé measures, and a conso is fuel taken at the client
         for the truck's own engine, never out of the tank."""
         return sorted((m for m in self.movements
-                       if m.kind in ("initial", "rentree", "distribution")),
-                      # The opening balance comes first whatever its date: it is
-                      # the level the tank started at, not something that happened.
-                      key=lambda m: (m.kind != "initial", m.date, m.id or 0))
+                       if m.kind in ("rentree", "distribution")),
+                      key=lambda m: (m.date, m.id or 0))
 
     def _levels(self, date_str):
         """(level just before `date_str`, lowest after, highest after).
@@ -934,8 +928,8 @@ class Citerne(db.Model):
         before = 0 if date_str is not None else None
         lowest = highest = None
         for m in self._reservoir_movements():
-            delta = m.liters if m.kind in ("initial", "rentree") else -m.liters
-            if m.kind == "initial" or (date_str is not None and m.date < date_str):
+            delta = m.liters if m.kind == "rentree" else -m.liters
+            if date_str is not None and m.date < date_str:
                 running += delta
                 before = running
                 continue
@@ -962,7 +956,7 @@ class Citerne(db.Model):
         return self._pick(max, before, highest)
 
     def level_history(self):
-        """[(movement, level after it)] oldest first, opening balance included.
+        """[(movement, level after it)] oldest first.
 
         Cached on the instance: the movement table asks each row for its level,
         and recomputing the whole run per row would be quadratic.
@@ -972,7 +966,7 @@ class Citerne(db.Model):
             cached = []
             running = 0
             for m in self._reservoir_movements():
-                running += m.liters if m.kind in ("initial", "rentree") else -m.liters
+                running += m.liters if m.kind == "rentree" else -m.liters
                 cached.append((m, running))
             self._level_history = cached
         return cached
@@ -1021,23 +1015,17 @@ class Citerne(db.Model):
         return self._pick(min, before,
                           None if lowest is None else lowest - liters)
 
-    @property
-    def opening_stock(self):
-        """The opening balance (the 'initial' movement), what the citerne form
-        edits — distinct from `stock`, which distributions have since reduced."""
-        for m in self.movements:
-            if m.kind == "initial":
-                return m.liters
-        return 0
 
 
 class FuelMovement(db.Model):
-    """One dated fuel movement of a citerne. `liters` is always positive; the
-    sign is carried by `kind`:
-        initial       — opening stock, set when the citerne is created (+)
+    """One dated fuel movement. `liters` is always positive; the sign is
+    carried by `kind`:
+        rentree       — the citerne filled up at the client (+)
         distribution  — an engin drew fuel from the citerne (−)
-    (rentree / conso / releve arrive in a later step; the column already
-    allows them so no migration is needed then.)
+        releve        — a gauge reading; moves nothing
+        conso         — fuel the citerne took for its own engine; moves nothing
+        direct        — a machine filled straight at the client, no citerne
+    A citerne starts empty; there is no opening-stock kind any more.
     """
     __tablename__ = "fuel_movements"
 
@@ -1061,7 +1049,7 @@ class FuelMovement(db.Model):
     def level_after(self):
         """The citerne's level right after this movement, or None for the kinds
         that leave the reservoir alone (relevé, conso, direct)."""
-        if not self.citerne or self.kind not in ("initial", "rentree", "distribution"):
+        if not self.citerne or self.kind not in ("rentree", "distribution"):
             return None
         for m, level in self.citerne.level_history():
             if m.id == self.id:

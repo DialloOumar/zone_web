@@ -244,7 +244,6 @@ def _read_citerne_form(citerne):
     name = (request.form.get("name") or "").strip()
     cap = request.form.get("capacity_liters", type=int)
     fleet_id = request.form.get("fleet_id", type=int)
-    initial = request.form.get("initial_liters", type=int) or 0
 
     if not code:
         return None, t.get("citerne.err.code", "Le code est obligatoire.")
@@ -257,8 +256,6 @@ def _read_citerne_form(citerne):
     fids = current_user_fleet_ids()
     if (fids is not None and fleet_id not in fids) or not db.session.get(Fleet, fleet_id):
         return None, t.get("citerne.err.fleet", "La flotte est obligatoire.")
-    if initial < 0:
-        initial = 0
 
     clash = Citerne.query.filter(db.func.lower(Citerne.code) == code.lower())
     if citerne:
@@ -266,25 +263,14 @@ def _read_citerne_form(citerne):
     if clash.first():
         return None, t.get("citerne.err.code_taken", "Ce code est déjà utilisé.")
 
-    # The opening stock is a declaration, not an event: nobody poured anything,
-    # someone stated what the tank already held. It is the figure most likely to
-    # be wrong, so it stays correctable — lowering it below what has since been
-    # dispensed only means a rentrée is missing, and the shortfall is reported
-    # rather than refused. Logging that rentrée settles it on its own.
-    shortfall = overflow = 0
-    if citerne:
-        drop = citerne.opening_stock - initial
-        new_floor = citerne.min_stock_from(None) - drop
-        if new_floor < 0:
-            shortfall = -new_floor
-        # The ceiling is another matter: raising the opening past the brim, or
-        # shrinking the cuve under what it holds, corrects nothing and describes
-        # a tank that cannot exist.
-        peak = citerne.max_stock_from(None) - citerne.opening_stock + initial
-        overflow = max(peak - cap, 0)
+    # A citerne starts empty: whatever is in it arrives as a rentrée, dated,
+    # like every other litre. There is no opening stock to type in.
+    # Shrinking the cuve under what it has held describes a tank that cannot
+    # exist, so that is said.
+    overflow = max(citerne.max_stock_from(None) - cap, 0) if citerne else 0
 
     return dict(code=code, name=name, capacity_liters=cap, fleet_id=fleet_id,
-                initial=initial, shortfall=shortfall, overflow=overflow), None
+                overflow=overflow), None
 
 
 def _flash_shortfall(shortfall, overflow=0):
@@ -302,21 +288,6 @@ def _flash_shortfall(shortfall, overflow=0):
             "citerne.warn_over",
             "Le stock de cette citerne dépasse sa capacité de %(n)d L. "
             "Vérifiez la capacité ou les mouvements.") % {"n": overflow})
-
-
-def _set_initial_stock(citerne, liters, today):
-    """The citerne's opening stock is a single 'initial' movement, so editing
-    it just adjusts (or removes) that one row."""
-    mv = next((m for m in citerne.movements if m.kind == "initial"), None)
-    if liters > 0:
-        if mv:
-            mv.liters = liters
-        else:
-            db.session.add(FuelMovement(
-                citerne_id=citerne.id, kind="initial", date=today,
-                liters=liters, created_by=current_user.id))
-    elif mv:
-        db.session.delete(mv)
 
 
 _PHOTO_ERR_KEYS = {
@@ -365,8 +336,7 @@ def citerne_new():
         data, error = _read_citerne_form(None)
         if error:
             return _render_citerne_form(None, error)
-        initial = data.pop("initial")
-        shortfall, overflow = data.pop("shortfall"), data.pop("overflow")
+        data.pop("overflow")         # a new citerne holds nothing yet
         c = Citerne(created_by=current_user.id, **data)
         db.session.add(c)
         db.session.flush()
@@ -374,12 +344,10 @@ def citerne_new():
         if perr:
             db.session.rollback()
             return _render_citerne_form(None, perr)
-        _set_initial_stock(c, initial, date.today().isoformat())
         log_action("CREATE", "citerne", resource_id=c.id, fleet_id=c.fleet_id,
                    detail=f"Created citerne '{c.code}'")
         db.session.commit()
         flash("success|" + t.get("citerne.created", "Citerne créée."))
-        _flash_shortfall(shortfall, overflow)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_citerne_form(None)
 
@@ -394,20 +362,18 @@ def citerne_edit(cid):
         data, error = _read_citerne_form(citerne)
         if error:
             return _render_citerne_form(citerne, error)
-        initial = data.pop("initial")
-        shortfall, overflow = data.pop("shortfall"), data.pop("overflow")
+        overflow = data.pop("overflow")
         for k, v in data.items():
             setattr(citerne, k, v)
         perr = _apply_citerne_photo_change(citerne)
         if perr:
             db.session.rollback()
             return _render_citerne_form(citerne, perr)
-        _set_initial_stock(citerne, initial, date.today().isoformat())
         log_action("UPDATE", "citerne", resource_id=citerne.id, fleet_id=citerne.fleet_id,
                    detail=f"Updated citerne '{citerne.code}'")
         db.session.commit()
         flash("success|" + t.get("citerne.updated", "Citerne mise à jour."))
-        _flash_shortfall(shortfall, overflow)
+        _flash_shortfall(0, overflow)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_citerne_form(citerne)
 
