@@ -33,7 +33,10 @@
             {% for c in categories %}
             {% set u = usage[c.id] %}
             <tr>
-                <td><span class="chip chip--{{ c.code|lower }}">{{ c.code }}</span></td>
+                <td style="white-space:nowrap;">
+                    {% if c.default_image %}<img src="{{ url_for('static', filename='images/vehicle-defaults/' ~ c.default_image) }}" alt=""
+                         style="height:28px; width:auto; vertical-align:middle; margin-right:6px;">{% endif %}
+                    <span class="chip chip--{{ c.code|lower }}">{{ c.code }}</span></td>
                 <td><strong>{{ c.label_fr }}</strong>{% if c.label != c.label_fr %}<div class="muted small">{{ c.label }}</div>{% endif %}</td>
                 <td>{{ t['vcat.track.' + c.tracking] }}</td>
                 <td style="text-align:right;">{{ u.vehicles }}

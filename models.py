@@ -204,6 +204,9 @@ class VehicleCategory(db.Model):
     default_baseline_l_per_unit = db.Column(db.Float,       nullable=True)                # L/trip or L/hour
     default_cost_per_unit       = db.Column(db.Integer,     nullable=True)                # GNF per unit, for perte d'exploitation
     icon                        = db.Column(db.String(30),  nullable=True)
+    # Optional: a drawing from static/images/vehicle-defaults/ (the file name),
+    # for vehicles of this category that have no photo of their own.
+    default_image               = db.Column(db.String(80),  nullable=True)
     sort_order                  = db.Column(db.Integer,     nullable=False, default=0)
     is_active                   = db.Column(db.Boolean,     nullable=False, default=True)  # soft delete = archive
 

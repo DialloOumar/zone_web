@@ -1,0 +1,31 @@
+<svg viewBox="0 0 900 560" width="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zone Equip minibus">
+  <rect x="40" y="498" width="820" height="6" rx="3" fill="#d8d6d0"></rect>
+  
+  <g>
+    <path d="M 240 292 Q 240 268 264 268 L 580 268 Q 616 268 634 296 L 668 350 Q 676 362 676 378 L 676 442 Q 676 458 660 458 L 256 458 Q 240 458 240 442 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
+    
+    <rect x="266" y="290" width="70" height="52" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    <rect x="352" y="290" width="70" height="52" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    <rect x="438" y="290" width="70" height="52" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    
+    <path d="M 592 292 Q 608 292 618 308 L 646 352 L 560 352 L 560 292 Z" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></path>
+    
+    <rect x="524" y="360" width="64" height="98" rx="8" fill="#f2a900" stroke="#2b2b2b" stroke-width="5"></rect>
+    <line x1="556" y1="360" x2="556" y2="458" stroke="#2b2b2b" stroke-width="4"></line>
+    
+    <rect x="658" y="404" width="14" height="20" rx="5" fill="#fff" stroke="#2b2b2b" stroke-width="4"></rect>
+    <path d="M 640 292 L 658 282 L 660 296" fill="none" stroke="#2b2b2b" stroke-width="5" stroke-linecap="round"></path>
+    
+    <text x="298" y="392" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="19" font-weight="900" fill="#e1161c" letter-spacing="0.5">ZONE</text>
+    <text x="298" y="414" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="19" font-weight="900" fill="#0c62af" letter-spacing="0.5">EQUIP</text>
+    
+    <line x1="256" y1="440" x2="510" y2="440" stroke="#e1161c" stroke-width="6"></line>
+    
+    <text id="machine-number" data-machine-number="MB-2026-0001" x="432" y="408" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="17.6" font-weight="900" fill="#0c62af">MB-2026-0001</text>
+  </g>
+  
+  <g>
+    <circle cx="330" cy="458" r="36" fill="#2b2b2b"></circle><circle cx="330" cy="458" r="16" fill="#8b8b8b"></circle><circle cx="330" cy="458" r="6" fill="#2b2b2b"></circle>
+    <circle cx="600" cy="458" r="36" fill="#2b2b2b"></circle><circle cx="600" cy="458" r="16" fill="#8b8b8b"></circle><circle cx="600" cy="458" r="6" fill="#2b2b2b"></circle>
+  </g>
+</svg>

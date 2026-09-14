@@ -23,6 +23,7 @@ from app import (HIDDEN_PERMS, get_t, has_perm, is_modal_request, log_action,
                  modal_ok, require_perm, slugify, super_admin_required,
                  tombstone_system_role)
 from billing import current_rates
+from vehicle_images import available_default_images, is_default_image
 from models import (Alert, AppSetting, AuditLog, Citerne, DailyEntry, Expense,
                     Fleet, FleetRate, FuelMovement, MaintenanceRecord,
                     MaintenanceRule, Operator, PendingChange, Permission, Role,
@@ -885,6 +886,10 @@ def _save_category(cat):
         db.session.add(cat)
     cat.label = label
     cat.label_fr = label_fr
+    # Optional. Only a drawing that is actually in the folder is kept; anything
+    # else posted — a typo, a path — simply leaves the category without one.
+    chosen = (request.form.get("default_image") or "").strip()
+    cat.default_image = chosen if is_default_image(chosen) else None
     cat.tracking = tracking
     cat.unit_type = unit_type
     db.session.flush()
@@ -897,7 +902,8 @@ def _save_category(cat):
 def _render_category_form(cat, error=None):
     tpl = "_category_form.html" if is_modal_request() else "admin_category_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, category=cat, tracking_modes=CATEGORY_TRACKING, error=error), status
+    return render_template(tpl, category=cat, tracking_modes=CATEGORY_TRACKING,
+                           default_images=available_default_images(), error=error), status
 
 
 @admin_bp.route("/categories/new", methods=["GET", "POST"])

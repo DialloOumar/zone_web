@@ -1,0 +1,35 @@
+<svg viewBox="0 0 900 560" width="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zone Equip compacteur">
+  <rect x="40" y="498" width="820" height="6" rx="3" fill="#d8d6d0"></rect>
+  
+  <g>
+    <path d="M 190 320 Q 186 304 204 302 L 400 302 L 400 410 L 206 410 Q 190 410 190 394 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
+    
+    <text transform="rotate(-90 222 356)" x="222" y="362" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="15" font-weight="900" fill="#e1161c" letter-spacing="0.5">ZONE</text>
+    <text transform="rotate(-90 246 356)" x="246" y="362" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="15" font-weight="900" fill="#0c62af" letter-spacing="0.5">EQUIP</text>
+    
+    <text id="machine-number" data-machine-number="CMP-2026-0001" x="330" y="362" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="12.6" font-weight="900" fill="#0c62af">CMP-2026-0001</text>
+  </g>
+  
+  <g>
+    <rect x="400" y="210" width="120" height="200" rx="12" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></rect>
+    <rect x="413" y="224" width="94" height="66" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    <line x1="460" y1="224" x2="460" y2="290" stroke="#2b2b2b" stroke-width="5"></line>
+    <rect x="413" y="300" width="94" height="26" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="4"></rect>
+    <text id="machine-number-cab" data-machine-number="CMP-2026-0001" x="460" y="320" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="9.0" font-weight="900" fill="#0c62af" textLength="84" lengthAdjust="spacingAndGlyphs">CMP-2026-0001</text>
+  </g>
+  
+  <g>
+    <path d="M 520 350 L 600 350 L 600 386 L 520 386 Z" fill="#2b2b2b"></path>
+    
+    <path d="M 596 320 L 664 320 Q 680 320 680 336 L 680 430 L 640 430 L 620 386 L 596 386 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
+    
+    <circle cx="700" cy="426" r="74" fill="#8b8b8b" stroke="#2b2b2b" stroke-width="6"></circle>
+    <circle cx="700" cy="426" r="52" fill="#a8a8a8"></circle>
+    <circle cx="700" cy="426" r="14" fill="#2b2b2b"></circle>
+    <path d="M 700 352 L 700 372 M 700 480 L 700 500 M 626 426 L 646 426 M 754 426 L 774 426" stroke="#2b2b2b" stroke-width="5"></path>
+  </g>
+  
+  <g>
+    <circle cx="290" cy="444" r="56" fill="#2b2b2b"></circle><circle cx="290" cy="444" r="28" fill="#8b8b8b"></circle><circle cx="290" cy="444" r="11" fill="#2b2b2b"></circle>
+  </g>
+</svg>

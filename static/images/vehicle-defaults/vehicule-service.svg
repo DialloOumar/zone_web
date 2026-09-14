@@ -1,0 +1,27 @@
+<svg viewBox="0 0 900 560" width="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zone Equip véhicule de service">
+  <rect x="40" y="498" width="820" height="6" rx="3" fill="#d8d6d0"></rect>
+  
+  <g>
+    
+    <path d="M 190 330 L 470 330 L 470 448 L 202 448 Q 190 448 190 436 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
+    
+    <path d="M 470 448 L 470 300 Q 470 286 484 284 L 560 278 Q 574 276 582 288 L 622 340 L 470 340 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
+    <path d="M 484 296 L 556 290 Q 566 290 572 298 L 600 336 L 484 336 Z" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></path>
+    
+    <path d="M 622 340 L 470 340 L 470 448 L 758 448 L 758 388 Q 758 360 730 352 L 660 342 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
+    <line x1="622" y1="340" x2="622" y2="446" stroke="#2b2b2b" stroke-width="4"></line>
+    
+    <line x1="530" y1="356" x2="558" y2="356" stroke="#2b2b2b" stroke-width="5" stroke-linecap="round"></line>
+    <rect x="740" y="368" width="14" height="18" rx="5" fill="#fff" stroke="#2b2b2b" stroke-width="4"></rect>
+    
+    <text x="250" y="378" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="19" font-weight="900" fill="#e1161c" letter-spacing="0.5">ZONE</text>
+    <text x="250" y="400" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="19" font-weight="900" fill="#0c62af" letter-spacing="0.5">EQUIP</text>
+    
+    <text id="machine-number" data-machine-number="VS-2026-0001" x="385" y="396" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="16.0" font-weight="900" fill="#0c62af" textLength="150" lengthAdjust="spacingAndGlyphs">VS-2026-0001</text>
+  </g>
+  
+  <g>
+    <circle cx="290" cy="452" r="42" fill="#2b2b2b"></circle><circle cx="290" cy="452" r="19" fill="#8b8b8b"></circle><circle cx="290" cy="452" r="7" fill="#2b2b2b"></circle>
+    <circle cx="668" cy="452" r="42" fill="#2b2b2b"></circle><circle cx="668" cy="452" r="19" fill="#8b8b8b"></circle><circle cx="668" cy="452" r="7" fill="#2b2b2b"></circle>
+  </g>
+</svg>

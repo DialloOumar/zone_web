@@ -1,0 +1,33 @@
+<svg viewBox="0 0 900 560" width="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zone Equip bus">
+  <rect x="40" y="498" width="820" height="6" rx="3" fill="#d8d6d0"></rect>
+  
+  <g>
+    <path d="M 120 268 Q 120 248 140 248 L 740 248 Q 774 248 778 282 L 780 440 Q 780 456 764 456 L 136 456 Q 120 456 120 440 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
+    
+    <rect x="150" y="272" width="80" height="56" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    <rect x="248" y="272" width="80" height="56" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    <rect x="346" y="272" width="80" height="56" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    <rect x="444" y="272" width="80" height="56" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    <rect x="542" y="272" width="80" height="56" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    
+    <path d="M 742 268 Q 762 270 764 290 L 766 328 L 700 328 L 700 268 Z" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></path>
+    
+    <rect x="642" y="272" width="44 " height="176" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    <line x1="664" y1="272" x2="664" y2="448" stroke="#2b2b2b" stroke-width="4"></line>
+    
+    <rect x="762" y="404" width="14" height="20" rx="5" fill="#fff" stroke="#2b2b2b" stroke-width="4"></rect>
+    <path d="M 774 268 L 792 258 L 794 272" fill="none" stroke="#2b2b2b" stroke-width="5" stroke-linecap="round"></path>
+    
+    <text x="185" y="392" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="20" font-weight="900" fill="#e1161c" letter-spacing="0.5">ZONE</text>
+    <text x="185" y="416" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="20" font-weight="900" fill="#0c62af" letter-spacing="0.5">EQUIP</text>
+    
+    <line x1="252" y1="440" x2="620" y2="440" stroke="#e1161c" stroke-width="6"></line>
+    
+    <text id="machine-number" data-machine-number="BS-2026-0001" x="436" y="408" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="34.0" font-weight="900" fill="#0c62af">BS-2026-0001</text>
+  </g>
+  
+  <g>
+    <circle cx="250" cy="456" r="40" fill="#2b2b2b"></circle><circle cx="250" cy="456" r="18" fill="#8b8b8b"></circle><circle cx="250" cy="456" r="7" fill="#2b2b2b"></circle>
+    <circle cx="600" cy="456" r="40" fill="#2b2b2b"></circle><circle cx="600" cy="456" r="18" fill="#8b8b8b"></circle><circle cx="600" cy="456" r="7" fill="#2b2b2b"></circle>
+  </g>
+</svg>

@@ -1,0 +1,38 @@
+<svg viewBox="0 0 900 560" width="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zone Equip citerne à eau">
+  <rect x="40" y="498" width="820" height="6" rx="3" fill="#d8d6d0"></rect>
+  
+  <g>
+    <rect x="175" y="276" width="390" height="122" rx="56" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></rect>
+    <line x1="300" y1="278" x2="300" y2="396" stroke="#2b2b2b" stroke-width="4"></line>
+    <line x1="440" y1="278" x2="440" y2="396" stroke="#2b2b2b" stroke-width="4"></line>
+    
+    <rect x="345" y="258" width="52" height="20" rx="8" fill="#2b2b2b"></rect>
+    
+    <text transform="rotate(-90 226 337)" x="226" y="343" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="16" font-weight="900" fill="#e1161c" letter-spacing="0.5">ZONE</text>
+    <text transform="rotate(-90 252 337)" x="252" y="343" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="16" font-weight="900" fill="#0c62af" letter-spacing="0.5">EQUIP</text>
+    
+    <path d="M 512 300 Q 526 320 526 332 Q 526 346 512 346 Q 498 346 498 332 Q 498 320 512 300 Z" fill="#0c62af"></path>
+    
+    <rect x="160" y="430" width="120" height="12" rx="6" fill="#8b8b8b" stroke="#2b2b2b" stroke-width="3"></rect>
+  </g>
+  
+  <rect x="200" y="398" width="500" height="24" fill="#2b2b2b"></rect>
+  
+  <g>
+    <path d="M 580 282 L 690 282 Q 702 282 706 294 L 728 350 Q 734 362 734 376 L 734 410 L 580 410 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
+    <path d="M 684 296 L 700 296 L 718 344 L 684 344 Z" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></path>
+    <rect x="596" y="296" width="76" height="48" rx="6" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    <line x1="676" y1="290" x2="676" y2="408" stroke="#2b2b2b" stroke-width="4"></line>
+    <rect x="592" y="356" width="84" height="26" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="4"></rect>
+    <text id="machine-number-cab" data-machine-number="CIT-2026-0001" x="634" y="376" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="9.0" font-weight="900" fill="#0c62af" textLength="74" lengthAdjust="spacingAndGlyphs">CIT-2026-0001</text>
+    <rect x="724" y="384" width="16" height="26" rx="4" fill="#8b8b8b" stroke="#2b2b2b" stroke-width="4"></rect>
+  </g>
+  
+  <text id="machine-number" data-machine-number="CIT-2026-0001" x="385" y="348" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="17.8" font-weight="900" fill="#0c62af">CIT-2026-0001</text>
+  
+  <g>
+    <circle cx="300" cy="452" r="44" fill="#2b2b2b"></circle><circle cx="300" cy="452" r="20" fill="#8b8b8b"></circle><circle cx="300" cy="452" r="8" fill="#2b2b2b"></circle>
+    <circle cx="398" cy="452" r="44" fill="#2b2b2b"></circle><circle cx="398" cy="452" r="20" fill="#8b8b8b"></circle><circle cx="398" cy="452" r="8" fill="#2b2b2b"></circle>
+    <circle cx="654" cy="452" r="44" fill="#2b2b2b"></circle><circle cx="654" cy="452" r="20" fill="#8b8b8b"></circle><circle cx="654" cy="452" r="8" fill="#2b2b2b"></circle>
+  </g>
+</svg>

@@ -37,6 +37,30 @@
         </div>
     </div>
 
+    {# Optional. The picture beside the list shows the drawing as it is chosen,
+       so nobody has to pick "Gradeur" on the strength of the word alone. #}
+    {% set sel_img = request.form.get('default_image') if request.method == 'POST'
+                     else (category.default_image if is_edit else '') %}
+    <div class="form-row" style="align-items:end;">
+        <div class="field field--select">
+            <select id="default_image" name="default_image">
+                <option value="">{{ t['vcat.no_default_image'] }}</option>
+                {% for name, label in default_images %}
+                <option value="{{ name }}" {% if name == sel_img %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <label for="default_image">{{ t['vcat.default_image'] }} <span class="muted">({{ t['form.optional'] | lower }})</span></label>
+            <div class="field-hint">{{ t['vcat.default_image_hint'] }}</div>
+        </div>
+        <div class="field" style="justify-content:center;">
+            <img id="default-image-preview" alt=""
+                 data-base="{{ url_for('static', filename='images/vehicle-defaults/') }}"
+                 src="{{ url_for('static', filename='images/vehicle-defaults/' ~ sel_img) if sel_img else '' }}"
+                 {% if not sel_img %}hidden{% endif %}
+                 style="width:100%; max-width:220px; height:auto; border:1px solid var(--md-outline-variant); border-radius:var(--shape-sm); background:var(--md-surface);">
+        </div>
+    </div>
+
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
@@ -44,3 +68,16 @@
         <a href="{{ url_for('admin.categories') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
+
+<script>
+// The drawing follows the list as it changes; with "None" there is nothing to show.
+(function () {
+    var sel = document.getElementById("default_image"),
+        img = document.getElementById("default-image-preview");
+    if (!sel || !img) return;
+    sel.addEventListener("change", function () {
+        if (sel.value) { img.src = img.getAttribute("data-base") + sel.value; img.hidden = false; }
+        else { img.removeAttribute("src"); img.hidden = true; }
+    });
+})();
+</script>

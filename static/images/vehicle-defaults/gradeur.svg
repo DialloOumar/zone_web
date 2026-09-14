@@ -1,0 +1,37 @@
+<svg viewBox="0 0 900 560" width="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zone Equip gradeur">
+  <rect x="40" y="498" width="820" height="6" rx="3" fill="#d8d6d0"></rect>
+  
+  <g>
+    <path d="M 150 306 Q 146 292 162 290 L 320 290 L 320 400 L 166 400 Q 150 400 150 384 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
+    <line x1="172" y1="310" x2="230" y2="310" stroke="#2b2b2b" stroke-width="4"></line>
+    <line x1="172" y1="326" x2="230" y2="326" stroke="#2b2b2b" stroke-width="4"></line>
+    
+    <text id="machine-number" data-machine-number="GRD-2026-0001" x="210" y="368" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="10.7" font-weight="900" fill="#0c62af">GRD-2026-0001</text>
+    <rect x="200" y="236" width="14" height="58" rx="5" fill="#2b2b2b"></rect>
+    
+    <text transform="rotate(-90 272 348)" x="272" y="354" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="15" font-weight="900" fill="#e1161c" letter-spacing="0.5">ZONE</text>
+    <text transform="rotate(-90 296 348)" x="296" y="354" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="15" font-weight="900" fill="#0c62af" letter-spacing="0.5">EQUIP</text>
+  </g>
+  
+  <g>
+    <rect x="320" y="206" width="120" height="194" rx="12" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></rect>
+    <rect x="333" y="220" width="94" height="64" rx="8" fill="#bfe0e8" stroke="#2b2b2b" stroke-width="5"></rect>
+    <line x1="380" y1="220" x2="380" y2="284" stroke="#2b2b2b" stroke-width="5"></line>
+    <rect x="333" y="294" width="94" height="26" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="4"></rect>
+    <text id="machine-number-cab" data-machine-number="GRD-2026-0001" x="380" y="314" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="9.0" font-weight="900" fill="#0c62af" textLength="84" lengthAdjust="spacingAndGlyphs">GRD-2026-0001</text>
+  </g>
+  
+  <g>
+    <path d="M 440 330 L 560 330 Q 640 330 700 380 L 770 428 L 754 448 L 690 400 Q 636 356 556 356 L 440 356 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
+    
+    <path d="M 520 360 L 610 380" stroke="#8b8b8b" stroke-width="12" stroke-linecap="round"></path>
+    <path d="M 545 366 L 592 358 L 618 476 L 570 486 Z" fill="#2b2b2b"></path>
+    <path d="M 618 476 L 570 486 L 574 500 L 622 492 Z" fill="#666"></path>
+  </g>
+  
+  <g>
+    <circle cx="240" cy="450" r="46" fill="#2b2b2b"></circle><circle cx="240" cy="450" r="22" fill="#8b8b8b"></circle><circle cx="240" cy="450" r="9" fill="#2b2b2b"></circle>
+    <circle cx="345" cy="450" r="46" fill="#2b2b2b"></circle><circle cx="345" cy="450" r="22" fill="#8b8b8b"></circle><circle cx="345" cy="450" r="9" fill="#2b2b2b"></circle>
+    <circle cx="762" cy="454" r="42" fill="#2b2b2b"></circle><circle cx="762" cy="454" r="20" fill="#8b8b8b"></circle><circle cx="762" cy="454" r="8" fill="#2b2b2b"></circle>
+  </g>
+</svg>
