@@ -8,6 +8,8 @@ folder — the category form lists whatever is there.
 
 Each number slot in a drawing is a <text> carrying data-machine-number. A
 drawing may have several (the body, and the door); every one gets the code.
+A slot should also carry data-max-width: how wide the panel under it is, in
+the drawing's own units. That is what a long code is fitted into.
 """
 import os
 import re
@@ -18,10 +20,19 @@ DEFAULT_IMAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # Where the same folder is reachable from a page, for url_for('static', ...).
 DEFAULT_IMAGE_STATIC = "images/vehicle-defaults/"
 
-# Roughly how wide one character of the drawings' font is, as a fraction of its
-# size. Arial Black is wide; this only has to be close enough to tell a code that
-# fits its slot from one that would run off the side of the vehicle.
-CHAR_WIDTH_EM = 0.72
+# How wide each character of the drawings' font (Arial Black) is, as a fraction
+# of the font size. A single average overestimated codes made mostly of digits
+# and hyphens, and squeezed them harder than they needed.
+_WIDTH = {"-": 0.33, " ": 0.28, ".": 0.33, "/": 0.28, "_": 0.5}
+_WIDTH.update({c: 0.66 for c in "0123456789"})
+_WIDTH.update({c: 0.78 for c in "ABCDEFGHJKLNOPQRSTUVXYZ"})
+_WIDTH.update({"I": 0.39, "M": 0.94, "W": 1.0})
+DEFAULT_CHAR_EM = 0.72
+
+# How far a long code may be narrowed before the text is made smaller instead.
+# Arial Black stays legible squeezed to half its width, and keeping the height
+# is what keeps a number readable once the drawing is shrunk into a card.
+MIN_SQUEEZE = 0.5
 
 _listing = {"mtime": None, "rows": []}
 _templates = {}          # file name -> (mtime, drawing text)
@@ -65,6 +76,11 @@ def drawing_version(name):
         return 0
 
 
+def text_width_em(text):
+    """How wide `text` runs in the drawings' font, in multiples of its size."""
+    return sum(_WIDTH.get(ch.upper(), DEFAULT_CHAR_EM) for ch in text)
+
+
 def _template(name):
     path = os.path.join(DEFAULT_IMAGE_DIR, name)
     mtime = os.stat(path).st_mtime
@@ -85,28 +101,40 @@ def _attr(attrs, key):
     return m.group(1) if m else None
 
 
+def _float(value, default):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _fill_slot(match, code):
     opening, attrs, sample, closing = match.groups()
-    try:
-        size = float(_attr(attrs, "font-size") or 16)
-    except ValueError:
-        size = 16.0
+    size = _float(_attr(attrs, "font-size"), 16.0)
 
-    # How wide the slot is: the width the drawing forced the sample into, or
-    # else the width the sample naturally took.
-    forced = _attr(attrs, "textLength")
-    try:
-        room = float(forced) if forced else size * CHAR_WIDTH_EM * len(sample)
-    except ValueError:
-        room = size * CHAR_WIDTH_EM * len(sample)
+    # How wide the slot is: the panel width the drawing declares, else the
+    # width it once forced its sample into, else the sample's own width.
+    room = _float(_attr(attrs, "data-max-width"), None)
+    if room is None:
+        room = _float(_attr(attrs, "textLength"), None)
+    if room is None:
+        room = size * text_width_em(sample)
 
     attrs = re.sub(r'\s*\b(textLength|lengthAdjust)="[^"]*"', "", attrs)
     attrs = re.sub(r'\bdata-machine-number="[^"]*"',
                    "data-machine-number=" + quoteattr(code), attrs)
-    # A code too long for its slot is squeezed into it. A short one is left at
-    # its natural width: stretched across the space, "EX-01" would look wrong.
-    if size * CHAR_WIDTH_EM * len(code) > room:
+
+    natural = size * text_width_em(code)
+    if natural > room:
+        # Too long for its panel. Narrow the letters first and keep their
+        # height; only once that would pass MIN_SQUEEZE is the text made
+        # smaller, and just enough to fit.
+        if natural * MIN_SQUEEZE > room:
+            size = room / (text_width_em(code) * MIN_SQUEEZE)
+            attrs = re.sub(r'\bfont-size="[^"]*"', 'font-size="%.1f"' % size, attrs)
         attrs += ' textLength="%.1f" lengthAdjust="spacingAndGlyphs"' % room
+    # A short code is left at its natural width: "EX-01" stretched across a
+    # panel sized for a long number looks wrong.
     return "%s%s>%s%s" % (opening, attrs, escape(code), closing)
 
 

@@ -1,13 +1,13 @@
-<svg viewBox="0 0 900 560" width="720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zone Equip chargeuse">
+<svg width="657" height="321" viewBox="164 195 657 321" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zone Equip chargeuse">
   <rect x="40" y="498" width="820" height="6" rx="3" fill="#d8d6d0"></rect>
   
   <g>
     <path d="M 180 310 Q 176 296 192 294 L 330 294 L 330 400 L 196 400 Q 180 400 180 384 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
-    <line x1="204" y1="316" x2="250" y2="316" stroke="#2b2b2b" stroke-width="4"></line>
-    <line x1="204" y1="334" x2="250" y2="334" stroke="#2b2b2b" stroke-width="4"></line>
-    
-    <text transform="rotate(-90 282 330)" x="282" y="336" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="15" font-weight="900" fill="#e1161c" letter-spacing="0.5">ZONE</text>
-    <text transform="rotate(-90 306 330)" x="306" y="336" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="15" font-weight="900" fill="#0c62af" letter-spacing="0.5">EQUIP</text>
+    <line x1="198" y1="310" x2="236" y2="310" stroke="#2b2b2b" stroke-width="4"></line>
+    <line x1="198" y1="324" x2="236" y2="324" stroke="#2b2b2b" stroke-width="4"></line>
+
+    <text x="285" y="316" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="14" font-weight="900" fill="#e1161c" letter-spacing="0.5">ZONE</text>
+    <text x="285" y="331" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="14" font-weight="900" fill="#0c62af" letter-spacing="0.5">EQUIP</text>
     
     <rect x="240" y="240" width="14" height="58" rx="5" fill="#2b2b2b"></rect>
   </g>
@@ -18,12 +18,12 @@
     <line x1="395" y1="224" x2="395" y2="290" stroke="#2b2b2b" stroke-width="5"></line>
     
     <rect x="344" y="300" width="102" height="28" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="4"></rect>
-    <text id="machine-number-cab" data-machine-number="CHG-2026-0001" x="395" y="320" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="9.1" font-weight="900" fill="#0c62af" textLength="92" lengthAdjust="spacingAndGlyphs">CHG-2026-0001</text>
+    <text data-max-width="94" id="machine-number-cab" data-machine-number="CHG-2026-0001" x="395" y="320" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="18" font-weight="900" fill="#0c62af">CHG-2026-0001</text>
   </g>
   
   <path d="M 460 320 L 560 320 L 560 400 L 460 400 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
   
-  <text id="machine-number" data-machine-number="CHG-2026-0001" x="228" y="372" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="10.7" font-weight="900" fill="#0c62af">CHG-2026-0001</text>
+  <text data-max-width="132" id="machine-number" data-machine-number="CHG-2026-0001" x="255" y="367" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="34" font-weight="900" fill="#0c62af">CHG-2026-0001</text>
   
   <g>
     <path d="M 545 330 L 690 396 L 678 420 L 535 356 Z" fill="#f2a900" stroke="#2b2b2b" stroke-width="6"></path>
