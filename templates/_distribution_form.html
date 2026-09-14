@@ -32,12 +32,15 @@
         </div>
     </div>
 
+    {# "dispo" is what the tank can give on the chosen date — the limit the save
+       checks — and follows the date field when it changes. #}
     <div class="field field--select" id="citerne-block">
-        <select id="citerne_id" name="citerne_id">
+        <select id="citerne_id" name="citerne_id" data-available-label="{{ t['distribution.available'] }}">
             <option value="" hidden></option>
             {% set sel_c = request.form.get('citerne_id')|int(0) or preset_citerne %}
             {% for c in citernes %}
-            <option value="{{ c.id }}" {% if c.id == sel_c %}selected{% endif %}>{{ c.code }} — {{ c.stock | num }} L {{ t['distribution.available'] }}</option>
+            <option value="{{ c.id }}" {% if c.id == sel_c %}selected{% endif %}
+                    data-code="{{ c.code }}" data-levels='{{ levels[c.id] | tojson }}'>{{ c.code }} — {{ available[c.id] | num }} L {{ t['distribution.available'] }}</option>
             {% endfor %}
         </select>
         <label for="citerne_id">{{ t['distribution.citerne'] }}</label>
@@ -95,5 +98,30 @@
     }
     src.addEventListener('change', apply);
     apply();
+
+    // What a tank can give on a date: the lowest it stands from that date on,
+    // counting from its level just before it. Mirrors Citerne.min_stock_from.
+    var dateEl = document.getElementById('date'),
+        label = citsel.getAttribute('data-available-label');
+    function availableOn(levels, day) {
+        var before = 0, lowest = null;
+        levels.forEach(function (row) {
+            if (row[0] < day) before = row[1];
+            else lowest = lowest === null ? row[1] : Math.min(lowest, row[1]);
+        });
+        return Math.max(lowest === null ? before : Math.min(before, lowest), 0);
+    }
+    function refreshAvailable() {
+        if (!dateEl.value) return;
+        Array.prototype.forEach.call(citsel.options, function (opt) {
+            var raw = opt.getAttribute('data-levels');
+            if (!raw) return;
+            var n = availableOn(JSON.parse(raw), dateEl.value);
+            opt.textContent = opt.getAttribute('data-code') + ' — ' +
+                String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' L ' + label;
+        });
+    }
+    dateEl.addEventListener('input', refreshAvailable);
+    dateEl.addEventListener('change', refreshAvailable);
 })();
 </script>

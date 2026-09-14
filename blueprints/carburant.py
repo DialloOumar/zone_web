@@ -273,21 +273,19 @@ def _read_citerne_form(citerne):
                 overflow=overflow), None
 
 
-def _flash_shortfall(shortfall, overflow=0):
-    """Say the tank now reads outside its bounds, and what settles it. The entry
-    is kept either way — this is a note, not a refusal."""
-    t = get_t()
-    if shortfall:
-        flash("warning|" + t.get(
-            "citerne.warn_negative",
-            "Le stock de cette citerne passe sous zéro de %(n)d L : il manque une "
-            "rentrée. Enregistrez-la à sa date et le compte se remet d'aplomb.")
-            % {"n": shortfall})
+def _flash_overflow(overflow):
+    """Say the tank now reads above its capacity. The entry is kept — this is a
+    note, not a refusal. (Under zero is refused outright, never noted.)"""
     if overflow:
-        flash("warning|" + t.get(
+        flash("warning|" + get_t().get(
             "citerne.warn_over",
             "Le stock de cette citerne dépasse sa capacité de %(n)d L. "
             "Vérifiez la capacité ou les mouvements.") % {"n": overflow})
+
+
+def _litres(n):
+    """12000 -> "12 000", grouped the way the pages show litres."""
+    return "{:,}".format(n).replace(",", " ")
 
 
 _PHOTO_ERR_KEYS = {
@@ -373,7 +371,7 @@ def citerne_edit(cid):
                    detail=f"Updated citerne '{citerne.code}'")
         db.session.commit()
         flash("success|" + t.get("citerne.updated", "Citerne mise à jour."))
-        _flash_shortfall(0, overflow)
+        _flash_overflow(overflow)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_citerne_form(citerne)
 
@@ -448,22 +446,41 @@ def _read_distribution_form():
     # only meant it got written down somewhere else, or not at all. The picker
     # names each machine's fleet, so whoever records it can see what they are
     # doing.
-    # Entry never refuses: the fuel left the tank, whatever the paperwork says.
-    # What is missing is a rentrée, and saying so beats turning the person away
-    # — refused, they would shift the date or the litres until it went through.
-    available = c.min_stock_from(date_str)
+    # No more can leave a tank than is in it. The level that counts is the
+    # lowest the tank reaches from this date on, not today's: a draw lowers its
+    # own day and every day after, so a back-dated one that fits on its day can
+    # still take a later day under zero. A tank already under zero gives
+    # nothing until its missing rentrée is recorded.
+    available = max(c.min_stock_from(date_str), 0)
+    if liters > available:
+        if available == 0:
+            msg = t.get("distribution.err.empty",
+                        "La citerne %(code)s est vide à cette date : aucune distribution "
+                        "possible. Si elle a été remplie, enregistrez d'abord la rentrée.")
+        else:
+            msg = t.get("distribution.err.short",
+                        "La citerne %(code)s n'a que %(n)s L disponibles à cette date : "
+                        "impossible d'en distribuer %(asked)s L. Si elle a été remplie, "
+                        "enregistrez d'abord la rentrée.")
+        return None, msg % {"code": c.code, "n": _litres(available),
+                            "asked": _litres(liters)}
     return dict(kind="distribution", citerne_id=c.id, vehicle_id=v.id, date=date_str,
-                time=time_str, liters=liters, operator=operator,
-                warn_short=max(liters - available, 0)), None
+                time=time_str, liters=liters, operator=operator), None
 
 
 def _render_distribution_form(error=None):
     tpl = "_distribution_form.html" if is_modal_request() else "distribution_form.html"
     status = 422 if (error and is_modal_request()) else 200
+    citernes = (_scoped_citernes().filter(Citerne.is_active.is_(True))
+                .order_by(Citerne.code).all())
+    day = request.form.get("date") if _valid_date(request.form.get("date")) else date.today().isoformat()
     return render_template(
-        tpl, error=error,
-        citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
-                  .order_by(Citerne.code).all()),
+        tpl, error=error, citernes=citernes,
+        # What each tank can give on the form's date — the same limit the save
+        # checks — and its level after every movement, so the page can say it
+        # again when the date is changed.
+        available={c.id: max(c.min_stock_from(day), 0) for c in citernes},
+        levels={c.id: [[m.date, lvl] for m, lvl in c.level_history()] for c in citernes},
         vehicles=_entry_vehicles(), operators=_accessible_operators(),
         today=date.today().isoformat(), now_time=datetime.now().strftime("%H:%M"),
         preset_citerne=request.args.get("citerne", type=int),
@@ -480,7 +497,6 @@ def distribution_new():
         if error:
             return _render_distribution_form(error)
         kind = data.pop("kind")
-        warn_short = data.pop("warn_short", 0)
         c = db.session.get(Citerne, data["citerne_id"]) if data["citerne_id"] else None
         v = db.session.get(Vehicle, data["vehicle_id"])
         mv = FuelMovement(kind=kind, created_by=current_user.id, **data)
@@ -492,7 +508,6 @@ def distribution_new():
                    fleet_id=(c.fleet_id if c else v.fleet_id), detail=detail)
         db.session.commit()
         flash("success|" + t.get("distribution.created", "Prise de carburant enregistrée."))
-        _flash_shortfall(warn_short)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_distribution_form()
 
@@ -555,7 +570,7 @@ def rentree_new():
                    detail=f"Rentrée {mv.liters} L into '{c.code}'")
         db.session.commit()
         flash("success|" + t.get("rentree.created", "Rentrée enregistrée."))
-        _flash_shortfall(0, overflow)
+        _flash_overflow(overflow)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_rentree_form()
 
@@ -762,7 +777,7 @@ def ravitaillement_new():
                    detail=f"Ravitaillement ({kind}) {mv.liters} L")
         db.session.commit()
         flash("success|" + t.get("rav.created", "Ravitaillement enregistré."))
-        _flash_shortfall(0, overflow)
+        _flash_overflow(overflow)
         return modal_ok() if is_modal_request() else redirect(url_for("carburant.index"))
     return _render_ravitaillement_form()
 
@@ -781,10 +796,20 @@ def movement_delete(mid):
     fids = current_user_fleet_ids()
     if fids is not None and c and c.fleet_id not in fids:
         abort(403)
-    # Removing a movement is allowed too; what it does to the tank is reported.
-    short = over = 0
+    # A rentrée that later distributions drew on cannot go: without it they
+    # took fuel that was never there. The right rentrée goes in first, then the
+    # wrong one comes out. Removing a distribution only puts fuel back.
     if c and mv.kind == "rentree":
-        short = max(-c.floor_if_removed(mv.date, mv.liters), 0)
+        floor = c.floor_if_removed(mv.date, mv.liters)
+        if floor < 0:
+            flash("error|" + get_t().get(
+                "movement.err.rentree_needed",
+                "Impossible de supprimer cette rentrée : la citerne %(code)s passerait "
+                "sous zéro de %(n)s L, car des distributions en dépendent. Enregistrez "
+                "d'abord la bonne rentrée, ou supprimez ces distributions.")
+                % {"code": c.code, "n": _litres(-floor)})
+            return redirect(request.referrer or url_for("carburant.index"))
+    over = 0
     if c and mv.kind == "distribution":
         over = max(c.peak_if_returned(mv.date, mv.liters) - c.capacity_liters, 0)
     db.session.delete(mv)
@@ -792,5 +817,5 @@ def movement_delete(mid):
                fleet_id=(c.fleet_id if c else None), detail=f"Deleted {mv.kind}")
     db.session.commit()
     flash("success|" + get_t().get("movement.deleted", "Mouvement supprimé."))
-    _flash_shortfall(short, over)
+    _flash_overflow(over)
     return redirect(request.referrer or url_for("carburant.index"))
