@@ -1,0 +1,74 @@
+{# The invoice's paper, scanned. static/js/scanner.js does the work: a photo,
+   four corners dragged onto the sheet, the page flattened, as many pages as
+   the invoice has. The pages travel in the ordinary "scan_pages" file field
+   and the server binds them into one PDF.
+
+   The phone is offered the camera or an existing photo -- no `capture`
+   attribute -- because an invoice photographed earlier, or sent over WhatsApp,
+   is as common as one photographed on the spot.
+
+   Every word the scanner shows is written here, from the translations, so the
+   script itself holds no text.
+
+   Expects `invoice` (none on a new bill). #}
+{% set has_doc = invoice is not none and invoice.photo_key %}
+{% set doc_current = photo_url(invoice.photo_key) if has_doc else None %}
+{% set doc_is_pdf = has_doc and invoice.photo_key.endswith('.pdf') %}
+<div class="scan-field" data-scanner
+     data-l-title="{{ t['scan.title'] }}"
+     data-l-page="{{ t['scan.page'] }}"
+     data-l-start="{{ t['scan.start'] }}"
+     data-l-add-page="{{ t['scan.add_page'] }}"
+     data-l-remove-page="{{ t['scan.remove_page'] }}"
+     data-l-corners="{{ t['scan.corners_tip'] }}"
+     data-l-straighten="{{ t['scan.straighten'] }}"
+     data-l-retake="{{ t['scan.retake'] }}"
+     data-l-redo="{{ t['scan.redo_corners'] }}"
+     data-l-color="{{ t['scan.color'] }}"
+     data-l-document="{{ t['scan.document'] }}"
+     data-l-finish="{{ t['scan.finish'] }}"
+     data-l-working="{{ t['scan.working'] }}"
+     data-l-cancel="{{ t['btn.cancel'] }}"
+     data-l-too-many="{{ t['scan.err.too_many_pages'] }}"
+     data-l-bad-photo="{{ t['photo.err.bad_format'] }}"
+     data-l-unsupported="{{ t['scan.err.unsupported'] }}"
+     data-l-not-pdf="{{ t['scan.err.not_pdf'] }}"
+     data-l-too-big="{{ t['scan.err.pdf_too_big'] }}"
+     data-l-remove-pdf="{{ t['scan.remove_pdf'] }}">
+
+    <span class="photo-input__label">{{ t['scan.field'] }}</span>
+
+    {% if doc_current %}
+    <div class="scan-current" data-scan-current>
+        <a href="{{ doc_current }}" target="_blank" rel="noopener" class="scan-current__link">
+            <span class="material-symbols-outlined">{{ 'picture_as_pdf' if doc_is_pdf else 'photo_camera' }}</span>
+            {{ t['scan.current_pdf'] if doc_is_pdf else t['scan.current_photo'] }}
+        </a>
+        <button type="button" class="btn btn--sm btn--outlined" data-scan-remove-current>{{ t['scan.remove_current'] }}</button>
+    </div>
+    {% endif %}
+
+    <div class="scan-pages" data-scan-pages></div>
+    <div class="field-hint" data-scan-replace-note hidden>{{ t['scan.replaces'] }}</div>
+    <div class="alert alert--error" data-scan-error hidden></div>
+
+    {# Paper is scanned; a bill that arrived by e-mail is already a PDF and is
+       kept exactly as it came. On a computer the scan button opens a file
+       chooser instead of a camera, so a photo or a screenshot works there too. #}
+    <div class="scan-pdf-chosen" data-scan-pdf-chosen hidden></div>
+    <div class="scan-actions">
+        <label class="btn btn--outlined btn--sm">
+            <span class="material-symbols-outlined">photo_camera</span>
+            <span data-scan-add-label>{{ t['scan.start'] }}</span>
+            <input type="file" accept="image/*" hidden data-scan-camera>
+        </label>
+        <label class="btn btn--outlined btn--sm">
+            <span class="material-symbols-outlined">picture_as_pdf</span>
+            <span>{{ t['scan.attach_pdf'] }}</span>
+            <input type="file" name="pdf_file" accept="application/pdf,.pdf" hidden data-scan-pdf>
+        </label>
+    </div>
+    <input type="file" name="scan_pages" multiple hidden data-scan-output>
+    <input type="hidden" name="photo_remove" value="" data-scan-remove>
+    <div class="field-hint">{{ t['scan.flat_tip'] }}</div>
+</div>

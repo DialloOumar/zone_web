@@ -57,9 +57,7 @@
         <label for="description">{{ t['invoice.object'] }}</label>
     </div>
 
-    {% set photo_current = photo_url(invoice.photo_key) if is_edit and invoice.photo_key else None %}
-    {% set photo_alt = invoice.supplier.name if is_edit else '' %}
-    {% include "_photo_field.html" %}
+    {% include "_scan_field.html" %}
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">

@@ -213,7 +213,11 @@
                     {% if purl %}
                     <a href="{{ purl }}" target="_blank" rel="noopener" class="muted small"
                        style="display:inline-flex; align-items:center; gap:4px;">
+                        {% if inv.photo_key.endswith('.pdf') %}
+                        <span class="material-symbols-outlined" style="font-size:16px;">picture_as_pdf</span>{{ t['scan.view_pdf'] }}
+                        {% else %}
                         <span class="material-symbols-outlined" style="font-size:16px;">image</span>{{ t['invoice.photo_view'] }}
+                        {% endif %}
                     </a>
                     {% endif %}
                     {% endif %}

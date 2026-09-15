@@ -51,6 +51,8 @@ _PHOTO_ERR_KEYS = {
     s3_storage.ERR_NOT_CONFIGURED: "photo.err.not_configured",
     s3_storage.ERR_S3:             "photo.err.s3",
     s3_storage.ERR_UNKNOWN:        "photo.err.unknown",
+    s3_storage.ERR_TOO_MANY_PAGES: "scan.err.too_many_pages",
+    s3_storage.ERR_NOT_PDF:        "scan.err.not_pdf",
 }
 
 
@@ -180,19 +182,40 @@ def _read_invoice_form():
 
 
 def _apply_photo_change(inv):
-    """The optional photo of the paper: a new upload replaces (and deletes) the
-    previous one, the remove button clears it. Returns a localized error when a
-    submitted photo cannot be stored, else None. The row must already have an id.
+    """The optional document of the paper: a new scan (or, from older forms, a
+    single photo) replaces and deletes the previous one; the remove button
+    clears it. Returns a localized error when what was sent cannot be stored,
+    else None. The row must already have an id.
+
+    A scan is one or more flattened pages, bound into a single PDF on the way to
+    storage. Photos saved before the scanner existed stay as they are.
     """
     t = get_t()
     old_key = inv.photo_key
     if request.form.get("photo_remove") == "1":
         inv.photo_key = None
+    name = inv.supplier.name if inv.supplier else "facture"
+    code = "%s-%s" % (name, inv.number or inv.id)
+    month = (inv.date or "")[:7]
+    # A received PDF, a scan, or (from forms older than the scanner) a single
+    # photo -- one document per bill, so the first one present is the one kept.
+    pdf_file = request.files.get("pdf_file")
+    pages = [f for f in request.files.getlist("scan_pages") if f and f.filename]
     upload = request.files.get("photo")
-    if upload and upload.filename:
-        name = inv.supplier.name if inv.supplier else "facture"
-        key, err = s3_storage.upload_invoice_photo(
-            upload, "%s-%s" % (name, inv.number or inv.id), (inv.date or "")[:7])
+    if pdf_file and pdf_file.filename:
+        key, err = s3_storage.upload_invoice_pdf(pdf_file, code, month)
+        if err:
+            return t.get(_PHOTO_ERR_KEYS.get(err, "photo.err.unknown"),
+                         "Document non enregistré.")
+        inv.photo_key = key
+    elif pages:
+        key, err = s3_storage.upload_invoice_scan(pages, code, month)
+        if err:
+            return t.get(_PHOTO_ERR_KEYS.get(err, "photo.err.unknown"),
+                         "Document non enregistré.")
+        inv.photo_key = key
+    elif upload and upload.filename:
+        key, err = s3_storage.upload_invoice_photo(upload, code, month)
         if err:
             return t.get(_PHOTO_ERR_KEYS.get(err, "photo.err.unknown"),
                          "Photo non enregistrée.")

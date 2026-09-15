@@ -34,6 +34,8 @@ ERR_TOO_LARGE      = "too_large"
 ERR_BAD_FORMAT     = "bad_format"
 ERR_S3             = "s3_error"
 ERR_UNKNOWN        = "unknown"
+ERR_TOO_MANY_PAGES = "too_many_pages"
+ERR_NOT_PDF        = "not_pdf"
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +55,10 @@ VEHICLE_PREFIX  = S3_PREFIX + "vehicles/"      # one photo per vehicle
 CITERNE_PREFIX  = S3_PREFIX + "citernes/"      # one photo per citerne
 PART_PREFIX     = S3_PREFIX + "parts/"         # one photo per stock part
 INVOICE_PREFIX  = S3_PREFIX + "invoices/"      # supplier invoices, foldered by month
+MAX_SCAN_PAGES  = 20                 # pages in one scanned invoice (scanner.js holds the same)
+SCAN_MAX        = 2000               # longest side of a scanned page, as the browser sends it
+A4_LONG_INCHES  = 11.69              # a scanned page opens at paper size, not as a poster
+MAX_PDF_BYTES   = 15 * 1024 * 1024   # a PDF received by e-mail (scanner.js holds the same)
 BACKUP_PREFIX   = S3_PREFIX + "backups/"       # database dumps, and nothing else
 MAX_BYTES       = 12 * 1024 * 1024   # 12 MB raw upload cap
 RESIZE_MAX      = 1920               # longest edge after resize
@@ -205,10 +211,74 @@ def upload_invoice_photo(file_storage, code: str = "", month: str = "") -> Tuple
     month drops the file straight into invoices/ rather than into a folder
     named after a typo.
     """
+    return _upload_photo(file_storage, _invoice_prefix(month), code)
+
+
+def _invoice_prefix(month: str) -> str:
+    """invoices/2026-09/ for a well-formed month, plain invoices/ otherwise --
+    a malformed month must not become a folder named after a typo."""
     prefix = INVOICE_PREFIX
-    if len(month) == 7 and month[4] == "-" and month[:4].isdigit() and month[5:].isdigit():
+    if len(month or "") == 7 and month[4] == "-" and month[:4].isdigit() and month[5:].isdigit():
         prefix += month + "/"
-    return _upload_photo(file_storage, prefix, code)
+    return prefix
+
+
+def scan_to_pdf(pages) -> Tuple[Optional[bytes], Optional[str]]:
+    """Bind scanned pages into one PDF, in the order they were scanned.
+
+    The pages arrive already flattened by the browser (static/js/scanner.js);
+    this checks each is a readable image of a sane size and binds them. Every
+    page is given the resolution that makes the first page's long side print at
+    A4's long side, so the document opens at paper size.
+    Returns (pdf_bytes, None) or (None, error_code).
+    """
+    if Image is None:
+        return None, ERR_NOT_CONFIGURED
+    if not pages:
+        return None, ERR_BAD_FORMAT
+    if len(pages) > MAX_SCAN_PAGES:
+        return None, ERR_TOO_MANY_PAGES
+    images = []
+    for fs in pages:
+        raw = fs.read(MAX_BYTES + 1)
+        if len(raw) > MAX_BYTES:
+            return None, ERR_TOO_LARGE
+        try:
+            img = ImageOps.exif_transpose(Image.open(io.BytesIO(raw)))
+            img.thumbnail((SCAN_MAX, SCAN_MAX))
+            images.append(img.convert("RGB"))
+        except (UnidentifiedImageError, OSError):
+            return None, ERR_BAD_FORMAT
+    dpi = max(max(images[0].size) / A4_LONG_INCHES, 72.0)
+    buf = io.BytesIO()
+    images[0].save(buf, format="PDF", save_all=True, append_images=images[1:],
+                   resolution=dpi, quality=JPEG_QUALITY)
+    return buf.getvalue(), None
+
+
+def upload_invoice_scan(pages, code: str = "", month: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """Bind scanned pages into a PDF and upload it beside the invoice photos,
+    under the same month folder. Returns (key, None) or (None, error_code)."""
+    s3 = _client()
+    if s3 is None:
+        log.warning("S3 not configured; skipping invoice scan upload")
+        return None, ERR_NOT_CONFIGURED
+    try:
+        body, err = scan_to_pdf(pages)
+        if err:
+            return None, err
+        key = (f"{_invoice_prefix(month)}{_slug(code)}-{int(time.time())}"
+               f"-{uuid.uuid4().hex[:6]}.pdf")
+        # Stored as a PDF, so the signed link opens in the browser's own viewer
+        # instead of downloading a file nobody can find afterwards.
+        s3.put_object(Bucket=S3_BUCKET, Key=key, Body=body, ContentType="application/pdf")
+        return key, None
+    except (BotoCoreError, ClientError) as e:
+        log.exception("S3 invoice scan upload failed: %s", e)
+        return None, ERR_S3
+    except Exception as e:
+        log.exception("Unexpected error during invoice scan upload: %s", e)
+        return None, ERR_UNKNOWN
 
 
 # ── Database backups ─────────────────────────────────────────────────────────
@@ -288,6 +358,37 @@ def delete_backup(key: str) -> bool:
     except (BotoCoreError, ClientError) as e:
         log.exception("Backup delete failed: %s", e)
         return False
+
+
+def upload_invoice_pdf(file_storage, code: str = "", month: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """A bill that arrived as a PDF -- by e-mail, over WhatsApp -- kept exactly
+    as it came, beside the scans under the same month folder.
+
+    It is recognised by its first bytes, not by its name: a photo renamed to
+    .pdf is not a PDF, and would be stored as one nobody could open. The PDF
+    format lets the marker sit anywhere in the first kilobyte, so that is where
+    it is looked for. Returns (key, None) or (None, error_code).
+    """
+    s3 = _client()
+    if s3 is None:
+        log.warning("S3 not configured; skipping invoice PDF upload")
+        return None, ERR_NOT_CONFIGURED
+    try:
+        body = file_storage.read(MAX_PDF_BYTES + 1)
+        if len(body) > MAX_PDF_BYTES:
+            return None, ERR_TOO_LARGE
+        if b"%PDF-" not in body[:1024]:
+            return None, ERR_NOT_PDF
+        key = (f"{_invoice_prefix(month)}{_slug(code)}-{int(time.time())}"
+               f"-{uuid.uuid4().hex[:6]}.pdf")
+        s3.put_object(Bucket=S3_BUCKET, Key=key, Body=body, ContentType="application/pdf")
+        return key, None
+    except (BotoCoreError, ClientError) as e:
+        log.exception("S3 invoice PDF upload failed: %s", e)
+        return None, ERR_S3
+    except Exception as e:
+        log.exception("Unexpected error during invoice PDF upload: %s", e)
+        return None, ERR_UNKNOWN
 
 
 def signed_url(photo_key: str, expires_in: int = SIGNED_URL_TTL) -> Optional[str]:

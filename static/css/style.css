@@ -2071,3 +2071,98 @@ body { font-size: 0.9rem; }
 @media (max-width: 560px) {
     .fuel-src__note { display: none; }   /* keep just the logo on narrow screens */
 }
+
+
+/* ── Invoice scanner (static/js/scanner.js) ──────────────────────────────── */
+.scan-field { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+/* The field's own parts set a display of their own, which would otherwise
+   beat the hidden attribute the script toggles. */
+.scan-field [hidden] { display: none !important; }
+.scan-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.scan-current { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.scan-current__link { display: inline-flex; align-items: center; gap: 6px; }
+
+.scan-pages { display: flex; gap: 8px; flex-wrap: wrap; }
+.scan-pages:empty { display: none; }
+.scan-thumb {
+    position: relative; width: 66px; height: 90px;
+    border: 1px solid var(--md-outline-variant); border-radius: var(--shape-sm);
+    background: #fff; overflow: hidden;
+}
+.scan-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.scan-thumb__num {
+    position: absolute; left: 4px; bottom: 4px;
+    min-width: 18px; padding: 1px 5px; border-radius: 999px;
+    background: rgba(0, 0, 0, .62); color: #fff; font-size: .68rem; text-align: center;
+}
+.scan-thumb__remove {
+    position: absolute; top: 3px; right: 3px;
+    width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+    background: rgba(0, 0, 0, .62); color: #fff;
+    font: inherit; font-size: 1rem; line-height: 1; cursor: pointer;
+}
+.scan-pdf-chosen {
+    display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+    padding: 4px 6px 4px 12px; border-radius: 999px;
+    background: var(--md-surface-container-high); color: var(--md-on-surface);
+    font-size: .82rem;
+}
+.scan-pdf-chosen__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scan-pdf-chosen .scan-thumb__remove { position: static; flex-shrink: 0; }
+
+/* The editor covers everything, the modal included, and holds the page still
+   underneath while it is open. It is dark whatever the theme: a photo reads
+   best against black, and the handles are drawn to show on it. */
+html.scan-open, html.scan-open body { overflow: hidden; }
+.scan-editor {
+    position: fixed; inset: 0; z-index: 400;
+    display: flex; flex-direction: column;
+    background: rgb(10, 10, 14); color: #fff;
+}
+.scan-editor__head { padding: 12px 16px; font-weight: 600; }
+.scan-editor__stage {
+    flex: 1; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 26px; overflow: hidden;
+}
+.scan-editor__box { position: relative; display: inline-block; line-height: 0; }
+.scan-editor__photo {
+    display: block; width: auto; height: auto;
+    max-width: calc(100vw - 52px); max-height: calc(100vh - 210px);
+    background: #fff;
+}
+.scan-editor__lines {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    overflow: visible; pointer-events: none;
+}
+.scan-editor__lines polygon {
+    fill: rgba(99, 102, 241, .16); stroke: #fff; stroke-width: 2.5;
+    vector-effect: non-scaling-stroke;
+}
+.scan-editor__box.is-crossed .scan-editor__lines polygon { stroke: #f87171; fill: rgba(248, 113, 113, .16); }
+/* A handle is a big target around a small dot: easy to catch with a thumb,
+   and the dot itself does not hide the corner it sits on. */
+.scan-handle {
+    position: absolute; width: 48px; height: 48px; margin: -24px 0 0 -24px;
+    border-radius: 50%; touch-action: none; cursor: grab;
+}
+.scan-handle::after {
+    content: ""; position: absolute; inset: 13px; border-radius: 50%;
+    background: var(--md-primary); border: 3px solid #fff;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, .4);
+}
+.scan-handle.is-dragging { cursor: grabbing; }
+.scan-handle.is-dragging::after { inset: 8px; }
+.scan-editor__tip {
+    min-height: 44px; padding: 6px 16px;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; font-size: .9rem; color: rgba(255, 255, 255, .88);
+}
+.scan-editor__modes { display: inline-flex; gap: 6px; }
+.scan-editor__modes .btn.is-on { background: var(--md-primary); color: var(--md-on-primary); }
+.scan-editor__foot {
+    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+}
+.scan-editor .btn--outlined { color: #fff; border-color: rgba(255, 255, 255, .55); }
+.scan-editor .btn[disabled] { opacity: .45; cursor: not-allowed; }
