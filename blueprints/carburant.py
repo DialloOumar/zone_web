@@ -447,11 +447,13 @@ def _read_distribution_form():
     # names each machine's fleet, so whoever records it can see what they are
     # doing.
     # No more can leave a tank than is in it. The level that counts is the
-    # lowest the tank reaches from this date on, not today's: a draw lowers its
-    # own day and every day after, so a back-dated one that fits on its day can
-    # still take a later day under zero. A tank already under zero gives
-    # nothing until its missing rentrée is recorded.
-    available = max(c.min_stock_from(date_str), 0)
+    # lowest the tank reaches from this moment (date + hour) on, not today's:
+    # a draw lowers its own hour and everything after, so a back-dated one that
+    # fits on its day can still take a later day under zero. A rentrée earlier
+    # the same day is already in the tank and does count; one later that day
+    # does not. A tank already under zero gives nothing until its missing
+    # rentrée is recorded.
+    available = max(c.min_stock_from(date_str, time_str), 0)
     if liters > available:
         if available == 0:
             msg = t.get("distribution.err.empty",
@@ -473,16 +475,21 @@ def _render_distribution_form(error=None):
     status = 422 if (error and is_modal_request()) else 200
     citernes = (_scoped_citernes().filter(Citerne.is_active.is_(True))
                 .order_by(Citerne.code).all())
-    day = request.form.get("date") if _valid_date(request.form.get("date")) else date.today().isoformat()
+    now_time = datetime.now().strftime("%H:%M")
+    if _valid_date(request.form.get("date")):
+        day, tm = request.form.get("date"), _clean_time(request.form.get("time"))
+    else:
+        day, tm = date.today().isoformat(), now_time
     return render_template(
         tpl, error=error, citernes=citernes,
-        # What each tank can give on the form's date — the same limit the save
-        # checks — and its level after every movement, so the page can say it
-        # again when the date is changed.
-        available={c.id: max(c.min_stock_from(day), 0) for c in citernes},
-        levels={c.id: [[m.date, lvl] for m, lvl in c.level_history()] for c in citernes},
+        # What each tank can give at the form's date and hour — the same limit
+        # the save checks — and its level after every movement (with its date
+        # and hour), so the page can say it again when either field changes.
+        available={c.id: max(c.min_stock_from(day, tm), 0) for c in citernes},
+        levels={c.id: [[m.date, m.time or "00:00", lvl] for m, lvl in c.level_history()]
+                for c in citernes},
         vehicles=_entry_vehicles(), operators=_accessible_operators(),
-        today=date.today().isoformat(), now_time=datetime.now().strftime("%H:%M"),
+        today=date.today().isoformat(), now_time=now_time,
         preset_citerne=request.args.get("citerne", type=int),
         preset_source=request.args.get("source")), status
 
@@ -520,6 +527,7 @@ def _read_rentree_form():
     date_str = (request.form.get("date") or "").strip()
     if not _valid_date(date_str):
         return None, t.get("rentree.err.date", "Date invalide.")
+    time_str = _clean_time(request.form.get("time"))
 
     c = db.session.get(Citerne, request.form.get("citerne_id", type=int) or 0)
     if not c or not c.is_active:
@@ -535,8 +543,8 @@ def _read_rentree_form():
     # before a stretch where the tank was already full would otherwise overflow
     # it back then, and a legitimate back-dated one gets refused whenever the
     # citerne happens to be full now.
-    room = c.capacity_liters - c.max_stock_from(date_str)
-    return dict(citerne_id=c.id, date=date_str, liters=liters,
+    room = c.capacity_liters - c.max_stock_from(date_str, time_str)
+    return dict(citerne_id=c.id, date=date_str, time=time_str, liters=liters,
                 warn_over=max(liters - room, 0),
                 note=(request.form.get("reference") or "").strip() or None), None
 
@@ -548,7 +556,7 @@ def _render_rentree_form(error=None):
         tpl, error=error,
         citernes=(_scoped_citernes().filter(Citerne.is_active.is_(True))
                   .order_by(Citerne.code).all()),
-        today=date.today().isoformat(),
+        today=date.today().isoformat(), now_time=datetime.now().strftime("%H:%M"),
         preset_citerne=request.args.get("citerne", type=int)), status
 
 
@@ -726,7 +734,7 @@ def _read_ravitaillement_form():
             # The citerne took fuel for its own engine, not for its reservoir.
             return dict(kind="conso", citerne_id=c.id, date=date_str, time=time_str,
                         liters=liters, operator=operator), None
-        room = c.capacity_liters - c.max_stock_from(date_str)
+        room = c.capacity_liters - c.max_stock_from(date_str, time_str)
         return dict(kind="rentree", citerne_id=c.id, date=date_str, time=time_str,
                     liters=liters, operator=operator,
                     warn_over=max(liters - room, 0),
@@ -800,7 +808,7 @@ def movement_delete(mid):
     # took fuel that was never there. The right rentrée goes in first, then the
     # wrong one comes out. Removing a distribution only puts fuel back.
     if c and mv.kind == "rentree":
-        floor = c.floor_if_removed(mv.date, mv.liters)
+        floor = c.floor_if_removed(mv.date, mv.liters, mv.time)
         if floor < 0:
             flash("error|" + get_t().get(
                 "movement.err.rentree_needed",
@@ -811,7 +819,7 @@ def movement_delete(mid):
             return redirect(request.referrer or url_for("carburant.index"))
     over = 0
     if c and mv.kind == "distribution":
-        over = max(c.peak_if_returned(mv.date, mv.liters) - c.capacity_liters, 0)
+        over = max(c.peak_if_returned(mv.date, mv.liters, mv.time) - c.capacity_liters, 0)
     db.session.delete(mv)
     log_action("DELETE", "fuel_movement", resource_id=mid,
                fleet_id=(c.fleet_id if c else None), detail=f"Deleted {mv.kind}")

@@ -903,33 +903,50 @@ class Citerne(db.Model):
                 total -= m.liters
         return total
 
+    @staticmethod
+    def instant(date_str, time_str=None):
+        """Sort/compare key for a moment in the movement log: (date, time).
+        A movement with no time counts as the start of its day, so a rentrée
+        logged without an hour still serves any draw taken that day, while a
+        draw without an hour is checked against the level at dawn — the same
+        cautious reading the log had before times existed."""
+        return (date_str, time_str or "00:00")
+
     def _reservoir_movements(self):
-        """Movements that move the reservoir, oldest first. Relevés and conso
-        are left out: a relevé measures, and a conso is fuel taken at the client
-        for the truck's own engine, never out of the tank."""
+        """Movements that move the reservoir, oldest first — by date, then by
+        time of day, then by entry order. Relevés and conso are left out: a
+        relevé measures, and a conso is fuel taken at the client for the
+        truck's own engine, never out of the tank."""
         return sorted((m for m in self.movements
                        if m.kind in ("rentree", "distribution")),
-                      key=lambda m: (m.date, m.id or 0))
+                      key=lambda m: self.instant(m.date, m.time) + (m.id or 0,))
 
-    def _levels(self, date_str):
-        """(level just before `date_str`, lowest after, highest after).
+    def _levels(self, date_str, time_str=None):
+        """(level just before the moment `date_str` `time_str`, lowest from it
+        on, highest from it on).
 
         Every check on a citerne needs these, never today's level: a movement
-        carries a date, and it only shifts the levels from that date onward —
-        the one before it stays put. Comparing against `stock`, an undated
-        total, is what let a back-dated draw empty a tank that was full months
-        later, and a back-dated fill overflow one since emptied.
+        carries a date and an hour, and it only shifts the levels from that
+        moment onward — the one before it stays put. Comparing against `stock`,
+        an undated total, is what let a back-dated draw empty a tank that was
+        full months later, and a back-dated fill overflow one since emptied.
+
+        The hour matters within a day: a rentrée at 08:00 is already in the
+        tank for a draw at 14:00 the same day, so it belongs to `before`; a
+        rentrée at 16:00 is not, and stays in the "after" run. Without a time
+        the moment is the start of the day (see `instant`).
 
         `before` is 0 when nothing came earlier, and None when no date is given
         (over the whole history there is no such starting point). Lowest and
-        highest are None when nothing is dated at or after `date_str`.
+        highest are None when nothing is dated at or after the moment.
         """
         running = 0
         before = 0 if date_str is not None else None
         lowest = highest = None
+        at = self.instant(date_str, time_str) if date_str is not None else None
         for m in self._reservoir_movements():
             delta = m.liters if m.kind == "rentree" else -m.liters
-            if date_str is not None and m.date < date_str:
+            if at is not None and self.instant(m.date, m.time) < at:
                 running += delta
                 before = running
                 continue
@@ -943,16 +960,18 @@ class Citerne(db.Model):
         vals = [v for v in values if v is not None]
         return pick(vals) if vals else 0
 
-    def min_stock_from(self, date_str=None):
-        """The lowest the tank gets from `date_str` onward. What a draw has to
-        fit inside — a draw lowers that date's level and every one after it."""
-        before, lowest, _ = self._levels(date_str)
+    def min_stock_from(self, date_str=None, time_str=None):
+        """The lowest the tank gets from the moment `date_str` `time_str`
+        onward. What a draw has to fit inside — a draw lowers the level from
+        its own hour and every one after it, so a fill earlier that same day
+        already counts."""
+        before, lowest, _ = self._levels(date_str, time_str)
         return self._pick(min, before, lowest)
 
-    def max_stock_from(self, date_str=None):
-        """The highest the tank gets from `date_str` onward. What a fill has to
-        leave room for under the capacity."""
-        before, _, highest = self._levels(date_str)
+    def max_stock_from(self, date_str=None, time_str=None):
+        """The highest the tank gets from the moment `date_str` `time_str`
+        onward. What a fill has to leave room for under the capacity."""
+        before, _, highest = self._levels(date_str, time_str)
         return self._pick(max, before, highest)
 
     def level_history(self):
@@ -1000,18 +1019,18 @@ class Citerne(db.Model):
             "past_only": self.stock >= 0 and self.stock <= self.capacity_liters,
         }
 
-    def peak_if_returned(self, date_str, liters):
+    def peak_if_returned(self, date_str, liters, time_str=None):
         """Highest level the tank would reach if `liters` went back in from this
         date on — deleting a distribution. The level before it does not move,
         so it is compared as it stands rather than raised too."""
-        before, _, highest = self._levels(date_str)
+        before, _, highest = self._levels(date_str, time_str)
         return self._pick(max, before,
                           None if highest is None else highest + liters)
 
-    def floor_if_removed(self, date_str, liters):
+    def floor_if_removed(self, date_str, liters, time_str=None):
         """Lowest level the tank would fall to if `liters` came out from this
         date on — deleting a rentrée. Same reasoning in reverse."""
-        before, lowest, _ = self._levels(date_str)
+        before, lowest, _ = self._levels(date_str, time_str)
         return self._pick(min, before,
                           None if lowest is None else lowest - liters)
 

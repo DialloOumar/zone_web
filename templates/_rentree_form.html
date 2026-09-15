@@ -18,6 +18,11 @@
                    value="{{ request.form.get('date') or today }}">
             <label for="date">{{ t['rentree.date'] }}</label>
         </div>
+        <div class="field">
+            <input type="time" id="time" name="time" placeholder=" "
+                   value="{{ request.form.get('time') or now_time }}">
+            <label for="time">{{ t['distribution.time'] }}</label>
+        </div>
     </div>
 
     <div class="form-row">

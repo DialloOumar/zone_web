@@ -99,15 +99,19 @@
     src.addEventListener('change', apply);
     apply();
 
-    // What a tank can give on a date: the lowest it stands from that date on,
-    // counting from its level just before it. Mirrors Citerne.min_stock_from.
+    // What a tank can give at a moment (date + hour): the lowest it stands
+    // from that moment on, counting from its level just before it. A fill
+    // earlier the same day is already in; one later that day is not. Mirrors
+    // Citerne.min_stock_from — rows are [date, time, level], a missing time
+    // reads as the start of the day, like Citerne.instant.
     var dateEl = document.getElementById('date'),
+        timeEl = document.getElementById('time'),
         label = citsel.getAttribute('data-available-label');
-    function availableOn(levels, day) {
-        var before = 0, lowest = null;
+    function availableOn(levels, day, time) {
+        var at = day + 'T' + (time || '00:00'), before = 0, lowest = null;
         levels.forEach(function (row) {
-            if (row[0] < day) before = row[1];
-            else lowest = lowest === null ? row[1] : Math.min(lowest, row[1]);
+            if (row[0] + 'T' + (row[1] || '00:00') < at) before = row[2];
+            else lowest = lowest === null ? row[2] : Math.min(lowest, row[2]);
         });
         return Math.max(lowest === null ? before : Math.min(before, lowest), 0);
     }
@@ -116,12 +120,14 @@
         Array.prototype.forEach.call(citsel.options, function (opt) {
             var raw = opt.getAttribute('data-levels');
             if (!raw) return;
-            var n = availableOn(JSON.parse(raw), dateEl.value);
+            var n = availableOn(JSON.parse(raw), dateEl.value, timeEl.value);
             opt.textContent = opt.getAttribute('data-code') + ' — ' +
                 String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' L ' + label;
         });
     }
-    dateEl.addEventListener('input', refreshAvailable);
-    dateEl.addEventListener('change', refreshAvailable);
+    ['input', 'change'].forEach(function (ev) {
+        dateEl.addEventListener(ev, refreshAvailable);
+        timeEl.addEventListener(ev, refreshAvailable);
+    });
 })();
 </script>
