@@ -31,7 +31,7 @@
     </div>
     {% if not accounts %}
     <div class="field-hint">{{ t['caisse.no_account'] }}
-        <a href="{{ url_for('expenses.cash_lists') }}">{{ t['caisse.lists'] }}</a>
+        <a href="{{ url_for('accounts.index') }}">{{ t['list.accounts'] }}</a>
     </div>
     {% endif %}
 

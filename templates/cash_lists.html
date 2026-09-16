@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}{{ t['caisse.lists'] }}{% endblock %}
-{% block page_title %}{{ t['caisse.lists'] }}{% endblock %}
+{% block title %}{{ t['list.sites'] }}{% endblock %}
+{% block page_title %}{{ t['list.sites'] }}{% endblock %}
 
 {% macro list_card(kind, rows, used, title, intro, add_label) %}
 <section class="card">
@@ -23,10 +23,6 @@
                 <td>
                     <strong {% if not r.is_active %}class="muted"{% endif %}>{{ r.name }}</strong>
                     {% if not r.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
-                    {% if kind == 'account' and r.is_repayable %}
-                    <span class="badge badge--info">{{ t['list.repayable_short'] }}</span>
-                    {% endif %}
-                    {% if r.number %}<div class="muted small">{{ r.number }}</div>{% endif %}
                 </td>
                 <td class="row-actions">
                     <a href="{{ url_for('expenses.cash_list_edit', kind=kind, row_id=r.id) }}" class="btn btn--sm btn--tonal btn--icon"
@@ -66,5 +62,4 @@
 </div>
 
 {{ list_card('site', sites, used_sites, t['list.sites'], t['list.sites_intro'], t['list.site_new']) }}
-{{ list_card('account', accounts, used_accounts, t['list.accounts'], t['list.accounts_intro'], t['list.account_new']) }}
 {% endblock %}

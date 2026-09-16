@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['list.accounts'] }}{% endblock %}
+{% block page_title %}{{ t['list.accounts'] }}{% endblock %}
+
+{% block content %}
+{# Reached from two pages; go back to whichever the person came from, and to
+   the invoices when there is nothing to go back to. #}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ request.referrer if request.referrer and '/comptes' not in request.referrer else url_for('supplier_invoices.index') }}"
+       class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['list.accounts'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:56ch;">{{ t['list.accounts_intro'] }}</p>
+        </div>
+        <a href="{{ url_for('accounts.new') }}" class="fab"
+           data-modal-url="{{ url_for('accounts.new') }}" data-modal-title="{{ t['list.account_new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['list.account_new'] }}
+        </a>
+    </div>
+    {% if accounts %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['caisse.account'] }}</th>
+                <th style="text-align:right;">{{ t['accounts.paid_to_suppliers'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in accounts %}
+            {% set p = paid.get(r.id) %}
+            <tr>
+                <td>
+                    <strong {% if not r.is_active %}class="muted"{% endif %}>{{ r.name }}</strong>
+                    {% if not r.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
+                    {% if r.is_repayable %}<span class="badge badge--info">{{ t['list.repayable_short'] }}</span>{% endif %}
+                    {% if r.number %}<div class="muted small">{{ r.number }}</div>{% endif %}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if p %}<strong>{{ p.total | num }} {{ currency }}</strong>
+                    <div class="muted small">{{ p.count }} {{ t['invoice.payment_count'] }}</div>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td class="row-actions">
+                    <a href="{{ url_for('accounts.edit', aid=r.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('accounts.edit', aid=r.id) }}" data-modal-title="{{ t['list.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% if not r.is_active %}
+                    <form method="post" action="{{ url_for('accounts.action', aid=r.id, what='reactivate') }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% if r.id not in used %}
+                    {# Nothing points at it, so there is no history to keep. #}
+                    <form method="post" action="{{ url_for('accounts.action', aid=r.id, what='delete') }}"
+                          data-confirm="{{ t['list.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% elif r.is_active %}
+                    <form method="post" action="{{ url_for('accounts.action', aid=r.id, what='archive') }}"
+                          data-confirm="{{ t['list.archive_confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['list.empty'] }}</p>
+    {% endif %}
+</section>
+{% endblock %}

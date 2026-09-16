@@ -30,8 +30,8 @@ from app import (get_t, is_modal_request, log_action, modal_ok,
                  parse_amount, require_perm)
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
-from blueprints.expenses import PAYMENT_METHODS
-from models import Supplier, SupplierInvoice, SupplierPayment, db
+from blueprints.expenses import PAYMENT_METHODS, active_accounts
+from models import CashAccount, Supplier, SupplierInvoice, SupplierPayment, db
 
 supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
 
@@ -413,6 +413,7 @@ def _render_payment_form(inv, pay, error=None):
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, invoice=inv, payment=pay, error=error,
                            payment_methods=PAYMENT_METHODS,
+                           accounts=active_accounts(),
                            today=date.today().isoformat()), status
 
 
@@ -443,8 +444,14 @@ def _read_payment_form(inv, pay):
     if method not in PAYMENT_METHODS:
         return None, t["invoice.err.method"]
 
+    # Where it came from, when known. Optional: a transfer whose account
+    # nobody remembers is still a payment.
+    account_id = request.form.get("account_id", type=int) or None
+    if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True).first():
+        return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
+
     return dict(
-        date=date_str, amount=amount, method=method,
+        date=date_str, amount=amount, method=method, account_id=account_id,
         reference=(request.form.get("reference") or "").strip() or None,
     ), None
 

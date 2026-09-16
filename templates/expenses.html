@@ -55,7 +55,11 @@
                and a tooltip is no help at all on a touch screen. #}
             {% if has_perm('expense.create') %}
             <a href="{{ url_for('expenses.cash_lists') }}" class="btn btn--sm btn--outlined">
-                <span class="material-symbols-outlined">tune</span> {{ t['caisse.lists'] }}
+                <span class="material-symbols-outlined">tune</span> {{ t['list.sites'] }}
+            </a>
+            {# The accounts are the company's, shared with the invoices page. #}
+            <a href="{{ url_for('accounts.index') }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">account_balance_wallet</span> {{ t['list.accounts'] }}
             </a>
             {% endif %}
             {% if has_perm('report.export_pdf') %}

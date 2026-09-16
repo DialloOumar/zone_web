@@ -52,6 +52,21 @@
         </div>
     </div>
 
+    {# Where the money came from. Optional, and only offered once there is an
+       account to name -- an empty menu teaches people to skip the field. #}
+    {% if accounts %}
+    <div class="field field--select">
+        {% set sel_acc = request.form.get('account_id')|int(0) or (payment.account_id if is_edit and payment.account_id else 0) %}
+        <select id="account_id" name="account_id">
+            <option value="">{{ t['invoice.no_account'] }}</option>
+            {% for a in accounts %}
+            <option value="{{ a.id }}" {% if a.id == sel_acc %}selected{% endif %}>{{ a.name }}</option>
+            {% endfor %}
+        </select>
+        <label for="account_id">{{ t['invoice.paid_from_account'] }}</label>
+    </div>
+    {% endif %}
+
     <div class="field-hint">{{ t['invoice.cash_box_note'] }}</div>
 
     <div class="form-actions">

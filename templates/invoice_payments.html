@@ -73,6 +73,7 @@
                     {% else %}
                     <span class="muted">{{ t['invoice.from_outside'] }}</span>
                     {% endif %}
+                    {% if p.account %}<div class="muted small">{{ p.account.name }}</div>{% endif %}
                 </td>
                 <td class="row-actions">
                     {% if p.from_cash_box %}

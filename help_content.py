@@ -271,7 +271,7 @@ HELP_SECTIONS = [
         },
         "steps": {
             "fr": [
-                "Commencez par « Sites et comptes ». Les sites, ce sont les endroits où l'argent est dépensé — Siguiri, Mandiana. Les comptes, c'est d'où vient l'argent de la caisse : le compte du boss, celui de l'entreprise, un gérant qui avance quand la caisse est vide.",
+                "Commencez par les deux boutons en haut : « Sites » et « Comptes ». Les sites, ce sont les endroits où l'argent est dépensé — Siguiri, Mandiana. Les comptes, c'est d'où vient l'argent de la caisse : le compte du boss, celui de l'entreprise, un gérant qui avance quand la caisse est vide. La liste des comptes est la même que sur la page Factures : un compte se crée une fois, pour toute l'application.",
                 "Sur un compte, cochez « Ce compte doit être remboursé » seulement si l'argent est avancé à la caisse — celui du boss, celui d'un gérant. Laissez la case vide pour l'argent de l'entreprise, qui n'est dû à personne.",
                 "« Entrée d'argent » : date, montant, et de quel compte il vient.",
                 "« Retrait » : quand le boss reprend de l'argent, ou qu'on rembourse un gérant. Ça baisse le solde sans compter comme une dépense — c'est le point important.",
@@ -284,7 +284,7 @@ HELP_SECTIONS = [
                 "Le site reste sur le dernier utilisé : dans une journée on saisit souvent le même.",
             ],
             "en": [
-                "Start with \"Sites and accounts\". Sites are the places money is spent — Siguiri, Mandiana. Accounts are where the box's money comes from: the boss's account, the company's, an agent who fronts the cash when the box is empty.",
+                "Start with the two buttons at the top: \"Sites\" and \"Accounts\". Sites are the places money is spent — Siguiri, Mandiana. Accounts are where the box's money comes from: the boss's account, the company's, an agent who fronts the cash when the box is empty. The list of accounts is the same one the Invoices page uses: an account is created once, for the whole app.",
                 "On an account, tick \"This account must be repaid\" only if the money is advanced to the box — the boss's, an agent's. Leave it clear for the company's own money, which is owed to nobody.",
                 "\"Money in\": date, amount, and which account it came from.",
                 "\"Withdrawal\": when the boss takes money back, or an agent is repaid. It lowers the balance without counting as a cost — that is the important part.",
@@ -355,6 +355,7 @@ HELP_SECTIONS = [
                 "« Ajouter un versement » : le montant est déjà rempli avec ce qui reste à payer. Tapez moins pour un versement partiel. On ne peut jamais verser plus que ce qui reste.",
                 "Quand la caisse de dépenses paie une facture, ne la saisissez pas ici : allez sur la page Dépenses, enregistrez la dépense normalement, et choisissez la facture dans « Règle une facture ». Le versement apparaît tout seul sur la facture.",
                 "C'est la seule règle à retenir : l'argent de la caisse se saisit dans la caisse, le reste se saisit sur la facture. Comme ça la même sortie d'argent n'est jamais enregistrée deux fois.",
+                "Sur un versement saisi ici, « Payé depuis » dit de quel compte l'argent est parti — le compte de l'entreprise, la ligne Orange Money. C'est la même liste de comptes que celle de la caisse ; le bouton « Comptes » en haut de la page permet d'en ajouter sans passer par la caisse. C'est une étiquette : ça ne touche à aucun solde.",
             ],
             "en": [
                 "Start with the \"Suppliers\" tab: these are the people who send you bills — a garage, a parts shop, a landlord. A name is enough; the contact is there for the day you have to call them.",
@@ -369,6 +370,7 @@ HELP_SECTIONS = [
                 "\"Add a payment\": the amount comes pre-filled with what is still owed. Type less for a part payment. You can never pay more than what is left.",
                 "When the cash box pays a bill, do not enter it here: go to the Expenses page, record the cost as usual, and pick the invoice under \"Settles an invoice\". The payment shows up on the bill by itself.",
                 "That is the one rule: the box's money is entered in the box, everything else is entered on the bill. So the same money leaving is never recorded twice.",
+                "On a payment entered here, \"Paid from\" says which account the money left — the company's account, the Orange Money line. It is the same list of accounts the cash box uses; the \"Accounts\" button at the top adds to it without going through the box. It is a label: it moves no balance.",
             ],
         },
         "tips": {

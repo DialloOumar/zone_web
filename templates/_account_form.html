@@ -1,0 +1,34 @@
+{% set is_edit = row is not none %}
+{# An account: a name, the number when it has one, and whether the money it
+   puts into the cash box is owed back. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('accounts.edit', aid=row.id) if is_edit else url_for('accounts.new') }}">
+
+    <div class="field">
+        <input type="text" id="name" name="name" placeholder=" " required
+               value="{{ request.form.get('name') or (row.name if is_edit else '') }}">
+        <label for="name">{{ t['list.account_name'] }}</label>
+    </div>
+
+    <div class="field">
+        <input type="text" id="number" name="number" placeholder=" "
+               value="{{ request.form.get('number') or (row.number or '' if is_edit else '') }}">
+        <label for="number">{{ t['list.account_number'] }}</label>
+    </div>
+
+    {% set rep = (request.form.get('is_repayable') is not none) if request.method == 'POST'
+                 else (row.is_repayable if is_edit else False) %}
+    <label class="checkbox-item">
+        <input type="checkbox" name="is_repayable" {% if rep %}checked{% endif %}>
+        <span>{{ t['list.repayable'] }}</span>
+    </label>
+    <div class="field-hint">{{ t['list.repayable_hint'] }}</div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('accounts.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

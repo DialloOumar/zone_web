@@ -42,6 +42,13 @@
             <span class="caisse-balance__label">{{ t['invoice.remaining_total'] }}</span>
             <strong>{{ remaining | num }} {{ currency }}</strong>
         </div>
+        {# The accounts a bill is settled from -- the same list the cash box
+           keeps, reached from here so accounting never has to open the box. #}
+        {% if has_perm('supplier_invoice.create') or has_perm('expense.create') %}
+        <a href="{{ url_for('accounts.index') }}" class="btn btn--sm btn--outlined">
+            <span class="material-symbols-outlined">account_balance_wallet</span> {{ t['list.accounts'] }}
+        </a>
+        {% endif %}
     </div>
 
     <form method="get" class="filter-bar filter-bar--live">

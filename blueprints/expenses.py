@@ -289,6 +289,8 @@ def sync_invoice_payment(expense, invoice_id):
     pay.amount = expense.amount
     pay.method = expense.payment_method
     pay.reference = expense.payment_reference
+    # A cost an account paid directly is an instalment from that account.
+    pay.account_id = expense.account_id
 
 
 def sync_account_movement(expense):
@@ -765,10 +767,14 @@ def export_print():
 # one-line list is how a list stops being kept up to date.
 
 
+# The accounts used to be kept here too. They are the company's, not the
+# box's -- the same account that tops up the till wires a supplier's balance --
+# so they have a page of their own now (blueprints/accounts.py), reached from
+# here and from the invoices. Only the sites are the cashier's alone.
 def _list_ctx(kind):
-    """Sites and accounts differ by one tick box; everything else is shared."""
-    model = Site if kind == "site" else CashAccount
-    return model, ("site" if kind == "site" else "account")
+    if kind != "site":
+        abort(404)
+    return Site, "site"
 
 
 @expenses_bp.route("/caisse/listes")
@@ -777,14 +783,9 @@ def _list_ctx(kind):
 def cash_lists():
     return render_template("cash_lists.html",
                            sites=Site.query.order_by(Site.sort_order, Site.name).all(),
-                           accounts=CashAccount.query.order_by(
-                               CashAccount.sort_order, CashAccount.name).all(),
                            used_sites={r[0] for r in db.session.query(
                                Expense.site_id).filter(
-                               Expense.site_id.isnot(None)).distinct().all()},
-                           used_accounts={r[0] for r in db.session.query(
-                               CashMovement.account_id).filter(
-                               CashMovement.account_id.isnot(None)).distinct().all()})
+                               Expense.site_id.isnot(None)).distinct().all()})
 
 
 def _save_list_row(model, row, kind):
@@ -824,8 +825,6 @@ def _render_list_form(row, kind, error=None):
 @login_required
 @require_perm("expense.create")
 def cash_list_new(kind):
-    if kind not in ("site", "account"):
-        abort(404)
     model, _ = _list_ctx(kind)
     if request.method == "POST":
         error = _save_list_row(model, None, kind)
@@ -840,8 +839,6 @@ def cash_list_new(kind):
 @login_required
 @require_perm("expense.create")
 def cash_list_edit(kind, row_id):
-    if kind not in ("site", "account"):
-        abort(404)
     model, _ = _list_ctx(kind)
     row = db.session.get(model, row_id)
     if not row:
@@ -862,16 +859,13 @@ def cash_list_edit(kind, row_id):
 def cash_list_action(kind, row_id, what):
     """Archive takes it out of the pickers and leaves its history named; delete
     is only for one nothing has ever pointed at."""
-    if kind not in ("site", "account"):
-        abort(404)
     model, _ = _list_ctx(kind)
     row = db.session.get(model, row_id)
     if not row:
         abort(404)
     t = get_t()
     if what == "delete":
-        used = (Expense.query.filter_by(site_id=row.id).count() if kind == "site"
-                else CashMovement.query.filter_by(account_id=row.id).count())
+        used = Expense.query.filter_by(site_id=row.id).count()
         if used:
             flash("error|" + t.get("list.err.delete_blocked",
                                    "Impossible de supprimer : cet élément est "

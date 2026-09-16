@@ -7,24 +7,8 @@
     <div class="field">
         <input type="text" id="name" name="name" placeholder=" " required
                value="{{ request.form.get('name') or (row.name if is_edit else '') }}">
-        <label for="name">{{ t['list.site_name'] if kind == 'site' else t['list.account_name'] }}</label>
+        <label for="name">{{ t['list.site_name'] }}</label>
     </div>
-
-    {% if kind == 'account' %}
-    <div class="field">
-        <input type="text" id="number" name="number" placeholder=" "
-               value="{{ request.form.get('number') or (row.number or '' if is_edit else '') }}">
-        <label for="number">{{ t['list.account_number'] }}</label>
-    </div>
-
-    {% set rep = (request.form.get('is_repayable') is not none) if request.method == 'POST'
-                 else (row.is_repayable if is_edit else False) %}
-    <label class="checkbox-item">
-        <input type="checkbox" name="is_repayable" {% if rep %}checked{% endif %}>
-        <span>{{ t['list.repayable'] }}</span>
-    </label>
-    <div class="field-hint">{{ t['list.repayable_hint'] }}</div>
-    {% endif %}
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">

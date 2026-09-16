@@ -421,6 +421,20 @@ def require_perm(perm_key):
     return decorator
 
 
+def require_any_perm(*perm_keys):
+    """Decorator: 403 unless the user holds at least one of the permissions.
+    For a screen two kinds of people share -- the cashier and whoever records
+    supplier bills both keep the list of accounts."""
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if not any(has_perm(k) for k in perm_keys):
+                abort(403)
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
 def super_admin_required(f):
     """Decorator: 403 unless the user is the super admin. Used on all
     configuration routes.
@@ -1938,6 +1952,7 @@ from blueprints.invoicing import invoicing_bp  # noqa: E402
 from blueprints.stock import stock_bp  # noqa: E402
 from blueprints.supplier_invoices import supplier_invoices_bp  # noqa: E402
 from blueprints.staff import staff_bp  # noqa: E402
+from blueprints.accounts import accounts_bp  # noqa: E402  (imports expenses)
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(vehicles_bp)
@@ -1952,6 +1967,7 @@ app.register_blueprint(invoicing_bp)
 app.register_blueprint(stock_bp)
 app.register_blueprint(supplier_invoices_bp)
 app.register_blueprint(staff_bp)
+app.register_blueprint(accounts_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────
