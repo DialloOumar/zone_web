@@ -120,6 +120,15 @@ TRANSLATIONS = {
         "nav.admin":                "Administration",
         "nav.change_password":      "Changer le mot de passe",
 
+        # Workspaces — the switcher under the logo, and the Finance side
+        "ws.label":                 "Espace de travail",
+        "ws.ops":                   "Exploitation",
+        "ws.finance":               "Finance",
+        "finance.home":             "Accueil",
+        "finance.home_title":       "Espace Finance",
+        "finance.home_intro":       "La comptabilité de l'entreprise : plan comptable, imputation des dépenses, journal et exports pour le comptable. Cet espace se construit page par page.",
+        "finance.home_hidden":      "Visible uniquement par les super administrateurs pendant sa construction. Les autres utilisateurs ne voient ni le sélecteur, ni ces pages.",
+
         # Personnel (première pierre du module RH)
         "staff.on_payroll":       "Personnel actif",
         "staff.new":              "Nouveau membre du personnel",
@@ -1425,6 +1434,15 @@ TRANSLATIONS = {
         "help.print":               "Print",
         "nav.admin":                "Administration",
         "nav.change_password":      "Change password",
+
+        # Workspaces — the switcher under the logo, and the Finance side
+        "ws.label":                 "Workspace",
+        "ws.ops":                   "Operations",
+        "ws.finance":               "Finance",
+        "finance.home":             "Home",
+        "finance.home_title":       "Finance workspace",
+        "finance.home_intro":       "The company's books: chart of accounts, expense coding, journal and exports for the accountant. This workspace is built one page at a time.",
+        "finance.home_hidden":      "Visible to super administrators only while it is being built. Other users see neither the switcher nor these pages.",
 
         # Staff (the first stone of an HR module)
         "staff.on_payroll":       "On the payroll",

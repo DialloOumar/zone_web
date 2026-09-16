@@ -1,0 +1,15 @@
+{# Exploitation / Finance switcher, under the logo. Shown only to whoever may
+   enter Finance (see can_enter_finance in app.py); everyone else has one
+   workspace and sees nothing here. Which side is lit follows the page, not a
+   session: a finance page lights Finance, anything else lights Exploitation. #}
+{% if finance_visible %}
+{% set in_finance = request.blueprint == 'finance' %}
+<div class="ws-switch" role="navigation" aria-label="{{ t['ws.label'] }}">
+    <a href="{{ url_for('dashboard') }}" class="ws-switch-item {% if not in_finance %}active{% endif %}">
+        <span class="material-symbols-outlined">local_shipping</span> {{ t['ws.ops'] }}
+    </a>
+    <a href="{{ url_for('finance.index') }}" class="ws-switch-item {% if in_finance %}active{% endif %}">
+        <span class="material-symbols-outlined">account_balance</span> {{ t['ws.finance'] }}
+    </a>
+</div>
+{% endif %}

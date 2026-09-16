@@ -1,0 +1,12 @@
+{# Finance shell. Same page as the rest of the app — one stylesheet, one
+   topbar — with its own drawer: the accounting side has nothing to do with
+   vehicles, alerts or citernes. Only what works is listed. #}
+{% extends "base.html" %}
+
+{% block sidebar_nav %}
+<ul class="sidebar-nav">
+    <li><a href="{{ url_for('finance.index') }}" class="{% if request.endpoint == 'finance.index' %}active{% endif %}">
+        <span class="nav-icon material-symbols-outlined">home</span> {{ t['finance.home'] }}
+    </a></li>
+</ul>
+{% endblock %}

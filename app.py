@@ -189,6 +189,8 @@ def _inject_globals():
         # The name of a stored expense category, for the rows that still carry one.
         "category_label": _category_label,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
+        # Shows the Exploitation / Finance switcher at the top of the drawer.
+        "finance_visible": can_enter_finance(),
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,
         "my_pending": my_pending,
@@ -366,6 +368,13 @@ def has_perm(perm_key):
         g._user_perms = perms
         cache = perms
     return perm_key in cache
+
+
+def can_enter_finance():
+    """Who may open the Finance workspace. Super admins only while it is being
+    built; the blueprint's guard and the sidebar switcher both ask here, so
+    opening it to a comptable later is a one-line change."""
+    return current_user.is_authenticated and current_user.is_super_admin
 
 
 def can_approve_in_fleet(fleet_id):
@@ -1953,6 +1962,7 @@ from blueprints.stock import stock_bp  # noqa: E402
 from blueprints.supplier_invoices import supplier_invoices_bp  # noqa: E402
 from blueprints.staff import staff_bp  # noqa: E402
 from blueprints.accounts import accounts_bp  # noqa: E402  (imports expenses)
+from blueprints.finance import finance_bp  # noqa: E402
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(vehicles_bp)
@@ -1968,6 +1978,7 @@ app.register_blueprint(stock_bp)
 app.register_blueprint(supplier_invoices_bp)
 app.register_blueprint(staff_bp)
 app.register_blueprint(accounts_bp)
+app.register_blueprint(finance_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────

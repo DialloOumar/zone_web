@@ -12,11 +12,15 @@
 <body>
     <nav class="sidebar">
         <div class="sidebar-logo">
-            <a href="{{ url_for('dashboard') }}" class="sidebar-logo-link">
+            <a href="{{ url_for('finance.index') if request.blueprint == 'finance' else url_for('dashboard') }}" class="sidebar-logo-link">
                 <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ t['app.title'] }}" class="sidebar-logo-img">
             </a>
         </div>
+        {% include '_workspace_switcher.html' %}
 
+        {# The drawer's list. A workspace with its own pages (finance/base.html)
+           replaces this block and keeps everything around it. #}
+        {% block sidebar_nav %}
         <ul class="sidebar-nav">
             {% if has_perm('dashboard.view') %}
             <li><a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
@@ -172,6 +176,7 @@
             {% endif %}
             {% endif %}
         </ul>
+        {% endblock %}
 
         <div class="sidebar-user">
             <div class="sidebar-user-info">

@@ -328,6 +328,37 @@ a:hover { text-decoration: underline; }
     color: var(--md-on-surface-variant);
 }
 
+/* Exploitation / Finance switcher under the logo (super admins only) */
+.ws-switch {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    margin: 0 4px 10px;
+    border-radius: var(--shape-full);
+    background: var(--md-surface-container);
+}
+.ws-switch-item {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 34px;
+    border-radius: var(--shape-full);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--md-on-surface-variant);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+}
+.ws-switch-item .material-symbols-outlined { font-size: 18px; }
+.ws-switch-item:hover { text-decoration: none; color: var(--md-on-surface); }
+.ws-switch-item.active {
+    background: var(--md-surface);
+    color: var(--md-primary);
+    box-shadow: var(--elev-1);
+}
+
 /* User block at the foot of the drawer */
 .sidebar-user {
     margin-top: 8px;
