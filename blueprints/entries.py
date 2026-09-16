@@ -23,7 +23,7 @@ import maintenance_engine
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, pending_change_exists, require_perm,
                  submit_change)
-from models import (DailyEntry, Fleet, Operator, PendingChange, Vehicle,
+from models import (DailyEntry, Fleet, Operator, PendingChange, Supplier, Vehicle,
                     VehicleCategory, db)
 
 entries_bp = Blueprint("entries", __name__)
@@ -234,6 +234,9 @@ def _filter_values():
         "vehicle_id": request.args.get("vehicle_id", type=int),
         "category_id": request.args.get("category_id", type=int),
         "operator": (request.args.get("operator") or "").strip(),
+        # The lessor whose machines' entries are wanted -- what its bill is
+        # checked against.
+        "supplier_id": request.args.get("supplier_id", type=int),
         "month": request.args.get("month") or "",
         "date_from": request.args.get("date_from") or "",
         "date_to": request.args.get("date_to") or "",
@@ -252,6 +255,8 @@ def _apply_filters(q):
         q = q.filter(DailyEntry.vehicle_id == f["vehicle_id"])
     if f["operator"]:
         q = q.filter(DailyEntry.operator == f["operator"])
+    if f["supplier_id"]:
+        q = q.filter(Vehicle.supplier_id == f["supplier_id"])
     if f["month"] and _valid_month(f["month"]):
         q = q.filter(DailyEntry.date.like(f["month"] + "-%"))
     else:
@@ -295,7 +300,15 @@ def index():
                            fleets=_accessible_fleets(), vehicles=_accessible_vehicles(),
                            categories=_accessible_categories(),
                            operators=_accessible_operators(), f=_filter_values(),
+                           suppliers=_machine_suppliers(),
                            pending_map=pending_map, ghost_creates=ghost_creates)
+
+
+def _machine_suppliers():
+    """The lessors, offered as a filter only once there is one."""
+    return (Supplier.query.filter(Supplier.provides_machines.is_(True),
+                                  Supplier.is_active.is_(True))
+            .order_by(Supplier.name).all())
 
 
 PER_PAGE = 50         # rows on one screen
@@ -308,7 +321,8 @@ def _export_context():
     # Eager-load vehicle + category: the template touches both on every row, so
     # without this a 1000-row export fires ~2000 extra queries.
     q = _apply_filters(_scoped_entries())
-    entries = (q.options(joinedload(DailyEntry.vehicle).joinedload(Vehicle.category))
+    entries = (q.options(joinedload(DailyEntry.vehicle).joinedload(Vehicle.category),
+                         joinedload(DailyEntry.vehicle).joinedload(Vehicle.supplier))
                .order_by(DailyEntry.date.desc(), DailyEntry.id.desc())
                .limit(EXPORT_LIMIT).all())
     # Summed over the whole selection, not over the rows the document could
@@ -335,6 +349,10 @@ def _export_context():
             parts.append(v.code)
     if f["operator"]:
         parts.append(f["operator"])
+    if f["supplier_id"]:
+        sup = db.session.get(Supplier, f["supplier_id"])
+        if sup:
+            parts.append(sup.name)
     if f["month"] and _valid_month(f["month"]):
         parts.append(f["month"])
     elif f["date_from"] or f["date_to"]:

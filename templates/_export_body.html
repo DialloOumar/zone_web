@@ -45,7 +45,8 @@
             {% set col = tagcolors.get(c.code, ('#f0f0f0', '#555')) %}
             <tr>
                 <td>{{ e.date }}</td>
-                <td><strong>{{ e.vehicle.code }}</strong></td>
+                <td><strong>{{ e.vehicle.code }}</strong>
+                    {% if e.vehicle.supplier %}<div class="muted">{{ e.vehicle.supplier.name }}</div>{% endif %}</td>
                 <td><span class="tag" style="background:{{ col[0] }};color:{{ col[1] }};">{{ c.label_fr if lang == 'fr' else c.label }}</span></td>
                 <td>
                     {% if c.unit_type == 'trips' %}{% if e.trips is not none %}{{ e.trips }} {{ t['unit.trips'] }}{% if e.trips != 1 %}s{% endif %}{% else %}—{% endif %}

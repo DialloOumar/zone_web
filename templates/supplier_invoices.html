@@ -140,6 +140,14 @@
                 <td>
                     <strong {% if not s.is_active %}class="muted"{% endif %}>{{ s.name }}</strong>
                     {% if not s.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
+                    {% if s.provides_machines %}
+                    <span class="badge badge--info">{{ s.live_machines | length }} {{ t['supplier.machines'] | lower }}</span>
+                    {% if has_perm('entry.view') %}
+                    <a href="{{ url_for('entries.index', supplier_id=s.id) }}" class="btn btn--sm btn--tonal" style="margin-left:6px;">
+                        <span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_btn'] }}
+                    </a>
+                    {% endif %}
+                    {% endif %}
                     {% if s.note %}<div class="muted small">{{ s.note }}</div>{% endif %}
                 </td>
                 <td>{% if s.contact %}{{ s.contact }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>

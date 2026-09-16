@@ -47,6 +47,12 @@
             <dt>{{ t['vehicle.default_operator'] }}</dt>
             <dd>{{ vehicle.default_operator.name if vehicle.default_operator else '—' }}</dd>
         </div>
+        {% if vehicle.supplier %}
+        <div>
+            <dt>{{ t['vehicle.supplier'] }}</dt>
+            <dd>{{ vehicle.supplier.name }}</dd>
+        </div>
+        {% endif %}
         {% if vehicle.description %}
         <div style="grid-column: 1 / -1;">
             <dt>{{ t['vehicle.description'] }}</dt>

@@ -233,6 +233,10 @@ class Vehicle(db.Model):
     # Optional default driver — a real link to a registered Operator (same
     # fleet), used to pre-fill the conducteur on a new daily entry.
     default_operator_id           = db.Column(db.Integer,   db.ForeignKey("operators.id"), nullable=True)
+    # The supplier this machine is leased from, when it is not the company's
+    # own. One lessor at a time, so the link lives here and not in a table of
+    # pairs. Its daily entries are what that supplier's bill is checked against.
+    supplier_id                   = db.Column(db.Integer,   db.ForeignKey("suppliers.id"), nullable=True)
     is_active                     = db.Column(db.Boolean,   nullable=False, default=True)
     # Soft delete beyond archive: set = the machine is gone from every UI, its
     # code is freed for reuse, but the row stays so history isn't orphaned.
@@ -244,6 +248,7 @@ class Vehicle(db.Model):
     category         = db.relationship("VehicleCategory")
     fleet            = db.relationship("Fleet")
     default_operator = db.relationship("Operator", foreign_keys=[default_operator_id])
+    supplier         = db.relationship("Supplier", back_populates="machines")
 
     @property
     def effective_baseline(self):
@@ -688,9 +693,22 @@ class Supplier(db.Model):
     name       = db.Column(db.String(80),  nullable=False, unique=True)
     contact    = db.Column(db.String(80))                   # phone, or whoever answers
     note       = db.Column(db.String(255))
+    # Leases machines to the company and bills their hours and trips -- the
+    # ones the daily entries record. Stored, not derived from having machines:
+    # a lessor with none attached yet is still a lessor.
+    provides_machines = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer,     nullable=False, default=0)
     is_active  = db.Column(db.Boolean,     nullable=False, default=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    machines = db.relationship("Vehicle", back_populates="supplier",
+                               order_by="Vehicle.code")
+
+    @property
+    def live_machines(self):
+        """Its machines that still exist: a deleted one keeps the link for its
+        history but is nobody's to count."""
+        return [v for v in self.machines if v.deleted_at is None]
 
 
 class SupplierInvoice(db.Model):

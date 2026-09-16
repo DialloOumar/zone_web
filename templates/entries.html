@@ -9,7 +9,7 @@
     <div class="card-header card-header--end">
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
             {% if has_perm('report.export_pdf') %}
-            <a href="{{ url_for('entries.export_print', fleet_id=f.fleet_id, vehicle_id=f.vehicle_id, category_id=f.category_id, operator=f.operator, month=f.month, date_from=f.date_from, date_to=f.date_to) }}" class="btn btn--sm btn--tonal" target="_blank">
+            <a href="{{ url_for('entries.export_print', fleet_id=f.fleet_id, vehicle_id=f.vehicle_id, category_id=f.category_id, operator=f.operator, supplier_id=f.supplier_id, month=f.month, date_from=f.date_from, date_to=f.date_to) }}" class="btn btn--sm btn--tonal" target="_blank">
                 <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['export.print_btn'] }}
             </a>
             {% endif %}
@@ -21,7 +21,7 @@
         </div>
     </div>
 
-    {% set adv_active = f.category_id or f.operator or f.date_from or f.date_to %}
+    {% set adv_active = f.category_id or f.operator or f.supplier_id or f.date_from or f.date_to %}
     <form method="get" class="filter-bar">
         {% if fleets|length > 1 %}
         <div class="field field--select filter-field">
@@ -63,6 +63,17 @@
                 </select>
                 <label>{{ t['entry.operator'] }}</label>
             </div>
+            {# The lessor: only once there is one, and what the Fournisseurs
+               tab's "Saisies de ses machines" button fills in. #}
+            {% if suppliers %}
+            <div class="field field--select filter-field">
+                <select name="supplier_id">
+                    <option value="">{{ t['entry.all_suppliers'] }}</option>
+                    {% for s in suppliers %}<option value="{{ s.id }}" {% if f.supplier_id == s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+                </select>
+                <label>{{ t['invoice.supplier'] }}</label>
+            </div>
+            {% endif %}
             <div class="field filter-field">
                 <input type="date" id="f_from" name="date_from" value="{{ f.date_from }}" placeholder=" ">
                 <label>{{ t['entry.from'] }}</label>
@@ -75,7 +86,7 @@
 
         <div class="filter-actions">
             <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
-            {% if f.fleet_id or f.vehicle_id or f.category_id or f.operator or f.month or f.date_from or f.date_to %}
+            {% if f.fleet_id or f.vehicle_id or f.category_id or f.operator or f.supplier_id or f.month or f.date_from or f.date_to %}
             <a href="{{ url_for('entries.index') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
             {% endif %}
         </div>
@@ -177,6 +188,7 @@
                 <span class="chip chip--{{ e.vehicle.category.code|lower }}">{{ e.vehicle.category.label_fr if lang == 'fr' else e.vehicle.category.label }}</span>
                 <span class="muted small">{{ e.date }}</span>
                 {% if e.operator %}<span class="muted small">· {{ e.operator }}</span>{% endif %}
+                {% if e.vehicle.supplier %}<span class="muted small">· {{ e.vehicle.supplier.name }}</span>{% endif %}
                 {% if e.kilometers is not none %}<span class="muted small">· {{ e.kilometers }} km</span>{% endif %}
             </div>
             {% if pa %}

@@ -26,12 +26,13 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 import s3_storage
-from app import (get_t, is_modal_request, log_action, modal_ok,
-                 parse_amount, require_perm)
+from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
+                 modal_ok, parse_amount, require_perm)
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
-from models import CashAccount, Supplier, SupplierInvoice, SupplierPayment, db
+from models import (CashAccount, Supplier, SupplierInvoice, SupplierPayment,
+                    Vehicle, db)
 
 supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
 
@@ -531,6 +532,27 @@ def payment_delete(iid, pid):
 # ── Routes: the suppliers ────────────────────────────────────────────────────
 
 
+def _pickable_machines():
+    """Machines a supplier can be given: the live ones in the user's fleets.
+    Each comes with whoever holds it now, so the form can say so."""
+    q = Vehicle.query.filter(Vehicle.deleted_at.is_(None))
+    fids = current_user_fleet_ids()
+    if fids is not None:
+        q = q.filter(Vehicle.fleet_id.in_(fids))
+    return q.order_by(Vehicle.code).all()
+
+
+def _assign_machines(row, chosen_ids):
+    """Make `chosen_ids` this supplier's machines, among those the user may
+    touch. A machine picked away from another supplier moves; one the user
+    cannot see is left exactly as it is, whoever holds it."""
+    for v in _pickable_machines():
+        if v.id in chosen_ids:
+            v.supplier_id = row.id
+        elif v.supplier_id == row.id:
+            v.supplier_id = None
+
+
 def _save_supplier(row):
     t = get_t()
     name = (request.form.get("name") or "").strip()
@@ -549,7 +571,18 @@ def _save_supplier(row):
     row.name = name
     row.contact = (request.form.get("contact") or "").strip() or None
     row.note = (request.form.get("note") or "").strip() or None
+    row.provides_machines = request.form.get("provides_machines") is not None
     db.session.flush()
+    # A lessor's machines follow the boxes ticked; one that stops being a
+    # lessor lets its machines go.
+    chosen = set()
+    if row.provides_machines:
+        for raw in request.form.getlist("machine_ids"):
+            try:
+                chosen.add(int(raw))
+            except (TypeError, ValueError):
+                pass
+    _assign_machines(row, chosen)
     log_action("CREATE" if creating else "UPDATE", "supplier", resource_id=row.id,
                detail="%s supplier '%s'" % ("Created" if creating else "Updated", row.name))
     db.session.commit()
@@ -559,7 +592,8 @@ def _save_supplier(row):
 def _render_supplier_form(row, error=None):
     tpl = "_supplier_form.html" if is_modal_request() else "supplier_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, row=row, error=error), status
+    return render_template(tpl, row=row, error=error,
+                           machines=_pickable_machines()), status
 
 
 def _suppliers_url():

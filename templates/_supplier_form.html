@@ -23,6 +23,40 @@
         <label for="note">{{ t['entry.note'] }}</label>
     </div>
 
+    {# A lessor: it rents machines to the company and bills their hours and
+       trips. Its machines are ticked here, and their daily entries can then
+       be pulled up and printed under its name to check the bill. #}
+    {% set provides = (request.form.get('provides_machines') is not none) if request.method == 'POST'
+                      else (row.provides_machines if is_edit else False) %}
+    <label class="checkbox-item">
+        <input type="checkbox" name="provides_machines" id="provides_machines" {% if provides %}checked{% endif %}>
+        <span>{{ t['supplier.provides_machines'] }}</span>
+    </label>
+    <div class="field-hint">{{ t['supplier.provides_hint'] }}</div>
+
+    <div id="supplier-machines" {% if not provides %}hidden{% endif %}>
+        {% if machines %}
+        {% set chosen = request.form.getlist('machine_ids')|map('int')|list if request.method == 'POST'
+                        else (row.machines|map(attribute='id')|list if is_edit else []) %}
+        <span class="photo-input__label">{{ t['supplier.machines_pick'] }}</span>
+        <div class="checkbox-grid">
+            {% for v in machines %}
+            <label class="checkbox-item">
+                <input type="checkbox" name="machine_ids" value="{{ v.id }}" {% if v.id in chosen %}checked{% endif %}>
+                <span>{{ v.code }}
+                    <span class="muted small">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
+                    {% if v.supplier and (not is_edit or v.supplier_id != row.id) %}
+                    <span class="muted small">— {{ t['supplier.held_by'] }} {{ v.supplier.name }}</span>
+                    {% endif %}
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="field-hint">{{ t['supplier.machines_none'] }}</div>
+        {% endif %}
+    </div>
+
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
@@ -30,3 +64,16 @@
         <a href="{{ url_for('supplier_invoices.index', tab='fournisseurs') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
+
+<script>
+// The list of machines only means something for a lessor; it stays out of
+// the way until the box is ticked.
+(function () {
+    var box = document.getElementById("provides_machines"),
+        list = document.getElementById("supplier-machines");
+    if (!box || !list) return;
+    function apply() { list.hidden = !box.checked; }
+    box.addEventListener("change", apply);
+    apply();
+})();
+</script>
