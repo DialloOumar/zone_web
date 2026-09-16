@@ -5,7 +5,7 @@
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 
 <div class="expense-total" style="margin-top:0;">
-    {{ t['invoice.supplier'] }} <strong>{{ invoice.supplier.name }}</strong>
+    {{ t['invoice.supplier'] }} <strong>{{ invoice.supplier.code }} — {{ invoice.supplier.name }}</strong>
     <span class="muted small">&middot;</span>
     {{ t['invoice.amount'] }} <strong>{{ invoice.amount | num }} {{ currency }}</strong>
     {% if invoice.remaining > 0 %}

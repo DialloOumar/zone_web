@@ -24,6 +24,7 @@ from datetime import date, datetime
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
+from sqlalchemy.exc import IntegrityError
 
 import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
@@ -39,6 +40,10 @@ supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
 # The two halves of the page, shown one at a time: the bills, and the people
 # who send them.
 TABS = ("factures", "fournisseurs")
+
+# The two kinds of supplier, and the series each one's code is drawn from.
+SUPPLIER_KINDS = ("permanent", "divers")
+CODE_PREFIX = {"permanent": "FP", "divers": "FD"}
 
 # What the list can be narrowed to. "due" is everything with money still on it;
 # "overdue" is the part of it that is already late.
@@ -60,11 +65,41 @@ _PHOTO_ERR_KEYS = {
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
+def _by_kind_then_name():
+    """The habitual suppliers first, then the occasional ones, each in name
+    order: what someone reaching for a picker wants under the hand."""
+    return (db.case((Supplier.kind == "permanent", 0), else_=1), Supplier.name)
+
+
 def active_suppliers():
     """Who a new invoice can be filed under. An archived supplier keeps its
     invoices and their history, it is simply no longer offered."""
     return (Supplier.query.filter(Supplier.is_active.is_(True))
-            .order_by(Supplier.sort_order, Supplier.name).all())
+            .order_by(*_by_kind_then_name()).all())
+
+
+def _next_code(kind):
+    """The next free number in the kind's series: FP-004 after FP-003.
+
+    Read off the codes in use rather than kept in a counter, so there is
+    nothing to drift. Two people creating at the same instant could both read
+    the same number -- the unique constraint catches that, and the save tries
+    again with the next one.
+    """
+    prefix = CODE_PREFIX[kind] + "-"
+    # No autoflush: on a create the new row is already in the session with no
+    # code yet, and the query must not push it to the database before this
+    # very function has given it one.
+    with db.session.no_autoflush:
+        taken = [c[0] for c in db.session.query(Supplier.code)
+                 .filter(Supplier.code.like(prefix + "%")).all()]
+    highest = 0
+    for c in taken:
+        try:
+            highest = max(highest, int(c[len(prefix):]))
+        except ValueError:
+            pass
+    return "%s%03d" % (prefix, highest + 1)
 
 
 def _paid_sum():
@@ -260,8 +295,12 @@ def index():
         # What someone remembers about a bill: its number, or a word of what it
         # was for.
         like = "%" + search + "%"
-        q = q.filter(db.or_(SupplierInvoice.number.ilike(like),
-                            SupplierInvoice.description.ilike(like)))
+        # ...or the supplier's own code or name: "FP-003" finds its bills.
+        q = q.join(Supplier).filter(db.or_(
+            SupplierInvoice.number.ilike(like),
+            SupplierInvoice.description.ilike(like),
+            Supplier.code.ilike(like),
+            Supplier.name.ilike(like)))
     if status == "paid":
         q = q.filter(_paid_sum() >= SupplierInvoice.amount)
     elif status in ("due", "overdue"):
@@ -283,7 +322,14 @@ def index():
         page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
         error_out=False)
 
-    suppliers = Supplier.query.order_by(Supplier.sort_order, Supplier.name).all()
+    # The suppliers tab can be narrowed to one kind.
+    kind = request.args.get("kind", "")
+    if kind not in SUPPLIER_KINDS:
+        kind = ""
+    sq = Supplier.query
+    if kind:
+        sq = sq.filter(Supplier.kind == kind)
+    suppliers = sq.order_by(*_by_kind_then_name()).all()
     # What each supplier is still owed, in one grouped query rather than one
     # per row of the list.
     owed_rows = (db.session.query(
@@ -312,6 +358,7 @@ def index():
         suppliers=suppliers, pickable=active_suppliers(), owed=owed,
         billed=billed, paid=paid, remaining=max(billed - paid, 0),
         tab=tab, tab_urls=tab_urls, statuses=STATUSES, status=status,
+        supplier_kinds=SUPPLIER_KINDS, kind=kind,
         date_from=date_from, date_to=date_to, supplier_ids=supplier_ids,
         search=search, today=today,
     )
@@ -563,15 +610,25 @@ def _save_supplier(row):
         clash = clash.filter(Supplier.id != row.id)
     if clash.first():
         return t.get("list.err.name_taken", "Ce nom existe déjà.")
+    kind = (request.form.get("kind") or "").strip()
+    if kind not in SUPPLIER_KINDS:
+        return t["supplier.err.kind"]
     creating = row is None
     if creating:
         nxt = (db.session.query(db.func.max(Supplier.sort_order)).scalar() or 0) + 1
-        row = Supplier(sort_order=nxt)
+        row = Supplier(sort_order=nxt, kind=kind, code=_next_code(kind))
         db.session.add(row)
     row.name = name
     row.contact = (request.form.get("contact") or "").strip() or None
     row.note = (request.form.get("note") or "").strip() or None
     row.provides_machines = request.form.get("provides_machines") is not None
+    # A new supplier is coded in its kind's series; one that changes kind moves
+    # to the other series and its old code is let go -- only the current one
+    # is ever shown.
+    needs_code = creating or row.kind != kind
+    if not creating and needs_code:
+        row.code = _next_code(kind)
+    row.kind = kind
     db.session.flush()
     # A lessor's machines follow the boxes ticked; one that stops being a
     # lessor lets its machines go.
@@ -584,8 +641,20 @@ def _save_supplier(row):
                 pass
     _assign_machines(row, chosen)
     log_action("CREATE" if creating else "UPDATE", "supplier", resource_id=row.id,
-               detail="%s supplier '%s'" % ("Created" if creating else "Updated", row.name))
-    db.session.commit()
+               detail="%s supplier '%s' (%s)" % ("Created" if creating else "Updated",
+                                                 row.name, row.code))
+    # Two saves at the same instant can draw the same code; the constraint
+    # refuses the second, which simply takes the next number.
+    for attempt in range(3):
+        try:
+            db.session.commit()
+            return None
+        except IntegrityError:
+            db.session.rollback()
+            if not needs_code or attempt == 2:
+                return t.get("list.err.name_taken", "Ce nom existe déjà.")
+            row.code = _next_code(kind)
+            row = db.session.merge(row)
     return None
 
 

@@ -11,7 +11,7 @@
         <select id="supplier_id" name="supplier_id" required>
             <option value="" hidden></option>
             {% for s in suppliers %}
-            <option value="{{ s.id }}" {% if s.id == sel_sup %}selected{% endif %}>{{ s.name }}</option>
+            <option value="{{ s.id }}" {% if s.id == sel_sup %}selected{% endif %}>{{ s.code }} — {{ s.name }}</option>
             {% endfor %}
         </select>
         <label for="supplier_id">{{ t['invoice.supplier'] }}</label>

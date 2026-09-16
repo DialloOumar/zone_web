@@ -9,7 +9,7 @@
         <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
         <span class="chip chip--{{ e.vehicle.category.code|lower }}">{{ e.vehicle.category.label_fr if lang == 'fr' else e.vehicle.category.label }}</span>
         {# Whose machine it is, when it is leased: the name its bill is checked under. #}
-        {% if e.vehicle.supplier %}<div class="muted small">{{ t['invoice.supplier'] }} : {{ e.vehicle.supplier.name }}</div>{% endif %}
+        {% if e.vehicle.supplier %}<div class="muted small">{{ t['invoice.supplier'] }} : {{ e.vehicle.supplier.code }} {{ e.vehicle.supplier.name }}</div>{% endif %}
     </td>
     {% endif %}
     <td>

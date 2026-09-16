@@ -69,7 +69,7 @@
             <div class="field field--select filter-field">
                 <select name="supplier_id">
                     <option value="">{{ t['entry.all_suppliers'] }}</option>
-                    {% for s in suppliers %}<option value="{{ s.id }}" {% if f.supplier_id == s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+                    {% for s in suppliers %}<option value="{{ s.id }}" {% if f.supplier_id == s.id %}selected{% endif %}>{{ s.code }} — {{ s.name }}</option>{% endfor %}
                 </select>
                 <label>{{ t['invoice.supplier'] }}</label>
             </div>
@@ -188,7 +188,7 @@
                 <span class="chip chip--{{ e.vehicle.category.code|lower }}">{{ e.vehicle.category.label_fr if lang == 'fr' else e.vehicle.category.label }}</span>
                 <span class="muted small">{{ e.date }}</span>
                 {% if e.operator %}<span class="muted small">· {{ e.operator }}</span>{% endif %}
-                {% if e.vehicle.supplier %}<span class="muted small">· {{ e.vehicle.supplier.name }}</span>{% endif %}
+                {% if e.vehicle.supplier %}<span class="muted small">· {{ e.vehicle.supplier.code }} {{ e.vehicle.supplier.name }}</span>{% endif %}
                 {% if e.kilometers is not none %}<span class="muted small">· {{ e.kilometers }} km</span>{% endif %}
             </div>
             {% if pa %}

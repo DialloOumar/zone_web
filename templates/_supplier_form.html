@@ -6,11 +6,31 @@
       action="{{ url_for('supplier_invoices.supplier_edit', sid=row.id) if is_edit
                 else url_for('supplier_invoices.supplier_new') }}">
 
+    {% if is_edit %}
+    {# Issued by the app, never typed. It changes only if the kind does. #}
+    <div class="expense-total" style="margin-top:0;">
+        {{ t['supplier.code'] }} <strong>{{ row.code }}</strong>
+    </div>
+    {% endif %}
+
     <div class="field">
         <input type="text" id="name" name="name" placeholder=" " required
                value="{{ request.form.get('name') or (row.name if is_edit else '') }}">
         <label for="name">{{ t['invoice.supplier_name'] }}</label>
     </div>
+
+    {# Permanent or divers: the habitual supplier, or the one of a day. The
+       code is drawn from the series of the kind chosen. #}
+    {% set sel_kind = request.form.get('kind') or (row.kind if is_edit else 'divers') %}
+    <div class="checkbox-grid" style="margin-bottom:4px;">
+        {% for k in ['permanent', 'divers'] %}
+        <label class="checkbox-item">
+            <input type="radio" name="kind" value="{{ k }}" {% if sel_kind == k %}checked{% endif %}>
+            <span>{{ t['supplier.kind.' + k] }} <span class="muted small">({{ 'FP' if k == 'permanent' else 'FD' }}-…)</span></span>
+        </label>
+        {% endfor %}
+    </div>
+    <div class="field-hint">{{ t['supplier.kind_hint'] }}</div>
 
     <div class="field">
         <input type="text" id="contact" name="contact" placeholder=" "

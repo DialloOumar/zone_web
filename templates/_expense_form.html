@@ -52,7 +52,7 @@
             <option value="">{{ t['expense.no_invoice'] }}</option>
             {% for i in invoices %}
             <option value="{{ i.id }}" {% if i.id == sel_inv %}selected{% endif %}>
-                {{ i.supplier.name }}{% if i.number %} — {{ i.number }}{% endif %}
+                {{ i.supplier.code }} {{ i.supplier.name }}{% if i.number %} — {{ i.number }}{% endif %}
                 — {{ t['invoice.remaining'] | lower }} {{ i.remaining | num }} {{ currency }}
             </option>
             {% endfor %}

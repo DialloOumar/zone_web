@@ -50,7 +50,7 @@
         {% if vehicle.supplier %}
         <div>
             <dt>{{ t['vehicle.supplier'] }}</dt>
-            <dd>{{ vehicle.supplier.name }}</dd>
+            <dd>{{ vehicle.supplier.code }} — {{ vehicle.supplier.name }}</dd>
         </div>
         {% endif %}
         {% if vehicle.description %}

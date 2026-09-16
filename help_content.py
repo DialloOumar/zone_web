@@ -344,6 +344,7 @@ HELP_SECTIONS = [
         "steps": {
             "fr": [
                 "Commencez par l'onglet « Fournisseurs » : ce sont ceux qui vous envoient des factures — un garage, un magasin de pièces, un bailleur. Un nom suffit ; le contact sert le jour où il faut les appeler.",
+                "Chaque fournisseur est « Permanent » (un habituel) ou « Divers » (celui d'un jour), et reçoit un code automatique : FP-001, FP-002… pour les permanents, FD-001, FD-002… pour les divers. Le code se lit partout — liste des factures, formulaire, pointage imprimé — et la recherche le trouve. Un fournisseur qui change de catégorie reçoit un nouveau code.",
                 "Onglet « Factures », « Nouvelle facture » : le fournisseur, la date de la facture, le montant. Le n° de facture et l'objet sont facultatifs mais aident à la retrouver.",
                 "« Reçue le » est le jour où le papier vous est arrivé, qui n'est presque jamais celui que le fournisseur a écrit dessus. C'est cette date qui dit qu'une facture est restée trois semaines sur un bureau. Elle est pré-remplie à aujourd'hui.",
                 "« À payer avant le » est facultatif. Rempli, la facture passe en rouge et s'affiche « En retard » une fois la date dépassée.",
@@ -360,6 +361,7 @@ HELP_SECTIONS = [
             ],
             "en": [
                 "Start with the \"Suppliers\" tab: these are the people who send you bills — a garage, a parts shop, a landlord. A name is enough; the contact is there for the day you have to call them.",
+                "Each supplier is \"Permanent\" (a regular) or \"Occasional\" (the supplier of a day), and gets an automatic code: FP-001, FP-002... for the permanent ones, FD-001, FD-002... for the others. The code shows everywhere — invoice list, form, printed pointage — and the search finds it. A supplier that changes kind gets a new code.",
                 "\"Invoices\" tab, \"New invoice\": the supplier, the invoice date, the amount. The invoice number and what it was for are optional but make it findable.",
                 "\"Received on\" is the day the paper reached you, which is hardly ever the day the supplier wrote on it. It is the date that shows a bill sat on someone's desk for three weeks. It comes pre-filled with today.",
                 "\"Due by\" is optional. Filled in, the invoice turns red and reads \"Overdue\" once the date has passed.",

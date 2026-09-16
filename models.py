@@ -691,6 +691,13 @@ class Supplier(db.Model):
 
     id         = db.Column(db.Integer,     primary_key=True)
     name       = db.Column(db.String(80),  nullable=False, unique=True)
+    # permanent: the garages and lessors worked with all year. divers: the
+    # supplier of a day. The code says which at a glance -- FP-003 or FD-017 --
+    # and is issued by the app when the supplier is created, never typed. A
+    # supplier that changes kind is issued a code in its new series; only the
+    # current code is ever shown.
+    kind       = db.Column(db.String(10),  nullable=False, default="divers")
+    code       = db.Column(db.String(12),  nullable=False, unique=True)
     contact    = db.Column(db.String(80))                   # phone, or whoever answers
     note       = db.Column(db.String(255))
     # Leases machines to the company and bills their hours and trips -- the
@@ -709,6 +716,30 @@ class Supplier(db.Model):
         """Its machines that still exist: a deleted one keeps the link for its
         history but is nobody's to count."""
         return [v for v in self.machines if v.deleted_at is None]
+
+
+SUPPLIER_CODE_PREFIX = {"permanent": "FP", "divers": "FD"}
+
+
+@db.event.listens_for(Supplier, "before_insert")
+def _supplier_code_on_insert(mapper, connection, target):
+    """A supplier written without a code -- by a seed, a script, a test --
+    still gets one, in its kind's series, so the NOT NULL never bites and the
+    numbering never has a gap. The form issues its own the same way; this is
+    the net under every other path."""
+    if target.code:
+        return
+    prefix = SUPPLIER_CODE_PREFIX.get(target.kind or "divers", "FD") + "-"
+    rows = connection.execute(
+        db.select(Supplier.__table__.c.code)
+        .where(Supplier.__table__.c.code.like(prefix + "%"))).fetchall()
+    highest = 0
+    for (code,) in rows:
+        try:
+            highest = max(highest, int(code[len(prefix):]))
+        except (TypeError, ValueError):
+            pass
+    target.code = "%s%03d" % (prefix, highest + 1)
 
 
 class SupplierInvoice(db.Model):
