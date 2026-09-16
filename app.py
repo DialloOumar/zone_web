@@ -1308,6 +1308,41 @@ def _seed_super_admin_from_env():
     return True
 
 
+PLAN_COMPTABLE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "data", "plan_comptable_syscohada.csv")
+
+
+def _seed_plan_comptable_data():
+    """Insert every SYSCOHADA account the table does not have yet, from the
+    data file. Idempotent: an account already there -- standard or the
+    company's own -- is left exactly as it is, label and all. Returns how many
+    were added."""
+    from models import LedgerAccount
+    import csv
+    with open(PLAN_COMPTABLE_FILE, encoding="utf-8") as f:
+        rows = [(r["code"].strip(), r["libelle"].strip())
+                for r in csv.DictReader(f, delimiter=";") if r.get("code")]
+    codes = {c for c, _ in rows}
+    have = {r[0] for r in db.session.query(LedgerAccount.code).all()}
+    added = 0
+    for code, label in rows:
+        if code in have:
+            continue
+        parent = next((code[:n] for n in range(len(code) - 1, 0, -1) if code[:n] in codes), None)
+        db.session.add(LedgerAccount(code=code, label=label, klass=int(code[0]),
+                                     parent_code=parent, is_standard=True))
+        added += 1
+    db.session.commit()
+    return added
+
+
+@app.cli.command("seed-plan-comptable")
+def seed_plan_comptable_cmd():
+    """Load the SYSCOHADA révisé chart of accounts. Idempotent."""
+    added = _seed_plan_comptable_data()
+    click.echo(f"  plan comptable: {added} accounts added")
+
+
 @app.cli.command("seed")
 def seed_cmd():
     """Bootstrap the whole app: permissions, system roles, default categories,
@@ -1339,6 +1374,10 @@ def seed_cmd():
         click.echo(f"  super admin: created from ADMIN_USERNAME env var")
     else:
         click.echo(f"  super admin: already exists, skipped")
+
+    # 5. The chart of accounts, for the Finance workspace
+    added = _seed_plan_comptable_data()
+    click.echo(f"  plan comptable: {added} accounts added")
 
     click.echo("Seed complete.")
 

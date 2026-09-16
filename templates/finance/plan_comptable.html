@@ -1,0 +1,98 @@
+{% extends "finance/base.html" %}
+{% from "_search.html" import searchbox with context %}
+
+{% block title %}{{ t['plan.title'] }}{% endblock %}
+{% block page_title %}{{ t['plan.title'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['plan.title'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:60ch;">{{ t['plan.intro'] }}</p>
+        </div>
+    </div>
+
+    {{ searchbox(q, keep={'masques': '1' if show_hidden else ''}) }}
+
+    {# The nine classes. One is open at a time; a search cuts across them. #}
+    <div class="plan-classes">
+        {% for n, name in classes %}
+        <a href="{{ url_for('finance.plan', classe=n, masques='1' if show_hidden else None) }}"
+           class="plan-class {% if klass == n and not q %}active{% endif %}">
+            <span class="plan-class-num">{{ n }}</span>
+            <span class="plan-class-name">{{ name }}</span>
+            <span class="plan-class-count">{{ counts.get(n, 0) }}{% if own.get(n) %} · <strong>{{ own[n] }}</strong> {{ t['plan.own_short'] }}{% endif %}</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if hidden_count %}
+    <p class="muted small" style="margin:10px 0 0;">
+        {% if show_hidden %}
+        <a href="{{ url_for('finance.plan', classe=klass, q=q or None) }}">{{ t['plan.hide_hidden'] }}</a>
+        {% else %}
+        <a href="{{ url_for('finance.plan', classe=klass, q=q or None, masques=1) }}">{{ t['plan.show_hidden'] }} ({{ hidden_count }})</a>
+        {% endif %}
+    </p>
+    {% endif %}
+</section>
+
+{% if rows is not none %}
+<section class="card">
+    <div class="card-header">
+        <h2>
+            {% if q %}{{ t['plan.results'] }} « {{ q }} »
+            {% else %}{{ t['plan.class'] }} {{ klass }} — {{ dict(classes)[klass] }}{% endif %}
+        </h2>
+        <span class="muted small">{{ rows | length }} {{ t['plan.accounts'] }}</span>
+    </div>
+
+    {% if rows %}
+    <div class="table-wrap"><table class="data-table plan-table">
+        <tbody>
+        {% for a, has_children in rows %}
+        <tr class="plan-row plan-depth-{{ a.depth if a.depth < 5 else 5 }} {% if has_children %}plan-row--group{% endif %} {% if not a.is_active %}plan-row--hidden{% endif %}">
+            <td class="plan-code"><code>{{ a.code }}</code></td>
+            <td class="plan-label">
+                {{ a.label }}
+                {% if not a.is_standard %}<span class="badge badge--info">{{ t['plan.own'] }}</span>{% endif %}
+                {% if not a.is_active %}<span class="badge badge--inactive">{{ t['plan.hidden_badge'] }}</span>{% endif %}
+            </td>
+            <td class="row-actions">
+                {% if a.is_active %}
+                <a href="{{ url_for('finance.account_new', parent=a.code) }}" class="btn btn--sm btn--tonal btn--icon"
+                   data-modal-url="{{ url_for('finance.account_new', parent=a.code) }}" data-modal-title="{{ t['plan.add_under'] }} {{ a.code }}"
+                   title="{{ t['plan.add_sub'] }}" aria-label="{{ t['plan.add_sub'] }}"><span class="material-symbols-outlined">add</span></a>
+                {% endif %}
+                {% if not a.is_standard %}
+                <a href="{{ url_for('finance.account_edit', aid=a.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                   data-modal-url="{{ url_for('finance.account_edit', aid=a.id) }}" data-modal-title="{{ t['list.edit'] }}"
+                   title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                {% endif %}
+                {% if a.is_active %}
+                <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='hide') }}" style="display:inline">
+                    <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['plan.hide'] }}" aria-label="{{ t['plan.hide'] }}"><span class="material-symbols-outlined">visibility_off</span></button>
+                </form>
+                {% else %}
+                <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='show') }}" style="display:inline">
+                    <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['plan.show'] }}" aria-label="{{ t['plan.show'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                </form>
+                {% endif %}
+                {% if not a.is_standard and not has_children %}
+                <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='delete') }}"
+                      data-confirm="{{ t['list.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                    <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['plan.none'] }}</p>
+    {% endif %}
+</section>
+{% endif %}
+{% endblock %}

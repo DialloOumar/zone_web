@@ -27,7 +27,7 @@
 
 ```
 flask db upgrade   # apply any new migrations
-flask seed         # idempotent: permissions, roles, categories, settings, super admin
+flask seed         # idempotent: permissions, roles, categories, settings, super admin, plan comptable
 ```
 
 The `seed` command refuses to overwrite an existing super admin, so it's

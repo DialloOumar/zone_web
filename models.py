@@ -1333,6 +1333,42 @@ class StockMovement(db.Model):
         return expected - self.quantity
 
 
+# ── Finance — plan comptable ──────────────────────────────────────────────────
+
+
+class LedgerAccount(db.Model):
+    """One account of the plan comptable.
+
+    The SYSCOHADA révisé chart -- the plan every company in Guinea keeps its
+    books on -- is seeded from data/plan_comptable_syscohada.csv on every
+    boot, so each installation starts with the same 1,300-odd accounts. The
+    company adds its own under any of them: one per supplier under 4011, one
+    per bank under 521. A standard account is never edited or deleted, only
+    hidden; a company account can be renamed, and removed while unused.
+
+    `parent_code` is the nearest account above it in the chart (245 for 2451,
+    24 for 245), so a class can be shown as a tree without parsing codes.
+    """
+    __tablename__ = "ledger_accounts"
+
+    id          = db.Column(db.Integer,     primary_key=True)
+    code        = db.Column(db.String(12),  nullable=False, unique=True)
+    label       = db.Column(db.String(200), nullable=False)
+    klass       = db.Column(db.Integer,     nullable=False)   # 1..9, the code's first digit
+    parent_code = db.Column(db.String(12),  nullable=True, index=True)
+    is_standard = db.Column(db.Boolean,     nullable=False, default=False)  # from the SYSCOHADA file
+    is_active   = db.Column(db.Boolean,     nullable=False, default=True)
+    created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    @property
+    def depth(self):
+        return len(self.code)
+
+    def __repr__(self):
+        return f"<LedgerAccount {self.code} {self.label!r}>"
+
+
 # ── Config & system ───────────────────────────────────────────────────────────
 
 

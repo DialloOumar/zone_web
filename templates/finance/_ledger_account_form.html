@@ -1,0 +1,36 @@
+{% set is_edit = row is not none %}
+{# A company account under a standard one: its number, which starts with the
+   parent's, and its name. Only the name changes once it exists. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('finance.account_edit', aid=row.id) if is_edit else url_for('finance.account_new', parent=parent.code if parent else None) }}">
+
+    {% if parent %}
+    <p class="muted small" style="margin:0 0 12px;">
+        {{ t['plan.parent'] }} : <code>{{ parent.code }}</code> {{ parent.label }}
+    </p>
+    {% else %}
+    <div class="alert alert--warning">{{ t['plan.err.parent'] }}</div>
+    {% endif %}
+
+    <div class="field">
+        <input type="text" id="code" name="code" placeholder=" " required inputmode="numeric" pattern="[0-9]{2,12}"
+               value="{{ request.form.get('code') or (row.code if is_edit else (parent.code if parent else '')) }}"
+               {% if is_edit %}readonly{% endif %}>
+        <label for="code">{{ t['plan.code'] }}</label>
+    </div>
+    {% if not is_edit %}<div class="field-hint">{{ t['plan.code_hint'] }}</div>{% endif %}
+
+    <div class="field">
+        <input type="text" id="label" name="label" placeholder=" " required maxlength="200"
+               value="{{ request.form.get('label') or (row.label if is_edit else '') }}">
+        <label for="label">{{ t['plan.label'] }}</label>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary" {% if not parent and not is_edit %}disabled{% endif %}>
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('finance.plan') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
