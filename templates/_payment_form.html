@@ -65,6 +65,12 @@
         </select>
         <label for="account_id">{{ t['invoice.paid_from_account'] }}</label>
     </div>
+    {% else %}
+    {# No account yet: say so, and where to add one, rather than hide the
+       field and leave people thinking it does not exist. #}
+    <div class="field-hint">{{ t['caisse.no_account'] }}
+        <a href="{{ url_for('accounts.index') }}">{{ t['list.accounts'] }}</a>
+    </div>
     {% endif %}
 
     <div class="field-hint">{{ t['invoice.cash_box_note'] }}</div>
