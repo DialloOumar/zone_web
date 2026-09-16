@@ -167,7 +167,7 @@
                     {% if s.provides_machines %}
                     <span class="badge badge--info">{{ s.live_machines | length }} {{ t['supplier.machines'] | lower }}</span>
                     {% if has_perm('entry.view') %}
-                    <a href="{{ url_for('entries.index', supplier_id=s.id) }}" class="btn btn--sm btn--tonal" style="margin-left:6px;">
+                    <a href="{{ url_for('entries.supplier', sid=s.id) }}" class="btn btn--sm btn--tonal" style="margin-left:6px;">
                         <span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_btn'] }}
                     </a>
                     {% endif %}
