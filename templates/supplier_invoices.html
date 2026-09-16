@@ -137,10 +137,16 @@
     </form>
     {% if suppliers %}
     <div class="table-wrap"><table class="data-table">
+        {# One thing per column: what a row is scanned for -- its code, its
+           kind, whether it leases machines -- each in its own place rather
+           than a heap of badges in the first cell. #}
         <thead>
             <tr>
+                <th>{{ t['supplier.code'] }}</th>
                 <th>{{ t['invoice.supplier'] }}</th>
+                <th>{{ t['supplier.kind'] }}</th>
                 <th>{{ t['invoice.contact'] }}</th>
+                <th>{{ t['supplier.machines'] }}</th>
                 <th style="text-align:right;">{{ t['invoice.remaining'] }}</th>
                 <th></th>
             </tr>
@@ -149,11 +155,15 @@
             {% for s in suppliers %}
             {% set o = owed.get(s.id) %}
             <tr>
+                <td style="white-space:nowrap;"><span class="chip">{{ s.code }}</span></td>
                 <td>
-                    <span class="chip">{{ s.code }}</span>
                     <strong {% if not s.is_active %}class="muted"{% endif %}>{{ s.name }}</strong>
-                    <span class="badge {{ 'badge--active' if s.kind == 'permanent' else 'badge--inactive' }}">{{ t['supplier.kind.' + s.kind] }}</span>
                     {% if not s.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
+                    {% if s.note %}<div class="muted small">{{ s.note }}</div>{% endif %}
+                </td>
+                <td><span class="badge {{ 'badge--active' if s.kind == 'permanent' else 'badge--inactive' }}">{{ t['supplier.kind.' + s.kind] }}</span></td>
+                <td>{% if s.contact %}{{ s.contact }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="white-space:nowrap;">
                     {% if s.provides_machines %}
                     <span class="badge badge--info">{{ s.live_machines | length }} {{ t['supplier.machines'] | lower }}</span>
                     {% if has_perm('entry.view') %}
@@ -161,10 +171,8 @@
                         <span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_btn'] }}
                     </a>
                     {% endif %}
-                    {% endif %}
-                    {% if s.note %}<div class="muted small">{{ s.note }}</div>{% endif %}
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
-                <td>{% if s.contact %}{{ s.contact }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">
                     {% if o and o.remaining > 0 %}
                     <strong class="stock-negative">{{ o.remaining | num }} {{ currency }}</strong>
