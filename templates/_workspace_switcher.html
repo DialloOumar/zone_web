@@ -1,15 +1,33 @@
-{# Exploitation / Finance switcher, under the logo. Shown only to whoever may
+{# Workspace menu under the logo, like batmex's project switcher: a button
+   naming where you are, a list of where you can go. Shown only to whoever may
    enter Finance (see can_enter_finance in app.py); everyone else has one
-   workspace and sees nothing here. Which side is lit follows the page, not a
-   session: a finance page lights Finance, anything else lights Exploitation. #}
+   workspace and sees nothing here. Which entry is lit follows the page, not a
+   session: a finance page lights Finance, anything else lights Exploitation.
+   Adding a workspace later is one more row in `workspaces` below. #}
 {% if finance_visible %}
-{% set in_finance = request.blueprint == 'finance' %}
-<div class="ws-switch" role="navigation" aria-label="{{ t['ws.label'] }}">
-    <a href="{{ url_for('dashboard') }}" class="ws-switch-item {% if not in_finance %}active{% endif %}">
-        <span class="material-symbols-outlined">local_shipping</span> {{ t['ws.ops'] }}
-    </a>
-    <a href="{{ url_for('finance.index') }}" class="ws-switch-item {% if in_finance %}active{% endif %}">
-        <span class="material-symbols-outlined">account_balance</span> {{ t['ws.finance'] }}
-    </a>
+{% set workspaces = [
+    ('ops',     url_for('dashboard'),     'local_shipping',  t['ws.ops']),
+    ('finance', url_for('finance.index'), 'account_balance', t['ws.finance']),
+] %}
+{% set current = 'finance' if request.blueprint == 'finance' else 'ops' %}
+<div class="ws-switch" id="ws-switch">
+    {% for slug, href, icon, name in workspaces if slug == current %}
+    <button type="button" class="ws-switch-btn" id="ws-switch-btn"
+            aria-haspopup="true" aria-expanded="false" aria-controls="ws-switch-menu"
+            title="{{ t['ws.label'] }}">
+        <span class="material-symbols-outlined">{{ icon }}</span>
+        <span class="ws-switch-name">{{ name }}</span>
+        <span class="material-symbols-outlined ws-switch-caret">unfold_more</span>
+    </button>
+    {% endfor %}
+    <div class="ws-switch-menu" id="ws-switch-menu" role="menu" hidden>
+        {% for slug, href, icon, name in workspaces %}
+        <a href="{{ href }}" role="menuitem" class="ws-switch-item {% if slug == current %}active{% endif %}">
+            <span class="material-symbols-outlined">{{ icon }}</span>
+            <span class="ws-switch-item-name">{{ name }}</span>
+            {% if slug == current %}<span class="material-symbols-outlined ws-switch-check">check</span>{% endif %}
+        </a>
+        {% endfor %}
+    </div>
 </div>
 {% endif %}
