@@ -140,17 +140,30 @@
         </tfoot>
     </table></div>
 
-    {% if has_perm('invoicing.manage') and not inv.is_cancelled and not inv.payments %}
-    {# A bill that has taken money is settled, not cancelled: its payments
-       would be left pointing at nothing. #}
-    <div class="form-actions" style="margin-top:12px;">
+    {% if not inv.payments and ((has_perm('invoicing.manage') and not inv.is_cancelled) or is_super_admin) %}
+    {# A bill that has taken money is settled, not cancelled or deleted: its
+       payments would be left pointing at nothing. Delete them first. #}
+    <div class="form-actions" style="margin-top:12px; gap:8px;">
+        {% if has_perm('invoicing.manage') and not inv.is_cancelled %}
         <form method="post" action="{{ url_for('invoicing.invoice_cancel', iid=inv.id) }}"
               data-confirm="{{ t['cinv.cancel_confirm'] }}" data-confirm-title="{{ t['cinv.cancel'] }}" data-confirm-ok="{{ t['cinv.cancel'] }}" data-confirm-danger style="display:inline">
             <button type="submit" class="btn btn--outlined btn--danger-text">
                 <span class="material-symbols-outlined">close</span> {{ t['cinv.cancel'] }}
             </button>
         </form>
+        {% endif %}
+        {% if is_super_admin %}
+        {# Super admins only: for a bill issued by mistake or as a trial. #}
+        <form method="post" action="{{ url_for('invoicing.invoice_delete', iid=inv.id) }}"
+              data-confirm="{{ t['cinv.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+            <button type="submit" class="btn btn--outlined btn--danger-text">
+                <span class="material-symbols-outlined">delete</span> {{ t['cinv.delete'] }}
+            </button>
+        </form>
+        {% endif %}
     </div>
+    {% elif inv.payments and is_super_admin %}
+    <p class="muted small" style="margin-top:12px;">{{ t['cinv.delete_blocked_hint'] }}</p>
     {% endif %}
 </section>
 {% endblock %}

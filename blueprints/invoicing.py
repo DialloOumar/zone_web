@@ -654,3 +654,26 @@ def payment_delete(iid, pid):
     db.session.commit()
     flash("success|" + get_t()["cpay.deleted"])
     return redirect(url_for("invoicing.invoice_detail", iid=inv.id))
+
+
+@invoicing_bp.route("/facturation/factures/<int:iid>/supprimer", methods=["POST"])
+@login_required
+def invoice_delete(iid):
+    """Gone for good, super admins only: a bill issued by mistake or as a
+    trial. One that has taken money is not deleted -- its payments go first,
+    one by one, so nothing is ever removed by accident behind a bill. Its
+    number is free again, so the next bill may take it."""
+    if not current_user.is_super_admin:
+        abort(403)
+    inv = _get_client_invoice_or_404(iid)
+    t = get_t()
+    if inv.payments:
+        flash("error|" + t["cinv.err.delete_paid"])
+        return redirect(url_for("invoicing.invoice_detail", iid=inv.id))
+    number, client_name, period = inv.number, inv.client.name, inv.period
+    db.session.delete(inv)
+    log_action("DELETE", "client_invoice", resource_id=iid,
+               detail="Deleted %s (%s, %s)" % (number, client_name, period))
+    db.session.commit()
+    flash("success|" + t["cinv.deleted"])
+    return redirect(url_for("invoicing.index", tab="factures"))
