@@ -152,27 +152,89 @@ def index():
         clients = _clients(include_archived=True)
     archived = Client.query.filter(Client.is_active.is_(False)).count()
 
-    invoices, client = [], None
     today = date.today().isoformat()
+    invoices, pagination = [], None
+    billed = received = remaining = overdue_count = 0
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
+    date_from = date_from if _valid_date(date_from) else ""
+    date_to = date_to if _valid_date(date_to) else ""
+    client_ids = []
+    for raw in request.args.getlist("client"):
+        try:
+            client_ids.append(int(raw))
+        except (TypeError, ValueError):
+            pass
     status = request.args.get("status") or ""
+    if status not in ("open", "overdue", "paid", "cancelled"):
+        status = ""
+    search = (request.args.get("q") or "").strip()
     if tab == "factures":
         q = ClientInvoice.query
-        cid = request.args.get("client_id", type=int)
-        client = db.session.get(Client, cid) if cid else None
-        if client:
-            q = q.filter(ClientInvoice.client_id == client.id)
-        invoices = q.order_by(ClientInvoice.date.desc(), ClientInvoice.id.desc()).all()
-        if status == "open":
-            invoices = [i for i in invoices if i.pay_status in ("unpaid", "partial")]
-        elif status == "overdue":
-            invoices = [i for i in invoices if i.is_overdue(today)]
-        elif status == "paid":
-            invoices = [i for i in invoices if i.pay_status == "paid"]
+        if date_from:
+            q = q.filter(ClientInvoice.date >= date_from)
+        if date_to:
+            q = q.filter(ClientInvoice.date <= date_to)
+        if client_ids:
+            q = q.filter(ClientInvoice.client_id.in_(client_ids))
+        if search:
+            # What someone remembers about a bill: its number, its subject,
+            # the client's reference, or the client's code or name.
+            like = "%" + search + "%"
+            q = q.join(Client).filter(db.or_(
+                ClientInvoice.number.ilike(like), ClientInvoice.subject.ilike(like),
+                ClientInvoice.client_ref.ilike(like),
+                Client.code.ilike(like), Client.name.ilike(like)))
+        paid = (db.select(db.func.coalesce(db.func.sum(ClientPayment.amount), 0))
+                .where(ClientPayment.invoice_id == ClientInvoice.id)
+                .correlate(ClientInvoice).scalar_subquery())
+        if status == "paid":
+            q = q.filter(ClientInvoice.status != "cancelled", paid >= ClientInvoice.total)
+        elif status in ("open", "overdue"):
+            q = q.filter(ClientInvoice.status != "cancelled", paid < ClientInvoice.total)
+            if status == "overdue":
+                q = q.filter(ClientInvoice.due_date.isnot(None), ClientInvoice.due_date < today)
+        elif status == "cancelled":
+            q = q.filter(ClientInvoice.status == "cancelled")
 
-    tab_urls = {name: url_for("invoicing.index", tab=name) for name in TABS}
+        # Totals off the query, not off the page: past 50 bills the figures
+        # at the top would otherwise cover only the slice on screen. A
+        # cancelled bill counts for nothing.
+        live = q.filter(ClientInvoice.status != "cancelled")
+        sums = live.with_entities(
+            db.func.coalesce(db.func.sum(ClientInvoice.total), 0),
+            db.func.coalesce(db.func.sum(db.func.min(paid, ClientInvoice.total)), 0)).one()
+        billed, received = int(sums[0] or 0), int(sums[1] or 0)
+        remaining = max(billed - received, 0)
+        overdue_count = live.filter(paid < ClientInvoice.total, ClientInvoice.due_date.isnot(None),
+                                    ClientInvoice.due_date < today).count()
+        pagination = (q.order_by(ClientInvoice.date.desc(), ClientInvoice.id.desc())
+                      .paginate(page=request.args.get("page", 1, type=int), per_page=50, error_out=False))
+        invoices = pagination.items
+
+    # What each client still owes, in one grouped query rather than one per row.
+    owed = {}
+    if tab == "clients":
+        paid = (db.select(db.func.coalesce(db.func.sum(ClientPayment.amount), 0))
+                .where(ClientPayment.invoice_id == ClientInvoice.id)
+                .correlate(ClientInvoice).scalar_subquery())
+        rows = (db.session.query(ClientInvoice.client_id, db.func.count(ClientInvoice.id),
+                                 db.func.coalesce(db.func.sum(ClientInvoice.total - db.func.min(paid, ClientInvoice.total)), 0))
+                .filter(ClientInvoice.status != "cancelled")
+                .group_by(ClientInvoice.client_id).all())
+        owed = {r[0]: {"count": int(r[1]), "remaining": int(r[2] or 0)} for r in rows}
+
+    kept = request.args.to_dict(flat=False)
+    kept.pop("tab", None)
+    kept.pop("page", None)
+    tab_urls = {name: url_for("invoicing.index", tab=name, **kept) for name in TABS}
     return render_template("invoicing.html", tab=tab, tab_urls=tab_urls,
-                           clients=clients, client=client, invoices=invoices,
-                           status=status, today=today,
+                           clients=clients, invoices=invoices, pagination=pagination,
+                           billed=billed, received=received, remaining=remaining,
+                           overdue_count=overdue_count, owed=owed,
+                           date_from=date_from, date_to=date_to, client_ids=client_ids,
+                           status=status, search=search, today=today,
+                           filtered=bool(date_from or date_to or client_ids or status or search),
                            show_archived=show_archived, archived=archived)
 
 

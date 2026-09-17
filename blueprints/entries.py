@@ -23,7 +23,7 @@ import maintenance_engine
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, pending_change_exists, require_perm,
                  submit_change)
-from models import (DailyEntry, Fleet, Operator, PendingChange, Supplier, Vehicle,
+from models import (Client, DailyEntry, Fleet, Operator, PendingChange, Supplier, Vehicle,
                     VehicleCategory, db)
 
 entries_bp = Blueprint("entries", __name__)
@@ -237,6 +237,9 @@ def _filter_values():
         # The lessor whose machines' entries are wanted -- what its bill is
         # checked against.
         "supplier_id": request.args.get("supplier_id", type=int),
+        # The client whose machines' entries are wanted -- what its bill is
+        # built from.
+        "client_id": request.args.get("client_id", type=int),
         "month": request.args.get("month") or "",
         "date_from": request.args.get("date_from") or "",
         "date_to": request.args.get("date_to") or "",
@@ -257,6 +260,8 @@ def _apply_filters(q):
         q = q.filter(DailyEntry.operator == f["operator"])
     if f["supplier_id"]:
         q = q.filter(Vehicle.supplier_id == f["supplier_id"])
+    if f["client_id"]:
+        q = q.filter(Vehicle.client_id == f["client_id"])
     if f["month"] and _valid_month(f["month"]):
         q = q.filter(DailyEntry.date.like(f["month"] + "-%"))
     else:
@@ -353,6 +358,10 @@ def _export_context():
         sup = db.session.get(Supplier, f["supplier_id"])
         if sup:
             parts.append(sup.name)
+    if f["client_id"]:
+        cl = db.session.get(Client, f["client_id"])
+        if cl:
+            parts.append(cl.name)
     if f["month"] and _valid_month(f["month"]):
         parts.append(f["month"])
     elif f["date_from"] or f["date_to"]:
@@ -424,6 +433,61 @@ def supplier():
                       date_to=date_to or None)
     return render_template(
         "supplier_entries.html", sup=sup, machines=machines,
+        entries=pagination.items, pagination=pagination,
+        f=dict(vehicle_id=vehicle_id, month=month, date_from=date_from, date_to=date_to),
+        filtered=bool(vehicle_id or month or date_from or date_to),
+        total_km=total_km, total_trips=total_trips, total_hours=total_hours,
+        print_args={k: v for k, v in print_args.items() if v is not None},
+        pending_map={})
+
+
+@entries_bp.route("/entries/client")
+@login_required
+@require_perm("entry.view")
+def client():
+    """One client's machines and nothing else -- what its bill is built from.
+    The mirror of the lessor's page: its own machines over a month, and the
+    figures the invoice lines come from."""
+    cid = request.args.get("cid", type=int)
+    cl = db.session.get(Client, cid) if cid else None
+    if not cl:
+        abort(404)
+    fids = current_user_fleet_ids()
+    machines = [v for v in cl.live_machines if fids is None or v.fleet_id in fids]
+    machine_ids = {v.id for v in machines}
+
+    vehicle_id = request.args.get("vehicle_id", type=int)
+    if vehicle_id not in machine_ids:
+        vehicle_id = None
+    month = request.args.get("month") or ""
+    date_from = request.args.get("date_from") or ""
+    date_to = request.args.get("date_to") or ""
+
+    q = _scoped_entries().filter(Vehicle.client_id == cl.id)
+    if vehicle_id:
+        q = q.filter(DailyEntry.vehicle_id == vehicle_id)
+    if month and _valid_month(month):
+        q = q.filter(DailyEntry.date.like(month + "-%"))
+    else:
+        if date_from and _valid_date(date_from):
+            q = q.filter(DailyEntry.date >= date_from)
+        if date_to and _valid_date(date_to):
+            q = q.filter(DailyEntry.date <= date_to)
+
+    co = db.func.coalesce
+    total_km, total_trips, total_hours = q.with_entities(
+        co(db.func.sum(DailyEntry.kilometers), 0),
+        co(db.func.sum(DailyEntry.trips), 0),
+        co(db.func.sum(DailyEntry.hours), 0.0)).one()
+    pagination = (q.order_by(DailyEntry.date.desc(), DailyEntry.id.desc())
+                  .paginate(page=request.args.get("page", 1, type=int),
+                            per_page=PER_PAGE, error_out=False))
+
+    print_args = dict(client_id=cl.id, vehicle_id=vehicle_id or None,
+                      month=month or None, date_from=date_from or None,
+                      date_to=date_to or None)
+    return render_template(
+        "client_entries.html", client=cl, machines=machines,
         entries=pagination.items, pagination=pagination,
         f=dict(vehicle_id=vehicle_id, month=month, date_from=date_from, date_to=date_to),
         filtered=bool(vehicle_id or month or date_from or date_to),

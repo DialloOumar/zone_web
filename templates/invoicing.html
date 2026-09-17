@@ -1,14 +1,42 @@
 {% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.invoicing'] }}{% endblock %}
 {% block page_title %}{{ t['nav.invoicing'] }}{% endblock %}
+
+{# A dropdown holding tick boxes, so ten clients do not stretch across the
+   page. <details> opens on its own, no script needed. #}
+{% macro tickbox(name, label, rows, chosen, attr) %}
+<details class="filter-dd{% if chosen %} filter-dd--on{% endif %}">
+    <summary>
+        {{ label }}
+        {% if chosen %}<span class="filter-dd__count">{{ chosen|length }}</span>{% endif %}
+    </summary>
+    <div class="filter-dd__panel">
+        {% for r in rows %}
+        <label class="filter-dd__opt">
+            <input type="checkbox" name="{{ name }}" value="{{ r.id }}" {% if r.id in chosen %}checked{% endif %}>
+            <span>{{ r[attr] }}</span>
+        </label>
+        {% endfor %}
+    </div>
+</details>
+{% endmacro %}
+
+{% macro status_chip(inv) -%}
+    {% if inv.is_cancelled %}<span class="badge badge--critical">{{ t['cinv.status.cancelled'] }}</span>
+    {% elif inv.pay_status == 'paid' %}<span class="badge badge--active">{{ t['cpay.status.paid'] }}</span>
+    {% elif inv.is_overdue(today) %}<span class="badge badge--critical">{{ t['cpay.status.overdue'] }}</span>
+    {% elif inv.pay_status == 'partial' %}<span class="badge badge--warning">{{ t['cpay.status.partial'] }}</span>
+    {% else %}<span class="badge badge--inactive">{{ t['cpay.status.unpaid'] }}</span>{% endif %}
+{%- endmacro %}
 
 {% block content %}
 <section class="card">
     <nav class="tabs" role="tablist">
         <a href="{{ tab_urls['factures'] }}" role="tab" aria-selected="{{ 'true' if tab == 'factures' else 'false' }}"
            class="tab {% if tab == 'factures' %}tab--on{% endif %}">
-            {{ t['invoicing.tab_invoices'] }}
+            {{ t['invoicing.tab_invoices'] }}{% if pagination %}<span class="tab__count">{{ pagination.total }}</span>{% endif %}
         </a>
         <a href="{{ tab_urls['clients'] }}" role="tab" aria-selected="{{ 'true' if tab == 'clients' else 'false' }}"
            class="tab {% if tab == 'clients' %}tab--on{% endif %}">
@@ -19,26 +47,14 @@
     {% if tab == 'factures' %}
     {# ── Factures: the register of bills issued ── #}
     <div class="tab-bar">
-        <form method="get" class="filter-bar tab-bar__filters">
-            <input type="hidden" name="tab" value="factures">
-            <div class="field field--select" style="min-width:180px;">
-                <select name="client_id" onchange="this.form.submit()">
-                    <option value="">{{ t['invoicing.client'] }} : {{ t['supplier.all_kinds'] | lower }}</option>
-                    {% for c in clients %}
-                    <option value="{{ c.id }}" {% if client and c.id == client.id %}selected{% endif %}>{{ c.name }}</option>
-                    {% endfor %}
-                </select>
-                <label>{{ t['invoicing.client'] }}</label>
+        <div class="tab-bar__filters">
+            {# The one figure the page exists to answer: what clients still
+               owe over the selection. Red whenever anything is owed. #}
+            <div class="caisse-balance {% if remaining > 0 %}stock-negative{% endif %}">
+                <span class="caisse-balance__label">{{ t['cpay.remaining_total'] }}</span>
+                <strong>{{ remaining | num }} {{ currency }}</strong>
             </div>
-            <div class="field field--select" style="min-width:150px;">
-                <select name="status" onchange="this.form.submit()">
-                    {% for code in ['', 'open', 'overdue', 'paid'] %}
-                    <option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ t['cpay.filter.' + (code or 'all')] }}</option>
-                    {% endfor %}
-                </select>
-                <label>{{ t['cinv.status'] }}</label>
-            </div>
-        </form>
+        </div>
         <div class="tab-bar__actions">
             {% if has_perm('invoicing.manage') %}
             {# What the printed bill says about the company: the page's own
@@ -52,7 +68,7 @@
                 <span class="material-symbols-outlined">account_balance_wallet</span> {{ t['list.accounts'] }}
             </a>
             {% if clients %}
-            <a href="{{ url_for('invoicing.invoice_new', client_id=client.id if client else None) }}" class="fab">
+            <a href="{{ url_for('invoicing.invoice_new') }}" class="fab">
                 <span class="material-symbols-outlined">add</span> {{ t['cinv.new'] }}
             </a>
             {% else %}
@@ -69,7 +85,47 @@
         <span class="material-symbols-outlined">handshake</span>
         <p>{{ t['invoicing.no_clients'] }}</p>
     </div>
-    {% elif invoices %}
+    {% else %}
+
+    <form method="get" class="filter-bar filter-bar--live">
+        <input type="hidden" name="tab" value="factures">
+        <label class="filter-date">
+            <span>{{ t['entry.from'] }}</span>
+            <input type="date" name="date_from" value="{{ date_from }}">
+        </label>
+        <label class="filter-date">
+            <span>{{ t['entry.to'] }}</span>
+            <input type="date" name="date_to" value="{{ date_to }}">
+        </label>
+        {{ tickbox('client', t['invoicing.client'], clients, client_ids, 'name') }}
+        <label class="filter-date">
+            <span>{{ t['cinv.status'] }}</span>
+            <select name="status">
+                {% for code in ['', 'open', 'overdue', 'paid', 'cancelled'] %}
+                <option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ t['cpay.filter.' + (code or 'all')] }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="filter-search">
+            <input type="search" name="q" value="{{ search }}" placeholder="{{ t['cinv.search'] }}">
+        </label>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        {% if filtered %}
+        <a href="{{ url_for('invoicing.index', tab='factures') }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
+        {% endif %}
+    </form>
+
+    {# Totals over the whole selection, not the page on screen. #}
+    <div class="expense-total">
+        {{ t['cpay.billed'] }} <strong>{{ billed | num }}</strong>
+        <span class="muted small">&middot;</span>
+        {{ t['cpay.received'] }} <strong>{{ received | num }}</strong>
+        <span class="muted small">&middot;</span>
+        {{ t['cpay.remaining'] }} <strong {% if remaining > 0 %}class="stock-negative"{% endif %}>{{ remaining | num }}</strong>
+        <span class="muted small">{{ currency }} &middot; {{ pagination.total | num }} {{ t['cinv.count'] }}{% if overdue_count %} &middot; <span class="stock-negative">{{ overdue_count }} {{ t['cpay.overdue_count'] }}</span>{% endif %}</span>
+    </div>
+
+    {% if invoices %}
     <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
@@ -87,7 +143,8 @@
         <tbody>
             {% for inv in invoices %}
             <tr {% if inv.is_cancelled %}class="muted" style="text-decoration: line-through;"{% endif %}>
-                <td style="white-space:nowrap;"><a href="{{ url_for('invoicing.invoice_detail', iid=inv.id) }}"><strong>{{ inv.number }}</strong></a></td>
+                <td style="white-space:nowrap;"><a href="{{ url_for('invoicing.invoice_detail', iid=inv.id) }}"><strong>{{ inv.number }}</strong></a>
+                    {% if inv.subject %}<div class="muted small">{{ inv.subject }}</div>{% endif %}</td>
                 <td><span class="muted small">{{ inv.client.code }}</span> {{ inv.client.name }}</td>
                 <td>{{ inv.period }}</td>
                 <td style="white-space:nowrap;">{{ inv.date }}</td>
@@ -98,27 +155,26 @@
                     {% elif inv.remaining > 0 %}<strong class="stock-negative">{{ inv.remaining | num }}</strong>
                     {% else %}<span class="muted">{{ t['invoice.all_settled'] }}</span>{% endif %}
                 </td>
-                <td>
-                    {% if inv.is_cancelled %}<span class="badge badge--critical">{{ t['cinv.status.cancelled'] }}</span>
-                    {% elif inv.pay_status == 'paid' %}<span class="badge badge--active">{{ t['cpay.status.paid'] }}</span>
-                    {% elif inv.is_overdue(today) %}<span class="badge badge--critical">{{ t['cpay.status.overdue'] }}</span>
-                    {% elif inv.pay_status == 'partial' %}<span class="badge badge--warning">{{ t['cpay.status.partial'] }}</span>
-                    {% else %}<span class="badge badge--inactive">{{ t['cpay.status.unpaid'] }}</span>{% endif %}
+                <td>{{ status_chip(inv) }}
                     {% if inv.payments %}<div class="muted small">{{ inv.payments | length }} {{ t['cpay.count'] }}</div>{% endif %}
                 </td>
                 <td class="row-actions">
                     <a href="{{ url_for('invoicing.invoice_detail', iid=inv.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        title="{{ t['cinv.view'] }}" aria-label="{{ t['cinv.view'] }}"><span class="material-symbols-outlined">list_alt</span></a>
+                    <a href="{{ url_for('invoicing.invoice_print', iid=inv.id) }}" class="btn btn--sm btn--tonal btn--icon" target="_blank" rel="noopener"
+                       title="{{ t['help.print'] }}" aria-label="{{ t['help.print'] }}"><span class="material-symbols-outlined">print</span></a>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table></div>
+    {{ pager(pagination, 'invoicing.index') }}
     {% else %}
     <div class="empty-state empty-state--soft">
         <span class="material-symbols-outlined">request_quote</span>
-        <p>{{ t['cinv.empty'] }}</p>
+        <p>{{ t['cinv.empty'] if not filtered else t['cinv.none_match'] }}</p>
     </div>
+    {% endif %}
     {% endif %}
 
     {% else %}
@@ -153,11 +209,13 @@
                 <th>{{ t['client.name'] }}</th>
                 <th>{{ t['invoice.contact'] }}</th>
                 <th>{{ t['supplier.machines'] }}</th>
+                <th style="text-align:right;">{{ t['cpay.remaining'] }}</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
             {% for c in clients %}
+            {% set o = owed.get(c.id) %}
             <tr>
                 <td style="white-space:nowrap;"><span class="chip">{{ c.code }}</span></td>
                 <td>
@@ -168,8 +226,21 @@
                 <td>{% if c.contact %}{{ c.contact }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td style="white-space:nowrap;">
                     {% set n = c.live_machines | length %}
-                    {% if n %}<span class="badge badge--info">{{ n }} {{ t['supplier.machines'] | lower }}</span>
+                    {% if n %}
+                    <span class="badge badge--info">{{ n }} {{ t['supplier.machines'] | lower }}</span>
+                    {% if has_perm('entry.view') %}
+                    <a href="{{ url_for('entries.client', cid=c.id) }}" class="btn btn--sm btn--tonal" style="margin-left:6px;">
+                        <span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_btn'] }}
+                    </a>
+                    {% endif %}
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if o and o.remaining > 0 %}
+                    <strong class="stock-negative">{{ o.remaining | num }} {{ currency }}</strong>
+                    {% elif o %}<span class="muted">{{ t['invoice.all_settled'] }}</span>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                    {% if o %}<div class="muted small">{{ o.count }} {{ t['cinv.count'] }}</div>{% endif %}
                 </td>
                 <td class="row-actions">
                     <a href="{{ url_for('invoicing.client_detail', cid=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
@@ -183,7 +254,7 @@
                         <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
                     </form>
                     {% endif %}
-                    {% if not c.has_history %}
+                    {% if not c.has_history and not o %}
                     <form method="post" action="{{ url_for('invoicing.client_action', cid=c.id, what='delete') }}"
                           data-confirm="{{ t['list.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
                         <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>

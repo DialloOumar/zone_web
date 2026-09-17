@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
+
+{% block title %}{{ client.code }} — {{ client.name }}{% endblock %}
+{% block page_title %}{{ t['supplier.entries_btn'] }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('invoicing.index', tab='clients') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2><span class="chip">{{ client.code }}</span> {{ client.name }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:60ch;">{{ t['client.entries_intro'] }}</p>
+        </div>
+        {% if has_perm('report.export_pdf') and machines %}
+        <a href="{{ url_for('entries.export_print', **print_args) }}" class="btn btn--sm btn--tonal" target="_blank">
+            <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['export.print_btn'] }}
+        </a>
+        {% endif %}
+    </div>
+
+    {% if not machines %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">directions_bus</span>
+        <p>{{ t['client.no_machines_yet'] }}</p>
+    </div>
+    {% else %}
+
+    {# Only what a client's bill is about: which of its machines, and when. #}
+    <form method="get" class="filter-bar">
+        <input type="hidden" name="cid" value="{{ client.id }}">
+        <div class="field field--select filter-field">
+            <select id="filter_vehicle" name="vehicle_id">
+                <option value="">{{ t['supplier.all_machines'] }}</option>
+                {% for v in machines %}<option value="{{ v.id }}" {% if f.vehicle_id == v.id %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
+            </select>
+            <label for="filter_vehicle">{{ t['entry.vehicle'] }}</label>
+        </div>
+        <div class="field filter-field">
+            <input type="month" id="f_month" name="month" value="{{ f.month }}" placeholder=" ">
+            <label>{{ t['entry.month'] }}</label>
+        </div>
+        <div class="field filter-field">
+            <input type="date" id="f_from" name="date_from" value="{{ f.date_from }}" placeholder=" ">
+            <label>{{ t['entry.from'] }}</label>
+        </div>
+        <div class="field filter-field">
+            <input type="date" id="f_to" name="date_to" value="{{ f.date_to }}" placeholder=" ">
+            <label>{{ t['entry.to'] }}</label>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+            {% if filtered %}
+            <a href="{{ url_for('entries.client', cid=client.id) }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
+            {% endif %}
+        </div>
+    </form>
+
+    {# The figures the bill is built from, over the whole selection. #}
+    <div class="expense-total">
+        {{ t['export.voyages'] }} : <strong>{{ total_trips|round|int | num }}</strong>
+        <span class="muted small">&middot;</span>
+        {{ t['export.heures'] }} : <strong>{{ total_hours }} h</strong>
+        <span class="muted small">&middot;</span>
+        {{ t['export.km'] }} : <strong>{{ total_km|round|int | num }} km</strong>
+        <span class="muted small">&middot; {{ pagination.total | num }} {{ t['export.count'] | lower }} &middot; {{ machines | length }} {{ t['supplier.machines'] | lower }}</span>
+    </div>
+
+    {% if entries %}
+    <div class="table-desktop">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['entry.date'] }}</th>
+                <th>{{ t['entry.vehicle'] }}</th>
+                <th>{{ t['entry.activity'] }}</th>
+                <th class="col-secondary">{{ t['entry.km'] }}</th>
+                <th class="col-secondary">{{ t['entry.operator'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% with show_vehicle = True %}{% include "_entry_rows.html" %}{% endwith %}
+        </tbody>
+    </table>
+    </div>
+
+    <div class="list-cards">
+        {% for e in entries %}
+        <div class="list-card">
+            <div class="list-card__top">
+                <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
+                <span class="list-card__amount">
+                    {% if e.vehicle.category.unit_type == 'trips' %}{% if e.trips is not none %}{{ e.trips }} {{ t['unit.trips'] }}{% endif %}
+                    {% else %}{% if e.hours is not none %}{{ e.hours }} {{ t['unit.hours'] }}{% endif %}{% endif %}
+                </span>
+            </div>
+            <div class="list-card__meta">
+                <span class="muted small">{{ e.date }}</span>
+                {% if e.operator %}<span class="muted small">· {{ e.operator }}</span>{% endif %}
+                {% if e.kilometers is not none %}<span class="muted small">· {{ e.kilometers }} km</span>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {{ pager(pagination, 'entries.client') }}
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">list_alt</span>
+        <p>{{ t['entry.empty'] }}</p>
+    </div>
+    {% endif %}
+    {% endif %}
+</section>
+{% endblock %}
