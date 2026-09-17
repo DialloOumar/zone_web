@@ -17,7 +17,9 @@ per machine and rate -- and issuing freezes those lines under a number
 (FAC-2026-001, per year), so a daily entry corrected afterwards never moves a
 bill already sent. A cancelled bill stays in the register, struck through,
 and frees its month.
-Payments received against a bill are the next step.
+Règlements: what the client paid against a bill, in one or several
+payments; the bill's state (à régler, partielle, réglée, en retard) is read
+off them, never stored.
 """
 from datetime import date, datetime
 
@@ -29,9 +31,10 @@ from sqlalchemy.exc import IntegrityError
 import billing
 from amount_words import amount_in_words
 from app import (_get_setting, current_lang, current_user_fleet_ids, get_t, has_perm,
-                 is_modal_request, log_action, modal_ok, require_perm)
-from models import (AppSetting, Client, ClientInvoice, ClientInvoiceLine, ClientRate,
-                    DailyEntry, Vehicle, db)
+                 is_modal_request, log_action, modal_ok, parse_amount, require_perm)
+from blueprints.expenses import PAYMENT_METHODS, active_accounts
+from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine,
+                    ClientPayment, ClientRate, DailyEntry, Vehicle, db)
 
 invoicing_bp = Blueprint("invoicing", __name__)
 
@@ -150,6 +153,8 @@ def index():
     archived = Client.query.filter(Client.is_active.is_(False)).count()
 
     invoices, client = [], None
+    today = date.today().isoformat()
+    status = request.args.get("status") or ""
     if tab == "factures":
         q = ClientInvoice.query
         cid = request.args.get("client_id", type=int)
@@ -157,10 +162,17 @@ def index():
         if client:
             q = q.filter(ClientInvoice.client_id == client.id)
         invoices = q.order_by(ClientInvoice.date.desc(), ClientInvoice.id.desc()).all()
+        if status == "open":
+            invoices = [i for i in invoices if i.pay_status in ("unpaid", "partial")]
+        elif status == "overdue":
+            invoices = [i for i in invoices if i.is_overdue(today)]
+        elif status == "paid":
+            invoices = [i for i in invoices if i.pay_status == "paid"]
 
     tab_urls = {name: url_for("invoicing.index", tab=name) for name in TABS}
     return render_template("invoicing.html", tab=tab, tab_urls=tab_urls,
                            clients=clients, client=client, invoices=invoices,
+                           status=status, today=today,
                            show_archived=show_archived, archived=archived)
 
 
@@ -244,7 +256,7 @@ def invoice_detail(iid):
     inv = db.session.get(ClientInvoice, iid)
     if not inv:
         abort(404)
-    return render_template("client_invoice.html", inv=inv)
+    return render_template("client_invoice.html", inv=inv, today=date.today().isoformat())
 
 
 @invoicing_bp.route("/facturation/factures/<int:iid>/annuler", methods=["POST"])
@@ -535,3 +547,110 @@ def invoice_print(iid):
     return render_template("invoice_print.html", inv=inv, co=invoice_settings(),
                            month_words=month_label(inv.period, lang),
                            amount_words=amount_in_words(inv.total, lang, currency))
+
+
+# ── Règlements: what the client paid against a bill ──────────────────────────
+
+def _get_client_invoice_or_404(iid):
+    inv = db.session.get(ClientInvoice, iid)
+    if not inv:
+        abort(404)
+    return inv
+
+
+def _get_client_payment_or_404(iid, pid):
+    pay = db.session.get(ClientPayment, pid)
+    if not pay or pay.invoice_id != iid:
+        abort(404)
+    return pay
+
+
+def _render_payment_form(inv, pay, error=None):
+    tpl = "_client_payment_form.html" if is_modal_request() else "client_payment_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, invoice=inv, payment=pay, error=error,
+                           payment_methods=PAYMENT_METHODS, accounts=active_accounts(),
+                           today=date.today().isoformat()), status
+
+
+def _read_payment_form(inv, pay):
+    """One payment: when, how much, how. Returns (data, None) or (None, err).
+    The amount is held to what is still owed, counting every other payment
+    but this one, so correcting one downwards is never blocked by itself."""
+    t = get_t()
+    amount = parse_amount(request.form.get("amount"))
+    if amount is None or amount <= 0:
+        return None, t["invoice.err.amount"]
+    others = sum(p.amount or 0 for p in inv.payments if pay is None or p.id != pay.id)
+    if amount > (inv.total or 0) - others:
+        return None, t["cpay.err.overpaid"]
+    date_str = (request.form.get("date") or "").strip()
+    if not _valid_date(date_str):
+        return None, t["invoice.err.paid_date"]
+    method = (request.form.get("method") or "").strip()
+    if method not in PAYMENT_METHODS:
+        return None, t["invoice.err.method"]
+    account_id = request.form.get("account_id", type=int) or None
+    if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True).first():
+        return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
+    return dict(date=date_str, amount=amount, method=method, account_id=account_id,
+                reference=(request.form.get("reference") or "").strip()[:60] or None,
+                note=(request.form.get("note") or "").strip()[:255] or None), None
+
+
+@invoicing_bp.route("/facturation/factures/<int:iid>/reglements/nouveau", methods=["GET", "POST"])
+@login_required
+@require_perm("invoicing.manage")
+def payment_new(iid):
+    inv = _get_client_invoice_or_404(iid)
+    t = get_t()
+    if inv.is_cancelled or inv.remaining <= 0:
+        flash("error|" + t["cpay.err.closed"])
+        return redirect(url_for("invoicing.invoice_detail", iid=inv.id))
+    if request.method == "POST":
+        data, error = _read_payment_form(inv, None)
+        if error:
+            return _render_payment_form(inv, None, error)
+        pay = ClientPayment(invoice_id=inv.id, created_by=current_user.id, **data)
+        db.session.add(pay)
+        log_action("CREATE", "client_payment", resource_id=inv.id,
+                   detail="Received %s GNF on %s" % (data["amount"], inv.number))
+        db.session.commit()
+        flash("success|" + t["cpay.saved"])
+        return modal_ok() if is_modal_request() else redirect(url_for("invoicing.invoice_detail", iid=inv.id))
+    return _render_payment_form(inv, None)
+
+
+@invoicing_bp.route("/facturation/factures/<int:iid>/reglements/<int:pid>/modifier", methods=["GET", "POST"])
+@login_required
+@require_perm("invoicing.manage")
+def payment_edit(iid, pid):
+    inv = _get_client_invoice_or_404(iid)
+    pay = _get_client_payment_or_404(iid, pid)
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_payment_form(inv, pay)
+        if error:
+            return _render_payment_form(inv, pay, error)
+        for k, val in data.items():
+            setattr(pay, k, val)
+        log_action("UPDATE", "client_payment", resource_id=pay.id,
+                   detail="Edited payment #%s on %s" % (pay.id, inv.number))
+        db.session.commit()
+        flash("success|" + t["cpay.saved"])
+        return modal_ok() if is_modal_request() else redirect(url_for("invoicing.invoice_detail", iid=inv.id))
+    return _render_payment_form(inv, pay)
+
+
+@invoicing_bp.route("/facturation/factures/<int:iid>/reglements/<int:pid>/supprimer", methods=["POST"])
+@login_required
+@require_perm("invoicing.manage")
+def payment_delete(iid, pid):
+    inv = _get_client_invoice_or_404(iid)
+    pay = _get_client_payment_or_404(iid, pid)
+    db.session.delete(pay)
+    log_action("DELETE", "client_payment", resource_id=pid,
+               detail="Deleted payment #%s on %s" % (pid, inv.number))
+    db.session.commit()
+    flash("success|" + get_t()["cpay.deleted"])
+    return redirect(url_for("invoicing.invoice_detail", iid=inv.id))

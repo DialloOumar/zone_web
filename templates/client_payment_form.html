@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = payment is not none %}
+{% block title %}{{ t['cpay.edit'] if is_edit else t['cpay.new'] }}{% endblock %}
+{% block page_title %}{{ t['cpay.edit'] if is_edit else t['cpay.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 760px;">
+    {% include "_client_payment_form.html" %}
+</section>
+{% endblock %}

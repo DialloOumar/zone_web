@@ -20,15 +20,18 @@
         <div>
             <h2>{{ inv.number }}
                 {% if inv.is_cancelled %}<span class="badge badge--critical">{{ t['cinv.status.cancelled'] }}</span>
-                {% else %}<span class="badge badge--active">{{ t['cinv.status.issued'] }}</span>{% endif %}
+                {% elif inv.pay_status == 'paid' %}<span class="badge badge--active">{{ t['cpay.status.paid'] }}</span>
+                {% elif inv.is_overdue(today) %}<span class="badge badge--critical">{{ t['cpay.status.overdue'] }}</span>
+                {% elif inv.pay_status == 'partial' %}<span class="badge badge--warning">{{ t['cpay.status.partial'] }}</span>
+                {% else %}<span class="badge badge--inactive">{{ t['cpay.status.unpaid'] }}</span>{% endif %}
             </h2>
             <p class="muted small" style="margin:4px 0 0;">
                 <a href="{{ url_for('invoicing.client_detail', cid=inv.client.id) }}">{{ inv.client.code }} — {{ inv.client.name }}</a>
             </p>
         </div>
         <div class="invoice-total">
-            <span class="invoice-total__label">{{ t['cinv.total'] }}</span>
-            <span class="invoice-total__value">{{ inv.total | num }} <span class="stat-unit">{{ currency }}</span></span>
+            <span class="invoice-total__label">{{ t['cpay.remaining'] if not inv.is_cancelled and inv.payments else t['cinv.total'] }}</span>
+            <span class="invoice-total__value {% if not inv.is_cancelled and inv.remaining > 0 and inv.payments %}stock-negative{% endif %}">{{ (inv.remaining if not inv.is_cancelled and inv.payments else inv.total) | num }} <span class="stat-unit">{{ currency }}</span></span>
         </div>
     </div>
     <dl class="detail-grid">
@@ -41,6 +44,67 @@
         {% if inv.note %}<div style="grid-column: 1 / -1;"><dt>{{ t['cinv.note'] }}</dt><dd>{{ inv.note }}</dd></div>{% endif %}
     </dl>
 </section>
+
+{% if not inv.is_cancelled %}
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['cpay.title'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0;">
+                {{ t['cinv.total'] }} <strong>{{ inv.total | num }}</strong>
+                &middot; {{ t['cpay.received'] }} <strong>{{ inv.paid_amount | num }}</strong>
+                &middot; {{ t['cpay.remaining'] }} <strong {% if inv.remaining > 0 %}class="stock-negative"{% endif %}>{{ inv.remaining | num }}</strong>
+                <span class="muted small">{{ currency }}</span>
+            </p>
+        </div>
+        {% if has_perm('invoicing.manage') and inv.remaining > 0 %}
+        <a href="{{ url_for('invoicing.payment_new', iid=inv.id) }}" class="fab"
+           data-modal-url="{{ url_for('invoicing.payment_new', iid=inv.id) }}" data-modal-title="{{ t['cpay.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['cpay.new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% if inv.payments %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['cpay.date'] }}</th>
+                <th style="text-align:right;">{{ t['cpay.amount'] }}</th>
+                <th>{{ t['expense.payment_method'] }}</th>
+                <th>{{ t['cpay.received_on'] }}</th>
+                <th>{{ t['entry.note'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in inv.payments %}
+            <tr>
+                <td style="white-space:nowrap;">{{ p.date }}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ p.amount | num }} {{ currency }}</td>
+                <td>{% if p.method %}{{ t['pay.' + p.method] }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+                    {% if p.reference %}<div class="muted small">{{ p.reference }}</div>{% endif %}</td>
+                <td>{% if p.account %}{{ p.account.name }}{% else %}<span class="muted">{{ t['invoice.no_account'] }}</span>{% endif %}</td>
+                <td>{% if p.note %}{{ p.note }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td class="row-actions">
+                    {% if has_perm('invoicing.manage') %}
+                    <a href="{{ url_for('invoicing.payment_edit', iid=inv.id, pid=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('invoicing.payment_edit', iid=inv.id, pid=p.id) }}" data-modal-title="{{ t['cpay.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    <form method="post" action="{{ url_for('invoicing.payment_delete', iid=inv.id, pid=p.id) }}"
+                          data-confirm="{{ t['cpay.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['cpay.none'] }}</p>
+    {% endif %}
+</section>
+{% endif %}
 
 <section class="card">
     <div class="card-header">
@@ -76,7 +140,9 @@
         </tfoot>
     </table></div>
 
-    {% if has_perm('invoicing.manage') and not inv.is_cancelled %}
+    {% if has_perm('invoicing.manage') and not inv.is_cancelled and not inv.payments %}
+    {# A bill that has taken money is settled, not cancelled: its payments
+       would be left pointing at nothing. #}
     <div class="form-actions" style="margin-top:12px;">
         <form method="post" action="{{ url_for('invoicing.invoice_cancel', iid=inv.id) }}"
               data-confirm="{{ t['cinv.cancel_confirm'] }}" data-confirm-title="{{ t['cinv.cancel'] }}" data-confirm-ok="{{ t['cinv.cancel'] }}" data-confirm-danger style="display:inline">

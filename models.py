@@ -964,13 +964,58 @@ class ClientInvoice(db.Model):
     created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
-    client = db.relationship("Client")
-    lines  = db.relationship("ClientInvoiceLine", back_populates="invoice",
-                             cascade="all, delete-orphan", order_by="ClientInvoiceLine.id")
+    client   = db.relationship("Client")
+    lines    = db.relationship("ClientInvoiceLine", back_populates="invoice",
+                               cascade="all, delete-orphan", order_by="ClientInvoiceLine.id")
+    payments = db.relationship("ClientPayment", back_populates="invoice",
+                               cascade="all, delete-orphan", order_by="ClientPayment.date, ClientPayment.id")
 
     @property
     def is_cancelled(self):
         return self.status == "cancelled"
+
+    @property
+    def paid_amount(self):
+        return sum(p.amount or 0 for p in self.payments)
+
+    @property
+    def remaining(self):
+        return max((self.total or 0) - self.paid_amount, 0)
+
+    @property
+    def pay_status(self):
+        """paid | partial | unpaid | cancelled -- read off the payments,
+        never stored, so it can never disagree with them."""
+        if self.is_cancelled:
+            return "cancelled"
+        if self.remaining <= 0:
+            return "paid"
+        return "partial" if self.payments else "unpaid"
+
+    def is_overdue(self, today):
+        """Past its due date with money still owed."""
+        return bool(self.due_date) and not self.is_cancelled and self.remaining > 0 and self.due_date < today
+
+
+class ClientPayment(db.Model):
+    """One payment received against a client's bill: when, how much, how, and
+    on which of the company's accounts it arrived. Part payments add up; the
+    bill's state is read off them."""
+    __tablename__ = "client_payments"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    invoice_id = db.Column(db.Integer,     db.ForeignKey("client_invoices.id"), nullable=False, index=True)
+    date       = db.Column(db.String(10),  nullable=False)   # YYYY-MM-DD
+    amount     = db.Column(db.Integer,     nullable=False)   # GNF
+    method     = db.Column(db.String(20))                    # cash | mobile_money | transfer | cheque
+    reference  = db.Column(db.String(60))                    # the client's transfer or cheque number
+    account_id = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=True)
+    note       = db.Column(db.String(255))
+    created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    invoice = db.relationship("ClientInvoice", back_populates="payments")
+    account = db.relationship("CashAccount")
 
 
 class ClientInvoiceLine(db.Model):
