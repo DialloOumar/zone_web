@@ -435,6 +435,28 @@ a:hover { text-decoration: underline; }
 .plan-row:hover .row-actions, .plan-row:focus-within .row-actions { opacity: 1; }
 @media (hover: none) { .plan-row .row-actions { opacity: 1; } }
 
+/* Paramétrage comptable: one row per kind of money line */
+.map-table td { vertical-align: middle; }
+.map-what { max-width: 38ch; }
+.map-code { width: 1%; white-space: nowrap; }
+.map-code input {
+    width: 10ch;
+    height: 40px;
+    padding: 0 10px;
+    border: 1px solid var(--md-outline);
+    border-radius: 8px;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    font: inherit;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.9rem;
+}
+.map-code input:focus { border-color: var(--md-primary); outline: none; }
+.map-code input.is-error { border-color: var(--md-error); }
+.map-account { color: var(--md-on-surface-variant); font-size: 0.85rem; }
+.map-account .badge { margin-left: 6px; }
+.map-error { color: var(--md-error); font-size: 0.78rem; }
+
 /* User block at the foot of the drawer */
 .sidebar-user {
     margin-top: 8px;

@@ -1369,6 +1369,24 @@ class LedgerAccount(db.Model):
         return f"<LedgerAccount {self.code} {self.label!r}>"
 
 
+class FinanceSetting(db.Model):
+    """One key, one value: the Finance workspace's own settings, kept apart
+    from the app's so the ops Administration page never lists them.
+
+    Most keys map a kind of money line to an account of the plan -- what a
+    repair is debited to, what the cash box is credited from -- and hold the
+    account's code. A few hold plain values, such as the TVA rate. What each
+    key means, and what it is worth before anyone saves it, is declared in
+    blueprints/finance.py; this table only holds what was chosen.
+    """
+    __tablename__ = "finance_settings"
+
+    key        = db.Column(db.String(60),  primary_key=True)
+    value      = db.Column(db.String(60),  nullable=True)   # empty = decided by hand, line by line
+    updated_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+
+
 # ── Config & system ───────────────────────────────────────────────────────────
 
 

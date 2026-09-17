@@ -1,0 +1,90 @@
+{% extends "finance/base.html" %}
+
+{% block title %}{{ t['param.title'] }}{% endblock %}
+{% block page_title %}{{ t['param.title'] }}{% endblock %}
+
+{% block content %}
+<form method="post" class="entry-form" style="display:contents;">
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['param.title'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:64ch;">{{ t['param.intro'] }}</p>
+        </div>
+    </div>
+</section>
+
+{# One picker list per class, shared by every row of the group. #}
+{% for klass, accounts in by_class.items() %}
+<datalist id="accounts-{{ klass }}">
+    {% for a in accounts %}<option value="{{ a.code }}">{{ a.label }}</option>{% endfor %}
+</datalist>
+{% endfor %}
+
+{% for gname, klass, rows in groups %}
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['param.group.' + gname] }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:64ch;">{{ t['param.group.' + gname + '_hint'] }}</p>
+        </div>
+    </div>
+    <div class="table-wrap"><table class="data-table map-table">
+        <tbody>
+        {% for r in rows %}
+        {% set acc = by_code.get(r.value) %}
+        <tr>
+            <td class="map-what">
+                {% if r.key.startswith('purse.account.') %}
+                {{ t['param.key.purse.account'] }} « {{ purses.get(r.key, '?') }} »
+                {% else %}
+                {{ t['param.key.' + r.key] }}
+                {% endif %}
+            </td>
+            <td class="map-code">
+                <input type="text" name="{{ r.key }}" value="{{ r.value }}" list="accounts-{{ klass }}"
+                       inputmode="numeric" autocomplete="off" aria-label="{{ t['plan.code'] }}"
+                       class="{% if errors.get(r.key) %}is-error{% endif %}">
+            </td>
+            <td class="map-account">
+                {% if errors.get(r.key) %}
+                <span class="map-error">{{ errors[r.key] }}</span>
+                {% elif acc %}
+                {{ acc.label }}
+                {% if not r.saved %}<span class="badge badge--info">{{ t['param.proposed'] }}</span>{% endif %}
+                {% elif not r.value %}
+                <span class="muted">{{ t['param.by_hand'] }}</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+</section>
+{% endfor %}
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['param.group.tva'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:64ch;">{{ t['param.tva.hint'] }}</p>
+        </div>
+    </div>
+    <label class="checkbox-item">
+        <input type="checkbox" name="tva.assujettie" value="1" {% if tva['tva.assujettie'] == '1' %}checked{% endif %}>
+        <span>{{ t['param.tva.assujettie'] }}</span>
+    </label>
+    <div class="field {% if errors.get('tva.rate') %}field--error{% endif %}" style="max-width: 220px; margin-top: 12px;">
+        <input type="number" id="tva_rate" name="tva.rate" min="0" max="100" value="{{ tva['tva.rate'] }}" placeholder=" ">
+        <label for="tva_rate">{{ t['param.tva.rate'] }}</label>
+        {% if errors.get('tva.rate') %}<div class="field-error">{{ errors['tva.rate'] }}</div>{% endif %}
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+    </div>
+</section>
+</form>
+{% endblock %}

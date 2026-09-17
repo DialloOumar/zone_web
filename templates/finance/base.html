@@ -11,5 +11,8 @@
     <li><a href="{{ url_for('finance.plan') }}" class="{% if request.endpoint in ['finance.plan', 'finance.account_new', 'finance.account_edit'] %}active{% endif %}">
         <span class="nav-icon material-symbols-outlined">list_alt</span> {{ t['plan.title'] }}
     </a></li>
+    <li><a href="{{ url_for('finance.settings') }}" class="{% if request.endpoint == 'finance.settings' %}active{% endif %}">
+        <span class="nav-icon material-symbols-outlined">tune</span> {{ t['param.title'] }}
+    </a></li>
 </ul>
 {% endblock %}
