@@ -20,8 +20,9 @@ from models import CashAccount, CashMovement, Expense, SupplierPayment, db
 
 accounts_bp = Blueprint("accounts", __name__)
 
-# Who may keep the list: the cashier, and whoever records supplier bills.
-MANAGE = ("expense.create", "supplier_invoice.create")
+# Who may keep the list: the cashier, whoever records supplier bills, and
+# whoever records what clients pay.
+MANAGE = ("expense.create", "supplier_invoice.create", "invoicing.manage")
 
 
 def _used_ids():

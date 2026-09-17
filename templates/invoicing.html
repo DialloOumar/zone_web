@@ -46,6 +46,11 @@
             <a href="{{ url_for('invoicing.settings') }}" class="btn btn--sm btn--outlined">
                 <span class="material-symbols-outlined">tune</span> {{ t['cset.button'] }}
             </a>
+            {# The company's accounts, where a client's money arrives: the same
+               list the cash box and the supplier bills use. #}
+            <a href="{{ url_for('accounts.index') }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">account_balance_wallet</span> {{ t['list.accounts'] }}
+            </a>
             {% if clients %}
             <a href="{{ url_for('invoicing.invoice_new', client_id=client.id if client else None) }}" class="fab">
                 <span class="material-symbols-outlined">add</span> {{ t['cinv.new'] }}

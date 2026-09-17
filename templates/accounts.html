@@ -7,7 +7,7 @@
 {# Reached from two pages; go back to whichever the person came from, and to
    the invoices when there is nothing to go back to. #}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a href="{{ request.referrer if request.referrer and '/comptes' not in request.referrer else url_for('supplier_invoices.index') }}"
+    <a href="{{ request.referrer if request.referrer and '/comptes' not in request.referrer else (url_for('supplier_invoices.index') if has_perm('supplier_invoice.view') else url_for('invoicing.index')) }}"
        class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
 </div>
 
