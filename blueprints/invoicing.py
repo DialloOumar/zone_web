@@ -27,8 +27,9 @@ from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
 
 import billing
-from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request,
-                 log_action, modal_ok, require_perm)
+from amount_words import amount_in_words
+from app import (_get_setting, current_lang, current_user_fleet_ids, get_t, has_perm,
+                 is_modal_request, log_action, modal_ok, require_perm)
 from models import (AppSetting, Client, ClientInvoice, ClientInvoiceLine, ClientRate,
                     DailyEntry, Vehicle, db)
 
@@ -36,6 +37,22 @@ invoicing_bp = Blueprint("invoicing", __name__)
 
 CODE_PREFIX = "CL-"
 TABS = ("factures", "clients")
+
+MONTHS = {
+    "fr": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+           "septembre", "octobre", "novembre", "décembre"],
+    "en": ["January", "February", "March", "April", "May", "June", "July", "August",
+           "September", "October", "November", "December"],
+}
+
+
+def month_label(period, lang="fr"):
+    """"juillet 2026" for "2026-07"."""
+    try:
+        y, m = period.split("-")
+        return "%s %s" % (MONTHS.get(lang, MONTHS["fr"])[int(m) - 1], y)
+    except (ValueError, IndexError, AttributeError):
+        return period
 
 
 def _valid_month(s):
@@ -181,6 +198,8 @@ def invoice_new():
             return redirect(url_for("invoicing.invoice_new", client_id=client.id, month=month))
         inv = ClientInvoice(client_id=client.id, number=_next_number(issue_date), period=month,
                             date=issue_date, due_date=due, total=total,
+                            subject=(request.form.get("subject") or "").strip()[:120] or None,
+                            client_ref=(request.form.get("client_ref") or "").strip()[:60] or None,
                             note=(request.form.get("note") or "").strip() or None,
                             created_by=current_user.id)
         for g in lines:
@@ -205,9 +224,11 @@ def invoice_new():
         flash("success|" + t["cinv.issued"])
         return redirect(url_for("invoicing.invoice_detail", iid=inv.id))
 
+    lang = current_lang()
+    default_subject = (t["cinv.subject_default"] % month_label(month, lang))
     return render_template("invoice_new.html", clients=clients, client=client, month=month,
                            lines=lines, total=total, any_missing=any_missing,
-                           existing=existing,
+                           existing=existing, default_subject=default_subject,
                            today=date.today().isoformat())
 
 
@@ -455,8 +476,10 @@ def client_action(cid, what):
 SETTINGS_CATEGORY = "facturation"
 SETTINGS_GROUPS = [
     ("company", [("company_name", False), ("company_address", True), ("company_phone", False),
-                 ("company_email", False), ("company_nif", False), ("company_rccm", False)]),
-    ("payment", [("bank_details", True), ("payment_terms", True)]),
+                 ("company_email", False), ("company_website", False),
+                 ("company_nif", False), ("company_rccm", False)]),
+    ("contact", [("contact_name", False), ("contact_phone", False)]),
+    ("payment", [("bank_details", True), ("payment_terms", True), ("tax_mention", False)]),
     ("footer",  [("invoice_footer", True)]),
 ]
 SETTING_KEYS = [k for _, keys in SETTINGS_GROUPS for k, _ in keys]
@@ -503,4 +526,8 @@ def invoice_print(iid):
     inv = db.session.get(ClientInvoice, iid)
     if not inv:
         abort(404)
-    return render_template("invoice_print.html", inv=inv, co=invoice_settings())
+    lang = current_lang()
+    currency = _get_setting("currency", "GNF")
+    return render_template("invoice_print.html", inv=inv, co=invoice_settings(),
+                           month_words=month_label(inv.period, lang),
+                           amount_words=amount_in_words(inv.total, lang, currency))

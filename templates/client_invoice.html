@@ -35,6 +35,8 @@
         <div><dt>{{ t['cinv.period'] }}</dt><dd>{{ inv.period }}</dd></div>
         <div><dt>{{ t['cinv.date'] }}</dt><dd>{{ inv.date }}</dd></div>
         <div><dt>{{ t['cinv.due_date'] }}</dt><dd>{{ inv.due_date or '—' }}</dd></div>
+        <div><dt>{{ t['cinv.subject'] }}</dt><dd>{{ inv.subject or '—' }}</dd></div>
+        <div><dt>{{ t['cinv.client_ref'] }}</dt><dd>{{ inv.client_ref or '—' }}</dd></div>
         {% if inv.note %}<div style="grid-column: 1 / -1;"><dt>{{ t['cinv.note'] }}</dt><dd>{{ inv.note }}</dd></div>{% endif %}
     </dl>
 </section>

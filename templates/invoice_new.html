@@ -87,6 +87,16 @@
                 <label for="due_date">{{ t['cinv.due_date'] }}</label>
             </div>
         </div>
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="subject" name="subject" placeholder=" " maxlength="120" value="{{ default_subject }}">
+                <label for="subject">{{ t['cinv.subject'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="client_ref" name="client_ref" placeholder=" " maxlength="60">
+                <label for="client_ref">{{ t['cinv.client_ref'] }}</label>
+            </div>
+        </div>
         <div class="field">
             <input type="text" id="note" name="note" placeholder=" " maxlength="255">
             <label for="note">{{ t['cinv.note'] }}</label>

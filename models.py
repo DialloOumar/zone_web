@@ -951,6 +951,10 @@ class ClientInvoice(db.Model):
     due_date   = db.Column(db.String(10),  nullable=True)
     total      = db.Column(db.Integer,     nullable=False)
     status     = db.Column(db.String(12),  nullable=False, default="issued")  # issued | cancelled
+    # What the bill is for, in the client's words ("Location juillet 2026"),
+    # and the reference the client gave, a purchase order for instance.
+    subject    = db.Column(db.String(120), nullable=True)
+    client_ref = db.Column(db.String(60),  nullable=True)
     note       = db.Column(db.String(255), nullable=True)
     created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
