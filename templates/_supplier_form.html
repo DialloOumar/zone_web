@@ -59,7 +59,11 @@
         {% set chosen = request.form.getlist('machine_ids')|map('int')|list if request.method == 'POST'
                         else (row.machines|map(attribute='id')|list if is_edit else []) %}
         <span class="photo-input__label">{{ t['supplier.machines_pick'] }}</span>
-        <div class="checkbox-grid">
+        {# Twenty machines are a wall of boxes: type a code or a type to keep
+           only those; a ticked machine never disappears. #}
+        <input type="search" class="list-filter" data-filter-list="#supplier-machine-list"
+               placeholder="{{ t['machines.search_ph'] }}" aria-label="{{ t['machines.search_ph'] }}" autocomplete="off">
+        <div class="checkbox-grid" id="supplier-machine-list">
             {% for v in machines %}
             <label class="checkbox-item">
                 <input type="checkbox" name="machine_ids" value="{{ v.id }}" {% if v.id in chosen %}checked{% endif %}>

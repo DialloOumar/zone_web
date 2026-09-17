@@ -47,6 +47,36 @@
     });
 })();
 
+// ── Filtering a list of tick boxes as you type ──
+// <input data-filter-list="#list"> keeps only the list's children whose text
+// contains what was typed. A ticked item always stays: what you chose must
+// not vanish because you narrowed the list to find the next one. Delegated,
+// so a form loaded into a modal later is covered too.
+(function () {
+    function apply(input) {
+        var list = document.querySelector(input.getAttribute("data-filter-list"));
+        if (!list) return;
+        var needle = input.value.trim().toLowerCase();
+        Array.prototype.forEach.call(list.children, function (item) {
+            var box = item.querySelector('input[type="checkbox"]');
+            var keep = !needle || (box && box.checked) ||
+                       item.textContent.toLowerCase().indexOf(needle) !== -1;
+            item.hidden = !keep;
+        });
+    }
+    document.addEventListener("input", function (e) {
+        var input = e.target;
+        if (input && input.matches && input.matches("[data-filter-list]")) apply(input);
+    });
+    document.addEventListener("change", function (e) {
+        // Unticking inside a narrowed list: the item may now be filtered out.
+        var box = e.target;
+        if (!box || box.type !== "checkbox") return;
+        var input = document.querySelector("[data-filter-list]");
+        if (input && input.value) apply(input);
+    });
+})();
+
 // ── Material ripple ──
 // Adds a touch ripple to interactive surfaces. Elements need
 // position:relative + overflow:hidden (handled in CSS).

@@ -54,7 +54,9 @@
     {% if machines %}
     {% set chosen = request.form.getlist('machine_ids')|map('int')|list if request.method == 'POST'
                     else (row.machines|map(attribute='id')|list if is_edit else []) %}
-    <div class="client-machines">
+    <input type="search" class="list-filter" data-filter-list="#client-machine-list"
+           placeholder="{{ t['machines.search_ph'] }}" aria-label="{{ t['machines.search_ph'] }}" autocomplete="off">
+    <div class="client-machines" id="client-machine-list">
         {% for v in machines %}
         {% set unit = t['unit.' + v.category.unit_type] %}
         <div class="client-machine {% if v.id in chosen %}is-on{% endif %}">
