@@ -196,9 +196,6 @@ def _inject_globals():
         "my_pending": my_pending,
         "active_alerts": active_alerts,
         "currency": _get_setting("currency", "GNF"),
-        # Billing rates only exist to feed facturation, so they follow it in
-        # and out of hiding rather than needing a switch of their own.
-        "billing_visible": "invoicing.view" not in HIDDEN_PERMS,
         # Every query argument except the page number, so a pager can link to
         # the next page without dropping the filters that made the list.
         "page_args": _page_args,
