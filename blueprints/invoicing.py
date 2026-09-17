@@ -11,10 +11,13 @@ rate, GNF per worked unit, as dated history (see billing.py): saving a new
 rate appends a row with its date of effect, the old one stays for the months
 it applied. Codes are CL-001, CL-002... issued by the app, never typed.
 
-Factures: for a client and a month, what its machines earned -- each entry's
-units × the machine's rate on that day. Today this is a computation the page
-does when asked; issuing it as a numbered invoice that no later correction
-can move is the next step, and so are the payments received against it.
+Factures: the register of bills issued. "Nouvelle facture" works a month out
+for a client -- each entry's units × the machine's rate on that day, one line
+per machine and rate -- and issuing freezes those lines under a number
+(FAC-2026-001, per year), so a daily entry corrected afterwards never moves a
+bill already sent. A cancelled bill stays in the register, struck through,
+and frees its month.
+Payments received against a bill are the next step.
 """
 from datetime import date, datetime
 
@@ -24,9 +27,10 @@ from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
 
 import billing
-from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
-                 modal_ok, require_perm)
-from models import Client, ClientRate, DailyEntry, Vehicle, db
+from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request,
+                 log_action, modal_ok, require_perm)
+from models import (Client, ClientInvoice, ClientInvoiceLine, ClientRate,
+                    DailyEntry, Vehicle, db)
 
 invoicing_bp = Blueprint("invoicing", __name__)
 
@@ -57,39 +61,61 @@ def _clients(include_archived=False):
     return q.all()
 
 
-def _month_rows(client, month):
-    """One row per machine that worked for the client that month: units,
-    amount at the rate of each entry's day, and whether a day had no rate."""
+def _month_lines(client, month):
+    """The month worked out: one line per machine and rate in force, since a
+    price that changed mid-month gives the same machine two lines. Returns
+    (lines, total, any_missing); a line with rate None is one an entry had
+    no price for, and blocks issuing."""
     book = billing.rate_book(client.id)
     like = month + "%"
-    month_end = month + "-31"
-    rows, total, any_missing = [], 0, False
     fids = current_user_fleet_ids()
+    groups = {}
     for v in client.live_machines:
         if fids is not None and v.fleet_id not in fids:
             continue
         unit_type = v.category.unit_type
         entries = (DailyEntry.query.filter_by(vehicle_id=v.id)
-                   .filter(DailyEntry.date.like(like)).all())
-        units, amount, missing = 0.0, 0.0, False
+                   .filter(DailyEntry.date.like(like)).order_by(DailyEntry.date).all())
         for e in entries:
             u = billing.entry_units(e, unit_type)
             if u <= 0:
                 continue
-            units += u
             rate = billing.rate_on(book, v.id, e.date)
-            if rate is None:
-                missing = True
-            else:
-                amount += u * rate
-        if units > 0:
-            rows.append({"v": v, "unit_type": unit_type, "units": units,
-                         "amount": int(round(amount)), "missing": missing,
-                         "ref_rate": billing.rate_on(book, v.id, month_end)})
-            total += int(round(amount))
-            any_missing = any_missing or missing
-    rows.sort(key=lambda r: r["amount"], reverse=True)
-    return rows, total, any_missing
+            g = groups.setdefault((v.code, rate), {
+                "vehicle_id": v.id, "vehicle_code": v.code,
+                "category_label": v.category.label_fr, "unit_type": unit_type,
+                "units": 0.0, "rate": rate, "amount": 0})
+            g["units"] += u
+    lines = []
+    for g in groups.values():
+        g["amount"] = int(round(g["units"] * g["rate"])) if g["rate"] is not None else 0
+        lines.append(g)
+    lines.sort(key=lambda g: (g["vehicle_code"], g["rate"] or 0))
+    total = sum(g["amount"] for g in lines)
+    any_missing = any(g["rate"] is None for g in lines)
+    return lines, total, any_missing
+
+
+def _open_invoice(client_id, period):
+    """The bill already issued for that client and month, if one stands."""
+    return (ClientInvoice.query.filter_by(client_id=client_id, period=period)
+            .filter(ClientInvoice.status != "cancelled").first())
+
+
+def _next_number(issue_date):
+    """FAC-2026-004 after FAC-2026-003, per year of issue. Read off the
+    numbers in use; the unique constraint catches a tie."""
+    prefix = "FAC-%s-" % issue_date[:4]
+    with db.session.no_autoflush:
+        taken = [n[0] for n in db.session.query(ClientInvoice.number)
+                 .filter(ClientInvoice.number.like(prefix + "%")).all()]
+    highest = 0
+    for n in taken:
+        try:
+            highest = max(highest, int(n[len(prefix):]))
+        except ValueError:
+            pass
+    return "%s%03d" % (prefix, highest + 1)
 
 
 @invoicing_bp.route("/facturation")
@@ -106,21 +132,109 @@ def index():
         clients = _clients(include_archived=True)
     archived = Client.query.filter(Client.is_active.is_(False)).count()
 
-    month = request.args.get("month", "")
-    if not _valid_month(month):
-        month = datetime.utcnow().strftime("%Y-%m")
-    client = None
-    rows, total, any_missing = [], 0, False
-    if tab == "factures" and clients:
+    invoices, client = [], None
+    if tab == "factures":
+        q = ClientInvoice.query
         cid = request.args.get("client_id", type=int)
-        client = next((c for c in clients if c.id == cid), None) or clients[0]
-        rows, total, any_missing = _month_rows(client, month)
+        client = db.session.get(Client, cid) if cid else None
+        if client:
+            q = q.filter(ClientInvoice.client_id == client.id)
+        invoices = q.order_by(ClientInvoice.date.desc(), ClientInvoice.id.desc()).all()
 
     tab_urls = {name: url_for("invoicing.index", tab=name) for name in TABS}
     return render_template("invoicing.html", tab=tab, tab_urls=tab_urls,
-                           clients=clients, client=client, month=month,
-                           rows=rows, total=total, any_missing=any_missing,
+                           clients=clients, client=client, invoices=invoices,
                            show_archived=show_archived, archived=archived)
+
+
+# ── Issuing a bill ───────────────────────────────────────────────────────────
+
+@invoicing_bp.route("/facturation/nouvelle", methods=["GET", "POST"])
+@login_required
+@require_perm("invoicing.view")
+def invoice_new():
+    clients = _clients()
+    if not clients:
+        return redirect(url_for("invoicing.index", tab="clients"))
+    cid = request.values.get("client_id", type=int)
+    client = next((c for c in clients if c.id == cid), None) or clients[0]
+    month = request.values.get("month", "")
+    if not _valid_month(month):
+        month = datetime.utcnow().strftime("%Y-%m")
+    lines, total, any_missing = _month_lines(client, month)
+    existing = _open_invoice(client.id, month)
+    t = get_t()
+
+    if request.method == "POST":
+        if not has_perm("invoicing.manage"):
+            abort(403)
+        if existing:
+            flash("error|" + t["cinv.already"] + " " + existing.number)
+            return redirect(url_for("invoicing.invoice_detail", iid=existing.id))
+        if not lines or any_missing:
+            flash("error|" + (t["cinv.cannot_missing"] if any_missing else t["cinv.cannot_empty"]))
+            return redirect(url_for("invoicing.invoice_new", client_id=client.id, month=month))
+        issue_date = (request.form.get("date") or "").strip() or date.today().isoformat()
+        due = (request.form.get("due_date") or "").strip() or None
+        if not _valid_date(issue_date) or (due and not _valid_date(due)):
+            flash("error|" + t.get("client.err.date", "Date invalide."))
+            return redirect(url_for("invoicing.invoice_new", client_id=client.id, month=month))
+        inv = ClientInvoice(client_id=client.id, number=_next_number(issue_date), period=month,
+                            date=issue_date, due_date=due, total=total,
+                            note=(request.form.get("note") or "").strip() or None,
+                            created_by=current_user.id)
+        for g in lines:
+            inv.lines.append(ClientInvoiceLine(
+                vehicle_id=g["vehicle_id"], vehicle_code=g["vehicle_code"],
+                category_label=g["category_label"], unit_type=g["unit_type"],
+                units=g["units"], rate=g["rate"], amount=g["amount"]))
+        db.session.add(inv)
+        for attempt in range(3):
+            try:
+                db.session.commit()
+                break
+            except IntegrityError:
+                db.session.rollback()
+                if attempt == 2:
+                    abort(500)
+                inv.number = _next_number(issue_date)
+                inv = db.session.merge(inv)
+        log_action("CREATE", "client_invoice", resource_id=inv.id,
+                   detail="Issued %s to %s for %s: %d GNF" % (inv.number, client.name, month, inv.total))
+        db.session.commit()
+        flash("success|" + t["cinv.issued"])
+        return redirect(url_for("invoicing.invoice_detail", iid=inv.id))
+
+    return render_template("invoice_new.html", clients=clients, client=client, month=month,
+                           lines=lines, total=total, any_missing=any_missing,
+                           existing=existing,
+                           today=date.today().isoformat())
+
+
+@invoicing_bp.route("/facturation/factures/<int:iid>")
+@login_required
+@require_perm("invoicing.view")
+def invoice_detail(iid):
+    inv = db.session.get(ClientInvoice, iid)
+    if not inv:
+        abort(404)
+    return render_template("client_invoice.html", inv=inv)
+
+
+@invoicing_bp.route("/facturation/factures/<int:iid>/annuler", methods=["POST"])
+@login_required
+@require_perm("invoicing.manage")
+def invoice_cancel(iid):
+    inv = db.session.get(ClientInvoice, iid)
+    if not inv:
+        abort(404)
+    if not inv.is_cancelled:
+        inv.status = "cancelled"
+        log_action("CANCEL", "client_invoice", resource_id=inv.id,
+                   detail="Cancelled %s (%s, %s)" % (inv.number, inv.client.name, inv.period))
+        db.session.commit()
+        flash("success|" + get_t()["cinv.cancelled"])
+    return redirect(url_for("invoicing.invoice_detail", iid=inv.id))
 
 
 # ── Clients ──────────────────────────────────────────────────────────────────

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}{{ inv.number }}{% endblock %}
+{% block page_title %}{{ t['invoicing.tab_invoices'] }} {{ inv.number }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('invoicing.index', tab='factures') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+{% if inv.is_cancelled %}
+<div class="alert alert--warning">{{ t['cinv.cancelled_banner'] }}</div>
+{% endif %}
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ inv.number }}
+                {% if inv.is_cancelled %}<span class="badge badge--critical">{{ t['cinv.status.cancelled'] }}</span>
+                {% else %}<span class="badge badge--active">{{ t['cinv.status.issued'] }}</span>{% endif %}
+            </h2>
+            <p class="muted small" style="margin:4px 0 0;">
+                <a href="{{ url_for('invoicing.client_detail', cid=inv.client.id) }}">{{ inv.client.code }} — {{ inv.client.name }}</a>
+            </p>
+        </div>
+        <div class="invoice-total">
+            <span class="invoice-total__label">{{ t['cinv.total'] }}</span>
+            <span class="invoice-total__value">{{ inv.total | num }} <span class="stat-unit">{{ currency }}</span></span>
+        </div>
+    </div>
+    <dl class="detail-grid">
+        <div><dt>{{ t['cinv.period'] }}</dt><dd>{{ inv.period }}</dd></div>
+        <div><dt>{{ t['cinv.date'] }}</dt><dd>{{ inv.date }}</dd></div>
+        <div><dt>{{ t['cinv.due_date'] }}</dt><dd>{{ inv.due_date or '—' }}</dd></div>
+        {% if inv.note %}<div style="grid-column: 1 / -1;"><dt>{{ t['cinv.note'] }}</dt><dd>{{ inv.note }}</dd></div>{% endif %}
+    </dl>
+</section>
+
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['cinv.lines'] }}</h2>
+        <span class="muted small">{{ inv.lines | length }}</span>
+    </div>
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['cinv.line_desc'] }}</th>
+                <th>{{ t['vehicle.category'] }}</th>
+                <th style="text-align:right;">{{ t['cinv.units'] }}</th>
+                <th style="text-align:right;">{{ t['cinv.rate'] }}</th>
+                <th style="text-align:right;">{{ t['cinv.amount'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in inv.lines %}
+            <tr>
+                <td>{% if l.vehicle %}<a href="{{ url_for('vehicles.detail', vid=l.vehicle.id) }}"><strong>{{ l.vehicle_code }}</strong></a>{% else %}<strong>{{ l.vehicle_code }}</strong>{% endif %}</td>
+                <td><span class="muted small">{{ l.category_label }}</span></td>
+                <td style="text-align:right;">{{ '%.0f'|format(l.units) }} {{ t['unit.' + l.unit_type] }}</td>
+                <td style="text-align:right;">{{ l.rate | num }}</td>
+                <td style="text-align:right;"><strong>{{ l.amount | num }}</strong></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" style="text-align:right;"><strong>{{ t['cinv.total'] }}</strong></td>
+                <td style="text-align:right;"><strong>{{ inv.total | num }} {{ currency }}</strong></td>
+            </tr>
+        </tfoot>
+    </table></div>
+
+    {% if has_perm('invoicing.manage') and not inv.is_cancelled %}
+    <div class="form-actions" style="margin-top:12px;">
+        <form method="post" action="{{ url_for('invoicing.invoice_cancel', iid=inv.id) }}"
+              data-confirm="{{ t['cinv.cancel_confirm'] }}" data-confirm-title="{{ t['cinv.cancel'] }}" data-confirm-ok="{{ t['cinv.cancel'] }}" data-confirm-danger style="display:inline">
+            <button type="submit" class="btn btn--outlined btn--danger-text">
+                <span class="material-symbols-outlined">close</span> {{ t['cinv.cancel'] }}
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

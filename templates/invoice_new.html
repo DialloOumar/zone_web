@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['cinv.new'] }}{% endblock %}
+{% block page_title %}{{ t['cinv.new'] }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('invoicing.index', tab='factures') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['cinv.preview_title'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:64ch;">{{ t['cinv.preview_intro'] }}</p>
+        </div>
+    </div>
+
+    <form method="get" class="filter-bar">
+        <div class="field field--select" style="min-width:180px;">
+            <select name="client_id" onchange="this.form.submit()">
+                {% for c in clients %}
+                <option value="{{ c.id }}" {% if client and c.id == client.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+            <label>{{ t['invoicing.client'] }}</label>
+        </div>
+        <div class="field" style="min-width:135px;">
+            <input type="month" name="month" value="{{ month }}" onchange="this.form.submit()" placeholder=" ">
+            <label>{{ t['entry.month'] }}</label>
+        </div>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+    </form>
+
+    {% if existing %}
+    <div class="alert alert--warning">
+        {{ t['cinv.already'] }}
+        <a href="{{ url_for('invoicing.invoice_detail', iid=existing.id) }}"><strong>{{ existing.number }}</strong></a>
+    </div>
+    {% endif %}
+    {% if any_missing %}
+    <div class="alert alert--error">{{ t['cinv.cannot_missing'] }}</div>
+    {% endif %}
+
+    {% if lines %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['cinv.line_desc'] }}</th>
+                <th>{{ t['vehicle.category'] }}</th>
+                <th style="text-align:right;">{{ t['cinv.units'] }}</th>
+                <th style="text-align:right;">{{ t['cinv.rate'] }}</th>
+                <th style="text-align:right;">{{ t['cinv.amount'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in lines %}
+            <tr>
+                <td><strong>{{ l.vehicle_code }}</strong></td>
+                <td><span class="muted small">{{ l.category_label }}</span></td>
+                <td style="text-align:right;">{{ '%.0f'|format(l.units) }} {{ t['unit.' + l.unit_type] }}</td>
+                <td style="text-align:right;">{% if l.rate is not none %}{{ l.rate | num }}{% else %}<span class="variance--danger">{{ t['invoicing.no_rate'] }}</span>{% endif %}</td>
+                <td style="text-align:right;"><strong>{{ l.amount | num }}</strong></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" style="text-align:right;"><strong>{{ t['cinv.total'] }}</strong></td>
+                <td style="text-align:right;"><strong>{{ total | num }} {{ currency }}</strong></td>
+            </tr>
+        </tfoot>
+    </table></div>
+
+    {% if has_perm('invoicing.manage') %}
+    <form method="post" class="entry-form" style="margin-top:16px;"
+          data-confirm="{{ t['cinv.issue_confirm'] }}" data-confirm-title="{{ t['cinv.issue'] }}" data-confirm-ok="{{ t['cinv.issue'] }}">
+        <input type="hidden" name="client_id" value="{{ client.id }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <div class="form-row">
+            <div class="field">
+                <input type="date" id="date" name="date" placeholder=" " value="{{ today }}" required>
+                <label for="date">{{ t['cinv.date'] }}</label>
+            </div>
+            <div class="field">
+                <input type="date" id="due_date" name="due_date" placeholder=" ">
+                <label for="due_date">{{ t['cinv.due_date'] }}</label>
+            </div>
+        </div>
+        <div class="field">
+            <input type="text" id="note" name="note" placeholder=" " maxlength="255">
+            <label for="note">{{ t['cinv.note'] }}</label>
+        </div>
+        <div class="field-hint">{{ t['cinv.note_hint'] }}</div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary" {% if existing or any_missing %}disabled{% endif %}>
+                <span class="material-symbols-outlined">request_quote</span> {{ t['cinv.issue'] }}
+            </button>
+        </div>
+    </form>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">request_quote</span>
+        <p>{{ t['cinv.cannot_empty'] }}</p>
+        {% if client and not client.live_machines %}<p class="muted small">{{ t['client.no_machines_yet'] }}</p>{% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

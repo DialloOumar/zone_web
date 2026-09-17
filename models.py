@@ -930,6 +930,61 @@ class ClientRate(db.Model):
     vehicle = db.relationship("Vehicle")
 
 
+class ClientInvoice(db.Model):
+    """A bill issued to a client for a month of its machines' work.
+
+    Issuing freezes the month's math into lines: a later correction of a
+    daily entry does not move a bill already sent. What a client owes is the
+    total less what it has paid (ClientPayment, next); a cancelled bill is
+    kept in the register, struck through, and frees its month.
+
+    Numbers are FAC-2026-001, FAC-2026-002... per year of issue, given by the
+    app when the bill is issued. Amounts are GNF, no decimals.
+    """
+    __tablename__ = "client_invoices"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    client_id  = db.Column(db.Integer,     db.ForeignKey("clients.id"), nullable=False, index=True)
+    number     = db.Column(db.String(20),  nullable=False, unique=True)
+    period     = db.Column(db.String(7),   nullable=False)               # YYYY-MM billed
+    date       = db.Column(db.String(10),  nullable=False)               # issue date
+    due_date   = db.Column(db.String(10),  nullable=True)
+    total      = db.Column(db.Integer,     nullable=False)
+    status     = db.Column(db.String(12),  nullable=False, default="issued")  # issued | cancelled
+    note       = db.Column(db.String(255), nullable=True)
+    created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    client = db.relationship("Client")
+    lines  = db.relationship("ClientInvoiceLine", back_populates="invoice",
+                             cascade="all, delete-orphan", order_by="ClientInvoiceLine.id")
+
+    @property
+    def is_cancelled(self):
+        return self.status == "cancelled"
+
+
+class ClientInvoiceLine(db.Model):
+    """One line of a client's bill: a machine, at one rate, for the units it
+    worked at that rate. A machine whose price changed mid-month has two
+    lines. The code and category are copied in, so the line still reads if
+    the machine is later renamed or removed."""
+    __tablename__ = "client_invoice_lines"
+
+    id             = db.Column(db.Integer,    primary_key=True)
+    invoice_id     = db.Column(db.Integer,    db.ForeignKey("client_invoices.id"), nullable=False, index=True)
+    vehicle_id     = db.Column(db.Integer,    db.ForeignKey("vehicles.id"), nullable=True)
+    vehicle_code   = db.Column(db.String(30), nullable=False)
+    category_label = db.Column(db.String(80), nullable=False)
+    unit_type      = db.Column(db.String(10), nullable=False)             # trips | hours
+    units          = db.Column(db.Float,      nullable=False)
+    rate           = db.Column(db.Integer,    nullable=False)             # GNF per unit
+    amount         = db.Column(db.Integer,    nullable=False)
+
+    invoice = db.relationship("ClientInvoice", back_populates="lines")
+    vehicle = db.relationship("Vehicle")
+
+
 @db.event.listens_for(Client, "before_insert")
 def _client_code_on_insert(mapper, connection, target):
     """A client written without a code -- by a seed, a script, a test --
