@@ -29,7 +29,7 @@ from sqlalchemy.exc import IntegrityError
 import billing
 from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request,
                  log_action, modal_ok, require_perm)
-from models import (Client, ClientInvoice, ClientInvoiceLine, ClientRate,
+from models import (AppSetting, Client, ClientInvoice, ClientInvoiceLine, ClientRate,
                     DailyEntry, Vehicle, db)
 
 invoicing_bp = Blueprint("invoicing", __name__)
@@ -445,3 +445,62 @@ def client_action(cid, what):
     db.session.commit()
     flash("success|" + t.get(msg, "Fait."))
     return redirect(_clients_url())
+
+
+# ── Paramètres de facturation ────────────────────────────────────────────────
+# What the printed bill says about the company, kept as app settings under
+# their own category so the Administration page never lists them: they are
+# the invoicing page's, like the sites are the cash box's.
+
+SETTINGS_CATEGORY = "facturation"
+SETTINGS_GROUPS = [
+    ("company", [("company_name", False), ("company_address", True), ("company_phone", False),
+                 ("company_email", False), ("company_nif", False), ("company_rccm", False)]),
+    ("payment", [("bank_details", True), ("payment_terms", True)]),
+    ("footer",  [("invoice_footer", True)]),
+]
+SETTING_KEYS = [k for _, keys in SETTINGS_GROUPS for k, _ in keys]
+
+
+def invoice_settings():
+    """{key: value} for the printed bill, empty strings where nothing was set."""
+    rows = {s.key: s.value for s in AppSetting.query
+            .filter(AppSetting.key.in_(SETTING_KEYS)).all()}
+    return {k: rows.get(k) or "" for k in SETTING_KEYS}
+
+
+@invoicing_bp.route("/facturation/parametres", methods=["GET", "POST"])
+@login_required
+@require_perm("invoicing.manage")
+def settings():
+    if request.method == "POST":
+        changed = 0
+        for key in SETTING_KEYS:
+            value = (request.form.get(key) or "").strip()
+            row = db.session.get(AppSetting, key)
+            if row is None:
+                db.session.add(AppSetting(key=key, value=value, label=key,
+                                          category=SETTINGS_CATEGORY, updated_by=current_user.id))
+                changed += 1
+            elif (row.value or "") != value:
+                row.value = value
+                row.updated_by = current_user.id
+                changed += 1
+        db.session.commit()
+        log_action("UPDATE", "invoice_settings", detail="Invoice settings saved, %d changed" % changed)
+        flash("success|" + get_t()["cset.saved"])
+        return redirect(url_for("invoicing.settings"))
+    return render_template("invoice_settings.html", groups=SETTINGS_GROUPS,
+                           values=invoice_settings())
+
+
+@invoicing_bp.route("/facturation/factures/<int:iid>/imprimer")
+@login_required
+@require_perm("invoicing.view")
+def invoice_print(iid):
+    """The bill as a sheet: standalone page that opens the print dialog, and
+    "save as PDF" there makes the file to send."""
+    inv = db.session.get(ClientInvoice, iid)
+    if not inv:
+        abort(404)
+    return render_template("invoice_print.html", inv=inv, co=invoice_settings())

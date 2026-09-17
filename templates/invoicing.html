@@ -33,6 +33,11 @@
         </form>
         <div class="tab-bar__actions">
             {% if has_perm('invoicing.manage') %}
+            {# What the printed bill says about the company: the page's own
+               settings, like the sites are the cash box's. #}
+            <a href="{{ url_for('invoicing.settings') }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">tune</span> {{ t['cset.button'] }}
+            </a>
             {% if clients %}
             <a href="{{ url_for('invoicing.invoice_new', client_id=client.id if client else None) }}" class="fab">
                 <span class="material-symbols-outlined">add</span> {{ t['cinv.new'] }}

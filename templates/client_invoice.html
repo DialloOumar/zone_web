@@ -6,6 +6,9 @@
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
     <a href="{{ url_for('invoicing.index', tab='factures') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a href="{{ url_for('invoicing.invoice_print', iid=inv.id) }}" class="btn btn--sm btn--primary" target="_blank" rel="noopener">
+        <span class="material-symbols-outlined">print</span> {{ t['help.print'] }}
+    </a>
 </div>
 
 {% if inv.is_cancelled %}

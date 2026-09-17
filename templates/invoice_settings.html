@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['cset.title'] }}{% endblock %}
+{% block page_title %}{{ t['cset.title'] }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('invoicing.index', tab='factures') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card" style="max-width: 760px;">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['cset.title'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:60ch;">{{ t['cset.intro'] }}</p>
+        </div>
+    </div>
+
+    <form method="post" class="entry-form">
+        {% for group, keys in groups %}
+        <fieldset class="settings-group">
+            <legend>{{ t['cset.group.' + group] }}</legend>
+            {% for key, multiline in keys %}
+            <div class="field">
+                {% if multiline %}
+                <textarea id="{{ key }}" name="{{ key }}" placeholder=" " rows="3">{{ values[key] }}</textarea>
+                {% else %}
+                <input type="text" id="{{ key }}" name="{{ key }}" placeholder=" " value="{{ values[key] }}" maxlength="255">
+                {% endif %}
+                <label for="{{ key }}">{{ t['cset.' + key] }}</label>
+            </div>
+            {% endfor %}
+        </fieldset>
+        {% endfor %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">
+                <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+            </button>
+        </div>
+    </form>
+</section>
+{% endblock %}

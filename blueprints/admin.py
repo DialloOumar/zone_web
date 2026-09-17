@@ -1055,7 +1055,9 @@ SETTINGS_SCHEMA = {
 @super_admin_required
 def settings():
     t = get_t()
-    rows = (AppSetting.query.filter(AppSetting.category != "internal")
+    # The invoicing page keeps its own settings (what a bill says about the
+    # company), edited there, like the cash box keeps its sites.
+    rows = (AppSetting.query.filter(AppSetting.category.notin_(["internal", "facturation"]))
             .order_by(AppSetting.category, AppSetting.key).all())
 
     if request.method == "POST":

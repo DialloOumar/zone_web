@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+{# The bill as a sheet (invoicing.invoice_print). Standalone, like the
+   pointage print: nothing to load but this HTML and the logo. Opens the
+   print dialog on load; "Save as PDF" in the dialog makes the file to send. #}
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ t['invoicing.tab_invoices'] }} {{ inv.number }} — {{ co.company_name or t['app.title'] }}</title>
+<style>
+    @page { size: A4 portrait; margin: 1.6cm 1.8cm; }
+    body { font-family: Arial, sans-serif; font-size: 11.5px; color: #000; margin: 0; }
+    .muted { color: #666; }
+    .r { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .inv-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px;
+                padding-bottom: 14px; margin-bottom: 18px; border-bottom: 3px solid #1a1a2e; }
+    .brand-logo { height: 46px; width: auto; display: block; margin-bottom: 8px; }
+    .co-name { font-size: 15px; font-weight: 700; color: #1a1a2e; }
+    .co-lines { font-size: 10.5px; line-height: 1.5; color: #333; white-space: pre-line; }
+    .inv-title { font-size: 22px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #1a1a2e; text-align: right; }
+    .inv-number { font-size: 14px; font-weight: 700; text-align: right; margin-top: 2px; }
+    .inv-meta { font-size: 10.5px; line-height: 1.6; color: #333; text-align: right; margin-top: 6px; }
+    .inv-meta b { color: #000; }
+
+    .parties { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+    .party { flex: 1; border: 1px solid #ccc; border-radius: 4px; padding: 10px 12px; }
+    .party-label { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.06em; color: #666; margin-bottom: 4px; }
+    .party-name { font-size: 13px; font-weight: 700; }
+    .party-lines { font-size: 10.5px; line-height: 1.5; color: #333; white-space: pre-line; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 10.5px; margin-top: 4px; }
+    .data-table thead tr { background: #1a1a2e; }
+    .data-table th { padding: 7px 8px; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; text-align: left; }
+    .data-table th.r { text-align: right; }
+    .data-table td { padding: 7px 8px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
+    .data-table tbody tr:nth-child(even) td { background: #f7f7f7; }
+    .data-table tfoot td { font-weight: 700; border-top: 2px solid #1a1a2e; border-bottom: none; font-size: 12.5px; padding-top: 10px; }
+
+    .inv-note { margin-top: 14px; font-size: 10.5px; }
+    .pay-block { margin-top: 22px; display: flex; gap: 24px; }
+    .pay-box { flex: 1; border: 1px solid #ccc; border-radius: 4px; padding: 10px 12px; font-size: 10.5px; line-height: 1.55; white-space: pre-line; }
+    .pay-box .party-label { margin-bottom: 4px; }
+    .sign { margin-top: 36px; display: flex; justify-content: flex-end; }
+    .sign-box { width: 42%; text-align: center; }
+    .sign-line { border-top: 1px solid #333; margin-bottom: 6px; margin-top: 56px; }
+    .sign-name { font-size: 9px; font-weight: 700; text-transform: uppercase; }
+    .inv-footer { margin-top: 26px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 8.5px; color: #777; text-align: center; white-space: pre-line; }
+    .cancelled-stamp { display: inline-block; margin-top: 6px; padding: 3px 10px; border: 2px solid #c62828; color: #c62828; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; font-size: 12px; transform: rotate(-4deg); }
+
+    @media screen {
+        html { background: #eef1f6; }
+        body { max-width: 21cm; margin: 16px auto 40px; padding: 1.6cm 1.8cm; background: #fff; border-radius: 12px;
+               box-shadow: 0 1px 2px rgba(0,0,0,.28), 0 1px 3px 1px rgba(0,0,0,.10); }
+        .print-toolbar { position: sticky; top: 0; z-index: 10; display: flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap;
+                         margin: -1.6cm -1.8cm 20px; padding: 12px 1.8cm; border-radius: 12px 12px 0 0;
+                         background: #0F74BC; color: #fff; font-size: 13px; font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; }
+        .print-toolbar__hint { margin-right: auto; font-size: 12px; color: #d4e9fb; }
+        .print-toolbar a, .print-toolbar button { font: inherit; font-weight: 500; cursor: pointer; border-radius: 999px; padding: 7px 16px;
+                                                  border: 1px solid rgba(255,255,255,.55); background: transparent; color: #fff; text-decoration: none; }
+        .print-toolbar button { background: #fff; border-color: #fff; color: #0F74BC; font-weight: 700; }
+        @media (max-width: 700px) {
+            body { margin: 0; padding: 12px 14px 32px; border-radius: 0; box-shadow: none; }
+            .print-toolbar { margin: -12px -14px 16px; padding: 10px 14px; border-radius: 0; }
+            .inv-head, .parties, .pay-block { flex-direction: column; }
+            .inv-title, .inv-number, .inv-meta { text-align: left; }
+        }
+    }
+    @media print { .print-toolbar { display: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="print-toolbar">
+    <span class="print-toolbar__hint">{{ t['export.print_hint'] }}</span>
+    <a href="{{ url_for('invoicing.invoice_detail', iid=inv.id) }}">{{ t['btn.cancel'] }}</a>
+    <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
+</div>
+
+<div class="inv-head">
+    <div>
+        {% if co.company_name %}
+        <div class="co-name">{{ co.company_name }}</div>
+        {% else %}
+        <img class="brand-logo" src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ t['app.title'] }}">
+        {% endif %}
+        <div class="co-lines">{{ co.company_address }}{% if co.company_phone %}
+{{ t['cset.company_phone'] }} : {{ co.company_phone }}{% endif %}{% if co.company_email %}
+{{ co.company_email }}{% endif %}{% if co.company_nif %}
+NIF : {{ co.company_nif }}{% endif %}{% if co.company_rccm %}
+RCCM : {{ co.company_rccm }}{% endif %}</div>
+    </div>
+    <div>
+        <div class="inv-title">{{ t['cprint.title'] }}</div>
+        <div class="inv-number">{{ inv.number }}</div>
+        <div class="inv-meta">
+            <b>{{ t['cinv.date'] }}</b> {{ inv.date }}<br>
+            <b>{{ t['cinv.period'] }}</b> {{ inv.period }}<br>
+            {% if inv.due_date %}<b>{{ t['cinv.due_date'] }}</b> {{ inv.due_date }}{% endif %}
+        </div>
+        {% if inv.is_cancelled %}<div style="text-align:right;"><span class="cancelled-stamp">{{ t['cinv.status.cancelled'] }}</span></div>{% endif %}
+    </div>
+</div>
+
+<div class="parties">
+    <div class="party">
+        <div class="party-label">{{ t['cprint.billed_to'] }}</div>
+        <div class="party-name">{{ inv.client.name }}</div>
+        <div class="party-lines">{{ inv.client.address or '' }}{% if inv.client.contact %}
+{{ inv.client.contact }}{% endif %}{% if inv.client.tax_id %}
+NIF : {{ inv.client.tax_id }}{% endif %}{% if inv.client.rccm %}
+RCCM : {{ inv.client.rccm }}{% endif %}</div>
+    </div>
+</div>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>{{ t['cinv.line_desc'] }}</th>
+            <th>{{ t['vehicle.category'] }}</th>
+            <th class="r">{{ t['cinv.units'] }}</th>
+            <th class="r">{{ t['cinv.rate'] }} ({{ currency }})</th>
+            <th class="r">{{ t['cinv.amount'] }} ({{ currency }})</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for l in inv.lines %}
+        <tr>
+            <td><strong>{{ l.vehicle_code }}</strong></td>
+            <td>{{ l.category_label }}</td>
+            <td class="r">{{ '%.0f'|format(l.units) }} {{ t['unit.' + l.unit_type] }}{% if l.units != 1 %}s{% endif %}</td>
+            <td class="r">{{ l.rate | num }}</td>
+            <td class="r">{{ l.amount | num }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="4" class="r">{{ t['cprint.total_due'] }}</td>
+            <td class="r">{{ inv.total | num }} {{ currency }}</td>
+        </tr>
+    </tfoot>
+</table>
+
+{% if inv.note %}<div class="inv-note"><strong>{{ t['cinv.note'] }} :</strong> {{ inv.note }}</div>{% endif %}
+
+{% if co.bank_details or co.payment_terms %}
+<div class="pay-block">
+    {% if co.bank_details %}
+    <div class="pay-box"><div class="party-label">{{ t['cset.bank_details'] }}</div>{{ co.bank_details }}</div>
+    {% endif %}
+    {% if co.payment_terms %}
+    <div class="pay-box"><div class="party-label">{{ t['cset.payment_terms'] }}</div>{{ co.payment_terms }}</div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="sign">
+    <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-name">{{ co.company_name or t['export.responsible'] }}</div>
+    </div>
+</div>
+
+{% if co.invoice_footer %}<div class="inv-footer">{{ co.invoice_footer }}</div>{% endif %}
+
+<script>
+(function () {
+    if (window.matchMedia && window.matchMedia("print").matches) return;
+    window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 120); });
+})();
+</script>
+</body>
+</html>
