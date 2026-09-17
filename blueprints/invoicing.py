@@ -188,6 +188,9 @@ def index():
         paid = (db.select(db.func.coalesce(db.func.sum(ClientPayment.amount), 0))
                 .where(ClientPayment.invoice_id == ClientInvoice.id)
                 .correlate(ClientInvoice).scalar_subquery())
+        # Paid, never past the bill's own total. A CASE rather than min(a, b):
+        # Postgres has no two-argument min, only SQLite does.
+        capped = db.case((paid > ClientInvoice.total, ClientInvoice.total), else_=paid)
         if status == "paid":
             q = q.filter(ClientInvoice.status != "cancelled", paid >= ClientInvoice.total)
         elif status in ("open", "overdue"):
@@ -203,7 +206,7 @@ def index():
         live = q.filter(ClientInvoice.status != "cancelled")
         sums = live.with_entities(
             db.func.coalesce(db.func.sum(ClientInvoice.total), 0),
-            db.func.coalesce(db.func.sum(db.func.min(paid, ClientInvoice.total)), 0)).one()
+            db.func.coalesce(db.func.sum(capped), 0)).one()
         billed, received = int(sums[0] or 0), int(sums[1] or 0)
         remaining = max(billed - received, 0)
         overdue_count = live.filter(paid < ClientInvoice.total, ClientInvoice.due_date.isnot(None),
@@ -218,8 +221,11 @@ def index():
         paid = (db.select(db.func.coalesce(db.func.sum(ClientPayment.amount), 0))
                 .where(ClientPayment.invoice_id == ClientInvoice.id)
                 .correlate(ClientInvoice).scalar_subquery())
+        # Paid, never past the bill's own total. A CASE rather than min(a, b):
+        # Postgres has no two-argument min, only SQLite does.
+        capped = db.case((paid > ClientInvoice.total, ClientInvoice.total), else_=paid)
         rows = (db.session.query(ClientInvoice.client_id, db.func.count(ClientInvoice.id),
-                                 db.func.coalesce(db.func.sum(ClientInvoice.total - db.func.min(paid, ClientInvoice.total)), 0))
+                                 db.func.coalesce(db.func.sum(ClientInvoice.total - capped), 0))
                 .filter(ClientInvoice.status != "cancelled")
                 .group_by(ClientInvoice.client_id).all())
         owed = {r[0]: {"count": int(r[1]), "remaining": int(r[2] or 0)} for r in rows}
