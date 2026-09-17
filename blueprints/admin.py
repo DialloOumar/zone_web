@@ -608,6 +608,7 @@ def _create_user():
     username = (request.form.get("username") or "").strip().lower()
     full_name = (request.form.get("full_name") or "").strip()
     email = (request.form.get("email") or "").strip().lower() or None
+    phone = (request.form.get("phone") or "").strip() or None
     password = request.form.get("password") or ""
     is_active = request.form.get("is_active") is not None
     if not username:
@@ -620,7 +621,7 @@ def _create_user():
         return t.get("user.err.username_taken", "Ce nom d'utilisateur existe deja."), None
     if email and User.query.filter(db.func.lower(User.email) == email).first():
         return t.get("user.err.email_taken", "Ce courriel est deja utilise."), None
-    u = User(username=username, full_name=full_name, email=email,
+    u = User(username=username, full_name=full_name, email=email, phone=phone,
              is_active=is_active, lang="fr")
     u.set_password(password)
     db.session.add(u)
@@ -675,6 +676,7 @@ def user_edit(user_id):
             user.username = username
             user.full_name = full_name
             user.email = email
+            user.phone = (request.form.get("phone") or "").strip() or None
             user.is_active = request.form.get("is_active") is not None
             log_action("UPDATE", "user", resource_id=user.id, detail="Updated user '%s'" % username)
             db.session.commit()

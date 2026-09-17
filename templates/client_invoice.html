@@ -37,6 +37,7 @@
         <div><dt>{{ t['cinv.due_date'] }}</dt><dd>{{ inv.due_date or '—' }}</dd></div>
         <div><dt>{{ t['cinv.subject'] }}</dt><dd>{{ inv.subject or '—' }}</dd></div>
         <div><dt>{{ t['cinv.client_ref'] }}</dt><dd>{{ inv.client_ref or '—' }}</dd></div>
+        <div><dt>{{ t['cprint.contact'] }}</dt><dd>{{ inv.contact_name or '—' }}{% if inv.contact_phone %} · {{ inv.contact_phone }}{% endif %}</dd></div>
         {% if inv.note %}<div style="grid-column: 1 / -1;"><dt>{{ t['cinv.note'] }}</dt><dd>{{ inv.note }}</dd></div>{% endif %}
     </dl>
 </section>

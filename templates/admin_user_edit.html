@@ -24,6 +24,11 @@
             <input type="email" id="email" name="email" placeholder="{{ t['ph.user.email'] }}" autocapitalize="none" value="{{ user.email or '' }}">
             <label for="email">{{ t['user.email'] }}</label>
         </div>
+        <div class="field">
+            <input type="tel" id="phone" name="phone" placeholder="{{ t['ph.operator.phone'] }}" value="{{ user.phone or '' }}">
+            <label for="phone">{{ t['user.phone'] }}</label>
+        </div>
+
         <label class="checkbox-item" style="max-width: 220px;">
             <input type="checkbox" name="is_active" {% if user.is_active %}checked{% endif %}>
             <span>{{ t['user.active'] }}</span>

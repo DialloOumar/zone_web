@@ -38,6 +38,7 @@ class User(UserMixin, db.Model):
     username       = db.Column(db.String(80),  nullable=False)
     full_name      = db.Column(db.String(120), nullable=False)
     email          = db.Column(db.String(120), nullable=True)            # optional
+    phone          = db.Column(db.String(30),  nullable=True)            # optional; printed on the bills they issue
     password_hash  = db.Column(db.String(256), nullable=False)
     # The one super admin flag — exactly one row in the table has it set to True.
     # Bootstrapped via the seed-super-admin CLI command, never editable in the UI.
@@ -955,6 +956,10 @@ class ClientInvoice(db.Model):
     # and the reference the client gave, a purchase order for instance.
     subject    = db.Column(db.String(120), nullable=True)
     client_ref = db.Column(db.String(60),  nullable=True)
+    # Whom the client should call about this bill: the person who issued it,
+    # by default, copied in so the bill still says so after they leave.
+    contact_name  = db.Column(db.String(120), nullable=True)
+    contact_phone = db.Column(db.String(60),  nullable=True)
     note       = db.Column(db.String(255), nullable=True)
     created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)

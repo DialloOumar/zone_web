@@ -97,6 +97,16 @@
                 <label for="client_ref">{{ t['cinv.client_ref'] }}</label>
             </div>
         </div>
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="contact_name" name="contact_name" placeholder=" " maxlength="120" value="{{ default_contact_name }}">
+                <label for="contact_name">{{ t['cinv.contact_name'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="contact_phone" name="contact_phone" placeholder=" " maxlength="60" value="{{ default_contact_phone }}">
+                <label for="contact_phone">{{ t['cinv.contact_phone'] }}</label>
+            </div>
+        </div>
         <div class="field">
             <input type="text" id="note" name="note" placeholder=" " maxlength="255">
             <label for="note">{{ t['cinv.note'] }}</label>

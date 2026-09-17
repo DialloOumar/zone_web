@@ -24,6 +24,11 @@
             <label for="password">{{ t['user.password'] }}</label>
         </div>
     </div>
+    <div class="field" style="max-width: 320px;">
+        <input type="tel" id="phone" name="phone" placeholder="{{ t['ph.operator.phone'] }}" value="{{ request.form.get('phone', '') }}">
+        <label for="phone">{{ t['user.phone'] }}</label>
+    </div>
+
     <label class="checkbox-item" style="max-width: 220px;">
         <input type="checkbox" name="is_active" checked>
         <span>{{ t['user.active'] }}</span>

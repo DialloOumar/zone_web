@@ -200,6 +200,8 @@ def invoice_new():
                             date=issue_date, due_date=due, total=total,
                             subject=(request.form.get("subject") or "").strip()[:120] or None,
                             client_ref=(request.form.get("client_ref") or "").strip()[:60] or None,
+                            contact_name=(request.form.get("contact_name") or "").strip()[:120] or None,
+                            contact_phone=(request.form.get("contact_phone") or "").strip()[:60] or None,
                             note=(request.form.get("note") or "").strip() or None,
                             created_by=current_user.id)
         for g in lines:
@@ -229,6 +231,9 @@ def invoice_new():
     return render_template("invoice_new.html", clients=clients, client=client, month=month,
                            lines=lines, total=total, any_missing=any_missing,
                            existing=existing, default_subject=default_subject,
+                           # whoever issues the bill is its contact, unless they say otherwise
+                           default_contact_name=current_user.full_name,
+                           default_contact_phone=current_user.phone or current_user.email or "",
                            today=date.today().isoformat())
 
 
@@ -478,7 +483,6 @@ SETTINGS_GROUPS = [
     ("company", [("company_name", False), ("company_address", True), ("company_phone", False),
                  ("company_email", False), ("company_website", False),
                  ("company_nif", False), ("company_rccm", False)]),
-    ("contact", [("contact_name", False), ("contact_phone", False)]),
     ("payment", [("bank_details", True), ("payment_terms", True), ("tax_mention", False)]),
     ("footer",  [("invoice_footer", True)]),
 ]

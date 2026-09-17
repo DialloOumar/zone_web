@@ -1061,6 +1061,38 @@ DEFAULT_SETTINGS = [
     ("default_lang",         "fr",  "Default language",                            "general"),
 ]
 
+# What the printed client invoice says about the company, as it stands on the
+# bills the company sends today. Filled in once where nothing was set, and
+# edited from Facturation > Paramètres afterwards -- never overwritten here.
+# The category keeps them off the Administration page; they are the invoicing
+# page's own.
+INVOICE_SETTING_DEFAULTS = [
+    ("company_name",    "ZONE Équipements & Pièces"),
+    ("company_address", "Immeuble École Française" + chr(10) + "Kipé / C. Ratoma / Conakry"),
+    ("company_phone",   "622 60 81 00"),
+    ("company_email",   "zepguinee@gmail.com"),
+    ("company_website", "www.zoneequipement.com"),
+    ("company_nif",     "284392826"),
+    ("company_rccm",    "GC-KAL/047.985A/2013"),
+    ("bank_details",    "BSIC" + chr(10) + "RIB 013-014-0100084827-71"),
+    ("payment_terms",   "Paiement sous 2 semaines"),
+    ("tax_mention",     ""),
+    ("invoice_footer",  ""),
+]
+
+
+def _seed_invoice_settings_data():
+    """Write each invoice setting that does not exist yet, with what the
+    company's current bills say. Idempotent: a value someone changed on the
+    Facturation page is never touched. Returns how many were added."""
+    added = 0
+    for key, value in INVOICE_SETTING_DEFAULTS:
+        if not db.session.get(AppSetting, key):
+            db.session.add(AppSetting(key=key, value=value, label=key, category="facturation"))
+            added += 1
+    db.session.commit()
+    return added
+
 
 # ── Shared seed helpers (called by both `flask seed` and the per-step CLI cmds) ─
 
@@ -1379,6 +1411,10 @@ def seed_cmd():
     # 5. The chart of accounts, for the Finance workspace
     added = _seed_plan_comptable_data()
     click.echo(f"  plan comptable: {added} accounts added")
+
+    # 6. What the printed client invoice says about the company
+    added = _seed_invoice_settings_data()
+    click.echo(f"  invoice settings: {added} added")
 
     click.echo("Seed complete.")
 

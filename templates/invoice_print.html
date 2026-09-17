@@ -7,7 +7,7 @@
    company and the title, who it is billed to and the details of the hire,
    the lines, the amount in figures and in words, where to pay, a place for
    the stamp. Every box that has nothing to say stays off the paper. #}
-{% set has_details = inv.subject or inv.client_ref or co.contact_name or co.payment_terms or inv.due_date %}
+{% set has_details = inv.subject or inv.client_ref or inv.contact_name or co.payment_terms or inv.due_date %}
 <html lang="{{ lang }}">
 <head>
 <meta charset="utf-8">
@@ -16,6 +16,11 @@
 <style>
     @page { size: A4 portrait; margin: 1.4cm 1.6cm 1.6cm; }
     * { box-sizing: border-box; }
+    /* The browser drops background colours on paper unless the sheet insists:
+       the dark header row, the "net à payer" band and the tinted rows are
+       part of the document, not decoration to save ink on. */
+    .lines thead th, .totals tr.due td, .lines .subject-row td, .lines tbody tr:nth-child(even) td,
+    .in-words, .rule { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; margin: 0; line-height: 1.4; }
     .muted { color: #666; }
     .r { text-align: right; font-variant-numeric: tabular-nums; }
@@ -147,7 +152,7 @@ RCCM : {{ inv.client.rccm }}{% endif %}</div>
         <table class="details">
             {% if inv.subject %}<tr><td>{{ t['cinv.subject'] }}</td><td>{{ inv.subject }}</td></tr>{% endif %}
             {% if inv.client_ref %}<tr><td>{{ t['cinv.client_ref'] }}</td><td>{{ inv.client_ref }}</td></tr>{% endif %}
-            {% if co.contact_name %}<tr><td>{{ t['cprint.contact'] }}</td><td>{{ co.contact_name }}{% if co.contact_phone %} · {{ co.contact_phone }}{% endif %}</td></tr>{% endif %}
+            {% if inv.contact_name %}<tr><td>{{ t['cprint.contact'] }}</td><td>{{ inv.contact_name }}{% if inv.contact_phone %} · {{ inv.contact_phone }}{% endif %}</td></tr>{% endif %}
             {% if co.payment_terms %}<tr><td>{{ t['cset.payment_terms'] }}</td><td>{{ co.payment_terms }}</td></tr>{% endif %}
             {% if inv.due_date %}<tr><td>{{ t['cinv.due_date'] }}</td><td>{{ inv.due_date }}</td></tr>{% endif %}
         </table>
