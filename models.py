@@ -237,6 +237,9 @@ class Vehicle(db.Model):
     # own. One lessor at a time, so the link lives here and not in a table of
     # pairs. Its daily entries are what that supplier's bill is checked against.
     supplier_id                   = db.Column(db.Integer,   db.ForeignKey("suppliers.id"), nullable=True)
+    # The client it works for, when placed with one. Its rate lives in
+    # ClientRate, dated; the machine itself only knows where it is now.
+    client_id                     = db.Column(db.Integer,   db.ForeignKey("clients.id"), nullable=True)
     is_active                     = db.Column(db.Boolean,   nullable=False, default=True)
     # Soft delete beyond archive: set = the machine is gone from every UI, its
     # code is freed for reuse, but the row stays so history isn't orphaned.
@@ -249,6 +252,7 @@ class Vehicle(db.Model):
     fleet            = db.relationship("Fleet")
     default_operator = db.relationship("Operator", foreign_keys=[default_operator_id])
     supplier         = db.relationship("Supplier", back_populates="machines")
+    client           = db.relationship("Client", back_populates="machines")
 
     @property
     def effective_baseline(self):
@@ -862,6 +866,87 @@ class SupplierPayment(db.Model):
         """True when this instalment is the cash box's, and so is read-only on
         the invoice."""
         return self.expense_id is not None
+
+
+# ── Clients (who the machines work for) ─────────────────────────────────────
+
+
+class Client(db.Model):
+    """Who the machines work for. The mirror of a lessor supplier: machines
+    are placed with a client and each is priced there, in ClientRate. The
+    address, NIF and RCCM are for the day a bill has to carry them.
+
+    Codes are CL-001, CL-002... issued by the app when the client is created,
+    never typed. A client that was ever priced is archived, not deleted.
+    """
+    __tablename__ = "clients"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    name       = db.Column(db.String(80),  nullable=False, unique=True)
+    code       = db.Column(db.String(12),  nullable=False, unique=True)
+    contact    = db.Column(db.String(80))
+    address    = db.Column(db.String(200))
+    tax_id     = db.Column(db.String(40))                   # NIF
+    rccm       = db.Column(db.String(40))
+    note       = db.Column(db.String(255))
+    sort_order = db.Column(db.Integer,     nullable=False, default=0)
+    is_active  = db.Column(db.Boolean,     nullable=False, default=True)
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    machines = db.relationship("Vehicle", back_populates="client", order_by="Vehicle.code")
+    rates    = db.relationship("ClientRate", back_populates="client",
+                               cascade="all, delete-orphan")
+
+    @property
+    def live_machines(self):
+        """Its machines that still exist: a deleted one keeps the link for
+        its history but is nobody's to count."""
+        return [v for v in self.machines if v.deleted_at is None]
+
+    @property
+    def has_history(self):
+        """True once anything was ever priced for it -- then it is archived,
+        never deleted."""
+        return bool(self.rates)
+
+
+class ClientRate(db.Model):
+    """Dated price of one machine for one client: GNF per worked unit (trip
+    or hour, whichever its category counts). Append-only: a new price is a
+    new row with its date of effect, so a past month re-bills at the price
+    that applied then. In force on a date = greatest effective_from <= date.
+    """
+    __tablename__ = "client_rates"
+
+    id             = db.Column(db.Integer,    primary_key=True)
+    client_id      = db.Column(db.Integer,    db.ForeignKey("clients.id"),  nullable=False, index=True)
+    vehicle_id     = db.Column(db.Integer,    db.ForeignKey("vehicles.id"), nullable=False, index=True)
+    rate_per_unit  = db.Column(db.Integer,    nullable=False)              # GNF per trip / hour
+    effective_from = db.Column(db.String(10), nullable=False)              # YYYY-MM-DD
+    created_at     = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+    created_by     = db.Column(db.Integer,    db.ForeignKey("users.id"), nullable=True)
+
+    client  = db.relationship("Client", back_populates="rates")
+    vehicle = db.relationship("Vehicle")
+
+
+@db.event.listens_for(Client, "before_insert")
+def _client_code_on_insert(mapper, connection, target):
+    """A client written without a code -- by a seed, a script, a test --
+    still gets one, so the NOT NULL never bites and the numbering never has
+    a gap. The form issues its own the same way; this is the net."""
+    if target.code:
+        return
+    rows = connection.execute(
+        db.select(Client.__table__.c.code)
+        .where(Client.__table__.c.code.like("CL-%"))).fetchall()
+    highest = 0
+    for (code,) in rows:
+        try:
+            highest = max(highest, int(code[3:]))
+        except (TypeError, ValueError):
+            pass
+    target.code = "CL-%03d" % (highest + 1)
 
 
 # ── Workflow — approvals & audit ──────────────────────────────────────────────

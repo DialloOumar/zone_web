@@ -1,0 +1,109 @@
+{% set is_edit = row is not none %}
+{# Who the machines work for. The name is enough to start; the address, NIF
+   and RCCM are there for the day a bill has to carry them. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('invoicing.client_edit', cid=row.id) if is_edit else url_for('invoicing.client_new') }}">
+
+    {% if is_edit %}
+    <div class="expense-total" style="margin-top:0;">
+        {{ t['supplier.code'] }} <strong>{{ row.code }}</strong>
+    </div>
+    {% endif %}
+
+    <div class="field">
+        <input type="text" id="name" name="name" placeholder=" " required
+               value="{{ request.form.get('name') or (row.name if is_edit else '') }}">
+        <label for="name">{{ t['client.name'] }}</label>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="contact" name="contact" placeholder=" "
+                   value="{{ request.form.get('contact') or (row.contact or '' if is_edit else '') }}">
+            <label for="contact">{{ t['invoice.contact'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="address" name="address" placeholder=" "
+                   value="{{ request.form.get('address') or (row.address or '' if is_edit else '') }}">
+            <label for="address">{{ t['client.address'] }}</label>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="tax_id" name="tax_id" placeholder=" "
+                   value="{{ request.form.get('tax_id') or (row.tax_id or '' if is_edit else '') }}">
+            <label for="tax_id">{{ t['client.tax_id'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="rccm" name="rccm" placeholder=" "
+                   value="{{ request.form.get('rccm') or (row.rccm or '' if is_edit else '') }}">
+            <label for="rccm">{{ t['client.rccm'] }}</label>
+        </div>
+    </div>
+
+    <div class="field">
+        <textarea id="note" name="note" placeholder=" " rows="2">{{ request.form.get('note') or (row.note or '' if is_edit else '') }}</textarea>
+        <label for="note">{{ t['entry.note'] }}</label>
+    </div>
+
+    {# Its machines, each with what it is billed. A rate typed here starts on
+       the date below; the one before it is kept for the months it applied. #}
+    <span class="photo-input__label">{{ t['client.machines_pick'] }}</span>
+    <div class="field-hint" style="margin-bottom:8px;">{{ t['client.machines_hint'] }}</div>
+    {% if machines %}
+    {% set chosen = request.form.getlist('machine_ids')|map('int')|list if request.method == 'POST'
+                    else (row.machines|map(attribute='id')|list if is_edit else []) %}
+    <div class="client-machines">
+        {% for v in machines %}
+        {% set unit = t['unit.' + v.category.unit_type] %}
+        <div class="client-machine {% if v.id in chosen %}is-on{% endif %}">
+            <label class="checkbox-item">
+                <input type="checkbox" name="machine_ids" value="{{ v.id }}" {% if v.id in chosen %}checked{% endif %}>
+                <span>{{ v.code }}
+                    <span class="muted small">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
+                    {% if v.client and (not is_edit or v.client_id != row.id) %}
+                    <span class="muted small">— {{ t['supplier.held_by'] }} {{ v.client.name }}</span>
+                    {% endif %}
+                </span>
+            </label>
+            <div class="client-machine-rate">
+                <input data-money type="text" inputmode="numeric" name="rate_{{ v.id }}"
+                       placeholder="{{ t['client.rate_ph'] }}" aria-label="{{ t['invoicing.rate'] }}"
+                       value="{{ request.form.get('rate_' ~ v.id) or (rates.get(v.id) if rates.get(v.id) is not none else '') }}">
+                <span class="muted small">{{ currency }}/{{ unit }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="field" style="max-width: 220px; margin-top: 12px;">
+        <input type="date" id="rate_effective_from" name="rate_effective_from" placeholder=" "
+               value="{{ request.form.get('rate_effective_from') or today }}">
+        <label for="rate_effective_from">{{ t['client.rate_from'] }}</label>
+    </div>
+    <div class="field-hint">{{ t['client.rate_from_hint'] }}</div>
+    {% else %}
+    <div class="field-hint">{{ t['supplier.machines_none'] }}</div>
+    {% endif %}
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('invoicing.index', tab='clients') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
+
+<script>
+// A rate only means something for a machine that is ticked: the box lights
+// up with its line and dims without it.
+(function () {
+    document.querySelectorAll(".client-machine").forEach(function (line) {
+        var box = line.querySelector('input[type="checkbox"]');
+        if (!box) return;
+        function apply() { line.classList.toggle("is-on", box.checked); }
+        box.addEventListener("change", apply);
+        apply();
+    });
+})();
+</script>

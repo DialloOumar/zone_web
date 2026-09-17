@@ -582,26 +582,26 @@ HELP_SECTIONS = [
         "title": {"fr": "Facturation", "en": "Invoicing"},
         "intro": {
             "fr": "La facturation calcule ce qu'il faut facturer à un client "
-                  "(une flotte) selon les unités travaillées (voyages / heures) "
-                  "et les tarifs datés de la flotte.",
-            "en": "Invoicing computes what to bill a client (a fleet) from the "
-                  "worked units (trips / hours) and the fleet's dated rates.",
+                  "selon les unités travaillées de ses machines (voyages / heures) "
+                  "et le tarif daté de chaque machine.",
+            "en": "Invoicing computes what to bill a client from its machines' "
+                  "worked units (trips / hours) and each machine's dated rate.",
         },
         "steps": {
             "fr": [
-                "Ouvrez « Facturation ».",
-                "Choisissez le mois et la flotte (client).",
-                "Le montant se calcule à partir des pointages et des tarifs en vigueur.",
+                "Ouvrez « Facturation », onglet Clients : créez le client, cochez ses machines et donnez un tarif à chacune.",
+                "Onglet Factures : choisissez le client et le mois.",
+                "Le montant se calcule à partir des pointages et du tarif en vigueur le jour de chaque saisie.",
             ],
             "en": [
-                "Open \"Invoicing\".",
-                "Pick the month and the fleet (client).",
-                "The amount is computed from the entries and the rates in force.",
+                "Open \"Invoicing\", Clients tab: create the client, tick its machines and give each a rate.",
+                "Invoices tab: pick the client and the month.",
+                "The amount is computed from the entries and the rate in force on each entry's day.",
             ],
         },
         "tips": {
-            "fr": ["Les tarifs se définissent sur la fiche de la flotte (Administration → Flottes)."],
-            "en": ["Rates are set on the fleet's record (Administration → Fleets)."],
+            "fr": ["Changer un tarif ajoute un prix avec sa date d'effet ; l'ancien reste pour les mois passés."],
+            "en": ["Changing a rate adds a price with its effective date; the old one stays for past months."],
         },
     },
     {

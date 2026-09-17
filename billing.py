@@ -1,58 +1,34 @@
-"""Billing helpers — dated per-client (fleet) rates and invoice math.
+"""Billing helpers — dated per-machine client rates and the month's math.
 
-A fleet models a client; its FleetRate rows give the GNF-per-worked-unit price
-for each machine type, with dated history. Billing is per worked unit: a daily
-entry's billable amount = units (trips, or hours incl. index-derived) × the
-rate in force on that entry's date.
+A client has machines placed with it, each with its own price: GNF per worked
+unit (trip or hour, whichever its category counts). Prices are dated,
+append-only history in ClientRate: changing one inserts a new row, so a past
+month re-bills at the price that applied then. The rate in force on a date is
+the row with the greatest effective_from on or before it.
+
+A daily entry's billable amount = its units × that rate on its date.
+
+The earlier per-fleet-and-category rates (FleetRate) are kept in the database
+untouched but no longer read: the price belongs to the machine and its client.
 """
-from datetime import date
-
-from models import FleetRate
+from models import ClientRate
 
 
-def rate_on(fleet_id, category_code, on_date):
-    """Rate (GNF/unit) in force for (fleet, category) on `on_date` (YYYY-MM-DD
-    string), or None if no rate was set yet on/before that date."""
-    row = (FleetRate.query
-           .filter_by(fleet_id=fleet_id, category_code=category_code)
-           .filter(FleetRate.effective_from <= on_date)
-           .order_by(FleetRate.effective_from.desc(), FleetRate.id.desc())
-           .first())
-    return row.rate_per_unit if row else None
-
-
-def current_rates(fleet_id, on_date=None):
-    """{category_code: rate} in force for a fleet on `on_date` (default today).
-
-    Walks the history ascending so later effective rows overwrite earlier ones,
-    leaving the most recent rate per category.
-    """
-    on_date = on_date or date.today().isoformat()
-    out = {}
-    rows = (FleetRate.query.filter_by(fleet_id=fleet_id)
-            .filter(FleetRate.effective_from <= on_date)
-            .order_by(FleetRate.effective_from.asc(), FleetRate.id.asc())
-            .all())
-    for r in rows:
-        out[r.category_code] = r.rate_per_unit
-    return out
-
-
-def rate_history(fleet_id):
-    """{category_code: [(effective_from, rate), ...]} ascending — preloaded so a
+def rate_book(client_id):
+    """{vehicle_id: [(effective_from, rate), ...]} ascending -- preloaded so a
     whole month can be priced without a query per entry."""
     book = {}
-    rows = (FleetRate.query.filter_by(fleet_id=fleet_id)
-            .order_by(FleetRate.effective_from.asc(), FleetRate.id.asc()).all())
+    rows = (ClientRate.query.filter_by(client_id=client_id)
+            .order_by(ClientRate.effective_from.asc(), ClientRate.id.asc()).all())
     for r in rows:
-        book.setdefault(r.category_code, []).append((r.effective_from, r.rate_per_unit))
+        book.setdefault(r.vehicle_id, []).append((r.effective_from, r.rate_per_unit))
     return book
 
 
-def resolve(book, category_code, on_date):
-    """Latest rate in `book` for category_code with effective_from <= on_date."""
+def rate_on(book, vehicle_id, on_date):
+    """Latest rate in `book` for the machine with effective_from <= on_date."""
     best = None
-    for eff, rate in book.get(category_code, []):
+    for eff, rate in book.get(vehicle_id, []):
         if eff <= on_date:
             best = rate
         else:

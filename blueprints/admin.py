@@ -22,7 +22,6 @@ from flask_login import current_user, login_required
 from app import (HIDDEN_PERMS, get_t, has_perm, is_modal_request, log_action,
                  modal_ok, require_perm, slugify, super_admin_required,
                  tombstone_system_role)
-from billing import current_rates
 from vehicle_images import available_default_images, is_default_image
 from models import (Alert, AppSetting, AuditLog, Citerne, DailyEntry, Expense,
                     Fleet, FleetRate, FuelMovement, MaintenanceRecord,
@@ -121,11 +120,10 @@ def _render_fleet_form(fleet, error=None):
     else:
         selected = list(fleet.categories or []) if fleet else []
     # Current billing rate per category (in force today) to prefill the inputs.
-    rates = current_rates(fleet.id) if fleet else {}
     tpl = "_fleet_form.html" if is_modal_request() else "admin_fleet_form.html"
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, fleet=fleet, categories=categories,
-                           selected_codes=selected, rates=rates,
+                           selected_codes=selected,
                            today=date.today().isoformat(), error=error), status
 
 
@@ -305,36 +303,14 @@ def _save_fleet(fleet):
             db.session.add(UserFleet(user_id=current_user.id, fleet_id=fleet.id,
                                      role_id=role.id, assigned_by=current_user.id))
 
-    # Billing rates — append a dated FleetRate row only where the entered rate
-    # differs from the one currently in force (history is never overwritten).
-    eff = (request.form.get("rate_effective_from") or "").strip()
-    if not _valid_iso_date(eff):
-        eff = date.today().isoformat()
-    in_force = current_rates(fleet.id)
-    rate_changes = 0
-    for code in categories:
-        raw = ((request.form.get("rate_" + code) or "")
-               .strip().replace(" ", "").replace("\u00a0", ""))
-        if not raw:
-            continue
-        try:
-            new_rate = int(round(float(raw.replace(",", "."))))
-        except ValueError:
-            return t.get("fleet.err.bad_rate", "Tarif invalide.")
-        if new_rate < 0:
-            return t.get("fleet.err.bad_rate", "Tarif invalide.")
-        if in_force.get(code) != new_rate:
-            db.session.add(FleetRate(
-                fleet_id=fleet.id, category_code=code, rate_per_unit=new_rate,
-                effective_from=eff, created_by=current_user.id,
-            ))
-            rate_changes += 1
+    # Prices are no longer set here: a machine's rate belongs to its client
+    # (Facturation > Clients), dated there.
 
     log_action(
         "CREATE" if creating else "UPDATE", "fleet",
         resource_id=fleet.id, fleet_id=fleet.id,
         detail=f"{'Created' if creating else 'Updated'} fleet "
-               f"'{name}' ({len(categories)} categories, {rate_changes} rate changes)",
+               f"'{name}' ({len(categories)} categories)",
     )
     db.session.commit()
     return None

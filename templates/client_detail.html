@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ client.name }}{% endblock %}
+{% block page_title %}{{ client.code }} — {{ client.name }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('invoicing.index', tab='clients') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    {% if has_perm('invoicing.manage') %}
+    <a href="{{ url_for('invoicing.client_edit', cid=client.id) }}" class="btn btn--sm btn--tonal"
+       data-modal-url="{{ url_for('invoicing.client_edit', cid=client.id) }}" data-modal-title="{{ t['client.edit'] }}">
+        <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}
+    </a>
+    {% endif %}
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <h2>{{ client.name }}
+            {% if not client.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
+        </h2>
+    </div>
+    <dl class="detail-grid">
+        <div><dt>{{ t['supplier.code'] }}</dt><dd>{{ client.code }}</dd></div>
+        <div><dt>{{ t['invoice.contact'] }}</dt><dd>{{ client.contact or '—' }}</dd></div>
+        <div><dt>{{ t['client.address'] }}</dt><dd>{{ client.address or '—' }}</dd></div>
+        <div><dt>{{ t['client.tax_id'] }}</dt><dd>{{ client.tax_id or '—' }}</dd></div>
+        <div><dt>{{ t['client.rccm'] }}</dt><dd>{{ client.rccm or '—' }}</dd></div>
+        {% if client.note %}<div style="grid-column: 1 / -1;"><dt>{{ t['entry.note'] }}</dt><dd>{{ client.note }}</dd></div>{% endif %}
+    </dl>
+</section>
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['client.machines_title'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:60ch;">{{ t['client.machines_intro'] }}</p>
+        </div>
+        <span class="muted small">{{ machines | length }} {{ t['supplier.machines'] | lower }}</span>
+    </div>
+    {% if machines %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['entry.vehicle'] }}</th>
+                <th>{{ t['vehicle.category'] }}</th>
+                <th style="text-align:right;">{{ t['client.rate_now'] }}</th>
+                <th>{{ t['client.rate_since'] }}</th>
+                <th>{{ t['client.rate_history'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in machines %}
+            {% set unit = t['unit.' + m.v.category.unit_type] %}
+            <tr>
+                <td><a href="{{ url_for('vehicles.detail', vid=m.v.id) }}"><strong>{{ m.v.code }}</strong></a></td>
+                <td><span class="chip chip--{{ m.v.category.code|lower }}">{{ m.v.category.label_fr if lang == 'fr' else m.v.category.label }}</span></td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if m.rate is not none %}<strong>{{ m.rate | num }}</strong> <span class="muted small">{{ currency }}/{{ unit }}</span>
+                    {% else %}<span class="variance--danger">{{ t['invoicing.no_rate'] }}</span>{% endif %}
+                </td>
+                <td>{{ m.since or '—' }}</td>
+                <td>
+                    {% if m.history | length > 1 %}
+                    <details>
+                        <summary class="muted small" style="cursor:pointer;">{{ m.history | length }} {{ t['client.rate_changes'] }}</summary>
+                        <ul class="muted small" style="margin:4px 0 0 16px; padding:0;">
+                            {% for eff, rate in m.history %}
+                            <li>{{ eff }} : {{ rate | num }} {{ currency }}/{{ unit }}</li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                    {% elif m.history %}<span class="muted small">{{ t['client.rate_first'] }}</span>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">directions_bus</span>
+        <p>{{ t['client.no_machines_yet'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

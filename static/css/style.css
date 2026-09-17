@@ -25,13 +25,13 @@
    templates — missing those is exactly how `close` ended up invisible, and
    later how the parts store and the cash box shipped with no icon at all.
 
-   The list as of v10 (60 names):
+   The list as of v11 (61 names):
      account_balance, account_balance_wallet, add,
      admin_panel_settings, archive, arrow_back, badge, bedtime,
      category, check, check_circle, chevron_left, chevron_right,
      close, dark_mode, delete, directions_bus, donut_large, edit,
-     engineering, error, fact_check, group, handyman, help, history,
-     home, image, info, inventory, light_mode, list_alt,
+     engineering, error, fact_check, group, handshake, handyman, help,
+     history, home, image, info, inventory, light_mode, list_alt,
      local_gas_station, local_shipping, lock_reset, logout, menu,
      payments, pending_actions, photo_camera, picture_as_pdf,
      price_check, print, query_stats, receipt_long, request_quote,
@@ -64,7 +64,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2?v=10") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=11") format("woff2");
 }
 
 /* ── Design tokens (light) ── */
@@ -456,6 +456,22 @@ a:hover { text-decoration: underline; }
 .map-account { color: var(--md-on-surface-variant); font-size: 0.85rem; }
 .map-account .badge { margin-left: 6px; }
 .map-error { color: var(--md-error); font-size: 0.78rem; }
+
+/* Client form: one line per machine, its box and its rate side by side */
+.client-machines { display: flex; flex-direction: column; gap: 4px; }
+.client-machine {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 2px 4px; border-radius: var(--shape-md);
+}
+.client-machine .checkbox-item { flex: 1 1 220px; margin: 0; }
+.client-machine-rate { display: inline-flex; align-items: center; gap: 6px; opacity: 0.45; transition: opacity 0.15s; }
+.client-machine.is-on .client-machine-rate { opacity: 1; }
+.client-machine-rate input {
+    width: 13ch; height: 38px; padding: 0 10px; text-align: right;
+    border: 1px solid var(--md-outline); border-radius: 8px;
+    background: var(--md-surface); color: var(--md-on-surface); font: inherit;
+}
+.client-machine-rate input:focus { border-color: var(--md-primary); outline: none; }
 
 /* User block at the foot of the drawer */
 .sidebar-user {

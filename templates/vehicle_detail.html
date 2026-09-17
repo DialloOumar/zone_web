@@ -53,6 +53,12 @@
             <dd>{{ vehicle.supplier.code }} — {{ vehicle.supplier.name }}</dd>
         </div>
         {% endif %}
+        {% if vehicle.client %}
+        <div>
+            <dt>{{ t['vehicle.client'] }}</dt>
+            <dd><a href="{{ url_for('invoicing.client_detail', cid=vehicle.client.id) }}">{{ vehicle.client.code }} — {{ vehicle.client.name }}</a></dd>
+        </div>
+        {% endif %}
         {% if vehicle.description %}
         <div style="grid-column: 1 / -1;">
             <dt>{{ t['vehicle.description'] }}</dt>

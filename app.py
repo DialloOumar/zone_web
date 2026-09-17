@@ -345,7 +345,7 @@ def with_current_fleet(fleets, current_fleet):
 # (super admin included), which hides its nav entry, onboarding step and help
 # section, and 403s its routes. Roles and seed data are left untouched, so
 # dropping a key from this set brings the module straight back.
-HIDDEN_PERMS = {"invoicing.view"}
+HIDDEN_PERMS = set()
 
 
 def has_perm(perm_key):
@@ -1023,6 +1023,7 @@ PERMISSIONS_CATALOG = [
     ("supplier_invoice.create", "Log supplier invoice",     "Supplier invoices", "supplier_invoice", "create"),
     ("supplier_invoice.edit",   "Edit supplier invoice",    "Supplier invoices", "supplier_invoice", "edit"),
     ("supplier_invoice.delete", "Delete supplier invoice",  "Supplier invoices", "supplier_invoice", "delete"),
+    ("invoicing.manage",        "Manage clients and rates", "Invoicing",         "invoicing",        "manage"),
     # Invoicing (facturation)
     ("invoicing.view", "View invoicing", "Invoicing", "invoicing", "view"),
     # Admin (super admin only — these aren't exposed in the role grid, just here for documentation)
@@ -1079,7 +1080,7 @@ SYSTEM_ROLES = {
         "carburant.view", "carburant.create", "carburant.manage",
         "stock.view", "stock.manage",
         "insights.view", "report.view", "report.export_pdf",
-        "invoicing.view",
+        "invoicing.view", "invoicing.manage",
     ]),
     "supervisor":    ("Supervisor",      False, [
         "dashboard.view",
