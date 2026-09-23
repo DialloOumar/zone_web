@@ -531,6 +531,8 @@ def _save_role(role):
     name = (request.form.get("name") or "").strip()
     description = (request.form.get("description") or "").strip()
     can_approve = request.form.get("can_approve") is not None
+    approves_logistics = request.form.get("approves_logistics") is not None
+    approves_finance = request.form.get("approves_finance") is not None
     if not name:
         return t.get("role.err.name_required", "Le nom est obligatoire.")
     clash = Role.query.filter(db.func.lower(Role.name) == name.lower())
@@ -541,17 +543,22 @@ def _save_role(role):
 
     if not _can_delegate_approval():
         can_approve = role.can_approve if role else False
+        approves_logistics = role.approves_logistics if role else False
+        approves_finance = role.approves_finance if role else False
 
     creating = role is None
     if creating:
         role = Role(name=name, slug=slugify(name), description=description or None,
-                    can_approve=can_approve, is_system=False, created_by=current_user.id)
+                    can_approve=can_approve, approves_logistics=approves_logistics,
+                    approves_finance=approves_finance, is_system=False, created_by=current_user.id)
         db.session.add(role)
         db.session.flush()
     else:
         role.name = name
         role.description = description or None
         role.can_approve = can_approve
+        role.approves_logistics = approves_logistics
+        role.approves_finance = approves_finance
 
     # Rebuild the role's permissions from the tri-state grid. Anything outside
     # the editor's reach (hidden modules, non-delegatable admin perms, powers

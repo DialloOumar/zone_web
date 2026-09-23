@@ -38,6 +38,20 @@
         <label for="contact">{{ t['invoice.contact'] }}</label>
     </div>
 
+    {# Printed on a bon de commande sent to them. #}
+    <div class="form-row">
+        <div class="field">
+            <input type="email" id="email" name="email" placeholder=" " autocapitalize="none"
+                   value="{{ request.form.get('email') or (row.email or '' if is_edit else '') }}">
+            <label for="email">{{ t['supplier.email'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="address" name="address" placeholder=" "
+                   value="{{ request.form.get('address') or (row.address or '' if is_edit else '') }}">
+            <label for="address">{{ t['supplier.address'] }}</label>
+        </div>
+    </div>
+
     <div class="field">
         <textarea id="note" name="note" placeholder=" " rows="2">{{ request.form.get('note') or (row.note or '' if is_edit else '') }}</textarea>
         <label for="note">{{ t['entry.note'] }}</label>
@@ -85,7 +99,7 @@
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
         </button>
-        <a href="{{ url_for('supplier_invoices.index', tab='fournisseurs') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+        <a href="{{ url_for('supplier_invoices.index', tab='fournisseurs') if has_perm('supplier_invoice.view') else url_for('supplier_invoices.suppliers') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
 

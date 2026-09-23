@@ -175,7 +175,7 @@
                 </td>
                 <td style="text-align:right; white-space:nowrap;">
                     {% if m.kind == 'sortie' %}−{% else %}+{% endif %}{{ m.quantity | qty }}
-                    <span class="muted small">{{ t['unit.' + m.part.unit] }}</span>
+                    <span class="muted small">{{ unit_label(m.part.unit) }}</span>
                 </td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">
                     {% if m.value is not none %}{{ m.value | num }} GNF{% else %}—{% endif %}

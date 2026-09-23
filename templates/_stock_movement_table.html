@@ -24,7 +24,7 @@
             <td>{{ m.part.name }}</td>
             <td style="text-align:right; font-weight:700; white-space:nowrap;">
                 {% if m.kind == 'sortie' %}−{% elif m.kind != 'inventaire' %}+{% endif %}{{ m.quantity | qty }}
-                <span class="muted small">{{ t['unit.' + m.part.unit] }}</span>
+                <span class="muted small">{{ unit_label(m.part.unit) }}</span>
             </td>
             <td class="col-secondary" style="text-align:right; white-space:nowrap;">
                 {% if m.value is not none %}{{ m.value | num }}{% else %}<span class="muted">—</span>{% endif %}
@@ -36,6 +36,8 @@
                     {% else %}<span class="muted">{{ t['mv.counted_match'] }}</span>{% endif %}
                 {% elif m.record and m.record.vehicle %}
                     {{ m.record.vehicle.code }}
+                {% elif m.purchase_line %}
+                    {{ m.supplier or '' }} <a href="{{ url_for('purchases.detail', oid=m.purchase_line.order_id) }}" class="muted small">{{ m.purchase_line.order.number }}</a>
                 {% else %}
                     {{ m.supplier or m.note or '—' }}
                 {% endif %}
@@ -63,7 +65,7 @@
             <span class="mv-chip {{ kind_chip.get(m.kind, 'mv-chip--gauge') }}">{{ t['mv.kind.' + m.kind] }}</span>
             <span class="list-card__amount">
                 {% if m.kind == 'sortie' %}−{% elif m.kind != 'inventaire' %}+{% endif %}{{ m.quantity | qty }}
-                <span class="muted small">{{ t['unit.' + m.part.unit] }}</span>
+                <span class="muted small">{{ unit_label(m.part.unit) }}</span>
             </span>
         </div>
         <div class="list-card__meta">

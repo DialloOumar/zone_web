@@ -1,0 +1,103 @@
+{# The units the store counts in, kept from a dialog over the store page:
+   one line per unit with its name to retype, and a line to add one. Every
+   form here posts by fetch and the dialog redraws itself; the page behind
+   is reloaded when the dialog closes, so the names it prints are current. #}
+<div class="units-modal">
+    {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+    <p class="muted small" style="margin:0 0 10px;">{{ t['punit.intro'] }}</p>
+
+    <form method="post" action="{{ url_for('stock.unit_new') }}" class="units-modal__new">
+        <input type="hidden" name="_list" value="1">
+        <input type="text" name="name" placeholder="{{ t['punit.name_ph'] }}" required maxlength="40" aria-label="{{ t['punit.name'] }}">
+        <button type="submit" class="btn btn--sm btn--primary"><span class="material-symbols-outlined">add</span> {{ t['punit.new'] }}</button>
+    </form>
+
+    <div class="table-wrap"><table class="data-table units-modal__table">
+        <tbody>
+            {% for u in units %}
+            {% set n = used.get(u.code, 0) %}
+            <tr {% if not u.is_active %}class="muted"{% endif %}>
+                <td>
+                    <form method="post" action="{{ url_for('stock.unit_edit', uid=u.id) }}" class="units-modal__rename">
+                        <input type="hidden" name="_list" value="1">
+                        <input type="text" name="name" value="{{ u.name }}" required maxlength="40" aria-label="{{ t['punit.name'] }}">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.save'] }}" aria-label="{{ t['btn.save'] }}"><span class="material-symbols-outlined">save</span></button>
+                    </form>
+                </td>
+                <td class="muted small" style="white-space:nowrap;">
+                    {% if not u.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
+                    {% if n %}{{ n }} {{ t['punit.parts'] }}{% endif %}
+                </td>
+                <td class="row-actions">
+                    {% if not u.is_active %}
+                    <form method="post" action="{{ url_for('stock.unit_action', uid=u.id, what='reactivate') }}">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% if not n %}
+                    <form method="post" action="{{ url_for('stock.unit_action', uid=u.id, what='delete') }}" data-ask="{{ t['list.delete_confirm'] }}">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% elif u.is_active %}
+                    <form method="post" action="{{ url_for('stock.unit_action', uid=u.id, what='archive') }}" data-ask="{{ t['list.archive_confirm'] }}">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+</div>
+
+<script>
+(function () {
+    var box = document.currentScript.previousElementSibling,
+        body = box.closest('.modal__body'),
+        overlay = box.closest('.modal-overlay');
+    if (!body) return;
+    var LIST_URL = {{ url_for('stock.units') | tojson }};
+    // The page behind prints unit names: once anything changed here, it is
+    // reloaded when the dialog closes.
+    function markChanged() {
+        if (overlay.dataset.unitsChanged) return;
+        overlay.dataset.unitsChanged = '1';
+        var closeBtn = overlay.querySelector('.modal__close');
+        if (closeBtn) closeBtn.addEventListener('click', function () { window.location.reload(); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.location.reload(); });
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) window.location.reload(); });
+    }
+    function redraw(html) {
+        body.innerHTML = html;
+        body.querySelectorAll('script').forEach(function (old) {
+            var s = document.createElement('script'); s.textContent = old.textContent; old.replaceWith(s);
+        });
+    }
+    function refresh() {
+        fetch(LIST_URL, { headers: { 'X-Requested-With': 'fetch' } })
+            .then(function (r) { return r.text(); }).then(redraw);
+    }
+    function send(form) {
+        fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'fetch' } })
+            .then(function (r) {
+                var ct = r.headers.get('content-type') || '';
+                if (ct.indexOf('application/json') >= 0) { markChanged(); return refresh(); }
+                return r.text().then(redraw);
+            });
+    }
+    box.querySelectorAll('form').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var ask = form.getAttribute('data-ask');
+            if (ask && window.confirmDialog) {
+                window.confirmDialog({ message: ask, danger: true }).then(function (ok) { if (ok) send(form); });
+                return;
+            }
+            if (ask && !window.confirm(ask)) return;
+            send(form);
+        });
+    });
+    var first = box.querySelector('.units-modal__new input[name=name]');
+    if (first && !box.querySelector('.alert')) first.focus();
+})();
+</script>

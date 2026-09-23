@@ -25,6 +25,18 @@
                    {% if (is_edit and role.can_approve) or (request.method == 'POST' and request.form.get('can_approve')) %}checked{% endif %}>
             <span>{{ t['role.can_approve_full'] }}</span>
         </label>
+        {# The two signatures on a bon de commande. #}
+        <label class="checkbox-item" style="max-width: 420px; margin-top: 8px;">
+            <input type="checkbox" name="approves_logistics"
+                   {% if (is_edit and role.approves_logistics) or (request.method == 'POST' and request.form.get('approves_logistics')) %}checked{% endif %}>
+            <span>{{ t['role.approves_logistics'] }}</span>
+        </label>
+        <label class="checkbox-item" style="max-width: 420px; margin-top: 8px;">
+            <input type="checkbox" name="approves_finance"
+                   {% if (is_edit and role.approves_finance) or (request.method == 'POST' and request.form.get('approves_finance')) %}checked{% endif %}>
+            <span>{{ t['role.approves_finance'] }}</span>
+        </label>
+        <div class="field-hint">{{ t['role.approves_hint'] }}</div>
         {% endif %}
     </section>
 

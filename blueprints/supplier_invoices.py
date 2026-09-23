@@ -27,12 +27,12 @@ from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
 
 import s3_storage
-from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
-                 modal_ok, parse_amount, require_perm)
+from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_action,
+                 modal_ok, parse_amount, require_any_perm, require_perm)
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
-from models import (CashAccount, Supplier, SupplierInvoice, SupplierPayment,
+from models import (CashAccount, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
                     Vehicle, db)
 
 supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
@@ -205,8 +205,16 @@ def _read_invoice_form():
     if amount <= 0:
         return None, t["invoice.err.amount"]
 
+    # The order it settles, if any: one of this supplier's, and approved.
+    po_id = request.form.get("purchase_order_id", type=int) or None
+    if po_id:
+        po = db.session.get(PurchaseOrder, po_id)
+        if not po or po.supplier_id != supplier_id or po.status not in ("approved", "received_partial", "received"):
+            return None, t["invoice.err.order"]
+
     return dict(
         supplier_id=supplier_id,
+        purchase_order_id=po_id,
         number=(request.form.get("number") or "").strip() or None,
         date=date_str,
         received_on=received_on or None,
@@ -264,8 +272,20 @@ def _apply_photo_change(inv):
 def _render_invoice_form(inv, error=None):
     tpl = "_invoice_form.html" if is_modal_request() else "invoice_form.html"
     status = 422 if (error and is_modal_request()) else 200
+    # Every approved order, for the form to narrow to the supplier picked;
+    # an order already on this bill stays offered whatever its state.
+    orders = (PurchaseOrder.query
+              .filter(db.or_(PurchaseOrder.status.in_(("approved", "received_partial", "received")),
+                             PurchaseOrder.id == (inv.purchase_order_id if inv else 0)))
+              .order_by(PurchaseOrder.date.desc(), PurchaseOrder.id.desc()).all())
+    orders_json = [dict(id=o.id, supplier_id=o.supplier_id, supplier=o.supplier.name,
+                        number=o.number, total=o.total, date=o.date)
+                   for o in orders]
+    # Opened from an order's page: that order and its supplier are set.
+    preset = db.session.get(PurchaseOrder, request.args.get("po", type=int) or 0) if inv is None else None
     return render_template(tpl, invoice=inv, error=error,
-                           suppliers=active_suppliers(),
+                           suppliers=active_suppliers(), orders_json=orders_json,
+                           preset_po=preset,
                            today=date.today().isoformat()), status
 
 
@@ -620,6 +640,8 @@ def _save_supplier(row):
         db.session.add(row)
     row.name = name
     row.contact = (request.form.get("contact") or "").strip() or None
+    row.email = (request.form.get("email") or "").strip().lower()[:120] or None
+    row.address = (request.form.get("address") or "").strip()[:200] or None
     row.note = (request.form.get("note") or "").strip() or None
     row.provides_machines = request.form.get("provides_machines") is not None
     # A new supplier is coded in its kind's series; one that changes kind moves
@@ -666,12 +688,43 @@ def _render_supplier_form(row, error=None):
 
 
 def _suppliers_url():
-    return url_for("supplier_invoices.index", tab="fournisseurs")
+    """Back to the suppliers list the user may open: the bills page's tab, or
+    the standalone page the store reaches."""
+    if has_perm("supplier_invoice.view"):
+        return url_for("supplier_invoices.index", tab="fournisseurs")
+    return url_for("supplier_invoices.suppliers")
+
+
+@supplier_invoices_bp.route("/fournisseurs")
+@login_required
+@require_any_perm("supplier_invoice.view", "stock.view")
+def suppliers():
+    """The one list of suppliers, on its own page: the store buys from the
+    same people accounting pays, so it reaches the same list. What each is
+    owed is only shown to whoever may see the bills."""
+    kind = request.args.get("kind", "")
+    if kind not in SUPPLIER_KINDS:
+        kind = ""
+    sq = Supplier.query
+    if kind:
+        sq = sq.filter(Supplier.kind == kind)
+    rows = sq.order_by(*_by_kind_then_name()).all()
+    owed = {}
+    if has_perm("supplier_invoice.view"):
+        owed_rows = (db.session.query(
+            SupplierInvoice.supplier_id,
+            db.func.count(SupplierInvoice.id),
+            db.func.coalesce(db.func.sum(SupplierInvoice.amount - _paid_expr()), 0))
+            .group_by(SupplierInvoice.supplier_id).all())
+        owed = {r[0]: {"count": int(r[1]), "remaining": int(r[2] or 0)} for r in owed_rows}
+    return render_template("suppliers.html", suppliers=rows, owed=owed,
+                           supplier_kinds=SUPPLIER_KINDS, kind=kind,
+                           can_manage=has_perm("supplier_invoice.create") or has_perm("stock.manage"))
 
 
 @supplier_invoices_bp.route("/fournisseurs/nouveau", methods=["GET", "POST"])
 @login_required
-@require_perm("supplier_invoice.create")
+@require_any_perm("supplier_invoice.create", "stock.manage")
 def supplier_new():
     if request.method == "POST":
         error = _save_supplier(None)
@@ -684,7 +737,7 @@ def supplier_new():
 
 @supplier_invoices_bp.route("/fournisseurs/<int:sid>/modifier", methods=["GET", "POST"])
 @login_required
-@require_perm("supplier_invoice.create")
+@require_any_perm("supplier_invoice.create", "stock.manage")
 def supplier_edit(sid):
     row = db.session.get(Supplier, sid)
     if not row:
@@ -701,7 +754,7 @@ def supplier_edit(sid):
 @supplier_invoices_bp.route(
     "/fournisseurs/<int:sid>/<any(archive,reactivate,delete):what>", methods=["POST"])
 @login_required
-@require_perm("supplier_invoice.create")
+@require_any_perm("supplier_invoice.create", "stock.manage")
 def supplier_action(sid, what):
     """Archive takes it out of the pickers and leaves its invoices named;
     delete is only for one that has never been billed against."""

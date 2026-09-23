@@ -123,6 +123,10 @@ class Role(db.Model):
     description = db.Column(db.String(255), nullable=True)
     is_system   = db.Column(db.Boolean,     nullable=False, default=False)
     can_approve = db.Column(db.Boolean,     nullable=False, default=False)
+    # Who signs a purchase order: the two signatures on the company's paper
+    # bon de commande. A holder of a role with the box gives that approval.
+    approves_logistics = db.Column(db.Boolean, nullable=False, default=False)
+    approves_finance   = db.Column(db.Boolean, nullable=False, default=False)
     is_active   = db.Column(db.Boolean,     nullable=False, default=True)  # soft delete = archive
     created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
@@ -704,6 +708,8 @@ class Supplier(db.Model):
     kind       = db.Column(db.String(10),  nullable=False, default="divers")
     code       = db.Column(db.String(12),  nullable=False, unique=True)
     contact    = db.Column(db.String(80))                   # phone, or whoever answers
+    email      = db.Column(db.String(120))                  # printed on a bon de commande
+    address    = db.Column(db.String(200))
     note       = db.Column(db.String(255))
     # Leases machines to the company and bills their hours and trips -- the
     # ones the daily entries record. Stored, not derived from having machines:
@@ -780,11 +786,15 @@ class SupplierInvoice(db.Model):
     currency    = db.Column(db.String(5),  nullable=False, default="GNF")
     description = db.Column(db.String(255))
     photo_key   = db.Column(db.String(200))                 # S3 photo of the paper
+    # The purchase order this bill settles, when it came from one: what was
+    # ordered, received and billed can then be read side by side.
+    purchase_order_id = db.Column(db.Integer, db.ForeignKey("purchase_orders.id"), nullable=True, index=True)
 
     created_by = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     supplier = db.relationship("Supplier")
+    purchase_order = db.relationship("PurchaseOrder", backref=db.backref("invoices", order_by="SupplierInvoice.date"))
     payments = db.relationship(
         "SupplierPayment", back_populates="invoice",
         order_by="SupplierPayment.date",
@@ -1345,6 +1355,21 @@ class FuelMovement(db.Model):
 # ── Parts store ───────────────────────────────────────────────────────────────
 
 
+class PartUnit(db.Model):
+    """A unit the store counts in -- pièce, litre, kg, jeu -- kept by the
+    store itself. A part stores the unit's code; the name is what every
+    screen prints. The four starters are seeded; the rest is theirs to add.
+    A unit some part counts in is archived, never deleted."""
+    __tablename__ = "part_units"
+
+    id         = db.Column(db.Integer,    primary_key=True)
+    code       = db.Column(db.String(20), nullable=False, unique=True)
+    name       = db.Column(db.String(40), nullable=False, unique=True)
+    sort_order = db.Column(db.Integer,    nullable=False, default=0)
+    is_active  = db.Column(db.Boolean,    nullable=False, default=True)
+    created_at = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+
+
 class Part(db.Model):
     """A maintenance part held in the workshop store (one store for the whole
     company, not per fleet).
@@ -1358,6 +1383,11 @@ class Part(db.Model):
     id            = db.Column(db.Integer,     primary_key=True)
     name          = db.Column(db.String(120), nullable=False)                  # e.g. Filtre à huile Perkins
     unit          = db.Column(db.String(20),  nullable=False, default="piece")  # piece | litre | kg | set
+    # What the supplier sells it in, when that is not the unit the store
+    # counts: a "fût" of 200 litres. An order may then be written per pack,
+    # and the receipt converts it back to litres.
+    pack_name     = db.Column(db.String(40),  nullable=True)
+    pack_size     = db.Column(db.Float,       nullable=True)   # how many units one pack holds
     reorder_level = db.Column(db.Float,       nullable=True)   # below this, the list flags it to re-order
     photo_key     = db.Column(db.String(200), nullable=True)
     is_active     = db.Column(db.Boolean,     nullable=False, default=True)     # soft delete = archive
@@ -1486,6 +1516,9 @@ class StockMovement(db.Model):
     note        = db.Column(db.String(255), nullable=True)
     # Set on a sortie (or a retour): the service the parts went to
     maintenance_record_id = db.Column(db.Integer, db.ForeignKey("maintenance_records.id"), nullable=True)
+    # Set when this receipt came in against a purchase order line. Its money
+    # side is the supplier's bill, not a cash-box expense.
+    purchase_line_id = db.Column(db.Integer, db.ForeignKey("purchase_order_lines.id"), nullable=True)
     created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
@@ -1579,6 +1612,110 @@ class FinanceSetting(db.Model):
     value      = db.Column(db.String(60),  nullable=True)   # empty = decided by hand, line by line
     updated_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+
+
+# ── Bons de commande ─────────────────────────────────────────────────────────
+
+
+class PurchaseOrder(db.Model):
+    """What the store orders from a supplier, and who signed it.
+
+    Two signatures, as on the company's paper order: logistics, then
+    finance, each a user and a time. The status follows them: pending
+    logistics, pending finance, approved; or rejected, with who, when and
+    why. Totals are stored when the lines are written, so the register
+    never adds them up row by row.
+    """
+    __tablename__ = "purchase_orders"
+
+    id             = db.Column(db.Integer,     primary_key=True)
+    number         = db.Column(db.String(20),  nullable=False, unique=True)   # BC-2026-001
+    supplier_id    = db.Column(db.Integer,     db.ForeignKey("suppliers.id"), nullable=False, index=True)
+    date           = db.Column(db.String(10),  nullable=False)
+    status         = db.Column(db.String(20),  nullable=False, default="pending_logistics")
+    requested_by   = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    requester_name = db.Column(db.String(120), nullable=True)    # copied in, for the sheet
+    requester_phone = db.Column(db.String(60), nullable=True)
+    logistics_by   = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    logistics_at   = db.Column(db.DateTime,    nullable=True)
+    finance_by     = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    finance_at     = db.Column(db.DateTime,    nullable=True)
+    rejected_by    = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    rejected_at    = db.Column(db.DateTime,    nullable=True)
+    rejected_reason = db.Column(db.String(255), nullable=True)
+    rejections     = db.Column(db.Integer,     nullable=False, default=0)   # how many times it was sent back
+    total_gross    = db.Column(db.Integer,     nullable=False, default=0)   # before discounts
+    total_discount = db.Column(db.Integer,     nullable=False, default=0)
+    total          = db.Column(db.Integer,     nullable=False, default=0)
+    note           = db.Column(db.String(255), nullable=True)
+    created_at     = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    supplier         = db.relationship("Supplier")
+    requester        = db.relationship("User", foreign_keys=[requested_by])
+    logistics_signer = db.relationship("User", foreign_keys=[logistics_by])
+    finance_signer   = db.relationship("User", foreign_keys=[finance_by])
+    rejecter         = db.relationship("User", foreign_keys=[rejected_by])
+    lines = db.relationship("PurchaseOrderLine", back_populates="order",
+                            cascade="all, delete-orphan", order_by="PurchaseOrderLine.id")
+
+    @property
+    def received_value(self):
+        """What has come in, priced as the lines were: received units × the
+        line's unit cost, plus a non-stock line once it is ticked off."""
+        total = 0
+        for l in self.lines:
+            if l.part_id:
+                total += int(round((l.received_qty or 0) * l.stock_unit_price))
+            elif l.received_qty:
+                total += l.amount
+        return total
+
+    @property
+    def invoiced_total(self):
+        return sum(i.amount or 0 for i in self.invoices)
+
+
+class PurchaseOrderLine(db.Model):
+    """One line: a part from the catalogue or a free description, the
+    quantity, the unit price, the discount as an amount, and the line's
+    amount after it."""
+    __tablename__ = "purchase_order_lines"
+
+    id          = db.Column(db.Integer,     primary_key=True)
+    order_id    = db.Column(db.Integer,     db.ForeignKey("purchase_orders.id"), nullable=False, index=True)
+    part_id     = db.Column(db.Integer,     db.ForeignKey("parts.id"), nullable=True)
+    description = db.Column(db.String(160), nullable=False)
+    reference   = db.Column(db.String(60),  nullable=True)
+    quantity    = db.Column(db.Float,       nullable=False)   # in packs when in_pack, else in the part's unit
+    in_pack     = db.Column(db.Boolean,     nullable=False, default=False)
+    unit_price  = db.Column(db.Integer,     nullable=False)   # GNF, per pack or per unit likewise
+    discount    = db.Column(db.Integer,     nullable=False, default=0)   # GNF, on the line
+    amount      = db.Column(db.Integer,     nullable=False)   # quantity × price − discount
+    received_qty = db.Column(db.Float,      nullable=False, default=0)   # in the part's unit
+    # For a line that is a new article, not yet in the catalogue: the unit it
+    # will be counted in once it is created at receipt.
+    new_unit    = db.Column(db.String(20),  nullable=True)
+
+    order = db.relationship("PurchaseOrder", back_populates="lines")
+    part  = db.relationship("Part")
+    receipts = db.relationship("StockMovement", backref="purchase_line")
+
+    @property
+    def stock_qty(self):
+        """The line in the store's own unit: packs × contents when bought
+        per pack, the quantity itself otherwise."""
+        if self.in_pack and self.part and self.part.pack_size:
+            return self.quantity * self.part.pack_size
+        return self.quantity
+
+    @property
+    def remaining_qty(self):
+        return max(self.stock_qty - (self.received_qty or 0), 0)
+
+    @property
+    def stock_unit_price(self):
+        """What one unit of stock cost on this line, discount included."""
+        return int(round(self.amount / self.stock_qty)) if self.stock_qty else self.unit_price
 
 
 # ── Config & system ───────────────────────────────────────────────────────────

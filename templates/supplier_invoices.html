@@ -123,98 +123,7 @@
     </div>
 
     {% if tab == 'fournisseurs' %}
-    <form method="get" class="filter-bar filter-bar--live" style="margin-bottom:10px;">
-        <input type="hidden" name="tab" value="fournisseurs">
-        <label class="filter-date">
-            <span>{{ t['supplier.kind'] }}</span>
-            <select name="kind" onchange="this.form.submit()">
-                <option value="">{{ t['supplier.all_kinds'] }}</option>
-                {% for k in supplier_kinds %}
-                <option value="{{ k }}" {% if k == kind %}selected{% endif %}>{{ t['supplier.kind.' + k] }}</option>
-                {% endfor %}
-            </select>
-        </label>
-    </form>
-    {% if suppliers %}
-    <div class="table-wrap"><table class="data-table">
-        {# One thing per column: what a row is scanned for -- its code, its
-           kind, whether it leases machines -- each in its own place rather
-           than a heap of badges in the first cell. #}
-        <thead>
-            <tr>
-                <th>{{ t['supplier.code'] }}</th>
-                <th>{{ t['invoice.supplier'] }}</th>
-                <th>{{ t['supplier.kind'] }}</th>
-                <th>{{ t['invoice.contact'] }}</th>
-                <th>{{ t['supplier.machines'] }}</th>
-                <th style="text-align:right;">{{ t['invoice.remaining'] }}</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for s in suppliers %}
-            {% set o = owed.get(s.id) %}
-            <tr>
-                <td style="white-space:nowrap;"><span class="chip">{{ s.code }}</span></td>
-                <td>
-                    <strong {% if not s.is_active %}class="muted"{% endif %}>{{ s.name }}</strong>
-                    {% if not s.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
-                    {% if s.note %}<div class="muted small">{{ s.note }}</div>{% endif %}
-                </td>
-                <td><span class="badge {{ 'badge--active' if s.kind == 'permanent' else 'badge--inactive' }}">{{ t['supplier.kind.' + s.kind] }}</span></td>
-                <td>{% if s.contact %}{{ s.contact }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
-                <td style="white-space:nowrap;">
-                    {% if s.provides_machines %}
-                    <span class="badge badge--info">{{ s.live_machines | length }} {{ t['supplier.machines'] | lower }}</span>
-                    {% if has_perm('entry.view') %}
-                    <a href="{{ url_for('entries.supplier', sid=s.id) }}" class="btn btn--sm btn--tonal" style="margin-left:6px;">
-                        <span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_btn'] }}
-                    </a>
-                    {% endif %}
-                    {% else %}<span class="muted">&mdash;</span>{% endif %}
-                </td>
-                <td style="text-align:right; white-space:nowrap;">
-                    {% if o and o.remaining > 0 %}
-                    <strong class="stock-negative">{{ o.remaining | num }} {{ currency }}</strong>
-                    {% elif o %}<span class="muted">{{ t['invoice.all_settled'] }}</span>
-                    {% else %}<span class="muted">&mdash;</span>{% endif %}
-                    {% if o %}<div class="muted small">{{ o.count }} {{ t['invoice.count'] }}</div>{% endif %}
-                </td>
-                <td class="row-actions">
-                    {% if has_perm('supplier_invoice.create') %}
-                    <a href="{{ url_for('supplier_invoices.supplier_edit', sid=s.id) }}" class="btn btn--sm btn--tonal btn--icon"
-                       data-modal-url="{{ url_for('supplier_invoices.supplier_edit', sid=s.id) }}" data-modal-title="{{ t['invoice.supplier_edit'] }}"
-                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
-                    {% if not s.is_active %}
-                    <form method="post" action="{{ url_for('supplier_invoices.supplier_action', sid=s.id, what='reactivate') }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
-                    </form>
-                    {% endif %}
-                    {% if not o %}
-                    {# No bill has ever named it, so there is no history to keep. #}
-                    <form method="post" action="{{ url_for('supplier_invoices.supplier_action', sid=s.id, what='delete') }}"
-                          data-confirm="{{ t['list.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
-                    </form>
-                    {% elif s.is_active %}
-                    <form method="post" action="{{ url_for('supplier_invoices.supplier_action', sid=s.id, what='archive') }}"
-                          data-confirm="{{ t['list.archive_confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
-                    </form>
-                    {% endif %}
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table></div>
-    {% else %}
-    <div class="empty-state">
-        <span class="material-symbols-outlined">store</span>
-        <p>{{ t['invoice.suppliers_empty'] }}</p>
-    </div>
-    {% endif %}
-
+    {% include "_suppliers_table.html" %}
     {% else %}
     {% if invoices %}
     <div class="table-desktop">
@@ -243,6 +152,7 @@
                     <span class="muted small">{{ inv.supplier.code }}</span>
                     <strong>{{ inv.supplier.name }}</strong>
                     {% if inv.number %}<div class="muted small">{{ t['invoice.number_short'] }} {{ inv.number }}</div>{% endif %}
+                    {% if inv.purchase_order %}<div class="muted small"><a href="{{ url_for('purchases.detail', oid=inv.purchase_order_id) }}">{{ inv.purchase_order.number }}</a></div>{% endif %}
                 </td>
                 <td>
                     {% if inv.description %}{{ inv.description }}{% else %}<span class="muted">&mdash;</span>{% endif %}

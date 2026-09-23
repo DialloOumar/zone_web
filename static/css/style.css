@@ -485,6 +485,52 @@ a:hover { text-decoration: underline; }
 .list-filter:focus { border-color: var(--md-primary); outline: none; }
 [hidden] { display: none !important; }
 
+/* Purchase order lines editor */
+.po-lines td { vertical-align: middle; padding: 6px 6px; }
+.po-lines input[type="text"], .po-lines input[type="number"] {
+    width: 100%; min-width: 70px; height: 38px; padding: 0 10px;
+    border: 1px solid var(--md-outline); border-radius: 8px;
+    background: var(--md-surface); color: var(--md-on-surface); font: inherit; font-size: 0.875rem;
+}
+.po-lines input.r { text-align: right; }
+.po-lines input:focus { border-color: var(--md-primary); outline: none; }
+.po-lines .po-amount { font-weight: 600; white-space: nowrap; }
+.po-lines th.r, .po-lines td.r { text-align: right; }
+.po-lines tfoot td { border-top: none; }
+.po-qty { white-space: nowrap; }
+.po-qty input { width: 90px !important; min-width: 0 !important; display: inline-block; vertical-align: middle; }
+.po-unit { height: 38px; margin-left: 4px; padding: 0 8px; border: 1px solid var(--md-outline); border-radius: 8px;
+           background: var(--md-surface); color: var(--md-on-surface); font: inherit; font-size: 0.85rem; vertical-align: middle; }
+.po-stock-col { width: 1%; text-align: center; white-space: nowrap; }
+.po-stock-box { width: 18px; height: 18px; accent-color: var(--md-primary); vertical-align: middle; }
+.po-combo { position: relative; display: flex; align-items: center; }
+.po-combo input[type="text"] { padding-right: 34px !important; }
+.po-combo__toggle { position: absolute; right: 2px; top: 2px; bottom: 2px; width: 30px; border: none; background: transparent;
+                    color: var(--md-on-surface-variant); cursor: pointer; border-radius: 6px; display: none; align-items: center; justify-content: center; }
+.po-combo__toggle .material-symbols-outlined { font-size: 20px; }
+.po-line.is-stock .po-combo__toggle { display: inline-flex; }
+.po-combo__toggle:hover { background: var(--md-surface-container-high); }
+.po-combo__list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; max-height: 240px; overflow-y: auto;
+                  background: var(--md-surface-container); border-radius: var(--shape-md); box-shadow: var(--elev-3); padding: 4px; }
+.po-combo__item { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 0.875rem; }
+.po-combo__item small { color: var(--md-on-surface-variant); white-space: nowrap; }
+.po-combo__item:hover { background: var(--md-surface-container-high); }
+.po-combo__empty { padding: 8px 10px; color: var(--md-on-surface-variant); font-size: 0.8rem; }
+.po-new-unit { margin-left: 4px; }
+.po-line.is-stock .po-new-unit { display: none; }
+.units-modal__new { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+.units-modal__new input, .units-modal__rename input {
+    flex: 1; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid var(--md-outline); border-radius: 8px;
+    background: var(--md-surface); color: var(--md-on-surface); font: inherit; font-size: 0.875rem;
+}
+.units-modal__new input:focus, .units-modal__rename input:focus { border-color: var(--md-primary); outline: none; }
+.units-modal__rename { display: flex; gap: 6px; align-items: center; }
+.units-modal__table td { vertical-align: middle; }
+.po-line-kind { margin-top: 3px; }
+.po-line-kind--free { color: var(--c-amber); }
+.po-reject summary { list-style: none; display: inline-flex; cursor: pointer; }
+.po-reject summary::-webkit-details-marker { display: none; }
+
 /* User block at the foot of the drawer */
 .sidebar-user {
     margin-top: 8px;

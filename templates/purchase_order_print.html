@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+{# The purchase order as a sheet (purchases.print_sheet), after the company's
+   own: the logo band and the title, the number and date, who submitted it,
+   the supplier, the lines with their discount, the totals, and the two
+   signature blocks naming who signed and when. Standalone, prints itself. #}
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ t['po.print_title'] }} {{ po.number }} — {{ co.company_name or t['app.title'] }}</title>
+<style>
+    @page { size: A4 landscape; margin: 1.3cm 1.5cm; }
+    * { box-sizing: border-box; }
+    .band, .lines thead th, .lines tfoot .total td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; margin: 0; line-height: 1.4; }
+    .r { text-align: right; font-variant-numeric: tabular-nums; }
+    .pre { white-space: pre-line; }
+    .head { display: flex; align-items: stretch; gap: 0; margin-bottom: 14px; }
+    .head .logo { flex: 0 0 auto; padding-right: 18px; display: flex; flex-direction: column; justify-content: center; }
+    .brand-logo { height: 48px; width: auto; display: block; }
+    .co-lines { font-size: 9px; color: #555; margin-top: 4px; line-height: 1.4; }
+    .band { flex: 1; background: #E8712B; color: #fff; display: flex; align-items: center; justify-content: flex-end; padding: 0 20px; font-size: 24px; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; }
+    .meta { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 14px; }
+    .meta table { border-collapse: collapse; }
+    .meta td { padding: 3px 12px 3px 0; font-size: 10.5px; vertical-align: top; }
+    .meta td:first-child { color: #555; width: 120px; }
+    .meta td:last-child { font-weight: 600; border-bottom: 1px solid #ddd; min-width: 220px; }
+    .meta .right td:first-child { width: 90px; }
+    .lines { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    .lines thead th { background: #7EC0EE; color: #0F2B4C; padding: 8px 8px; font-size: 10px; font-weight: 700; text-align: left; border: 1px solid #bcd; }
+    .lines thead th.r { text-align: right; }
+    .lines td { padding: 8px 8px; border: 1px solid #ccd; vertical-align: top; }
+    .lines .num { text-align: center; width: 48px; }
+    .lines tfoot td { font-weight: 700; }
+    .lines tfoot .total td { background: #f2f4f7; font-size: 12.5px; }
+    .signs { display: flex; justify-content: space-between; gap: 40px; margin-top: 34px; }
+    .sign { flex: 1; max-width: 300px; }
+    .sign .who { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #333; }
+    .sign .name { margin-top: 44px; border-top: 1px solid #333; padding-top: 4px; font-size: 10px; }
+    .sign .name small { display: block; color: #555; }
+    .foot { margin-top: 18px; font-size: 8.5px; color: #666; text-align: center; }
+    @media screen {
+        html { background: #eef1f6; }
+        body { max-width: 29.7cm; margin: 16px auto 40px; padding: 1.3cm 1.5cm; background: #fff; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.28), 0 1px 3px 1px rgba(0,0,0,.10); }
+        .print-toolbar { position: sticky; top: 0; z-index: 10; display: flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap;
+                         margin: -1.3cm -1.5cm 20px; padding: 12px 1.5cm; border-radius: 12px 12px 0 0;
+                         background: #0F74BC; color: #fff; font-size: 13px; font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; }
+        .print-toolbar__hint { margin-right: auto; font-size: 12px; color: #d4e9fb; }
+        .print-toolbar a, .print-toolbar button { font: inherit; font-weight: 500; cursor: pointer; border-radius: 999px; padding: 7px 16px; border: 1px solid rgba(255,255,255,.55); background: transparent; color: #fff; text-decoration: none; }
+        .print-toolbar button { background: #fff; border-color: #fff; color: #0F74BC; font-weight: 700; }
+        @media (max-width: 820px) {
+            body { margin: 0; padding: 12px 14px 32px; border-radius: 0; box-shadow: none; }
+            .print-toolbar { margin: -12px -14px 16px; padding: 10px 14px; border-radius: 0; }
+            .head, .meta, .signs { flex-direction: column; }
+            .band { padding: 10px 14px; font-size: 18px; justify-content: flex-start; }
+            .doc-table { overflow-x: auto; }
+        }
+    }
+    @media print { .print-toolbar { display: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="print-toolbar">
+    <span class="print-toolbar__hint">{{ t['export.print_hint'] }}</span>
+    <a href="{{ url_for('purchases.detail', oid=po.id) }}">{{ t['btn.cancel'] }}</a>
+    <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
+</div>
+
+<div class="head">
+    <div class="logo">
+        <img class="brand-logo" src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ co.company_name or t['app.title'] }}">
+        {% if co.company_name %}<div class="co-lines"><b>{{ co.company_name }}</b>{% if co.company_phone %} · {{ co.company_phone }}{% endif %}{% if co.company_email %} · {{ co.company_email }}{% endif %}</div>{% endif %}
+    </div>
+    <div class="band">{{ t['po.print_title'] }}</div>
+</div>
+
+<div class="meta">
+    <table>
+        <tr><td>{{ t['po.print_submitted_by'] }}</td><td>{{ po.requester_name or '' }}</td></tr>
+        <tr><td>{{ t['cset.company_phone'] }}</td><td>{{ po.requester_phone or '' }}</td></tr>
+        <tr><td>{{ t['invoice.supplier'] }}</td><td>{{ po.supplier.name }}</td></tr>
+        {% if po.supplier.contact %}<tr><td>{{ t['invoice.contact'] }}</td><td>{{ po.supplier.contact }}</td></tr>{% endif %}
+        {% if po.supplier.email %}<tr><td>{{ t['supplier.email'] }}</td><td>{{ po.supplier.email }}</td></tr>{% endif %}
+        {% if po.supplier.address %}<tr><td>{{ t['supplier.address'] }}</td><td>{{ po.supplier.address }}</td></tr>{% endif %}
+    </table>
+    <table class="right">
+        <tr><td>N°</td><td>{{ po.number }}</td></tr>
+        <tr><td>{{ t['po.date'] }}</td><td>{{ po.date }}</td></tr>
+    </table>
+</div>
+
+<div class="doc-table">
+<table class="lines">
+    <thead>
+        <tr>
+            <th class="num">{{ t['po.print_article'] }}</th>
+            <th>{{ t['po.line_part'] }}</th>
+            <th>{{ t['po.line_reference'] }}</th>
+            <th class="r">{{ t['po.line_qty'] }}</th>
+            <th class="r">{{ t['po.line_price'] }} ({{ currency }})</th>
+            <th class="r">{{ t['po.line_discount'] }}</th>
+            <th class="r">{{ t['cinv.amount'] }} ({{ currency }})</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for l in po.lines %}
+        <tr>
+            <td class="num">{{ loop.index }}</td>
+            <td>{{ l.description }}</td>
+            <td>{{ l.reference or '' }}</td>
+            <td class="r">{{ l.quantity | qty }}{% if l.in_pack %} {{ l.part.pack_name }} ({{ l.stock_qty | qty }} {{ unit_label(l.part.unit) }}){% elif l.part %} {{ unit_label(l.part.unit) }}{% elif l.new_unit %} {{ unit_label(l.new_unit) }}{% endif %}</td>
+            <td class="r">{{ l.unit_price | num }}</td>
+            <td class="r">{% if l.discount %}{{ l.discount | num }}{% endif %}</td>
+            <td class="r">{{ l.amount | num }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        {% if po.total_discount %}
+        <tr><td colspan="6" class="r">{{ t['po.subtotal'] }}</td><td class="r">{{ po.total_gross | num }}</td></tr>
+        <tr><td colspan="6" class="r">{{ t['po.total_discount'] }}</td><td class="r">− {{ po.total_discount | num }}</td></tr>
+        {% endif %}
+        <tr class="total"><td colspan="6" class="r">TOTAL</td><td class="r">{{ po.total | num }} {{ currency }}</td></tr>
+    </tfoot>
+</table>
+</div>
+
+{% if po.note %}<p style="margin-top:10px; font-size:10.5px;"><b>{{ t['entry.note'] }} :</b> {{ po.note }}</p>{% endif %}
+
+<div class="signs">
+    <div class="sign">
+        <div class="who">{{ t['po.sign.logistics'] }}</div>
+        <div class="name">{% if po.logistics_at %}{{ po.logistics_signer.full_name if po.logistics_signer else '' }}<small>{{ t['po.signed'] }} {{ po.logistics_at.strftime('%d/%m/%Y') }}</small>{% else %}&nbsp;{% endif %}</div>
+    </div>
+    <div class="sign">
+        <div class="who">{{ t['po.sign.finance'] }}</div>
+        <div class="name">{% if po.finance_at %}{{ po.finance_signer.full_name if po.finance_signer else '' }}<small>{{ t['po.signed'] }} {{ po.finance_at.strftime('%d/%m/%Y') }}</small>{% else %}&nbsp;{% endif %}</div>
+    </div>
+</div>
+
+<div class="foot">{% if co.company_name %}{{ co.company_name }}{% endif %}{% if co.company_address %} · {{ co.company_address.replace('\n', ', ') }}{% endif %}{% if co.company_nif %} · NIF {{ co.company_nif }}{% endif %}{% if co.company_rccm %} · RCCM {{ co.company_rccm }}{% endif %}</div>
+
+<script>
+(function () {
+    if (window.matchMedia && window.matchMedia("print").matches) return;
+    window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 120); });
+})();
+</script>
+</body>
+</html>

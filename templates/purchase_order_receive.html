@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['po.receive'] }} {{ po.number }}{% endblock %}
+{% block page_title %}{{ t['po.receive'] }} · {{ po.number }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('purchases.detail', oid=po.id) }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ po.number }} · {{ po.supplier.name }}</h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:64ch;">{{ t['po.receive_intro'] }}</p>
+        </div>
+    </div>
+    {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+
+    <form method="post" class="entry-form">
+        <div class="field" style="max-width:220px;">
+            <input type="date" id="date" name="date" placeholder=" " required value="{{ request.form.get('date') or today }}">
+            <label for="date">{{ t['po.receive_date'] }}</label>
+        </div>
+
+        <div class="table-wrap"><table class="data-table po-lines">
+            <thead>
+                <tr>
+                    <th>{{ t['po.line_part'] }}</th>
+                    <th class="r">{{ t['po.ordered'] }}</th>
+                    <th class="r">{{ t['po.already_received'] }}</th>
+                    <th class="r">{{ t['po.receive_qty'] }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in po.lines %}
+                {% set unit = (unit_label(l.part.unit) if l.part else unit_label(l.new_unit or 'piece')) %}
+                <tr>
+                    <td><strong>{{ l.description }}</strong>{% if l.reference %}<div class="muted small">{{ l.reference }}</div>{% endif %}
+                        {% if not l.part and l.remaining_qty > 0 %}
+                        {# A new article: created in the catalogue as it comes in, in the
+                           unit the order gave it. Untick for something that is not stock. #}
+                        <div class="muted small">{{ t['po.will_create'] % (unit_label(l.new_unit or 'piece')) }}</div>
+                        <label class="checkbox-item" style="margin-top:4px;">
+                            <input type="checkbox" name="skip_{{ l.id }}" value="1" {% if request.form.get('skip_' ~ l.id) %}checked{% endif %}>
+                            <span>{{ t['po.skip_stock'] }}</span>
+                        </label>
+                        {% elif not l.part %}<div class="muted small">{{ t['po.no_stock_line'] }}</div>{% endif %}</td>
+                    <td class="r" style="white-space:nowrap;">{{ l.quantity | qty }}
+                        {% if l.in_pack %}{{ l.part.pack_name }} <span class="muted small">= {{ l.stock_qty | qty }} {{ unit }}</span>{% else %}{{ unit }}{% endif %}</td>
+                    <td class="r" style="white-space:nowrap;">{{ l.received_qty | qty }} {{ unit }}</td>
+                    <td class="r po-qty">
+                        {% if l.remaining_qty > 0 %}
+                        <input type="number" name="recv_{{ l.id }}" min="0" max="{{ l.remaining_qty | qty }}" step="any" class="r"
+                               value="{{ request.form.get('recv_' ~ l.id) if request.method == 'POST' else (l.remaining_qty | qty) }}"> {{ unit }}
+                        {% else %}<span class="badge badge--active">{{ t['po.status.received'] }}</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table></div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">
+                <span class="material-symbols-outlined">inventory</span> {{ t['po.receive'] }}
+            </button>
+            <a href="{{ url_for('purchases.detail', oid=po.id) }}" class="btn btn--outlined">{{ t['btn.cancel'] }}</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

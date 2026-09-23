@@ -188,6 +188,8 @@ def _inject_globals():
         "vehicle_image": _vehicle_image,
         # The name of a stored expense category, for the rows that still carry one.
         "category_label": _category_label,
+        # The name of a unit the store counts in, from its code.
+        "unit_label": _unit_label,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
         # Shows the Exploitation / Finance switcher at the top of the drawer.
         "finance_visible": can_enter_finance(),
@@ -228,6 +230,20 @@ def _vehicle_image(v):
                                v=drawing_tag(cat.default_image, v.code)),
                 "drawing": True}
     return None
+
+
+def _unit_label(code):
+    """"pièce" for "piece": the store's own name for a unit, read once per
+    request. A code the table no longer has falls back to the old built-in
+    label, then to the code itself."""
+    if not code:
+        return ""
+    names = getattr(g, "_unit_names", None)
+    if names is None:
+        from models import PartUnit
+        names = {u.code: u.name for u in PartUnit.query.all()}
+        g._unit_names = names
+    return names.get(code) or get_t().get("unit." + code, code)
 
 
 def _page_args():
@@ -1078,6 +1094,25 @@ INVOICE_SETTING_DEFAULTS = [
 ]
 
 
+# The units the store starts with. Their codes are what parts already carry,
+# so an existing database keeps counting the same way; the names are the
+# store's to change.
+DEFAULT_PART_UNITS = [("piece", "pièce"), ("litre", "litre"), ("kg", "kg"), ("set", "jeu")]
+
+
+def _seed_part_units_data():
+    """Write each starter unit the table does not have yet. Idempotent: a
+    unit renamed or archived by the store is never touched."""
+    from models import PartUnit
+    added = 0
+    for order, (code, name) in enumerate(DEFAULT_PART_UNITS):
+        if not PartUnit.query.filter_by(code=code).first():
+            db.session.add(PartUnit(code=code, name=name, sort_order=order))
+            added += 1
+    db.session.commit()
+    return added
+
+
 def _seed_invoice_settings_data():
     """Write each invoice setting that does not exist yet, with what the
     company's current bills say. Idempotent: a value someone changed on the
@@ -1412,6 +1447,10 @@ def seed_cmd():
     # 6. What the printed client invoice says about the company
     added = _seed_invoice_settings_data()
     click.echo(f"  invoice settings: {added} added")
+
+    # 7. The units the store counts in
+    added = _seed_part_units_data()
+    click.echo(f"  part units: {added} added")
 
     click.echo("Seed complete.")
 
@@ -2036,6 +2075,7 @@ from blueprints.supplier_invoices import supplier_invoices_bp  # noqa: E402
 from blueprints.staff import staff_bp  # noqa: E402
 from blueprints.accounts import accounts_bp  # noqa: E402  (imports expenses)
 from blueprints.finance import finance_bp  # noqa: E402
+from blueprints.purchases import purchases_bp  # noqa: E402  (imports supplier_invoices)
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(vehicles_bp)
@@ -2052,6 +2092,7 @@ app.register_blueprint(supplier_invoices_bp)
 app.register_blueprint(staff_bp)
 app.register_blueprint(accounts_bp)
 app.register_blueprint(finance_bp)
+app.register_blueprint(purchases_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────

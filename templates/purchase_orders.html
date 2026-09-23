@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
+
+{% block title %}{{ t['po.title'] }}{% endblock %}
+{% block page_title %}{{ t['po.title'] }}{% endblock %}
+
+{% macro status_chip(po) -%}
+    {% if po.status == 'received' %}<span class="badge badge--active">{{ t['po.status.received'] }}</span>
+    {% elif po.status == 'received_partial' %}<span class="badge badge--warning">{{ t['po.status.received_partial'] }}</span>
+    {% elif po.status == 'approved' %}<span class="badge badge--active">{{ t['po.status.approved'] }}</span>
+    {% elif po.status == 'rejected' %}<span class="badge badge--critical">{{ t['po.status.rejected'] }}</span>
+    {% elif po.status == 'pending_finance' %}<span class="badge badge--warning">{{ t['po.status.pending_finance'] }}</span>
+    {% else %}<span class="badge badge--inactive">{{ t['po.status.pending_logistics'] }}</span>{% endif %}
+{%- endmacro %}
+
+{% block content %}
+<section class="card">
+    {% with stock_tab = 'commandes' %}{% include "_stock_tabs.html" %}{% endwith %}
+    <div class="tab-bar">
+        <div class="tab-bar__filters"></div>
+        <div class="tab-bar__actions">
+            {# The suppliers the store orders from: the same list accounting pays. #}
+            <a href="{{ url_for('supplier_invoices.suppliers') }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">store</span> {{ t['invoice.tab_suppliers'] }}
+            </a>
+            {% if can_create %}
+            <a href="{{ url_for('purchases.new') }}" class="fab">
+                <span class="material-symbols-outlined">add</span> {{ t['po.new'] }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if mine %}
+    <div class="alert alert--warning">
+        {{ t['po.mine'] % mine }}
+        <a href="{{ url_for('purchases.index', status='pending') }}">{{ t['po.mine_link'] }}</a>
+    </div>
+    {% endif %}
+
+    <form method="get" class="filter-bar filter-bar--live">
+        <label class="filter-date">
+            <span>{{ t['cinv.status'] }}</span>
+            <select name="status" onchange="this.form.submit()">
+                <option value="">{{ t['cpay.filter.all'] }}</option>
+                <option value="pending" {% if status == 'pending' %}selected{% endif %}>{{ t['po.filter.pending'] }}</option>
+                {% for s in statuses %}
+                <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ t['po.status.' + s] }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="filter-search">
+            <input type="search" name="q" value="{{ search }}" placeholder="{{ t['po.search'] }}">
+        </label>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        {% if status or search %}
+        <a href="{{ url_for('purchases.index') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
+        {% endif %}
+    </form>
+
+    {% if orders %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['cinv.number'] }}</th>
+                <th>{{ t['invoice.supplier'] }}</th>
+                <th>{{ t['po.date'] }}</th>
+                <th>{{ t['po.requested_by'] }}</th>
+                <th style="text-align:right;">{{ t['cinv.total'] }}</th>
+                <th>{{ t['cinv.status'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for po in orders %}
+            <tr>
+                <td style="white-space:nowrap;"><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a>
+                    <div class="muted small">{{ po.lines | length }} {{ t['po.lines_count'] }}</div></td>
+                <td><span class="muted small">{{ po.supplier.code }}</span> {{ po.supplier.name }}</td>
+                <td style="white-space:nowrap;">{{ po.date }}</td>
+                <td>{{ po.requester_name or '—' }}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ po.total | num }} {{ currency }}</td>
+                <td>{{ status_chip(po) }}</td>
+                <td class="row-actions">
+                    <a href="{{ url_for('purchases.detail', oid=po.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       title="{{ t['cinv.view'] }}" aria-label="{{ t['cinv.view'] }}"><span class="material-symbols-outlined">list_alt</span></a>
+                    {% if po.status in ('approved', 'received_partial', 'received') %}
+                    <a href="{{ url_for('purchases.print_sheet', oid=po.id) }}" class="btn btn--sm btn--tonal btn--icon" target="_blank" rel="noopener"
+                       title="{{ t['help.print'] }}" aria-label="{{ t['help.print'] }}"><span class="material-symbols-outlined">print</span></a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {{ pager(pagination, 'purchases.index') }}
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">receipt_long</span>
+        <p>{{ t['po.empty'] if not (status or search) else t['cinv.none_match'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

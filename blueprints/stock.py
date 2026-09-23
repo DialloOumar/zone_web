@@ -19,16 +19,25 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 import s3_storage
-from app import (get_t, is_modal_request, log_action, modal_ok,
+from app import (slugify, get_t, is_modal_request, log_action, modal_ok,
                  parse_amount, require_perm)
 from blueprints.expenses import PARTS_CATEGORY, PAYMENT_METHODS
-from models import Expense, Part, StockMovement, db
+from models import Expense, Part, PartUnit, StockMovement, db
 
 stock_bp = Blueprint("stock", __name__, url_prefix="/stock")
 
-# How a part is counted. Anything sold by the piece uses "piece"; oil and
-# grease go by the litre or the kilo; a set is 4 tyres bought as one.
-UNITS = ["piece", "litre", "kg", "set"]
+# How a part is counted: the store's own list (PartUnit), kept from the
+# Unités page. Anything sold by the piece uses "pièce"; oil and grease go by
+# the litre or the kilo; a set is 4 tyres bought as one.
+
+
+def active_units():
+    return (PartUnit.query.filter(PartUnit.is_active.is_(True))
+            .order_by(PartUnit.sort_order, PartUnit.name).all())
+
+
+def unit_codes():
+    return {u.code for u in PartUnit.query.all()}
 
 # Kinds the store screen writes directly. "sortie" and "retour" are written by
 # a service record, so they are read-only here — they show in the history but
@@ -105,8 +114,11 @@ def index():
               .order_by(StockMovement.date.desc(), StockMovement.id.desc())
               .limit(15).all())
 
+    from models import PurchaseOrder
     return render_template(
         "stock.html", parts=parts, show_archived=show_archived, search=search,
+        parts_count=Part.query.filter(Part.is_active.is_(True)).count(),
+        orders_count=PurchaseOrder.query.count(),
         archived_count=archived_count, total_value=total_value,
         low_count=low_count, recent=recent, active_parts=_active_parts(),
         usage={p.id: _part_usage(p) for p in parts},
@@ -126,7 +138,7 @@ def _read_part_form(part):
 
     if not name:
         return None, t.get("part.err.name", "La désignation est obligatoire.")
-    if unit not in UNITS:
+    if unit not in unit_codes():
         return None, t.get("part.err.unit", "Choisissez une unité.")
 
     clash = Part.query.filter(db.func.lower(Part.name) == name.lower())
@@ -148,6 +160,12 @@ def _read_part_form(part):
     if bad or (reorder is not None and reorder < 0):
         return None, t.get("part.err.reorder", "Seuil invalide.")
 
+    # A pack needs both a name and a content; one without the other is a slip.
+    pack_name = (request.form.get("pack_name") or "").strip()[:40] or None
+    pack_size, bad = _num(request.form.get("pack_size"), float)
+    if bad or (pack_size is not None and pack_size <= 0) or bool(pack_name) != bool(pack_size):
+        return None, t.get("part.err.pack", "Indiquez le nom du conditionnement et son contenu, ou aucun des deux.")
+
     opening, bad = _num(request.form.get("opening_quantity"), float)
     if bad or (opening is not None and opening < 0):
         return None, t.get("part.err.opening", "Quantité de départ invalide.")
@@ -162,6 +180,7 @@ def _read_part_form(part):
         return None, t.get("part.err.price", "Prix invalide.")
 
     return dict(name=name, unit=unit, reorder_level=reorder,
+                pack_name=pack_name, pack_size=pack_size,
                 opening=opening or 0, opening_price=opening_price), None
 
 
@@ -219,7 +238,7 @@ def _apply_part_photo_change(part):
 def _render_part_form(part, error=None):
     tpl = "_part_form.html" if is_modal_request() else "part_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, part=part, error=error, units=UNITS), status
+    return render_template(tpl, part=part, error=error, units=active_units()), status
 
 
 @stock_bp.route("/parts/new", methods=["GET", "POST"])
@@ -561,9 +580,137 @@ def movement_delete(mid):
                                "Le stock de départ se modifie sur la fiche article."))
         return redirect(request.referrer or url_for("stock.history"))
     name = mv.part.name
+    if mv.purchase_line:
+        line = mv.purchase_line
+        line.received_qty = max((line.received_qty or 0) - mv.quantity, 0)
+        order = line.order
+        order.status = "received_partial" if any(l.received_qty for l in order.lines) else "approved"
     db.session.delete(mv)          # cascades to its ledger row, if any
     log_action("DELETE", "stock_movement", resource_id=mid,
                detail=f"Deleted {mv.kind} of '{name}'")
     db.session.commit()
     flash("success|" + t.get("mv.deleted", "Mouvement supprimé."))
     return redirect(request.referrer or url_for("stock.history"))
+
+
+# ── The units the store counts in ────────────────────────────────────────────
+
+def _unit_code(name):
+    """A code from the name, once, for the parts to carry: "seau" for "Seau",
+    "sac_25kg" for "Sac 25 kg". Never shown; the name is."""
+    base = slugify(name).replace("-", "_")[:18] or "unite"
+    code, n = base, 2
+    while PartUnit.query.filter_by(code=code).first():
+        code = "%s_%d" % (base[:15], n)
+        n += 1
+    return code
+
+
+@stock_bp.route("/unites")
+@login_required
+@require_perm("stock.manage")
+def units():
+    return _render_units()
+
+
+def _render_units(error=None):
+    """The units list: as a dialog over the store page when fetched from it,
+    as a page of its own otherwise."""
+    rows = PartUnit.query.order_by(PartUnit.sort_order, PartUnit.name).all()
+    used = dict(db.session.query(Part.unit, db.func.count(Part.id)).group_by(Part.unit).all())
+    tpl = "_part_units_modal.html" if is_modal_request() else "part_units.html"
+    return render_template(tpl, units=rows, used=used, error=error), (422 if error else 200)
+
+
+def _render_unit_form(row, error=None):
+    # From the dialog, a slip is shown on the list itself, not on a form of
+    # its own; the list is where the name was typed.
+    if is_modal_request() and request.form.get("_list"):
+        return _render_units(error)
+    tpl = "_part_unit_form.html" if is_modal_request() else "part_unit_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, row=row, error=error), status
+
+
+def _save_unit(row):
+    t = get_t()
+    name = (request.form.get("name") or "").strip()[:40]
+    if not name:
+        return t.get("list.err.name_required", "Le nom est obligatoire.")
+    clash = PartUnit.query.filter(db.func.lower(PartUnit.name) == name.lower())
+    if row:
+        clash = clash.filter(PartUnit.id != row.id)
+    if clash.first():
+        return t.get("list.err.name_taken", "Ce nom existe déjà.")
+    creating = row is None
+    if creating:
+        nxt = (db.session.query(db.func.max(PartUnit.sort_order)).scalar() or 0) + 1
+        row = PartUnit(code=_unit_code(name), sort_order=nxt)
+        db.session.add(row)
+    row.name = name
+    log_action("CREATE" if creating else "UPDATE", "part_unit", resource_id=row.id,
+               detail="%s unit '%s'" % ("Created" if creating else "Renamed", name))
+    db.session.commit()
+    return None
+
+
+@stock_bp.route("/unites/nouveau", methods=["GET", "POST"])
+@login_required
+@require_perm("stock.manage")
+def unit_new():
+    if request.method == "POST":
+        error = _save_unit(None)
+        if error:
+            return _render_unit_form(None, error)
+        flash("success|" + get_t().get("list.created", "Ajouté."))
+        return modal_ok() if is_modal_request() else redirect(url_for("stock.units"))
+    return _render_unit_form(None)
+
+
+@stock_bp.route("/unites/<int:uid>/modifier", methods=["GET", "POST"])
+@login_required
+@require_perm("stock.manage")
+def unit_edit(uid):
+    row = db.session.get(PartUnit, uid)
+    if not row:
+        abort(404)
+    if request.method == "POST":
+        error = _save_unit(row)
+        if error:
+            return _render_unit_form(row, error)
+        flash("success|" + get_t().get("list.updated", "Modifié."))
+        return modal_ok() if is_modal_request() else redirect(url_for("stock.units"))
+    return _render_unit_form(row)
+
+
+@stock_bp.route("/unites/<int:uid>/<any(archive,reactivate,delete):what>", methods=["POST"])
+@login_required
+@require_perm("stock.manage")
+def unit_action(uid, what):
+    """Archive takes it out of the pickers and leaves the parts counting in
+    it as they are; delete is only for one no part uses."""
+    row = db.session.get(PartUnit, uid)
+    if not row:
+        abort(404)
+    t = get_t()
+    if what == "delete":
+        if Part.query.filter_by(unit=row.code).count():
+            blocked = t.get("list.err.delete_blocked",
+                            "Impossible de supprimer : cet élément est utilisé. Archivez-le à la place.")
+            if is_modal_request():
+                return _render_units(blocked)
+            flash("error|" + blocked)
+            return redirect(url_for("stock.units"))
+        name = row.name
+        db.session.delete(row)
+        log_action("DELETE", "part_unit", resource_id=uid, detail="Deleted unit '%s'" % name)
+        msg = "list.deleted"
+    else:
+        row.is_active = what == "reactivate"
+        log_action(what.upper(), "part_unit", resource_id=uid, detail="%s unit '%s'" % (what.title(), row.name))
+        msg = "list.archived" if what == "archive" else "list.reactivated"
+    db.session.commit()
+    if is_modal_request():
+        return modal_ok()
+    flash("success|" + t.get(msg, "Fait."))
+    return redirect(url_for("stock.units"))

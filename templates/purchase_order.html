@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}{{ po.number }}{% endblock %}
+{% block page_title %}{{ t['po.one'] }} {{ po.number }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('purchases.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    {% if po.status in ('approved', 'received_partial', 'received') %}
+    <a href="{{ url_for('purchases.print_sheet', oid=po.id) }}" class="btn btn--sm btn--outlined" target="_blank" rel="noopener">
+        <span class="material-symbols-outlined">print</span> {{ t['help.print'] }}
+    </a>
+    {% endif %}
+    {% if can_receive %}
+    <a href="{{ url_for('purchases.receive', oid=po.id) }}" class="btn btn--sm btn--primary">
+        <span class="material-symbols-outlined">inventory</span> {{ t['po.receive'] }}
+    </a>
+    {% endif %}
+    {% if can_edit %}
+    <a href="{{ url_for('purchases.edit', oid=po.id) }}" class="btn btn--sm btn--tonal">
+        <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}
+    </a>
+    {% endif %}
+</div>
+
+{% if po.status == 'rejected' %}
+<div class="alert alert--error">
+    <strong>{{ t['po.status.rejected'] }}</strong>
+    {% if po.rejecter %}— {{ po.rejecter.full_name }}, {{ po.rejected_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}<br>
+    {{ po.rejected_reason }}
+    {% if po.rejections and po.rejections > 1 %}<div class="muted small">{{ t['po.rejections'] % po.rejections }}</div>{% endif %}
+</div>
+{% endif %}
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ po.number }}
+                {% if po.status == 'received' %}<span class="badge badge--active">{{ t['po.status.received'] }}</span>
+                {% elif po.status == 'received_partial' %}<span class="badge badge--warning">{{ t['po.status.received_partial'] }}</span>
+                {% elif po.status == 'approved' %}<span class="badge badge--active">{{ t['po.status.approved'] }}</span>
+                {% elif po.status == 'rejected' %}<span class="badge badge--critical">{{ t['po.status.rejected'] }}</span>
+                {% elif po.status == 'pending_finance' %}<span class="badge badge--warning">{{ t['po.status.pending_finance'] }}</span>
+                {% else %}<span class="badge badge--inactive">{{ t['po.status.pending_logistics'] }}</span>{% endif %}
+            </h2>
+            <p class="muted small" style="margin:4px 0 0;"><span class="chip">{{ po.supplier.code }}</span> {{ po.supplier.name }}
+                {% if po.supplier.contact %} · {{ po.supplier.contact }}{% endif %}</p>
+        </div>
+        <div class="invoice-total">
+            <span class="invoice-total__label">{{ t['cinv.total'] }}</span>
+            <span class="invoice-total__value">{{ po.total | num }} <span class="stat-unit">{{ currency }}</span></span>
+        </div>
+    </div>
+    <dl class="detail-grid">
+        <div><dt>{{ t['po.date'] }}</dt><dd>{{ po.date }}</dd></div>
+        <div><dt>{{ t['po.requested_by'] }}</dt><dd>{{ po.requester_name or '—' }}{% if po.requester_phone %} · {{ po.requester_phone }}{% endif %}</dd></div>
+        <div><dt>{{ t['po.sign.logistics'] }}</dt>
+            <dd>{% if po.logistics_at %}<span class="badge badge--active">{{ t['po.signed'] }}</span> {{ po.logistics_signer.full_name if po.logistics_signer else '' }} · {{ po.logistics_at.strftime('%Y-%m-%d %H:%M') }}
+                {% else %}<span class="muted">{{ t['po.awaiting'] }}</span>{% endif %}</dd></div>
+        <div><dt>{{ t['po.sign.finance'] }}</dt>
+            <dd>{% if po.finance_at %}<span class="badge badge--active">{{ t['po.signed'] }}</span> {{ po.finance_signer.full_name if po.finance_signer else '' }} · {{ po.finance_at.strftime('%Y-%m-%d %H:%M') }}
+                {% else %}<span class="muted">{{ t['po.awaiting'] }}</span>{% endif %}</dd></div>
+        {% if po.note %}<div style="grid-column: 1 / -1;"><dt>{{ t['entry.note'] }}</dt><dd>{{ po.note }}</dd></div>{% endif %}
+    </dl>
+
+    {% if can_sign_logistics or can_sign_finance or can_reject %}
+    <div class="form-actions" style="margin-top:12px; gap:8px; flex-wrap:wrap;">
+        {% if can_sign_logistics %}
+        <form method="post" action="{{ url_for('purchases.approve', oid=po.id, kind='logistics') }}" style="display:inline"
+              data-confirm="{{ t['po.approve_confirm'] }}" data-confirm-title="{{ t['po.sign.logistics'] }}" data-confirm-ok="{{ t['po.approve'] }}">
+            <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">task_alt</span> {{ t['po.approve_as'] % t['po.sign.logistics'] }}</button>
+        </form>
+        {% endif %}
+        {% if can_sign_finance %}
+        <form method="post" action="{{ url_for('purchases.approve', oid=po.id, kind='finance') }}" style="display:inline"
+              data-confirm="{{ t['po.approve_confirm'] }}" data-confirm-title="{{ t['po.sign.finance'] }}" data-confirm-ok="{{ t['po.approve'] }}">
+            <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">task_alt</span> {{ t['po.approve_as'] % t['po.sign.finance'] }}</button>
+        </form>
+        {% endif %}
+        {% if can_reject %}
+        <details class="po-reject">
+            <summary class="btn btn--outlined btn--danger-text"><span class="material-symbols-outlined">close</span> {{ t['po.reject'] }}</summary>
+            <form method="post" action="{{ url_for('purchases.reject', oid=po.id) }}" class="entry-form" style="margin-top:10px; max-width:520px;">
+                <div class="field">
+                    <input type="text" id="reason" name="reason" placeholder=" " required maxlength="255">
+                    <label for="reason">{{ t['po.reject_reason'] }}</label>
+                </div>
+                <button type="submit" class="btn btn--danger"><span class="material-symbols-outlined">close</span> {{ t['po.reject'] }}</button>
+            </form>
+        </details>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+
+{% if po.status in ('approved', 'received_partial', 'received') %}
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['po.invoices'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0;">
+                {{ t['po.ordered'] }} <strong>{{ po.total | num }}</strong>
+                &middot; {{ t['po.received'] }} <strong>{{ po.received_value | num }}</strong>
+                &middot; {{ t['po.invoiced'] }} <strong {% if po.invoiced_total > po.total %}class="stock-negative"{% endif %}>{{ po.invoiced_total | num }}</strong>
+                <span class="muted small">{{ currency }}</span>
+                {% if po.invoiced_total > po.total %}<span class="badge badge--warning">{{ t['po.over_invoiced'] }}</span>{% endif %}
+            </p>
+        </div>
+        {% if has_perm('supplier_invoice.create') %}
+        <a href="{{ url_for('supplier_invoices.new', po=po.id) }}" class="fab"
+           data-modal-url="{{ url_for('supplier_invoices.new', po=po.id) }}" data-modal-title="{{ t['invoice.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['po.invoice_new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% if po.invoices %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['invoice.date'] }}</th>
+                <th>{{ t['invoice.number'] }}</th>
+                <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
+                <th style="text-align:right;">{{ t['invoice.remaining'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inv in po.invoices %}
+            <tr>
+                <td style="white-space:nowrap;">{{ inv.date }}</td>
+                <td>{{ inv.number or '—' }}{% if inv.description %}<div class="muted small">{{ inv.description }}</div>{% endif %}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ inv.amount | num }} {{ currency }}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if inv.remaining > 0 %}<strong class="stock-negative">{{ inv.remaining | num }}</strong>{% else %}<span class="muted">{{ t['invoice.all_settled'] }}</span>{% endif %}</td>
+                <td class="row-actions">
+                    {% if has_perm('supplier_invoice.view') %}
+                    <a href="{{ url_for('supplier_invoices.payments', iid=inv.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       title="{{ t['invoice.payments'] }}" aria-label="{{ t['invoice.payments'] }}"><span class="material-symbols-outlined">price_check</span></a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['po.no_invoice'] }}</p>
+    {% endif %}
+</section>
+{% endif %}
+
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['po.lines'] }}</h2>
+        <span class="muted small">{{ po.lines | length }}</span>
+    </div>
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>N°</th>
+                <th>{{ t['po.line_part'] }}</th>
+                <th>{{ t['po.line_reference'] }}</th>
+                <th style="text-align:right;">{{ t['po.line_qty'] }}</th>
+                <th style="text-align:right;">{{ t['po.line_price'] }}</th>
+                <th style="text-align:right;">{{ t['po.line_discount'] }}</th>
+                <th style="text-align:right;">{{ t['cinv.amount'] }}</th>
+                {% if po.status in ('approved', 'received_partial', 'received') %}<th style="text-align:right;">{{ t['po.received'] }}</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in po.lines %}
+            <tr>
+                <td class="muted">{{ loop.index }}</td>
+                <td><strong>{{ l.description }}</strong><div class="muted small">{{ t['po.from_catalogue'] if l.part else t['po.new_article'] }}</div></td>
+                <td>{{ l.reference or '—' }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ l.quantity | qty }}
+                    {% if l.in_pack %}{{ l.part.pack_name }} <span class="muted small">({{ l.stock_qty | qty }} {{ unit_label(l.part.unit) }})</span>
+                    {% elif l.part %}{{ unit_label(l.part.unit) }}
+                    {% elif l.new_unit %}{{ unit_label(l.new_unit) }}{% endif %}</td>
+                <td style="text-align:right;">{{ l.unit_price | num }}{% if l.in_pack %} <span class="muted small">/ {{ l.part.pack_name }}</span>{% endif %}</td>
+                <td style="text-align:right;">{% if l.discount %}{{ l.discount | num }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td style="text-align:right;"><strong>{{ l.amount | num }}</strong></td>
+                {% if po.status in ('approved', 'received_partial', 'received') %}
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if not l.part %}<span class="muted small">{{ t['po.new_article'] }}</span>{% if l.received_qty %} ✓{% endif %}
+                    {% elif l.received_qty >= l.stock_qty %}<span class="badge badge--active">{{ l.received_qty | qty }} {{ unit_label(l.part.unit) }}</span>
+                    {% elif l.received_qty %}<span class="badge badge--warning">{{ l.received_qty | qty }} / {{ l.stock_qty | qty }} {{ unit_label(l.part.unit) }}</span>
+                    {% else %}<span class="muted">0 / {{ l.stock_qty | qty }} {{ unit_label(l.part.unit) }}</span>{% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            {% set extra = 1 if po.status in ('approved', 'received_partial', 'received') else 0 %}
+            <tr><td colspan="6" style="text-align:right;">{{ t['po.subtotal'] }}</td><td style="text-align:right;">{{ po.total_gross | num }} {{ currency }}</td>{% if extra %}<td></td>{% endif %}</tr>
+            {% if po.total_discount %}
+            <tr><td colspan="6" style="text-align:right;">{{ t['po.total_discount'] }}</td><td style="text-align:right;">− {{ po.total_discount | num }} {{ currency }}</td>{% if extra %}<td></td>{% endif %}</tr>
+            {% endif %}
+            <tr><td colspan="6" style="text-align:right;"><strong>{{ t['cinv.total'] }}</strong></td><td style="text-align:right;"><strong>{{ po.total | num }} {{ currency }}</strong></td>{% if extra %}<td></td>{% endif %}</tr>
+        </tfoot>
+    </table></div>
+
+    {% if can_delete %}
+    <div class="form-actions" style="margin-top:12px;">
+        <form method="post" action="{{ url_for('purchases.delete', oid=po.id) }}"
+              data-confirm="{{ t['po.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+            <button type="submit" class="btn btn--outlined btn--danger-text"><span class="material-symbols-outlined">delete</span> {{ t['po.delete'] }}</button>
+        </form>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['invoice.tab_suppliers'] }}{% endblock %}
+{% block page_title %}{{ t['invoice.tab_suppliers'] }}{% endblock %}
+
+{% block content %}
+{# The one list of suppliers, reached from the store as well as from the
+   bills: whoever buys parts names the same suppliers accounting pays. #}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ request.referrer if request.referrer and '/fournisseurs' not in request.referrer else url_for('stock.index') }}"
+       class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['invoice.tab_suppliers'] }}<span class="tab__count" style="margin-left:8px;">{{ suppliers | length }}</span></h2>
+            <p class="muted small" style="margin:4px 0 0; max-width:56ch;">{{ t['supplier.shared_intro'] }}</p>
+        </div>
+        {% if can_manage %}
+        <a href="{{ url_for('supplier_invoices.supplier_new') }}" class="fab"
+           data-modal-url="{{ url_for('supplier_invoices.supplier_new') }}" data-modal-title="{{ t['invoice.supplier_new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['invoice.supplier_new'] }}
+        </a>
+        {% endif %}
+    </div>
+    {% include "_suppliers_table.html" %}
+</section>
+{% endblock %}

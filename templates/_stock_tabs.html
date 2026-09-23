@@ -1,0 +1,12 @@
+{# The store's two tabs, on both of its pages: the catalogue, and what was
+   ordered. Each is its own page; the nav makes them read as one. #}
+<nav class="tabs" role="tablist">
+    <a href="{{ url_for('stock.index') }}" role="tab" aria-selected="{{ 'true' if stock_tab == 'stock' else 'false' }}"
+       class="tab {% if stock_tab == 'stock' %}tab--on{% endif %}">
+        {{ t['nav.stock'] }}<span class="tab__count">{{ parts_count }}</span>
+    </a>
+    <a href="{{ url_for('purchases.index') }}" role="tab" aria-selected="{{ 'true' if stock_tab == 'commandes' else 'false' }}"
+       class="tab {% if stock_tab == 'commandes' %}tab--on{% endif %}">
+        {{ t['po.title'] }}<span class="tab__count">{{ orders_count }}</span>
+    </a>
+</nav>

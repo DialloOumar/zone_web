@@ -14,12 +14,32 @@
                 <option value="" hidden></option>
                 {% set sel_u = request.form.get('unit') or (part.unit if is_edit else 'piece') %}
                 {% for u in units %}
-                <option value="{{ u }}" {% if u == sel_u %}selected{% endif %}>{{ t['unit.' + u] }}</option>
+                <option value="{{ u.code }}" {% if u.code == sel_u %}selected{% endif %}>{{ u.name }}</option>
                 {% endfor %}
+                {# A part counting in a unit since archived keeps it on its form. #}
+                {% if is_edit and sel_u and sel_u not in units|map(attribute='code')|list %}
+                <option value="{{ sel_u }}" selected>{{ unit_label(sel_u) }}</option>
+                {% endif %}
             </select>
             <label for="unit">{{ t['part.unit'] }}</label>
         </div>
     </div>
+
+    {# What the supplier sells it in, when that is not what the store counts:
+       a drum of 200 litres. Left empty for a part bought by the unit. #}
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="pack_name" name="pack_name" placeholder=" " maxlength="40"
+                   value="{{ request.form.get('pack_name') or (part.pack_name or '' if is_edit else '') }}">
+            <label for="pack_name">{{ t['part.pack_name'] }}</label>
+        </div>
+        <div class="field">
+            <input type="number" id="pack_size" name="pack_size" placeholder=" " min="0" step="any"
+                   value="{{ request.form.get('pack_size') or (part.pack_size | qty if is_edit and part.pack_size else '') }}">
+            <label for="pack_size">{{ t['part.pack_size'] }}</label>
+        </div>
+    </div>
+    <div class="field-hint">{{ t['part.pack_hint'] }}</div>
 
     <div class="field">
         <input type="number" id="reorder_level" name="reorder_level" placeholder=" " min="0" step="any"

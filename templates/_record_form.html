@@ -98,7 +98,7 @@
                     <select name="part_id">
                         <option value="">{{ t['form.select'] }}</option>
                         {% for p in stock_parts %}
-                        <option value="{{ p.id }}" {% if pid == p.id|string %}selected{% endif %}>{{ p.name }} — {{ p.quantity | qty }} {{ t['unit.' + p.unit] }}</option>
+                        <option value="{{ p.id }}" {% if pid == p.id|string %}selected{% endif %}>{{ p.name }} — {{ p.quantity | qty }} {{ unit_label(p.unit) }}</option>
                         {% endfor %}
                     </select>
                     <label>{{ t['mv.part'] }}</label>
@@ -126,7 +126,7 @@
                 <select name="part_id">
                     <option value="">{{ t['form.select'] }}</option>
                     {% for p in stock_parts %}
-                    <option value="{{ p.id }}">{{ p.name }} — {{ p.quantity | qty }} {{ t['unit.' + p.unit] }}</option>
+                    <option value="{{ p.id }}">{{ p.name }} — {{ p.quantity | qty }} {{ unit_label(p.unit) }}</option>
                     {% endfor %}
                 </select>
                 <label>{{ t['mv.part'] }}</label>

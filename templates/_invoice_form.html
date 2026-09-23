@@ -6,8 +6,26 @@
       action="{{ url_for('supplier_invoices.edit', iid=invoice.id) if is_edit
                 else url_for('supplier_invoices.new') }}">
 
+    {# The purchase order this bill settles, first: picking one names the
+       supplier and fills the amount when it is still blank. A bill with no
+       order behind it -- the market, a one-off -- simply names its supplier
+       below. #}
+    {% set sel_po = request.form.get('purchase_order_id')|int(0) or (invoice.purchase_order_id if is_edit and invoice.purchase_order_id else (preset_po.id if preset_po else 0)) %}
+    {% if orders_json %}
+    <div class="field field--select" id="po-field">
+        <select id="purchase_order_id" name="purchase_order_id">
+            <option value="" {% if not sel_po %}selected{% endif %}>{{ t['invoice.no_order'] }}</option>
+            {% for o in orders_json %}
+            <option value="{{ o.id }}" data-supplier="{{ o.supplier_id }}" data-total="{{ o.total }}" {% if o.id == sel_po %}selected{% endif %}>{{ o.number }} — {{ o.supplier }} — {{ o.total | num }} {{ currency }}</option>
+            {% endfor %}
+        </select>
+        <label for="purchase_order_id">{{ t['invoice.order'] }}</label>
+    </div>
+    <div class="field-hint">{{ t['invoice.order_hint'] }}</div>
+    {% endif %}
+
     <div class="field field--select">
-        {% set sel_sup = request.form.get('supplier_id')|int(0) or (invoice.supplier_id if is_edit else 0) %}
+        {% set sel_sup = request.form.get('supplier_id')|int(0) or (invoice.supplier_id if is_edit else (preset_po.supplier_id if preset_po else 0)) %}
         <select id="supplier_id" name="supplier_id" required>
             <option value="" hidden></option>
             {% for s in suppliers %}
@@ -16,6 +34,38 @@
         </select>
         <label for="supplier_id">{{ t['invoice.supplier'] }}</label>
     </div>
+    <script>
+    (function () {
+        var sel = document.getElementById('purchase_order_id'), sup = document.getElementById('supplier_id'),
+            amount = document.getElementById('amount');
+        if (!sel) return;
+        function fmt(n) { return n.toLocaleString('fr-FR'); }
+        // What the last order filled in, so that going back to "no order"
+        // empties exactly that and nothing typed by hand.
+        var filled = { supplier: '', amount: '' };
+        sel.addEventListener('change', function () {
+            var op = sel.options[sel.selectedIndex];
+            if (!op || !op.value) {
+                if (sup.value === filled.supplier) sup.value = '';
+                if (amount && amount.value === filled.amount) amount.value = '';
+                filled = { supplier: '', amount: '' };
+                return;
+            }
+            sup.value = filled.supplier = op.dataset.supplier;
+            if (amount && (!amount.value.trim() || amount.value === filled.amount)) {
+                amount.value = filled.amount = fmt(+op.dataset.total);
+            }
+        });
+        sup.addEventListener('change', function () {
+            var op = sel.options[sel.selectedIndex];
+            if (op && op.value && op.dataset.supplier !== sup.value) sel.value = '';
+        });
+        // Opened with an order already chosen: the supplier follows it.
+        var op = sel.options[sel.selectedIndex];
+        if (op && op.value && !sup.value) sup.value = filled.supplier = op.dataset.supplier;
+    })();
+    </script>
+
 
     <div class="form-row">
         <div class="field">

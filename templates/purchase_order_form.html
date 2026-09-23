@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% set is_edit = po is not none %}
+{% block title %}{{ t['po.edit'] if is_edit else t['po.new'] }}{% endblock %}
+{% block page_title %}{{ t['po.edit'] if is_edit else t['po.new'] }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('purchases.detail', oid=po.id) if is_edit else url_for('purchases.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+    {% if is_edit and (po.logistics_at or po.status == 'rejected') %}
+    <div class="alert alert--warning">{{ t['po.edit_resets'] }}</div>
+    {% endif %}
+
+    <form method="post" class="entry-form" id="po-form"
+          action="{{ url_for('purchases.edit', oid=po.id) if is_edit else url_for('purchases.new') }}">
+        <div class="form-row">
+            <div class="field field--select">
+                {% set sel_s = request.form.get('supplier_id')|int(0) or (po.supplier_id if is_edit else 0) %}
+                <select id="supplier_id" name="supplier_id" required>
+                    <option value="" hidden></option>
+                    {% for s in suppliers %}
+                    <option value="{{ s.id }}" {% if s.id == sel_s %}selected{% endif %}>{{ s.code }} — {{ s.name }}</option>
+                    {% endfor %}
+                </select>
+                <label for="supplier_id">{{ t['invoice.supplier'] }}</label>
+            </div>
+            <div class="field">
+                <input type="date" id="date" name="date" placeholder=" " required
+                       value="{{ request.form.get('date') or (po.date if is_edit else today) }}">
+                <label for="date">{{ t['po.date'] }}</label>
+            </div>
+        </div>
+        {% if not suppliers %}
+        <div class="field-hint">{{ t['invoice.supplier_first'] }} :
+            <a href="{{ url_for('supplier_invoices.suppliers') }}">{{ t['invoice.tab_suppliers'] }}</a></div>
+        {% endif %}
+
+        {# The lines. "Stock" ticked: the article is one the store already
+           knows, picked from the catalogue by browsing or typing. Unticked: a
+           new article, with its unit, created in the catalogue when it is
+           received. Totals follow as you type. #}
+        <span class="photo-input__label" style="margin-top:12px;">{{ t['po.lines'] }}</span>
+        <div class="field-hint" style="margin-bottom:6px;">{{ t['po.lines_hint'] }}</div>
+        <div class="table-wrap"><table class="data-table po-lines" id="po-lines">
+            <thead>
+                <tr>
+                    <th class="po-stock-col" title="{{ t['po.in_stock_title'] }}">{{ t['po.in_stock'] }}</th>
+                    <th style="width:30%;">{{ t['po.line_part'] }}</th>
+                    <th>{{ t['po.line_reference'] }}</th>
+                    <th class="r">{{ t['po.line_qty'] }}</th>
+                    <th class="r">{{ t['po.line_price'] }}</th>
+                    <th class="r">{{ t['po.line_discount'] }}</th>
+                    <th class="r">{{ t['cinv.amount'] }}</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in lines %}
+                {% set stock_mode = (l.mode == 'stock') if l.mode else bool(l.part_id) %}
+                <tr class="po-line {% if stock_mode %}is-stock{% endif %}">
+                    <td class="po-stock-col">
+                        <input type="hidden" name="mode" value="{{ 'stock' if stock_mode else 'new' }}">
+                        <input type="checkbox" class="po-stock-box" {% if stock_mode %}checked{% endif %} aria-label="{{ t['po.in_stock_title'] }}">
+                    </td>
+                    <td>
+                        <input type="hidden" name="part_id" value="{{ l.part_id or '' }}">
+                        <div class="po-combo">
+                            <input type="text" name="description" placeholder="{{ t['po.line_part_ph'] }}" value="{{ l.description }}" autocomplete="off" required>
+                            <button type="button" class="po-combo__toggle" tabindex="-1" aria-label="{{ t['po.browse'] }}"><span class="material-symbols-outlined">unfold_more</span></button>
+                            <div class="po-combo__list" hidden></div>
+                        </div>
+                        <div class="po-line-kind muted small"></div>
+                    </td>
+                    <td><input type="text" name="reference" placeholder="{{ t['po.line_reference'] }}" value="{{ l.reference or '' }}" maxlength="60"></td>
+                    <td class="po-qty">
+                        <input type="number" name="quantity" min="0" step="any" class="r" value="{{ l.quantity }}" required>
+                        <select name="unit" class="po-unit" hidden>
+                            <option value="stock" {% if l.unit != 'pack' %}selected{% endif %}></option>
+                            <option value="pack" {% if l.unit == 'pack' %}selected{% endif %}></option>
+                        </select>
+                        <select name="new_unit" class="po-unit po-new-unit" aria-label="{{ t['part.unit'] }}">
+                            {% for u in units %}<option value="{{ u.code }}" {% if (l.new_unit or units[0].code) == u.code %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
+                        </select>
+                    </td>
+                    <td><input type="text" name="unit_price" inputmode="numeric" class="r" value="{{ l.unit_price }}" required></td>
+                    <td><input type="text" name="discount" inputmode="numeric" class="r" value="{{ l.discount or '' }}"></td>
+                    <td class="r po-amount">0</td>
+                    <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon po-remove" title="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr><td colspan="8"><button type="button" class="btn btn--sm btn--tonal" id="po-add"><span class="material-symbols-outlined">add</span> {{ t['po.add_line'] }}</button></td></tr>
+                <tr><td colspan="6" class="r">{{ t['po.subtotal'] }}</td><td class="r" id="po-gross">0</td><td></td></tr>
+                <tr><td colspan="6" class="r">{{ t['po.total_discount'] }}</td><td class="r" id="po-disc">0</td><td></td></tr>
+                <tr><td colspan="6" class="r"><strong>{{ t['cinv.total'] }}</strong></td><td class="r"><strong id="po-total">0</strong></td><td></td></tr>
+            </tfoot>
+        </table></div>
+
+        <div class="field" style="margin-top:12px;">
+            <input type="text" id="note" name="note" placeholder=" " maxlength="255"
+                   value="{{ request.form.get('note') or (po.note or '' if is_edit else '') }}">
+            <label for="note">{{ t['entry.note'] }}</label>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">
+                <span class="material-symbols-outlined">save</span> {{ t['po.submit'] if not is_edit else t['btn.save'] }}
+            </button>
+            <a href="{{ url_for('purchases.detail', oid=po.id) if is_edit else url_for('purchases.index') }}" class="btn btn--outlined">{{ t['btn.cancel'] }}</a>
+        </div>
+    </form>
+</section>
+
+<template id="po-line-template">
+    <tr class="po-line is-stock">
+        <td class="po-stock-col">
+            <input type="hidden" name="mode" value="stock">
+            <input type="checkbox" class="po-stock-box" checked aria-label="{{ t['po.in_stock_title'] }}">
+        </td>
+        <td>
+            <input type="hidden" name="part_id" value="">
+            <div class="po-combo">
+                <input type="text" name="description" placeholder="{{ t['po.line_part_ph'] }}" autocomplete="off" required>
+                <button type="button" class="po-combo__toggle" tabindex="-1" aria-label="{{ t['po.browse'] }}"><span class="material-symbols-outlined">unfold_more</span></button>
+                <div class="po-combo__list" hidden></div>
+            </div>
+            <div class="po-line-kind muted small"></div>
+        </td>
+        <td><input type="text" name="reference" placeholder="{{ t['po.line_reference'] }}" maxlength="60"></td>
+        <td class="po-qty">
+            <input type="number" name="quantity" min="0" step="any" class="r" value="1" required>
+            <select name="unit" class="po-unit" hidden><option value="stock"></option><option value="pack"></option></select>
+            <select name="new_unit" class="po-unit po-new-unit" aria-label="{{ t['part.unit'] }}">
+                {% for u in units %}<option value="{{ u.code }}">{{ u.name }}</option>{% endfor %}
+            </select>
+        </td>
+        <td><input type="text" name="unit_price" inputmode="numeric" class="r" required></td>
+        <td><input type="text" name="discount" inputmode="numeric" class="r"></td>
+        <td class="r po-amount">0</td>
+        <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon po-remove" title="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
+    </tr>
+</template>
+
+<script id="po-parts-data" type="application/json">{{ parts_json | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var PARTS = JSON.parse(document.getElementById('po-parts-data').textContent);
+    var KIND_STOCK = {{ t['po.kind_catalogue'] | tojson }}, KIND_NEW = {{ t['po.kind_new'] | tojson }},
+        KIND_PICK = {{ t['po.kind_pick'] | tojson }}, NO_MATCH = {{ t['po.no_match'] | tojson }};
+    var table = document.getElementById('po-lines'), body = table.querySelector('tbody'),
+        tpl = document.getElementById('po-line-template');
+    function num(s) { return parseInt(String(s || '').replace(/[^0-9]/g, ''), 10) || 0; }
+    function fmt(n) { return n.toLocaleString('fr-FR'); }
+    function byName(name) {
+        name = name.trim().toLowerCase();
+        for (var i = 0; i < PARTS.length; i++) if (PARTS[i].name.toLowerCase() === name) return PARTS[i];
+        return null;
+    }
+    function recompute() {
+        var gross = 0, disc = 0;
+        body.querySelectorAll('.po-line').forEach(function (row) {
+            var q = parseFloat(row.querySelector('[name=quantity]').value) || 0,
+                p = num(row.querySelector('[name=unit_price]').value),
+                d = num(row.querySelector('[name=discount]').value),
+                g = Math.round(q * p);
+            row.querySelector('.po-amount').textContent = fmt(g - d);
+            gross += g; disc += d;
+        });
+        document.getElementById('po-gross').textContent = fmt(gross);
+        document.getElementById('po-disc').textContent = fmt(disc);
+        document.getElementById('po-total').textContent = fmt(gross - disc);
+    }
+    // One row: stock mode (pick from the catalogue) or new (type a name and
+    // its unit). The pack/unit choice only means something for a known part.
+    function syncRow(row) {
+        var stock = row.querySelector('.po-stock-box').checked,
+            input = row.querySelector('[name=description]'),
+            hid = row.querySelector('[name=part_id]'),
+            sel = row.querySelector('[name=unit]'),
+            newUnit = row.querySelector('[name=new_unit]'),
+            kind = row.querySelector('.po-line-kind'),
+            found = stock ? byName(input.value) : null;
+        row.querySelector('[name=mode]').value = stock ? 'stock' : 'new';
+        row.classList.toggle('is-stock', stock);
+        hid.value = found ? found.id : '';
+        newUnit.hidden = stock;
+        if (!stock) { sel.hidden = true; kind.textContent = input.value.trim() ? KIND_NEW : ''; kind.className = 'po-line-kind muted small'; return; }
+        if (!found) { sel.hidden = true; kind.textContent = input.value.trim() ? KIND_PICK : ''; kind.className = 'po-line-kind small po-line-kind--free'; return; }
+        kind.textContent = KIND_STOCK; kind.className = 'po-line-kind muted small';
+        sel.options[0].textContent = found.unit;
+        if (found.pack) { sel.options[1].textContent = found.pack + ' (' + found.size + ' ' + found.unit + ')'; sel.options[1].hidden = false; }
+        else { sel.options[1].hidden = true; sel.value = 'stock'; }
+        sel.hidden = false;
+    }
+    // The catalogue list under the field: all of it when opened with the
+    // arrow, narrowed to what is typed otherwise.
+    function openList(row, filter) {
+        var list = row.querySelector('.po-combo__list'), needle = (filter || '').trim().toLowerCase(), n = 0;
+        list.innerHTML = '';
+        PARTS.forEach(function (p) {
+            if (needle && p.name.toLowerCase().indexOf(needle) === -1) return;
+            var it = document.createElement('div'); it.className = 'po-combo__item'; it.dataset.name = p.name;
+            it.innerHTML = '<span></span><small></small>';
+            it.firstChild.textContent = p.name;
+            it.lastChild.textContent = p.unit + (p.pack ? ' · ' + p.pack + ' ' + p.size : '');
+            list.appendChild(it); n++;
+        });
+        if (!n) { var e = document.createElement('div'); e.className = 'po-combo__empty'; e.textContent = NO_MATCH; list.appendChild(e); }
+        list.hidden = false;
+    }
+    function closeLists() { body.querySelectorAll('.po-combo__list').forEach(function (l) { l.hidden = true; }); }
+    function addRow() {
+        body.appendChild(tpl.content.cloneNode(true));
+        var row = body.lastElementChild; syncRow(row); row.querySelector('[name=description]').focus(); recompute();
+    }
+    document.getElementById('po-add').addEventListener('click', addRow);
+    table.addEventListener('click', function (e) {
+        var b = e.target.closest('.po-remove');
+        if (b) { b.closest('.po-line').remove(); if (!body.children.length) addRow(); recompute(); return; }
+        var tg = e.target.closest('.po-combo__toggle');
+        if (tg) { var row = tg.closest('.po-line'); if (row.querySelector('.po-stock-box').checked) { closeLists(); openList(row, ''); } return; }
+        var it = e.target.closest('.po-combo__item');
+        if (it) { var r2 = it.closest('.po-line'); r2.querySelector('[name=description]').value = it.dataset.name; closeLists(); syncRow(r2); return; }
+    });
+    table.addEventListener('input', function (e) {
+        var row = e.target.closest('.po-line'); if (!row) return;
+        if (e.target.name === 'description') {
+            if (row.querySelector('.po-stock-box').checked) openList(row, e.target.value);
+            syncRow(row);
+        }
+        recompute();
+    });
+    table.addEventListener('change', function (e) {
+        if (e.target.classList.contains('po-stock-box')) { var row = e.target.closest('.po-line'); closeLists(); syncRow(row); }
+    });
+    table.addEventListener('focusin', function (e) {
+        if (e.target.name === 'description') { var row = e.target.closest('.po-line'); if (row.querySelector('.po-stock-box').checked) openList(row, e.target.value); }
+    });
+    document.addEventListener('click', function (e) { if (!e.target.closest('.po-combo')) closeLists(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeLists(); });
+    body.querySelectorAll('.po-line').forEach(syncRow);
+    if (!body.children.length) addRow();
+    recompute();
+})();
+</script>
+{% endblock %}
