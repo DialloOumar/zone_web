@@ -103,6 +103,13 @@
                     <form method="post" action="{{ url_for('carburant.citerne_reactivate', cid=c.id) }}" style="display:inline">
                         <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
                     </form>
+                    {% if not c.movements %}
+                    {# Nothing was ever recorded on it, so there is no history to keep. #}
+                    <form method="post" action="{{ url_for('carburant.citerne_delete', cid=c.id) }}"
+                          data-confirm="{{ t['citerne.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
                     {% endif %}
                     {% endif %}
                 </td>
@@ -160,6 +167,12 @@
                     <form method="post" action="{{ url_for('carburant.citerne_reactivate', cid=c.id) }}" style="flex:1;">
                         <button type="submit" class="btn btn--sm btn--primary" style="width:100%;">{{ t['btn.reactivate'] }}</button>
                     </form>
+                    {% if not c.movements %}
+                    <form method="post" action="{{ url_for('carburant.citerne_delete', cid=c.id) }}"
+                          data-confirm="{{ t['citerne.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="flex:1;">
+                        <button type="submit" class="btn btn--sm btn--danger" style="width:100%;">{{ t['btn.delete'] }}</button>
+                    </form>
+                    {% endif %}
                     {% endif %}
                 {% endif %}
             </div>

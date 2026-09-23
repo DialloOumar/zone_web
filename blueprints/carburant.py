@@ -402,6 +402,30 @@ def citerne_reactivate(cid):
     return redirect(url_for("carburant.index", archived=1))
 
 
+@carburant_bp.route("/citernes/<int:cid>/delete", methods=["POST"])
+@login_required
+@require_perm("carburant.manage")
+def citerne_delete(cid):
+    """Gone for good: a citerne created by mistake or as a trial. Only an
+    archived one with no movement at all -- a rentrée or a relevé is already
+    history, and a citerne with history stays archived, like a supplier that
+    was ever billed."""
+    citerne = _get_citerne_or_404(cid)
+    t = get_t()
+    if citerne.is_active or citerne.movements:
+        flash("error|" + t.get("citerne.err.delete_blocked",
+                               "Impossible de supprimer : cette citerne a des mouvements "
+                               "ou est encore active. Archivez-la."))
+        return redirect(url_for("carburant.index", archived=1))
+    code, fleet_id = citerne.code, citerne.fleet_id
+    db.session.delete(citerne)
+    log_action("DELETE", "citerne", resource_id=cid, fleet_id=fleet_id,
+               detail=f"Deleted citerne '{code}'")
+    db.session.commit()
+    flash("success|" + t.get("citerne.deleted", "Citerne supprimée."))
+    return redirect(url_for("carburant.index", archived=1))
+
+
 # ── Distribution (an engin draws fuel from a citerne) ─────────────────────────
 
 
