@@ -790,6 +790,62 @@ def ravitaillement_new():
     return _render_ravitaillement_form()
 
 
+# ── Correct a plein direct ───────────────────────────────────────────────────
+# A machine filled straight at the pump: no citerne, no stock to keep right,
+# so the row is simply what was typed and can be retyped. The citerne
+# movements are not edited this way -- a rentrée or a distribution changed
+# after the fact would move every level after it -- they are deleted and
+# re-entered instead.
+
+
+def _get_direct_or_404(mid):
+    mv = db.session.get(FuelMovement, mid)
+    if not mv or mv.kind != "direct":
+        abort(404)
+    fids = current_user_fleet_ids()
+    if fids is not None and mv.vehicle and mv.vehicle.fleet_id not in fids:
+        abort(403)
+    return mv
+
+
+def _render_direct_form(mv, error=None):
+    tpl = "_direct_form.html" if is_modal_request() else "direct_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, mv=mv, error=error, vehicles=_entry_vehicles(),
+                           operators=_accessible_operators()), status
+
+
+@carburant_bp.route("/ravitaillements/<int:mid>/edit", methods=["GET", "POST"])
+@login_required
+@require_perm("carburant.create")
+def direct_edit(mid):
+    mv = _get_direct_or_404(mid)
+    t = get_t()
+    if request.method == "POST":
+        date_str = (request.form.get("date") or "").strip()
+        if not _valid_date(date_str):
+            return _render_direct_form(mv, t.get("rentree.err.date", "Date invalide."))
+        liters = request.form.get("liters", type=int)
+        if not liters or liters <= 0:
+            return _render_direct_form(mv, t.get("rentree.err.liters", "Litres invalides."))
+        v = db.session.get(Vehicle, request.form.get("vehicle_id", type=int) or 0)
+        fids = current_user_fleet_ids()
+        if not v or v.deleted_at is not None or (fids is not None and v.fleet_id not in fids):
+            return _render_direct_form(mv, t.get("distribution.err.vehicle", "Choisissez une machine."))
+        before = f"{mv.vehicle.code if mv.vehicle else '?'} {mv.date} {mv.liters} L"
+        mv.vehicle_id = v.id
+        mv.date = date_str
+        mv.time = _clean_time(request.form.get("time"))
+        mv.liters = liters
+        mv.operator = (request.form.get("operator") or "").strip() or None
+        log_action("UPDATE", "fuel_movement", resource_id=mv.id, fleet_id=v.fleet_id,
+                   detail=f"Corrected direct fill: {before} -> {v.code} {mv.date} {mv.liters} L")
+        db.session.commit()
+        flash("success|" + t.get("direct.updated", "Plein direct modifié."))
+        return modal_ok() if is_modal_request() else redirect(url_for("carburant.history"))
+    return _render_direct_form(mv)
+
+
 # ── Delete a movement (rentrée / distribution / relevé / conso) ───────────────
 
 
@@ -798,12 +854,16 @@ def ravitaillement_new():
 @require_perm("carburant.create")
 def movement_delete(mid):
     mv = db.session.get(FuelMovement, mid)
-    if not mv or mv.kind not in ("rentree", "distribution", "releve", "conso"):
+    if not mv or mv.kind not in ("rentree", "distribution", "releve", "conso", "direct"):
         abort(404)
-    c = db.session.get(Citerne, mv.citerne_id)
+    # A plein direct has no citerne: the machine filled straight at the pump,
+    # so it is scoped by the machine's fleet and moves no stock.
+    c = db.session.get(Citerne, mv.citerne_id) if mv.citerne_id else None
     fids = current_user_fleet_ids()
-    if fids is not None and c and c.fleet_id not in fids:
-        abort(403)
+    if fids is not None:
+        owner_fleet = c.fleet_id if c else (mv.vehicle.fleet_id if mv.vehicle else None)
+        if owner_fleet is not None and owner_fleet not in fids:
+            abort(403)
     # A rentrée that later distributions drew on cannot go: without it they
     # took fuel that was never there. The right rentrée goes in first, then the
     # wrong one comes out. Removing a distribution only puts fuel back.
@@ -822,7 +882,8 @@ def movement_delete(mid):
         over = max(c.peak_if_returned(mv.date, mv.liters, mv.time) - c.capacity_liters, 0)
     db.session.delete(mv)
     log_action("DELETE", "fuel_movement", resource_id=mid,
-               fleet_id=(c.fleet_id if c else None), detail=f"Deleted {mv.kind}")
+               fleet_id=(c.fleet_id if c else (mv.vehicle.fleet_id if mv.vehicle else None)),
+               detail=f"Deleted {mv.kind}")
     db.session.commit()
     flash("success|" + get_t().get("movement.deleted", "Mouvement supprimé."))
     _flash_overflow(over)

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['direct.edit'] }}{% endblock %}
+{% block page_title %}{{ t['direct.edit'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_direct_form.html" %}
+</section>
+{% endblock %}
