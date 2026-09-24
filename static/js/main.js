@@ -24,29 +24,6 @@
     });
 })();
 
-// ── Workspace menu (drawer top) ──
-// Opens on its button, closes on a click elsewhere or Escape.
-(function () {
-    const btn = document.getElementById("ws-switch-btn");
-    const menu = document.getElementById("ws-switch-menu");
-    if (!btn || !menu) return;
-
-    function setOpen(open) {
-        menu.hidden = !open;
-        btn.setAttribute("aria-expanded", open ? "true" : "false");
-    }
-    btn.addEventListener("click", function (e) {
-        e.stopPropagation();
-        setOpen(menu.hidden);
-    });
-    document.addEventListener("click", function (e) {
-        if (!menu.hidden && !menu.contains(e.target)) setOpen(false);
-    });
-    document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape" && !menu.hidden) { setOpen(false); btn.focus(); }
-    });
-})();
-
 // ── Filtering a list of tick boxes as you type ──
 // <input data-filter-list="#list"> keeps only the list's children whose text
 // contains what was typed. A ticked item always stays: what you chose must

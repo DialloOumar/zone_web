@@ -25,19 +25,22 @@
    templates — missing those is exactly how `close` ended up invisible, and
    later how the parts store and the cash box shipped with no icon at all.
 
-   The list as of v11 (61 names):
-     account_balance, account_balance_wallet, add,
-     admin_panel_settings, archive, arrow_back, badge, bedtime,
-     category, check, check_circle, chevron_left, chevron_right,
-     close, dark_mode, delete, directions_bus, donut_large, edit,
-     engineering, error, fact_check, group, handshake, handyman, help,
-     history, home, image, info, inventory, light_mode, list_alt,
+   The list as of v12 (66 names), built from the npm material-symbols
+   package with fontTools (instanced at opsz 24 / wght 400 / FILL 0 / GRAD 0,
+   then subset to the ligature glyph of each name):
+     account_balance, account_balance_wallet, account_tree, add,
+     admin_panel_settings, approval, archive, arrow_back, badge,
+     bedtime, category, check, check_circle, chevron_left,
+     chevron_right, close, construction, dark_mode, delete,
+     directions_bus, donut_large, edit, engineering, error,
+     fact_check, group, handshake, handyman, help, history, home,
+     image, info, inventory, light_mode, list_alt,
      local_gas_station, local_shipping, lock_reset, logout, menu,
-     payments, pending_actions, photo_camera, picture_as_pdf,
-     price_check, print, query_stats, receipt_long, request_quote,
-     rule, save, settings, shelves, space_dashboard, store, task_alt,
-     translate, tune, unarchive, unfold_more, visibility_off, warning,
-     workspaces */
+     menu_book, payments, pending_actions, photo_camera,
+     picture_as_pdf, point_of_sale, price_check, print, query_stats,
+     receipt_long, request_quote, rule, save, settings, shelves,
+     space_dashboard, store, task_alt, translate, tune, unarchive,
+     unfold_more, visibility_off, warning, workspaces */
 @font-face {
     font-family: "Roboto";
     font-style: normal;
@@ -64,7 +67,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2?v=11") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=12") format("woff2");
 }
 
 /* ── Design tokens (light) ── */
@@ -332,61 +335,6 @@ a:hover { text-decoration: underline; }
 
 /* Workspace menu under the logo (super admins only): a button naming the
    current workspace, a drop-down listing them all. */
-.ws-switch { position: relative; margin: 0 4px 10px; }
-.ws-switch-btn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 44px;
-    padding: 0 12px 0 14px;
-    border: 1px solid var(--md-outline-variant);
-    border-radius: var(--shape-lg);
-    background: var(--md-surface-container);
-    color: var(--md-on-surface);
-    font: inherit;
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.15s;
-}
-.ws-switch-btn:hover, .ws-switch-btn[aria-expanded="true"] { background: var(--md-surface-container-high); }
-.ws-switch-btn > .material-symbols-outlined { font-size: 20px; color: var(--md-primary); }
-.ws-switch-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ws-switch-caret { color: var(--md-on-surface-variant) !important; font-size: 18px !important; }
-.ws-switch-menu {
-    position: absolute;
-    left: 0; right: 0;
-    top: calc(100% + 4px);
-    z-index: 20;
-    padding: 6px;
-    border-radius: var(--shape-lg);
-    background: var(--md-surface-container);
-    box-shadow: var(--elev-3);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-.ws-switch-menu[hidden] { display: none; }
-.ws-switch-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 40px;
-    padding: 0 10px;
-    border-radius: var(--shape-md);
-    color: var(--md-on-surface-variant);
-    font-size: 0.85rem;
-    font-weight: 500;
-    text-decoration: none;
-}
-.ws-switch-item:hover { background: var(--md-surface-container-high); text-decoration: none; color: var(--md-on-surface); }
-.ws-switch-item.active { color: var(--md-on-surface); font-weight: 600; }
-.ws-switch-item .material-symbols-outlined { font-size: 20px; }
-.ws-switch-item-name { flex: 1; }
-.ws-switch-check { color: var(--md-primary); font-size: 18px !important; }
-
 /* Plan comptable: the nine classes as tiles, one class as an indented tree */
 .plan-classes {
     display: grid;

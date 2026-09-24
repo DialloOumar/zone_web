@@ -193,7 +193,7 @@ def _inject_globals():
         # Whether a person has a stamp or signature to print.
         "user_has_stamp": user_has_stamp,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
-        # Shows the Exploitation / Finance switcher at the top of the drawer.
+        # Shows the accounting pages of the Finance section in the drawer.
         "finance_visible": can_enter_finance(),
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,
@@ -386,9 +386,10 @@ def has_perm(perm_key):
 
 
 def can_enter_finance():
-    """Who may open the Finance workspace. Super admins only while it is being
-    built; the blueprint's guard and the sidebar switcher both ask here, so
-    opening it to a comptable later is a one-line change."""
+    """Who may open the accounting pages of the Finance section: the plan,
+    the paramétrage, the journal. Super admins only while they are being
+    built; the blueprint's guard and the drawer both ask here, so opening
+    them to a comptable later is a one-line change."""
     return current_user.is_authenticated and current_user.is_super_admin
 
 
@@ -1135,15 +1136,15 @@ def _signature_page(user, back_url=None):
                            stamp_version=int(user.signature_at.timestamp()) if user.signature_at else 0)
 
 
-# ── Finance section: the pages still to come ────────────────────────────────
-# Listed in the drawer already, so the section reads whole; each opens on an
+# ── Finance section: the page still to come ─────────────────────────────────
+# Listed in the drawer already, so the section reads whole; it opens on an
 # empty page that says so, until the real one replaces it. Super admin only
 # until then: nobody else is shown an empty page.
 
-FINANCE_SOON = {"plan-comptable": "plan.title", "journal": "nav.journal"}
+FINANCE_SOON = {"journal": "nav.journal"}
 
 
-@app.route("/<any(\"plan-comptable\", journal):page>")
+@app.route("/<any(journal):page>")
 @login_required
 @super_admin_required
 def finance_soon(page):
@@ -1685,7 +1686,7 @@ def seed_cmd():
     else:
         click.echo(f"  super admin: already exists, skipped")
 
-    # 5. The chart of accounts, for the Finance workspace
+    # 5. The chart of accounts, for the Finance section
     added = _seed_plan_comptable_data()
     click.echo(f"  plan comptable: {added} accounts added")
 

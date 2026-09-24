@@ -1,15 +1,15 @@
-"""Finance workspace — the accounting side of the app, built little by little.
+"""Finance — the accounting pages of the Finance section of the drawer.
 
-Like batmex's BATMEX SA or HR: its own sidebar behind a switcher at the top of
-the drawer, reached only by whoever the switcher is shown to. Today that is
-the super admins and nobody else; every address under /finance answers "page
-not found" to anyone else, so an unfinished screen is never seen by a user.
+The section holds the money pages everyone uses (Caisse, Factures
+fournisseurs, Facturation, Comptes) and, around them, the accounting ones
+kept here: the plan and the paramétrage, and the journal to come. These are
+reached by the super admins and nobody else while they are being built;
+every address under /finance answers "page not found" to anyone else, so an
+unfinished screen is never seen by a user.
 
 One guard at the door, below, covers every page added here later. When the
-workspace is ready for a comptable, that guard is where a permission replaces
+pages are ready for a comptable, that guard is where a permission replaces
 the super-admin rule — the pages themselves will not change.
-
-Nothing is stubbed: the sidebar lists what works and nothing else.
 
 Plan comptable
 --------------
@@ -64,7 +64,8 @@ def _guard():
 
 @finance_bp.route("/")
 def index():
-    return render_template("finance/home.html")
+    """The old workspace's front door: the plan is the section's first page."""
+    return redirect(url_for("finance.plan"))
 
 
 # ── Plan comptable ───────────────────────────────────────────────────────────
