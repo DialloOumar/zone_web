@@ -58,7 +58,7 @@
             </a></li>
             {% endif %}
 
-            {% if has_perm('carburant.view') or has_perm('expense.view') or has_perm('stock.view') or has_perm('insights.view') or has_perm('invoicing.view') %}
+            {% if has_perm('carburant.view') or has_perm('stock.view') or has_perm('insights.view') %}
             <li class="sidebar-section">{{ t['nav.management'] }}</li>
             {% if has_perm('carburant.view') %}
             <li><a href="{{ url_for('carburant.index') }}" class="sidebar-sub {% if request.blueprint == 'carburant' %}active{% endif %}">
@@ -72,21 +72,25 @@
                 <span class="nav-icon material-symbols-outlined">shelves</span> {{ t['nav.stock'] }}
             </a></li>
             {% endif %}
-            {% if has_perm('expense.view') %}
-            <li><a href="{{ url_for('expenses.index') }}" class="sidebar-sub {% if request.blueprint == 'expenses' %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">payments</span> {{ t['nav.expenses'] }}
-            </a></li>
-            {% endif %}
-            {# The other side of the money: what the company owes, next to what it
-               has already spent. #}
-            {% if has_perm('supplier_invoice.view') %}
-            <li><a href="{{ url_for('supplier_invoices.index') }}" class="sidebar-sub {% if request.blueprint == 'supplier_invoices' %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">receipt_long</span> {{ t['nav.supplier_invoices'] }}
-            </a></li>
-            {% endif %}
             {% if has_perm('insights.view') %}
             <li><a href="{{ url_for('insights.index') }}" class="sidebar-sub {% if request.blueprint == 'insights' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">query_stats</span> {{ t['nav.insights'] }}
+            </a></li>
+            {% endif %}
+            {% endif %}
+
+            {# The money, in the order it moves: the till, then what the company
+               owes its suppliers, then what it bills its clients. #}
+            {% if has_perm('expense.view') or has_perm('supplier_invoice.view') or has_perm('invoicing.view') %}
+            <li class="sidebar-section">{{ t['nav.finance'] }}</li>
+            {% if has_perm('expense.view') %}
+            <li><a href="{{ url_for('expenses.index') }}" class="sidebar-sub {% if request.blueprint == 'expenses' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">point_of_sale</span> {{ t['nav.expenses'] }}
+            </a></li>
+            {% endif %}
+            {% if has_perm('supplier_invoice.view') %}
+            <li><a href="{{ url_for('supplier_invoices.index') }}" class="sidebar-sub {% if request.blueprint == 'supplier_invoices' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">receipt_long</span> {{ t['nav.supplier_invoices'] }}
             </a></li>
             {% endif %}
             {% if has_perm('invoicing.view') %}
