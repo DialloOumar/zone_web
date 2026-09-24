@@ -1052,7 +1052,8 @@ def stamp_svg(user_id):
     box = stamp_signature_box(user)
     # One's own stamp can be previewed with what is being typed and slid,
     # before it is saved: the page passes it all along, nothing is written.
-    if user.id == current_user.id and any(k in request.args for k in ("label", "phone", "dx", "dy", "scale", "color", "sig_color")):
+    if (user.id == current_user.id or current_user.is_super_admin) and any(
+            k in request.args for k in ("label", "phone", "dx", "dy", "scale", "color", "sig_color")):
         label = (request.args.get("label") or "").strip()[:40]
         phone = (request.args.get("phone") or "").strip()[:30]
         color = clamp_color(request.args.get("color"))
@@ -1073,43 +1074,64 @@ def user_has_stamp(user):
     return bool(user and (user.stamp_label or user.signature_png))
 
 
-@app.route("/ma-signature", methods=["GET", "POST"])
-@login_required
-def my_signature():
-    """Where anyone sets up their own stamp and signature: the word in the
-    middle, the phone on the arc, and a picture of their signature on white
-    paper, which the app turns into ink alone."""
+def _signature_page(user, back_url=None):
+    """The stamp and signature form for one person: the word in the middle,
+    the phone on the arc, and a picture of their signature on white paper,
+    which the app turns into ink alone. Shared by "Ma signature" and by the
+    super admin, who can set up or correct anyone's."""
     from signatures import extract_signature
     error = success = None
     if request.method == "POST":
-        current_user.stamp_label = (request.form.get("stamp_label") or "").strip()[:40] or None
-        current_user.stamp_phone = (request.form.get("stamp_phone") or "").strip()[:30] or None
-        current_user.sig_dx, current_user.sig_dy, current_user.sig_scale = clamp_placement(
+        user.stamp_label = (request.form.get("stamp_label") or "").strip()[:40] or None
+        user.stamp_phone = (request.form.get("stamp_phone") or "").strip()[:30] or None
+        user.sig_dx, user.sig_dy, user.sig_scale = clamp_placement(
             request.form.get("sig_dx"), request.form.get("sig_dy"), request.form.get("sig_scale"))
-        current_user.stamp_color = clamp_color(request.form.get("stamp_color"))
-        current_user.sig_color = clamp_color(request.form.get("sig_color"), current_user.stamp_color)
+        user.stamp_color = clamp_color(request.form.get("stamp_color"))
+        user.sig_color = clamp_color(request.form.get("sig_color"), user.stamp_color)
         if request.form.get("remove_signature"):
-            current_user.signature_png = None
-            current_user.signature_at = None
+            user.signature_png = None
+            user.signature_at = None
         f = request.files.get("signature")
         if f and f.filename:
             png = extract_signature(f.read())
             if not png:
                 error = "sig.err.unreadable"
             else:
-                current_user.signature_png = png
-                current_user.signature_at = datetime.utcnow()
+                user.signature_png = png
+                user.signature_at = datetime.utcnow()
         if not error:
-            log_action("UPDATE", "user", resource_id=current_user.id, detail="Stamp and signature updated")
+            detail = "Stamp and signature updated"
+            if user.id != current_user.id:
+                detail += " by admin for '%s'" % user.username
+            log_action("UPDATE", "user", resource_id=user.id, detail=detail)
             db.session.commit()
             success = "sig.saved"
         else:
             db.session.rollback()
-    return render_template("my_signature.html", error=error, success=success,
-                           inks=STAMP_INKS, ink=clamp_color(current_user.stamp_color),
-                           sig_ink=clamp_color(current_user.sig_color, clamp_color(current_user.stamp_color)),
-                           has_signature=bool(current_user.signature_png),
-                           stamp_version=int(current_user.signature_at.timestamp()) if current_user.signature_at else 0)
+    return render_template("my_signature.html", who=user, back_url=back_url, error=error, success=success,
+                           inks=STAMP_INKS, ink=clamp_color(user.stamp_color),
+                           sig_ink=clamp_color(user.sig_color, clamp_color(user.stamp_color)),
+                           has_signature=bool(user.signature_png),
+                           stamp_version=int(user.signature_at.timestamp()) if user.signature_at else 0)
+
+
+@app.route("/ma-signature", methods=["GET", "POST"])
+@login_required
+def my_signature():
+    """Where anyone sets up their own stamp and signature."""
+    return _signature_page(current_user)
+
+
+@app.route("/admin/users/<int:user_id>/signature", methods=["GET", "POST"])
+@login_required
+@super_admin_required
+def user_signature(user_id):
+    """The super admin sets up or corrects someone else's stamp and
+    signature, from that person's page in the user list."""
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404)
+    return _signature_page(user, back_url=url_for("admin.user_edit", user_id=user.id))
 
 
 @app.route("/change-password", methods=["GET", "POST"])

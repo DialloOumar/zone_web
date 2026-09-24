@@ -1,15 +1,16 @@
 {% extends "base.html" %}
 {% from "_hint.html" import hint with context %}
 
-{% block title %}{{ t['sig.title'] }}{% endblock %}
-{% block page_title %}{{ t['sig.title'] }}{% endblock %}
+{% block title %}{{ t['sig.title'] }}{% if who.id != current_user.id %} · {{ who.full_name }}{% endif %}{% endblock %}
+{% block page_title %}{{ t['sig.title'] }}{% if who.id != current_user.id %} · {{ who.full_name }}{% endif %}{% endblock %}
 
 {% block content %}
 <section class="card" style="max-width: 900px;">
     <div class="card-header">
         <div>
-            <h2>{{ t['sig.title'] }}</h2>
+            <h2>{% if who.id != current_user.id %}{{ t['sig.of'] % who.full_name }}{% else %}{{ t['sig.title'] }}{% endif %}</h2>
         </div>
+        {% if back_url %}<a href="{{ back_url }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>{% endif %}
     </div>
     {% if error %}<div class="alert alert--error">{{ t[error] if error in t else error }}</div>{% endif %}
     {% if success %}<div class="alert alert--success">{{ t[success] }}</div>{% endif %}
@@ -19,12 +20,12 @@
             <div class="form-row">
                 <div class="field">
                     <input type="text" id="stamp_label" name="stamp_label" placeholder=" " maxlength="40"
-                           value="{{ request.form.get('stamp_label') or (current_user.stamp_label or '') }}">
+                           value="{{ request.form.get('stamp_label') or (who.stamp_label or '') }}">
                     <label for="stamp_label">{{ t['sig.label'] }} {{ hint('', t['sig.label_hint']) }}</label>
                 </div>
                 <div class="field">
                     <input type="tel" id="stamp_phone" name="stamp_phone" placeholder=" " maxlength="30"
-                           value="{{ request.form.get('stamp_phone') or (current_user.stamp_phone or current_user.phone or '') }}">
+                           value="{{ request.form.get('stamp_phone') or (who.stamp_phone or who.phone or '') }}">
                     <label for="stamp_phone">{{ t['sig.phone'] }}</label>
                 </div>
             </div>
@@ -59,11 +60,11 @@
             <div class="sig-sliders">
                 <span class="photo-input__label">{{ t['sig.place'] }}</span>
                 <label><span>{{ t['sig.place_x'] }}</span>
-                    <input type="range" id="sig_dx" name="sig_dx" min="-80" max="80" step="1" value="{{ request.form.get('sig_dx') or current_user.sig_dx }}"></label>
+                    <input type="range" id="sig_dx" name="sig_dx" min="-80" max="80" step="1" value="{{ request.form.get('sig_dx') or who.sig_dx }}"></label>
                 <label><span>{{ t['sig.place_y'] }}</span>
-                    <input type="range" id="sig_dy" name="sig_dy" min="-80" max="80" step="1" value="{{ request.form.get('sig_dy') or current_user.sig_dy }}"></label>
+                    <input type="range" id="sig_dy" name="sig_dy" min="-80" max="80" step="1" value="{{ request.form.get('sig_dy') or who.sig_dy }}"></label>
                 <label><span>{{ t['sig.place_size'] }}</span>
-                    <input type="range" id="sig_scale" name="sig_scale" min="40" max="230" step="5" value="{{ request.form.get('sig_scale') or current_user.sig_scale }}"></label>
+                    <input type="range" id="sig_scale" name="sig_scale" min="40" max="230" step="5" value="{{ request.form.get('sig_scale') or who.sig_scale }}"></label>
                 <button type="button" class="btn btn--sm btn--outlined" id="sig-reset">{{ t['sig.place_reset'] }}</button>
             </div>
             <label class="checkbox-item" style="margin-top:12px; max-width:360px;">
@@ -82,8 +83,8 @@
         <div class="sig-preview">
             <span class="photo-input__label">{{ t['sig.preview'] }}</span>
             <div class="sig-preview__stamp">
-                <img id="stamp-preview" src="{{ url_for('stamp_svg', user_id=current_user.id, v=stamp_version) }}" alt="{{ t['sig.title'] }}"
-                     data-base="{{ url_for('stamp_svg', user_id=current_user.id, v=stamp_version) }}">
+                <img id="stamp-preview" src="{{ url_for('stamp_svg', user_id=who.id, v=stamp_version) }}" alt="{{ t['sig.title'] }}"
+                     data-base="{{ url_for('stamp_svg', user_id=who.id, v=stamp_version) }}">
             </div>
             {% if has_signature %}
             <p class="muted small">{{ t['sig.has'] }}</p>

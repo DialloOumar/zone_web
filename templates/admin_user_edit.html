@@ -87,6 +87,15 @@
 </section>
 
 <section class="card" style="max-width: 720px;">
+    <div class="card-header"><h2>{{ t['sig.title'] }}</h2>
+        <a href="{{ url_for('user_signature', user_id=user.id) }}" class="btn btn--sm btn--tonal">
+            <span class="material-symbols-outlined">approval</span> {{ t['user.edit_signature'] }}
+        </a>
+    </div>
+    <p class="muted small" style="margin:0;">{{ t['user.signature_hint'] }}</p>
+</section>
+
+<section class="card" style="max-width: 720px;">
     <div class="card-header"><h2>{{ t['user.reset_password'] }}</h2></div>
     <form method="post" action="{{ url_for('admin.user_password', user_id=user.id) }}" class="filter-bar">
         <div class="field" style="min-width: 260px;">
