@@ -369,6 +369,9 @@ a:hover { text-decoration: underline; }
 .plan-class-name { font-size: 0.82rem; font-weight: 600; line-height: 1.25; }
 .plan-class-count { font-size: 0.72rem; color: var(--md-on-surface-variant); }
 .plan-class.active .plan-class-count { color: inherit; opacity: 0.8; }
+.plan-class--used .plan-class-num .material-symbols-outlined { font-size: 20px; }
+.plan-class--used .plan-class-num { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+.plan-class--used.active .plan-class-num { background: var(--md-primary); color: var(--md-on-primary); }
 
 .plan-table td { vertical-align: middle; }
 .plan-code { width: 1%; white-space: nowrap; }

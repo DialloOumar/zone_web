@@ -15,14 +15,21 @@
 
     {{ searchbox(q, keep={'masques': '1' if show_hidden else ''}) }}
 
-    {# The nine classes. One is open at a time; a search cuts across them. #}
+    {# The shortlist first: what the pickers offer. Then the nine classes,
+       one open at a time; a search cuts across them. #}
     <div class="plan-classes">
+        <a href="{{ url_for('finance.plan', utilises=1, masques='1' if show_hidden else None) }}"
+           class="plan-class plan-class--used {% if used_only %}active{% endif %}">
+            <span class="plan-class-num"><span class="material-symbols-outlined">check_circle</span></span>
+            <span class="plan-class-name">{{ t['plan.used_title'] }}</span>
+            <span class="plan-class-count">{{ used_total }} {{ t['plan.accounts'] }}</span>
+        </a>
         {% for n, name in classes %}
         <a href="{{ url_for('finance.plan', classe=n, masques='1' if show_hidden else None) }}"
-           class="plan-class {% if klass == n and not q %}active{% endif %}">
+           class="plan-class {% if klass == n and not q and not used_only %}active{% endif %}">
             <span class="plan-class-num">{{ n }}</span>
             <span class="plan-class-name">{{ name }}</span>
-            <span class="plan-class-count">{{ counts.get(n, 0) }}{% if own.get(n) %} · <strong>{{ own[n] }}</strong> {{ t['plan.own_short'] }}{% endif %}</span>
+            <span class="plan-class-count">{{ counts.get(n, 0) }}{% if used.get(n) %} · <strong>{{ used[n] }}</strong> {{ t['plan.used_short'] }}{% endif %}{% if own.get(n) %} · {{ own[n] }} {{ t['plan.own_short'] }}{% endif %}</span>
         </a>
         {% endfor %}
     </div>
@@ -42,13 +49,17 @@
 <section class="card">
     <div class="card-header">
         <h2>
-            {% if q %}{{ t['plan.results'] }} « {{ q }} »
+            {% if used_only %}{{ t['plan.used_title'] }}
+            {% elif q %}{{ t['plan.results'] }} « {{ q }} »
             {% else %}{{ t['plan.class'] }} {{ klass }} — {{ dict(classes)[klass] }}{% endif %}
         </h2>
         <span class="muted small">{{ rows | length }} {{ t['plan.accounts'] }}</span>
     </div>
 
+    {% if used_only %}<p class="muted small" style="margin:-6px 0 10px;">{{ t['plan.used_intro'] }}</p>{% endif %}
     {% if rows %}
+    {# Actions come back to the view they were taken from. #}
+    {% set keep %}<input type="hidden" name="_view" value="{{ 'used' if used_only else '' }}"><input type="hidden" name="_q" value="{{ q }}">{% endset %}
     <div class="table-wrap"><table class="data-table plan-table">
         <tbody>
         {% for a, has_children in rows %}
@@ -56,10 +67,22 @@
             <td class="plan-code"><code>{{ a.code }}</code></td>
             <td class="plan-label">
                 {{ a.label }}
+                {% if a.is_used and not used_only %}<span class="badge badge--active">{{ t['plan.used_badge'] }}</span>{% endif %}
                 {% if not a.is_standard %}<span class="badge badge--info">{{ t['plan.own'] }}</span>{% endif %}
                 {% if not a.is_active %}<span class="badge badge--inactive">{{ t['plan.hidden_badge'] }}</span>{% endif %}
             </td>
             <td class="row-actions">
+                {% if a.is_active %}
+                {% if a.is_used %}
+                <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='unuse') }}" style="display:inline">{{ keep }}
+                    <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['plan.unuse'] }}" aria-label="{{ t['plan.unuse'] }}"><span class="material-symbols-outlined">check_circle</span></button>
+                </form>
+                {% else %}
+                <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='use') }}" style="display:inline">{{ keep }}
+                    <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['plan.use'] }}" aria-label="{{ t['plan.use'] }}"><span class="material-symbols-outlined">task_alt</span></button>
+                </form>
+                {% endif %}
+                {% endif %}
                 {% if a.is_active %}
                 <a href="{{ url_for('finance.account_new', parent=a.code) }}" class="btn btn--sm btn--tonal btn--icon"
                    data-modal-url="{{ url_for('finance.account_new', parent=a.code) }}" data-modal-title="{{ t['plan.add_under'] }} {{ a.code }}"
@@ -71,17 +94,17 @@
                    title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                 {% endif %}
                 {% if a.is_active %}
-                <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='hide') }}" style="display:inline">
+                <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='hide') }}" style="display:inline">{{ keep }}
                     <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['plan.hide'] }}" aria-label="{{ t['plan.hide'] }}"><span class="material-symbols-outlined">visibility_off</span></button>
                 </form>
                 {% else %}
-                <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='show') }}" style="display:inline">
+                <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='show') }}" style="display:inline">{{ keep }}
                     <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['plan.show'] }}" aria-label="{{ t['plan.show'] }}"><span class="material-symbols-outlined">unarchive</span></button>
                 </form>
                 {% endif %}
                 {% if not a.is_standard and not has_children %}
                 <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='delete') }}"
-                      data-confirm="{{ t['list.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                      data-confirm="{{ t['list.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">{{ keep }}
                     <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                 </form>
                 {% endif %}

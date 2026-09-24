@@ -1605,6 +1605,11 @@ class LedgerAccount(db.Model):
     parent_code = db.Column(db.String(12),  nullable=True, index=True)
     is_standard = db.Column(db.Boolean,     nullable=False, default=False)  # from the SYSCOHADA file
     is_active   = db.Column(db.Boolean,     nullable=False, default=True)
+    # The finance team's shortlist: the accounts a line of the Caisse, a
+    # supplier bill or a client invoice can be coded to. The pickers on those
+    # pages list these and nothing else, so 1,300 accounts never land in a
+    # dropdown. A company account is used from the day it is added.
+    is_used     = db.Column(db.Boolean,     nullable=False, default=False, server_default=db.false())
     created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 

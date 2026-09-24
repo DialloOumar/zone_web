@@ -74,6 +74,7 @@ def plan():
     q = (request.args.get("q") or "").strip()
     klass = request.args.get("classe", type=int)
     show_hidden = request.args.get("masques") == "1"
+    used_only = request.args.get("utilises") == "1"   # the shortlist, across classes
 
     base = LedgerAccount.query
     if not show_hidden:
@@ -86,9 +87,14 @@ def plan():
                .filter(LedgerAccount.is_standard.is_(False))
                .group_by(LedgerAccount.klass).all())
     hidden_count = LedgerAccount.query.filter(LedgerAccount.is_active.is_(False)).count()
+    used = dict(db.session.query(LedgerAccount.klass, db.func.count(LedgerAccount.id))
+                .filter(LedgerAccount.is_used.is_(True), LedgerAccount.is_active.is_(True))
+                .group_by(LedgerAccount.klass).all())
 
     rows = None
-    if q:
+    if used_only:
+        rows = _tree(base.filter(LedgerAccount.is_used.is_(True)).all())
+    elif q:
         like = f"%{q}%"
         if q.isdigit():
             rows = base.filter(LedgerAccount.code.like(q + "%")).all()
@@ -101,7 +107,8 @@ def plan():
     return render_template("finance/plan_comptable.html",
                            classes=CLASSES, counts=counts, own=own,
                            hidden_count=hidden_count, klass=klass, q=q,
-                           show_hidden=show_hidden, rows=rows)
+                           show_hidden=show_hidden, rows=rows,
+                           used=used, used_total=sum(used.values()), used_only=used_only)
 
 
 def _render_form(row, parent, error=None):
@@ -112,8 +119,14 @@ def _render_form(row, parent, error=None):
 
 
 def _back(parent_code=None, code=None):
-    """Where to land after a save: the class the account lives in."""
+    """Where to land after a save: the view the person was on -- the
+    shortlist or a search when they came from one -- else the class the
+    account lives in."""
     ref = code or parent_code or ""
+    if request.form.get("_view") == "used":
+        return redirect(url_for("finance.plan", utilises=1))
+    if request.form.get("_q"):
+        return redirect(url_for("finance.plan", q=request.form.get("_q")))
     return redirect(url_for("finance.plan", classe=int(ref[0]) if ref else None))
 
 
@@ -136,7 +149,7 @@ def _save(row, parent):
         if LedgerAccount.query.filter_by(code=code).first():
             return t.get("plan.err.code_taken", "Ce numéro existe déjà.")
         row = LedgerAccount(code=code, klass=int(code[0]), parent_code=parent.code,
-                            is_standard=False, created_by=current_user.id)
+                            is_standard=False, is_used=True, created_by=current_user.id)
         db.session.add(row)
         log_action("CREATE", "ledger_account", detail=f"Added account {code} '{label}'")
     else:
@@ -176,10 +189,11 @@ def account_edit(aid):
     return _render_form(row, parent)
 
 
-@finance_bp.route("/plan-comptable/<int:aid>/<any(hide,show,delete):what>", methods=["POST"])
+@finance_bp.route("/plan-comptable/<int:aid>/<any(hide,show,delete,use,unuse):what>", methods=["POST"])
 def account_action(aid, what):
-    """Hide takes an account out of the pickers, standard or not; delete is
-    for a company account only, and nothing points at any account yet."""
+    """Use and unuse keep the finance team's shortlist, the accounts the
+    pickers offer. Hide takes an account out of the plan's view altogether,
+    standard or not; delete is for a company account only."""
     row = db.session.get(LedgerAccount, aid)
     if not row:
         abort(404)
@@ -195,6 +209,11 @@ def account_action(aid, what):
                    detail=f"Deleted account {row.code} '{row.label}'")
         db.session.delete(row)
         msg = "list.deleted"
+    elif what in ("use", "unuse"):
+        row.is_used = what == "use"
+        log_action("UPDATE", "ledger_account", resource_id=aid,
+                   detail=f"{'Marked used' if row.is_used else 'Marked unused'} account {row.code}")
+        msg = "plan.used" if row.is_used else "plan.unused"
     else:
         row.is_active = what == "show"
         log_action(what.upper(), "ledger_account", resource_id=aid,

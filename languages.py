@@ -150,7 +150,15 @@ TRANSLATIONS = {
 
         # Plan comptable
         "plan.title":               "Plan comptable",
-        "plan.intro":               "Le plan SYSCOHADA révisé, celui sur lequel le comptable tient les livres. Ouvrez une classe ou cherchez un numéro ou un mot. Sous n'importe quel compte, ajoutez ceux de l'entreprise : un par fournisseur sous 4011, un par banque sous 521.",
+        "plan.intro":               "Le plan SYSCOHADA révisé, celui sur lequel le comptable tient les livres. Ouvrez une classe ou cherchez un numéro ou un mot. Marquez « utilisé » les comptes que l'équipe finance emploie : ce sont les seuls proposés sur la Caisse, les factures fournisseurs et la facturation. Sous n'importe quel compte, ajoutez ceux de l'entreprise : un par fournisseur sous 4011, un par banque sous 521.",
+        "plan.used_title":          "Comptes utilisés",
+        "plan.used_intro":          "Les comptes proposés sur la Caisse, les factures fournisseurs et la facturation. Retirez-en un ici ou ajoutez-en depuis sa classe.",
+        "plan.used_short":          "utilisés",
+        "plan.used_badge":          "Utilisé",
+        "plan.use":                 "Marquer utilisé",
+        "plan.unuse":               "Ne plus utiliser",
+        "plan.used":                "Compte ajouté aux comptes utilisés.",
+        "plan.unused":              "Compte retiré des comptes utilisés.",
         "plan.class":               "Classe",
         "plan.accounts":            "comptes",
         "plan.results":             "Résultats pour",
@@ -1780,7 +1788,15 @@ TRANSLATIONS = {
 
         # Plan comptable
         "plan.title":               "Chart of accounts",
-        "plan.intro":               "The revised SYSCOHADA chart, the one the accountant keeps the books on. Open a class or search a number or a word. Under any account, add the company's own: one per supplier under 4011, one per bank under 521.",
+        "plan.intro":               "The revised SYSCOHADA chart, the one the accountant keeps the books on. Open a class or search a number or a word. Mark as used the accounts the finance team works with: they are the only ones offered on the Cash box, supplier invoices and invoicing. Under any account, add the company's own: one per supplier under 4011, one per bank under 521.",
+        "plan.used_title":          "Accounts in use",
+        "plan.used_intro":          "The accounts offered on the Cash box, supplier invoices and invoicing. Remove one here, or add one from its class.",
+        "plan.used_short":          "in use",
+        "plan.used_badge":          "In use",
+        "plan.use":                 "Mark as used",
+        "plan.unuse":               "Stop using",
+        "plan.used":                "Account added to the accounts in use.",
+        "plan.unused":              "Account removed from the accounts in use.",
         "plan.class":               "Class",
         "plan.accounts":            "accounts",
         "plan.results":             "Results for",
