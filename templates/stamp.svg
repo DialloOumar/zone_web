@@ -38,7 +38,8 @@
       <textPath href="#arcBas" startOffset="50%" text-anchor="middle">★  {% if phone %}Tel: {{ phone }}{% endif %}  ★</textPath>
     </text>
 
-    <text x="150" y="{{ 132 if signature else 150 }}" dominant-baseline="central" font-size="{{ 34 if label|length <= 10 else (26 if label|length <= 14 else 20) }}" font-weight="bold" text-anchor="middle" stroke="none">{{ label }}</text>
+    {# The word, sized to stay inside the inner circle (see stamp_label_fit). #}
+  <text x="150" y="{{ 132 if signature else 150 }}" dominant-baseline="central" font-size="{{ label_size }}" font-weight="bold" text-anchor="middle" stroke="none"{% if label_length %} textLength="{{ label_length }}" lengthAdjust="spacingAndGlyphs"{% endif %}>{{ label }}</text>
   </g>
 
   {% if signature %}

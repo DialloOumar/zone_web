@@ -996,6 +996,47 @@ def stamp_signature_box(user, dx=None, dy=None, scale=None):
                 x=round(150 - box_w / 2 + dx, 1), y=round(204 - box_h / 2 + dy, 1))
 
 
+# Advance widths of Arial Bold, per 1000 em, for the word in the middle of the
+# stamp; a letter not listed counts as a wide one. Liberation Sans Bold, which
+# the sheets fall back to, has the same widths.
+_LABEL_WIDTHS = {
+    "A": 722, "B": 722, "C": 722, "D": 722, "E": 667, "F": 611, "G": 778, "H": 722,
+    "I": 278, "J": 556, "K": 722, "L": 611, "M": 833, "N": 722, "O": 778, "P": 667,
+    "Q": 778, "R": 722, "S": 667, "T": 611, "U": 722, "V": 667, "W": 944, "X": 667,
+    "Y": 667, "Z": 611, "a": 556, "b": 611, "c": 556, "d": 611, "e": 556, "f": 333,
+    "g": 611, "h": 611, "i": 278, "j": 278, "k": 556, "l": 278, "m": 889, "n": 611,
+    "o": 611, "p": 611, "q": 611, "r": 389, "s": 556, "t": 333, "u": 611, "v": 556,
+    "w": 778, "x": 556, "y": 556, "z": 500, " ": 278, "-": 333, "&": 722, ".": 278,
+    "/": 278, "'": 238,
+}
+LABEL_SIZE_MAX, LABEL_SIZE_MIN = 34, 14
+STAMP_INNER_R = 98      # the inner circle, as drawn in stamp.svg
+
+
+def stamp_label_fit(label, y_offset):
+    """The word's font size so that it stays inside the inner circle: the
+    largest size, up to the usual one, at which its estimated width fits the
+    circle's chord at the word's height, with a little air on each side.
+    Returns (size, text_length): text_length is the exact width to hold the
+    word to when it had to be shrunk, so a font a little wider than
+    estimated still fits; None when it fit at full size."""
+    import unicodedata
+    if not label:
+        return LABEL_SIZE_MAX, None
+
+    def width(ch):
+        base = unicodedata.normalize("NFD", ch)[0]
+        return _LABEL_WIDTHS.get(base, 722 if ch.isupper() else 611)
+
+    em = sum(width(ch) for ch in label) / 1000.0
+    chord = 2 * (STAMP_INNER_R ** 2 - y_offset ** 2) ** 0.5
+    available = chord - 16
+    if em * LABEL_SIZE_MAX <= available:
+        return LABEL_SIZE_MAX, None
+    size = max(LABEL_SIZE_MIN, int(available / em))
+    return size, round(min(available, em * size), 1)
+
+
 @app.route("/tampon/<int:user_id>.svg")
 @login_required
 def stamp_svg(user_id):
@@ -1017,7 +1058,9 @@ def stamp_svg(user_id):
         color = clamp_color(request.args.get("color"))
         sig_color = clamp_color(request.args.get("sig_color"), color)
         box = stamp_signature_box(user, request.args.get("dx"), request.args.get("dy"), request.args.get("scale"))
+    label_size, label_length = stamp_label_fit(label, 18 if box else 0)
     svg = render_template("stamp.svg", company=_stamp_company(), phone=phone, label=label,
+                          label_size=label_size, label_length=label_length,
                           signature=box, color=color, sig_color=sig_color)
     resp = app.response_class(svg, mimetype="image/svg+xml")
     resp.headers["Cache-Control"] = "private, max-age=60"
