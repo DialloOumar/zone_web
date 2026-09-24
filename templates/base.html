@@ -80,14 +80,11 @@
             {% if finance_visible or has_perm('expense.view') or has_perm('supplier_invoice.view') or has_perm('invoicing.view') %}
             <li class="sidebar-section">{{ t['nav.finance'] }}</li>
             {# The plan first: everything else in the section is coded against
-               it; then where each kind of line lands on it. Super admin only
-               while the section is being built (can_enter_finance). #}
+               it. Super admin only while the section is being built
+               (can_enter_finance). #}
             {% if finance_visible %}
             <li><a href="{{ url_for('finance.plan') }}" class="sidebar-sub {% if request.endpoint in ['finance.plan', 'finance.account_new', 'finance.account_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">account_tree</span> {{ t['plan.title'] }}
-            </a></li>
-            <li><a href="{{ url_for('finance.settings') }}" class="sidebar-sub {% if request.endpoint == 'finance.settings' %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">tune</span> {{ t['param.title'] }}
             </a></li>
             {% endif %}
             {% if has_perm('expense.create') or has_perm('supplier_invoice.create') or has_perm('invoicing.manage') %}

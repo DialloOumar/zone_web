@@ -387,7 +387,7 @@ def has_perm(perm_key):
 
 def can_enter_finance():
     """Who may open the accounting pages of the Finance section: the plan,
-    the paramétrage, the journal. Super admins only while they are being
+    the journal. Super admins only while they are being
     built; the blueprint's guard and the drawer both ask here, so opening
     them to a comptable later is a one-line change."""
     return current_user.is_authenticated and current_user.is_super_admin

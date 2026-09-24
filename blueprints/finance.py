@@ -2,7 +2,7 @@
 
 The section holds the money pages everyone uses (Caisse, Factures
 fournisseurs, Facturation, Comptes) and, around them, the accounting ones
-kept here: the plan and the paramétrage, and the journal to come. These are
+kept here: the plan, and the journal to come. These are
 reached by the super admins and nobody else while they are being built;
 every address under /finance answers "page not found" to anyone else, so an
 unfinished screen is never seen by a user.
@@ -20,23 +20,13 @@ supplier under 4011, per bank under 521. A standard account is never edited
 or deleted, only hidden from the pickers; a company account can be renamed,
 and removed while nothing points at it. Nothing points at any of them yet:
 attaching accounts to costs is the next step.
-
-Paramétrage comptable
----------------------
-Where each kind of money line lands by default: what a repair is debited to,
-what the cash box or a bank account is credited from, under which account the
-suppliers and the staff sit. Declared below in MAPPING_GROUPS with a proposed
-code each, stored in finance_settings once someone saves the page. An empty
-mapping means "decided by hand, line by line" -- the honest answer for a cost
-the app knows nothing about, like a free-text terrain expense. The proposed
-codes are a starting point for the comptable, not a ruling.
 """
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user
 
 from app import can_enter_finance, get_t, is_modal_request, log_action, login_manager, modal_ok
-from models import CashAccount, FinanceSetting, LedgerAccount, db
+from models import LedgerAccount, db
 
 finance_bp = Blueprint("finance", __name__, url_prefix="/finance")
 
@@ -213,127 +203,3 @@ def account_action(aid, what):
     db.session.commit()
     flash("success|" + t.get(msg, "Fait."))
     return _back(code=row.code)
-
-
-# ── Paramétrage comptable ────────────────────────────────────────────────────
-
-# (key, proposed code), grouped, with the class the picker offers. The label
-# and the note for each key live in languages.py under "param.key.<key>".
-MAPPING_GROUPS = [
-    ("costs", 6, [
-        ("cost.entretien", "6242"),   # maintenance fiches
-        ("cost.pieces",    "6041"),   # parts bought for the store
-        ("cost.fuel",      "6042"),   # fuel bought (old rows, and fuel bills)
-        ("cost.location",  "6223"),   # a lessor's bill for its machines
-        ("cost.lavage",    "6248"),
-        ("cost.accident",  "6242"),
-        ("cost.terrain",   None),     # free-text field cost: coded by hand
-        ("cost.societe",   None),     # free-text office cost: coded by hand
-    ]),
-    ("purses", 5, [
-        ("purse.caisse",              "571"),
-        ("purse.method.mobile_money", "552"),
-        ("purse.method.transfer",     "521"),
-        ("purse.method.cheque",       "521"),
-        # one row per CashAccount is added at render time: purse.account.<id>
-    ]),
-    ("tiers", 4, [
-        ("tiers.supplier", "4011"),   # parent of the per-supplier sub-accounts
-        ("tiers.staff",    "421"),    # advances and what is owed to staff
-        ("tiers.client",   "4111"),   # the client, when billing moves here
-    ]),
-    ("revenue", 7, [
-        ("revenue.client", "706"),    # what the client is billed for
-    ]),
-]
-
-TVA_DEFAULTS = {"tva.assujettie": "0", "tva.rate": "18"}
-
-
-def _proposed():
-    out = {}
-    for _, _, keys in MAPPING_GROUPS:
-        out.update(dict(keys))
-    return out
-
-
-def finance_setting(key, default=None):
-    """The saved value for a key, else what the page proposes, else `default`.
-    This is what the coding of costs (next step) asks."""
-    row = db.session.get(FinanceSetting, key)
-    if row is not None:
-        return row.value
-    return _proposed().get(key, TVA_DEFAULTS.get(key, default))
-
-
-def _mapping_rows():
-    """Every mapping row the page shows, group by group, with the value in
-    force and whether it was saved or is only proposed."""
-    saved = {r.key: r for r in FinanceSetting.query.all()}
-    groups = []
-    for gname, klass, keys in MAPPING_GROUPS:
-        keys = list(keys)
-        if gname == "purses":
-            for acc in (CashAccount.query.filter_by(is_active=True)
-                        .order_by(CashAccount.sort_order, CashAccount.name)):
-                keys.append((f"purse.account.{acc.id}", None))
-        rows = []
-        for key, default in keys:
-            row = saved.get(key)
-            value = row.value if row is not None else default
-            rows.append({"key": key, "value": value or "", "saved": row is not None})
-        groups.append((gname, klass, rows))
-    return groups
-
-
-@finance_bp.route("/parametrage", methods=["GET", "POST"])
-def settings():
-    t = get_t()
-    groups = _mapping_rows()
-    accounts = LedgerAccount.query.filter_by(is_active=True).order_by(LedgerAccount.code).all()
-    by_code = {a.code: a for a in accounts}
-    by_class = {}
-    for a in accounts:
-        by_class.setdefault(a.klass, []).append(a)
-    purses = {f"purse.account.{a.id}": a.name
-              for a in CashAccount.query.filter_by(is_active=True).all()}
-    tva = {k: finance_setting(k) for k in TVA_DEFAULTS}
-
-    errors = {}
-    if request.method == "POST":
-        form = {}
-        for _, _, rows in groups:
-            for r in rows:
-                code = (request.form.get(r["key"]) or "").strip()
-                if code and code not in by_code:
-                    errors[r["key"]] = t.get("param.err.unknown", "Ce numéro n'est pas dans le plan.")
-                form[r["key"]] = code
-        assujettie = "1" if request.form.get("tva.assujettie") else "0"
-        rate = (request.form.get("tva.rate") or "").strip()
-        if not rate.isdigit() or not 0 <= int(rate) <= 100:
-            errors["tva.rate"] = t.get("param.err.rate", "Taux entre 0 et 100.")
-        if errors:
-            for _, _, rows in groups:
-                for r in rows:
-                    r["value"] = form.get(r["key"], r["value"])
-            tva = {"tva.assujettie": assujettie, "tva.rate": rate}
-        else:
-            changed = 0
-            for key, value in list(form.items()) + [("tva.assujettie", assujettie), ("tva.rate", rate)]:
-                row = db.session.get(FinanceSetting, key)
-                if row is None:
-                    db.session.add(FinanceSetting(key=key, value=value or None,
-                                                  updated_by=current_user.id))
-                    changed += 1
-                elif (row.value or "") != (value or ""):
-                    row.value = value or None
-                    row.updated_by = current_user.id
-                    changed += 1
-            db.session.commit()
-            log_action("UPDATE", "finance_settings",
-                       detail=f"Accounting map saved, {changed} keys changed")
-            flash("success|" + t.get("param.saved", "Paramétrage enregistré."))
-            return redirect(url_for("finance.settings"))
-
-    return render_template("finance/parametrage.html", groups=groups, by_code=by_code,
-                           by_class=by_class, purses=purses, tva=tva, errors=errors)
