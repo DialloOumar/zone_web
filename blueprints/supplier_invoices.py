@@ -32,6 +32,7 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
+from ledger import read_code, used_accounts
 from models import (CashAccount, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
                     Vehicle, db)
 
@@ -220,6 +221,11 @@ def _read_invoice_form():
         if not po or po.supplier_id != supplier_id or po.status not in ("approved", "received_partial", "received"):
             return None, t["invoice.err.order"]
 
+    # The account on the plan, for the journal. Optional.
+    ledger_code, ok = read_code(request.form)
+    if not ok:
+        return None, t["ledger.err.unknown"]
+
     return dict(
         supplier_id=supplier_id,
         purchase_order_id=po_id,
@@ -230,6 +236,7 @@ def _read_invoice_form():
         amount=amount,
         currency="GNF",
         description=(request.form.get("description") or "").strip() or None,
+        ledger_code=ledger_code,
     ), None
 
 
@@ -293,7 +300,7 @@ def _render_invoice_form(inv, error=None):
     preset = db.session.get(PurchaseOrder, request.args.get("po", type=int) or 0) if inv is None else None
     return render_template(tpl, invoice=inv, error=error,
                            suppliers=active_suppliers(), orders_json=orders_json,
-                           preset_po=preset,
+                           preset_po=preset, ledger_accounts=used_accounts(),
                            today=date.today().isoformat()), status
 
 

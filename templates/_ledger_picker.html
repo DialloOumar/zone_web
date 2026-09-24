@@ -1,0 +1,24 @@
+{# The account a line is coded to, from the accounts marked used on the plan.
+   Starts empty; the person picks it, now or when the comptable reviews. With
+   nothing marked used yet the field is not shown at all. #}
+{% from "_hint.html" import hint with context %}
+{% macro ledger_picker(accounts, selected, label, hint_text=None, name='ledger_code', id='ledger_code') %}
+{% if accounts %}
+<div class="field field--select">
+    <select id="{{ id }}" name="{{ name }}">
+        <option value="">{{ t['ledger.none'] }}</option>
+        {% set ns = namespace(klass=0) %}
+        {% for a in accounts %}
+            {% if a.klass != ns.klass %}
+                {% if ns.klass %}</optgroup>{% endif %}
+                {% set ns.klass = a.klass %}
+                <optgroup label="{{ t['plan.class'] }} {{ a.klass }}">
+            {% endif %}
+            <option value="{{ a.code }}" {% if a.code == selected %}selected{% endif %}>{{ a.code }} — {{ a.label }}</option>
+        {% endfor %}
+        {% if ns.klass %}</optgroup>{% endif %}
+    </select>
+    <label for="{{ id }}">{{ label }}{% if hint_text %} {{ hint(t['form.optional'], hint_text) }}{% endif %}</label>
+</div>
+{% endif %}
+{% endmacro %}

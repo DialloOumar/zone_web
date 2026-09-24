@@ -1,3 +1,4 @@
+{% from "_ledger_picker.html" import ledger_picker with context %}
 {% from "_hint.html" import hint with context %}
 {% set is_edit = invoice is not none %}
 {# What the paper in hand says. Nothing about the payment is asked here: a bill
@@ -100,6 +101,8 @@
                value="{{ request.form.get('amount') or (invoice.amount if is_edit else '') }}">
         <label for="amount">{{ t['invoice.amount'] }}</label>
     </div>
+
+    {{ ledger_picker(ledger_accounts, request.form.get('ledger_code') or (invoice.ledger_code if is_edit else ''), t['ledger.account'], t['ledger.hint']) }}
 
     <div class="field">
         <textarea id="description" name="description" placeholder="{{ t['ph.invoice.description'] }}" rows="3">{{ request.form.get('description') or (invoice.description or '' if is_edit else '') }}</textarea>

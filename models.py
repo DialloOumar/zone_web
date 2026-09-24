@@ -592,6 +592,9 @@ class Expense(db.Model):
     # advanced it -- and the matching money-in is written alongside so the box's
     # balance ends where it started. See sync_account_movement().
     account_id            = db.Column(db.Integer, db.ForeignKey("cash_accounts.id"), nullable=True)
+    # The account this cost is coded to on the plan, for the journal. Empty
+    # until someone picks it; a code the store or a service wrote is empty too.
+    ledger_code           = db.Column(db.String(12), nullable=True, index=True)
 
     created_by = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -805,6 +808,7 @@ class SupplierInvoice(db.Model):
     currency    = db.Column(db.String(5),  nullable=False, default="GNF")
     description = db.Column(db.String(255))
     photo_key   = db.Column(db.String(200))                 # S3 photo of the paper
+    ledger_code = db.Column(db.String(12), index=True)      # the account it is coded to, for the journal
     # The purchase order this bill settles, when it came from one: what was
     # ordered, received and billed can then be read side by side.
     purchase_order_id = db.Column(db.Integer, db.ForeignKey("purchase_orders.id"), nullable=True, index=True)
@@ -1064,6 +1068,7 @@ class ClientInvoiceLine(db.Model):
     units          = db.Column(db.Float,      nullable=False)
     rate           = db.Column(db.Integer,    nullable=False)             # GNF per unit
     amount         = db.Column(db.Integer,    nullable=False)
+    ledger_code    = db.Column(db.String(12), nullable=True, index=True)  # the revenue account, for the journal
 
     invoice = db.relationship("ClientInvoice", back_populates="lines")
     vehicle = db.relationship("Vehicle")

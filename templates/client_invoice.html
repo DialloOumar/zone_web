@@ -42,6 +42,7 @@
         <div><dt>{{ t['cinv.client_ref'] }}</dt><dd>{{ inv.client_ref or '—' }}</dd></div>
         <div><dt>{{ t['cprint.contact'] }}</dt><dd>{{ inv.contact_name or '—' }}{% if inv.contact_phone %} · {{ inv.contact_phone }}{% endif %}</dd></div>
         {% if inv.note %}<div style="grid-column: 1 / -1;"><dt>{{ t['cinv.note'] }}</dt><dd>{{ inv.note }}</dd></div>{% endif %}
+        {% if ledger_code %}<div><dt>{{ t['ledger.revenue_account'] }}</dt><dd><code>{{ ledger_code }}</code>{% if ledger_label %} — {{ ledger_label }}{% endif %}</dd></div>{% endif %}
     </dl>
 </section>
 

@@ -1,4 +1,5 @@
 {% from "_hint.html" import hint with context %}
+{% from "_ledger_picker.html" import ledger_picker with context %}
 {% set is_edit = expense is not none %}
 {# Spent out of the cash box, so no fleet to pick. Where it happened is the
    site; which machine it was for is optional; the kind follows from the site. #}
@@ -106,6 +107,8 @@
         </select>
         <label for="account_id">{{ t['expense.paid_from'] }} {{ hint(t['form.optional'], t['expense.paid_from_hint']) }}</label>
     </div>
+
+    {{ ledger_picker(ledger_accounts, request.form.get('ledger_code') or (expense.ledger_code if is_edit else ''), t['ledger.account'], t['ledger.hint']) }}
 
     <div class="field">
         <input type="text" id="payment_reference" name="payment_reference" placeholder=" "

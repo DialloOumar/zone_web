@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_hint.html" import hint with context %}
+{% from "_ledger_picker.html" import ledger_picker with context %}
 
 {% block title %}{{ t['cinv.new'] }}{% endblock %}
 {% block page_title %}{{ t['cinv.new'] }}{% endblock %}
@@ -111,6 +112,8 @@
             <input type="text" id="note" name="note" placeholder=" " maxlength="255">
             <label for="note">{{ t['cinv.note'] }} {{ hint('', t['cinv.note_hint']) }}</label>
         </div>
+        {# Bookkeeping only: written on the lines, never printed. #}
+        {{ ledger_picker(ledger_accounts, '', t['ledger.revenue_account'], t['ledger.revenue_hint']) }}
         <div class="form-actions">
             <button type="submit" class="btn btn--primary" {% if existing or any_missing %}disabled{% endif %}>
                 <span class="material-symbols-outlined">request_quote</span> {{ t['cinv.issue'] }}

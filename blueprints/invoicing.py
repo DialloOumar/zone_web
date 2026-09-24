@@ -33,6 +33,7 @@ from amount_words import amount_in_words
 from app import (_get_setting, current_lang, current_user_fleet_ids, get_t, has_perm,
                  is_modal_request, log_action, modal_ok, parse_amount, require_perm)
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
+from ledger import labels_for, read_code, used_accounts
 from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine,
                     ClientPayment, ClientRate, DailyEntry, Vehicle, db)
 
@@ -276,6 +277,12 @@ def invoice_new():
         if not _valid_date(issue_date) or (due and not _valid_date(due)):
             flash("error|" + t.get("client.err.date", "Date invalide."))
             return redirect(url_for("invoicing.invoice_new", client_id=client.id, month=month))
+        # The revenue account, for the journal: one pick, written on every
+        # line, since a month's lines are all the same kind of sale.
+        ledger_code, ok = read_code(request.form)
+        if not ok:
+            flash("error|" + t["ledger.err.unknown"])
+            return redirect(url_for("invoicing.invoice_new", client_id=client.id, month=month))
         inv = ClientInvoice(client_id=client.id, number=_next_number(issue_date), period=month,
                             date=issue_date, due_date=due, total=total,
                             subject=(request.form.get("subject") or "").strip()[:120] or None,
@@ -288,7 +295,8 @@ def invoice_new():
             inv.lines.append(ClientInvoiceLine(
                 vehicle_id=g["vehicle_id"], vehicle_code=g["vehicle_code"],
                 category_label=g["category_label"], unit_type=g["unit_type"],
-                units=g["units"], rate=g["rate"], amount=g["amount"]))
+                units=g["units"], rate=g["rate"], amount=g["amount"],
+                ledger_code=ledger_code))
         db.session.add(inv)
         for attempt in range(3):
             try:
@@ -314,6 +322,7 @@ def invoice_new():
                            # whoever issues the bill is its contact, unless they say otherwise
                            default_contact_name=current_user.full_name,
                            default_contact_phone=current_user.phone or current_user.email or "",
+                           ledger_accounts=used_accounts(),
                            today=date.today().isoformat())
 
 
@@ -324,7 +333,10 @@ def invoice_detail(iid):
     inv = db.session.get(ClientInvoice, iid)
     if not inv:
         abort(404)
-    return render_template("client_invoice.html", inv=inv, today=date.today().isoformat())
+    # The lines are all coded alike; the page shows the one code they share.
+    code = next((l.ledger_code for l in inv.lines if l.ledger_code), None)
+    return render_template("client_invoice.html", inv=inv, today=date.today().isoformat(),
+                           ledger_code=code, ledger_label=labels_for([code]).get(code))
 
 
 @invoicing_bp.route("/facturation/factures/<int:iid>/annuler", methods=["POST"])
