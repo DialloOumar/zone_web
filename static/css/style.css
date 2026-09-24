@@ -551,9 +551,9 @@ a:hover { text-decoration: underline; }
 
 /* Ma signature: the form beside a live preview of the stamp */
 .sig-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; align-items: start; }
-.sig-preview__stamp { width: 240px; height: 240px; display: flex; align-items: center; justify-content: center;
+.sig-preview__stamp { width: 320px; height: 320px; display: flex; align-items: center; justify-content: center;
                       background: #fff; border: 1px dashed var(--md-outline-variant); border-radius: var(--shape-md); margin: 6px 0 8px; }
-.sig-preview__stamp img { width: 220px; height: 220px; }
+.sig-preview__stamp img { width: 320px; height: 320px; }
 .sig-picked { margin-left: 8px; }
 .sig-inks { margin-top: 14px; }
 .sig-inks__row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }

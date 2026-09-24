@@ -63,7 +63,7 @@
                 <label><span>{{ t['sig.place_y'] }}</span>
                     <input type="range" id="sig_dy" name="sig_dy" min="-80" max="80" step="1" value="{{ request.form.get('sig_dy') or current_user.sig_dy }}"></label>
                 <label><span>{{ t['sig.place_size'] }}</span>
-                    <input type="range" id="sig_scale" name="sig_scale" min="40" max="180" step="5" value="{{ request.form.get('sig_scale') or current_user.sig_scale }}"></label>
+                    <input type="range" id="sig_scale" name="sig_scale" min="40" max="230" step="5" value="{{ request.form.get('sig_scale') or current_user.sig_scale }}"></label>
                 <button type="button" class="btn btn--sm btn--outlined" id="sig-reset">{{ t['sig.place_reset'] }}</button>
             </div>
             <label class="checkbox-item" style="margin-top:12px; max-width:360px;">

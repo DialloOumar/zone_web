@@ -952,7 +952,7 @@ def clamp_color(value, default=STAMP_INK):
 
 
 SIG_SHIFT_MAX = 80      # stamp units either way
-SIG_SCALE_MIN, SIG_SCALE_MAX = 40, 180   # percent
+SIG_SCALE_MIN, SIG_SCALE_MAX = 40, 230   # percent
 
 
 def clamp_placement(dx, dy, scale):
@@ -969,9 +969,11 @@ def clamp_placement(dx, dy, scale):
 
 
 def stamp_signature_box(user, dx=None, dy=None, scale=None):
-    """Where the strokes sit on the 300×300 stamp: by default centred in the
-    lower half of the inner circle, under the middle word, their own aspect
-    kept; then shifted and sized as the person set with the sliders."""
+    """Where the strokes sit on the stamp: by default centred in the lower
+    half of the inner circle, under the middle word, their own aspect kept;
+    then shifted and sized as the person set with the sliders. The stamp's
+    canvas carries a margin all round, so at full size the strokes run past
+    the circle the way a real signature does over a stamp."""
     import base64
     from PIL import Image
     import io
@@ -984,10 +986,10 @@ def stamp_signature_box(user, dx=None, dy=None, scale=None):
     dx, dy, scale = clamp_placement(user.sig_dx if dx is None else dx,
                                     user.sig_dy if dy is None else dy,
                                     user.sig_scale if scale is None else scale)
-    box_w = 176.0
-    box_h = box_w * h / w if w else 60
-    if box_h > 72:
-        box_h, box_w = 72.0, 72.0 * w / h
+    box_w = 200.0
+    box_h = box_w * h / w if w else 68
+    if box_h > 92:
+        box_h, box_w = 92.0, 92.0 * w / h
     box_w, box_h = box_w * scale / 100.0, box_h * scale / 100.0
     return dict(b64=base64.b64encode(user.signature_png).decode("ascii"),
                 w=round(box_w, 1), h=round(box_h, 1),
