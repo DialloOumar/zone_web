@@ -6,7 +6,7 @@
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
     <a href="{{ url_for('purchases.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
-    {% if po.status in ('approved', 'received_partial', 'received') %}
+    {% if po.logistics_at and po.status != 'rejected' %}
     <a href="{{ url_for('purchases.print_sheet', oid=po.id) }}" class="btn btn--sm btn--outlined" target="_blank" rel="noopener">
         <span class="material-symbols-outlined">print</span> {{ t['help.print'] }}
     </a>

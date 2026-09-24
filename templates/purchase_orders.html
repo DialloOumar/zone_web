@@ -84,7 +84,7 @@
                 <td class="row-actions">
                     <a href="{{ url_for('purchases.detail', oid=po.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        title="{{ t['cinv.view'] }}" aria-label="{{ t['cinv.view'] }}"><span class="material-symbols-outlined">list_alt</span></a>
-                    {% if po.status in ('approved', 'received_partial', 'received') %}
+                    {% if po.logistics_at and po.status != 'rejected' %}
                     <a href="{{ url_for('purchases.print_sheet', oid=po.id) }}" class="btn btn--sm btn--tonal btn--icon" target="_blank" rel="noopener"
                        title="{{ t['help.print'] }}" aria-label="{{ t['help.print'] }}"><span class="material-symbols-outlined">print</span></a>
                     {% endif %}
