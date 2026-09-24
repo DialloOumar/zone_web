@@ -1,5 +1,5 @@
-{# Shared stock movement table. Set `movements` before including.
-   Set `show_delete` to offer the delete action (history page only). #}
+{# Shared stock movement table. Set `movements` before including. Read-only:
+   a movement is undone from the order or the service that wrote it. #}
 {% set kind_chip = {'initial': 'mv-chip--gauge', 'entree': 'mv-chip--in',
                     'sortie': 'mv-chip--out', 'retour': 'mv-chip--conso',
                     'inventaire': 'mv-chip--gauge'} %}
@@ -13,7 +13,6 @@
             <th style="text-align:right;">{{ t['mv.quantity'] }}</th>
             <th class="col-secondary" style="text-align:right;">{{ t['mv.value'] }}</th>
             <th class="col-secondary">{{ t['mv.detail'] }}</th>
-            {% if show_delete %}<th></th>{% endif %}
         </tr>
     </thead>
     <tbody>
@@ -42,16 +41,6 @@
                     {{ m.supplier or m.note or '—' }}
                 {% endif %}
             </td>
-            {% if show_delete %}
-            <td class="row-actions">
-                {% if has_perm('stock.manage') and not m.maintenance_record_id and m.kind != 'initial' %}
-                <form method="post" action="{{ url_for('stock.movement_delete', mid=m.id) }}"
-                      data-confirm="{{ t['mv.delete_confirm'] }}" data-confirm-title="{{ t['mv.delete'] }}" data-confirm-ok="{{ t['btn.delete'] }}" style="display:inline">
-                    <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
-                </form>
-                {% endif %}
-            </td>
-            {% endif %}
         </tr>
         {% endfor %}
     </tbody>
@@ -72,14 +61,6 @@
             <span class="muted small">{{ m.date }} · {{ m.part.name }}</span>
             {% if m.value is not none %}<span class="muted small">{{ m.value | num }} GNF</span>{% endif %}
         </div>
-        {% if show_delete and has_perm('stock.manage') and not m.maintenance_record_id and m.kind != 'initial' %}
-        <div class="list-card__actions">
-            <form method="post" action="{{ url_for('stock.movement_delete', mid=m.id) }}"
-                  data-confirm="{{ t['mv.delete_confirm'] }}" data-confirm-title="{{ t['mv.delete'] }}" data-confirm-ok="{{ t['btn.delete'] }}" style="flex:1;">
-                <button type="submit" class="btn btn--sm btn--tonal" style="width:100%;">{{ t['btn.delete'] }}</button>
-            </form>
-        </div>
-        {% endif %}
     </div>
     {% endfor %}
 </div>

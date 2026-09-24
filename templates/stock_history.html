@@ -43,7 +43,6 @@
     </form>
 
     {% if movements %}
-    {% set show_delete = True %}
     {% include "_stock_movement_table.html" %}
     {% if movements|length >= limit %}
     <p class="muted small" style="margin-top:10px;">{{ t['mv.truncated'] % limit }}</p>

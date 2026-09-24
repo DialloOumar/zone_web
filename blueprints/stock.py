@@ -293,6 +293,39 @@ def part_reactivate(pid):
     return redirect(url_for("stock.index", archived=1))
 
 
+# ── Movement history ─────────────────────────────────────────────────────────
+# Read-only: a movement is written by receiving an order or by a service
+# record, and is undone from there, so this page offers nothing to delete.
+
+
+@stock_bp.route("/movements")
+@login_required
+@require_perm("stock.view")
+def history():
+    filters = {
+        "part_id":   request.args.get("part_id", type=int),
+        "kind":      request.args.get("kind") or "",
+        "date_from": (request.args.get("date_from") or "").strip(),
+        "date_to":   (request.args.get("date_to") or "").strip(),
+    }
+    q = StockMovement.query
+    if filters["part_id"]:
+        q = q.filter(StockMovement.part_id == filters["part_id"])
+    if filters["kind"] in MOVEMENT_KINDS:
+        q = q.filter(StockMovement.kind == filters["kind"])
+    if _valid_date(filters["date_from"]):
+        q = q.filter(StockMovement.date >= filters["date_from"])
+    if _valid_date(filters["date_to"]):
+        q = q.filter(StockMovement.date <= filters["date_to"])
+
+    movements = (q.order_by(StockMovement.date.desc(), StockMovement.id.desc())
+                 .limit(HISTORY_LIMIT).all())
+    return render_template(
+        "stock_history.html", movements=movements, filters=filters,
+        kinds=MOVEMENT_KINDS, parts=Part.query.order_by(Part.name).all(),
+        has_filters=any(filters.values()), limit=HISTORY_LIMIT)
+
+
 # ── The units the store counts in ────────────────────────────────────────────
 
 def _unit_code(name):
