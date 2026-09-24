@@ -78,6 +78,14 @@ def active_suppliers():
             .order_by(*_by_kind_then_name()).all())
 
 
+def parts_suppliers():
+    """Who a bon de commande can be addressed to: the active suppliers that
+    sell parts. A lessor that sells none is not offered to the store."""
+    return (Supplier.query.filter(Supplier.is_active.is_(True),
+                                  Supplier.provides_parts.is_(True))
+            .order_by(*_by_kind_then_name()).all())
+
+
 def _next_code(kind):
     """The next free number in the kind's series: FP-004 after FP-003.
 
@@ -620,7 +628,9 @@ def _assign_machines(row, chosen_ids):
             v.supplier_id = None
 
 
-def _save_supplier(row):
+def _save_supplier(row, parts_only=False):
+    """Read the form onto the supplier. From the store (`parts_only`) the
+    supplier sells parts by definition, whatever the form says."""
     t = get_t()
     name = (request.form.get("name") or "").strip()
     if not name:
@@ -644,6 +654,7 @@ def _save_supplier(row):
     row.address = (request.form.get("address") or "").strip()[:200] or None
     row.note = (request.form.get("note") or "").strip() or None
     row.provides_machines = request.form.get("provides_machines") is not None
+    row.provides_parts = parts_only or request.form.get("provides_parts") is not None
     # A new supplier is coded in its kind's series; one that changes kind moves
     # to the other series and its old code is let go -- only the current one
     # is ever shown.

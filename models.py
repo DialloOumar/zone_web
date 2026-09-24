@@ -729,6 +729,11 @@ class Supplier(db.Model):
     # ones the daily entries record. Stored, not derived from having machines:
     # a lessor with none attached yet is still a lessor.
     provides_machines = db.Column(db.Boolean, nullable=False, default=False)
+    # Sells parts to the store: the ones a bon de commande can be addressed
+    # to. Independent of the above, so a supplier can be one, the other or
+    # both. On by default: a supplier written down from the store is a parts
+    # supplier by definition, and the bills page starts its box ticked.
+    provides_parts = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
     sort_order = db.Column(db.Integer,     nullable=False, default=0)
     is_active  = db.Column(db.Boolean,     nullable=False, default=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)

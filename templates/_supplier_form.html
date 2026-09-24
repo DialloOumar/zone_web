@@ -59,10 +59,21 @@
         <label for="note">{{ t['entry.note'] }}</label>
     </div>
 
-    {# A lessor: it rents machines to the company and bills their hours and
-       trips. Its machines are ticked here, and their daily entries can then
-       be pulled up and printed under its name to check the bill. #}
-    {% if not parts_only %}
+    {# What the supplier provides. Parts: the store may address it a bon de
+       commande. From the store the box is implied; the form there is for a
+       parts supplier by definition. A lessor rents machines to the company
+       and bills their hours and trips; its machines are ticked below, and
+       their daily entries can then be pulled up and printed under its name
+       to check the bill. #}
+    {% if parts_only %}
+    <input type="hidden" name="provides_parts" value="1">
+    {% else %}
+    {% set sells_parts = (request.form.get('provides_parts') is not none) if request.method == 'POST'
+                         else (row.provides_parts if is_edit else True) %}
+    <label class="checkbox-item">
+        <input type="checkbox" name="provides_parts" {% if sells_parts %}checked{% endif %}>
+        <span>{{ t['supplier.provides_parts'] }}</span>
+    </label>
     {% set provides = (request.form.get('provides_machines') is not none) if request.method == 'POST'
                       else (row.provides_machines if is_edit else False) %}
     <label class="checkbox-item">

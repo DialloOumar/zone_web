@@ -29,7 +29,7 @@ from sqlalchemy.exc import IntegrityError
 from app import (_get_setting, current_lang, get_t, has_perm, log_action,
                  parse_amount, require_perm)
 from blueprints.stock import active_units, unit_codes
-from blueprints.supplier_invoices import _save_supplier, active_suppliers
+from blueprints.supplier_invoices import _save_supplier, parts_suppliers
 from models import Part, PurchaseOrder, PurchaseOrderLine, StockMovement, Supplier, db
 
 purchases_bp = Blueprint("purchases", __name__, url_prefix="/stock/commandes")
@@ -105,7 +105,7 @@ def _read_form(po):
     (None, None, error). Lines with nothing typed on them are skipped."""
     t = get_t()
     supplier = db.session.get(Supplier, request.form.get("supplier_id", type=int) or 0)
-    if not supplier or not supplier.is_active:
+    if not supplier or not supplier.is_active or not supplier.provides_parts:
         return None, None, t["po.err.supplier"]
     date_str = (request.form.get("date") or "").strip() or date.today().isoformat()
     if not _valid_date(date_str):
@@ -194,7 +194,7 @@ def _render_form(po, error=None, lines=None):
                        pack=p.pack_name or "", size=(("%g" % p.pack_size) if p.pack_size else ""))
                   for p in parts]
     return render_template("purchase_order_form.html", po=po, error=error, lines=lines,
-                           suppliers=active_suppliers(), parts_json=parts_json,
+                           suppliers=parts_suppliers(), parts_json=parts_json,
                            units=active_units(),
                            today=date.today().isoformat())
 
@@ -288,7 +288,7 @@ def supplier_new():
     lessor would tick. Saved, the new order opens with it chosen."""
     t = get_t()
     if request.method == "POST":
-        error = _save_supplier(None)
+        error = _save_supplier(None, parts_only=True)
         if error:
             return render_template("purchase_supplier_form.html", error=error), 422
         name = (request.form.get("name") or "").strip()
