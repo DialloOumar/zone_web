@@ -951,6 +951,7 @@ def clamp_color(value, default=STAMP_INK):
     return default
 
 
+SIG_PEN = 1.1           # how much the strokes are thickened on each side, in stamp units
 SIG_SHIFT_MAX = 80      # stamp units either way
 SIG_SCALE_MIN, SIG_SCALE_MAX = 40, 230   # percent
 
@@ -968,6 +969,24 @@ def clamp_placement(dx, dy, scale):
     return dx, dy, scale
 
 
+def _thicken(img, radius_px):
+    """The strokes with a bolder pen: a photographed ballpoint line, once
+    shrunk onto the stamp, comes out thinner than a pen pressed on paper.
+    The radius is in the picture's own pixels, worked out from how far the
+    picture is scaled down, so the pen weight on the stamp is the same at
+    every size the person picks."""
+    from PIL import ImageFilter
+    import io
+    size = 2 * int(round(radius_px)) + 1
+    if size > 1:
+        alpha = img.getchannel("A").filter(ImageFilter.MaxFilter(size))
+        img = img.copy()
+        img.putalpha(alpha)
+    buf = io.BytesIO()
+    img.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
 def stamp_signature_box(user, dx=None, dy=None, scale=None):
     """Where the strokes sit on the stamp: by default centred in the lower
     half of the inner circle, under the middle word, their own aspect kept;
@@ -980,9 +999,10 @@ def stamp_signature_box(user, dx=None, dy=None, scale=None):
     if not user.signature_png:
         return None
     try:
-        w, h = Image.open(io.BytesIO(user.signature_png)).size
+        img = Image.open(io.BytesIO(user.signature_png)).convert("RGBA")
     except Exception:
         return None
+    w, h = img.size
     dx, dy, scale = clamp_placement(user.sig_dx if dx is None else dx,
                                     user.sig_dy if dy is None else dy,
                                     user.sig_scale if scale is None else scale)
@@ -991,7 +1011,7 @@ def stamp_signature_box(user, dx=None, dy=None, scale=None):
     if box_h > 92:
         box_h, box_w = 92.0, 92.0 * w / h
     box_w, box_h = box_w * scale / 100.0, box_h * scale / 100.0
-    return dict(b64=base64.b64encode(user.signature_png).decode("ascii"),
+    return dict(b64=base64.b64encode(_thicken(img, SIG_PEN * w / box_w)).decode("ascii"),
                 w=round(box_w, 1), h=round(box_h, 1),
                 x=round(150 - box_w / 2 + dx, 1), y=round(204 - box_h / 2 + dy, 1))
 
