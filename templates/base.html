@@ -83,6 +83,17 @@
                owes its suppliers, then what it bills its clients. #}
             {% if has_perm('expense.view') or has_perm('supplier_invoice.view') or has_perm('invoicing.view') %}
             <li class="sidebar-section">{{ t['nav.finance'] }}</li>
+            {# The plan first: everything else in the section is coded against it. #}
+            {% if is_super_admin %}
+            <li><a href="{{ url_for('finance_soon', page='plan-comptable') }}" class="sidebar-sub {% if request.endpoint == 'finance_soon' and request.view_args.page == 'plan-comptable' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">account_tree</span> {{ t['plan.title'] }}
+            </a></li>
+            {% endif %}
+            {% if has_perm('expense.create') or has_perm('supplier_invoice.create') or has_perm('invoicing.manage') %}
+            <li><a href="{{ url_for('accounts.index') }}" class="sidebar-sub {% if request.blueprint == 'accounts' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">account_balance</span> {{ t['list.accounts'] }}
+            </a></li>
+            {% endif %}
             {% if has_perm('expense.view') %}
             <li><a href="{{ url_for('expenses.index') }}" class="sidebar-sub {% if request.blueprint == 'expenses' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">point_of_sale</span> {{ t['nav.expenses'] }}
@@ -96,6 +107,12 @@
             {% if has_perm('invoicing.view') %}
             <li><a href="{{ url_for('invoicing.index') }}" class="sidebar-sub {% if request.blueprint == 'invoicing' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">request_quote</span> {{ t['nav.invoicing'] }}
+            </a></li>
+            {% endif %}
+            {# Last: the review of everything the three pages above wrote. #}
+            {% if is_super_admin %}
+            <li><a href="{{ url_for('finance_soon', page='journal') }}" class="sidebar-sub {% if request.endpoint == 'finance_soon' and request.view_args.page == 'journal' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">menu_book</span> {{ t['nav.journal'] }}
             </a></li>
             {% endif %}
             {% endif %}

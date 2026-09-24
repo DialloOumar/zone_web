@@ -1135,6 +1135,21 @@ def _signature_page(user, back_url=None):
                            stamp_version=int(user.signature_at.timestamp()) if user.signature_at else 0)
 
 
+# ── Finance section: the pages still to come ────────────────────────────────
+# Listed in the drawer already, so the section reads whole; each opens on an
+# empty page that says so, until the real one replaces it. Super admin only
+# until then: nobody else is shown an empty page.
+
+FINANCE_SOON = {"plan-comptable": "plan.title", "journal": "nav.journal"}
+
+
+@app.route("/<any(\"plan-comptable\", journal):page>")
+@login_required
+@super_admin_required
+def finance_soon(page):
+    return render_template("finance_soon.html", page=page, title_key=FINANCE_SOON[page])
+
+
 @app.route("/ma-signature", methods=["GET", "POST"])
 @login_required
 def my_signature():
