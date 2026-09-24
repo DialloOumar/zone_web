@@ -485,10 +485,30 @@ a:hover { text-decoration: underline; }
 .list-filter:focus { border-color: var(--md-primary); outline: none; }
 [hidden] { display: none !important; }
 
-/* Purchase order lines editor */
-.po-lines td { vertical-align: middle; padding: 6px 6px; }
+/* Purchase order lines editor. The columns are fixed: typing a name, the
+   hint that appears under it, the unit beside the quantity and a growing
+   amount none of them move the others, so the row stays where the eye left it. */
+.po-wrap { overflow: visible; }      /* not .table-wrap: a scroller would clip the article list */
+.po-lines { table-layout: fixed; width: 100%; }
+/* Every column but Article has a set width; Article takes all the rest, so
+   it is the widest on any screen, and the only one that gives on a small one. */
+.po-col-stock { width: 52px; } .po-col-ref { width: 150px; } .po-col-qty { width: 90px; } .po-col-unit { width: 120px; }
+.po-col-price { width: 148px; } .po-col-amount { width: 128px; } .po-col-x { width: 42px; }
+/* Each title sits centred over its box; Article, the wide one, reads from
+   the left like its box; the amount, a figure, keeps to the right. */
+.data-table.po-lines th { padding: 8px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.data-table.po-lines th.po-th-part { text-align: left; }
+.data-table.po-lines th.r { text-align: right; }
+@media (max-width: 1080px) { .po-wrap { overflow-x: auto; } .po-lines { min-width: 820px; } }
+/* Qualified with .data-table: the generic table rules further down would
+   otherwise win. Every cell is one 38px band, centred on the row. */
+.data-table.po-lines td { vertical-align: middle; padding: 6px 4px; }
+.data-table.po-lines td.po-amount { line-height: 38px; }
+.data-table.po-lines tfoot td { padding: 10px 4px; line-height: 1.4; }
+.po-combo input.is-unknown { border-color: var(--c-amber); }
+.po-unit.is-idle { color: var(--md-outline); pointer-events: none; background: var(--md-surface-container); }
 .po-lines input[type="text"], .po-lines input[type="number"] {
-    width: 100%; min-width: 70px; height: 38px; padding: 0 10px;
+    width: 100%; min-width: 0; height: 38px; padding: 0 8px;
     border: 1px solid var(--md-outline); border-radius: 8px;
     background: var(--md-surface); color: var(--md-on-surface); font: inherit; font-size: 0.875rem;
 }
@@ -497,26 +517,26 @@ a:hover { text-decoration: underline; }
 .po-lines .po-amount { font-weight: 600; white-space: nowrap; }
 .po-lines th.r, .po-lines td.r { text-align: right; }
 .po-lines tfoot td { border-top: none; }
-.po-qty { white-space: nowrap; }
-.po-qty input { width: 90px !important; min-width: 0 !important; display: inline-block; vertical-align: middle; }
-.po-unit { height: 38px; margin-left: 4px; padding: 0 8px; border: 1px solid var(--md-outline); border-radius: 8px;
-           background: var(--md-surface); color: var(--md-on-surface); font: inherit; font-size: 0.85rem; vertical-align: middle; }
+/* Each box fills its column, so its edges are the header's edges. */
+.po-unit { width: 100%; height: 38px; padding: 0 6px; border: 1px solid var(--md-outline); border-radius: 8px;
+           background: var(--md-surface); color: var(--md-on-surface); font: inherit; font-size: 0.85rem;
+           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .po-stock-col { width: 1%; text-align: center; white-space: nowrap; }
 .po-stock-box { width: 18px; height: 18px; accent-color: var(--md-primary); vertical-align: middle; }
 .po-combo { position: relative; display: flex; align-items: center; }
-.po-combo input[type="text"] { padding-right: 34px !important; }
+.po-combo input[type="text"] { padding-right: 30px !important; }
 .po-combo__toggle { position: absolute; right: 2px; top: 2px; bottom: 2px; width: 30px; border: none; background: transparent;
                     color: var(--md-on-surface-variant); cursor: pointer; border-radius: 6px; display: none; align-items: center; justify-content: center; }
 .po-combo__toggle .material-symbols-outlined { font-size: 20px; }
 .po-line.is-stock .po-combo__toggle { display: inline-flex; }
 .po-combo__toggle:hover { background: var(--md-surface-container-high); }
-.po-combo__list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; max-height: 240px; overflow-y: auto;
+.po-combo__list { position: absolute; left: 0; top: calc(100% + 4px); z-index: 30; max-height: 240px; overflow-y: auto;
+                  min-width: 100%; width: max-content; max-width: min(460px, 70vw);
                   background: var(--md-surface-container); border-radius: var(--shape-md); box-shadow: var(--elev-3); padding: 4px; }
 .po-combo__item { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 0.875rem; }
 .po-combo__item small { color: var(--md-on-surface-variant); white-space: nowrap; }
 .po-combo__item:hover { background: var(--md-surface-container-high); }
 .po-combo__empty { padding: 8px 10px; color: var(--md-on-surface-variant); font-size: 0.8rem; }
-.po-new-unit { margin-left: 4px; }
 .po-line.is-stock .po-new-unit { display: none; }
 .units-modal__new { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
 .units-modal__new input, .units-modal__rename input {
@@ -526,10 +546,25 @@ a:hover { text-decoration: underline; }
 .units-modal__new input:focus, .units-modal__rename input:focus { border-color: var(--md-primary); outline: none; }
 .units-modal__rename { display: flex; gap: 6px; align-items: center; }
 .units-modal__table td { vertical-align: middle; }
-.po-line-kind { margin-top: 3px; }
-.po-line-kind--free { color: var(--c-amber); }
 .po-reject summary { list-style: none; display: inline-flex; cursor: pointer; }
 .po-reject summary::-webkit-details-marker { display: none; }
+
+/* Ma signature: the form beside a live preview of the stamp */
+.sig-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; align-items: start; }
+.sig-preview__stamp { width: 240px; height: 240px; display: flex; align-items: center; justify-content: center;
+                      background: #fff; border: 1px dashed var(--md-outline-variant); border-radius: var(--shape-md); margin: 6px 0 8px; }
+.sig-preview__stamp img { width: 220px; height: 220px; }
+.sig-picked { margin-left: 8px; }
+.sig-inks { margin-top: 14px; }
+.sig-inks__row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.sig-ink { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--md-surface); box-shadow: 0 0 0 1px var(--md-outline-variant); cursor: pointer; padding: 0; }
+.sig-ink.is-on { box-shadow: 0 0 0 2px var(--md-primary); }
+.sig-inks__row input[type="color"] { width: 38px; height: 30px; padding: 0 2px; border: 1px solid var(--md-outline-variant); border-radius: 8px; background: var(--md-surface); cursor: pointer; }
+.sig-sliders { margin-top: 14px; display: grid; gap: 6px; max-width: 420px; }
+.sig-sliders label { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--md-on-surface-variant); }
+.sig-sliders input[type="range"] { width: 100%; accent-color: var(--md-primary); }
+.sig-sliders button { justify-self: start; margin-top: 4px; }
+@media (max-width: 700px) { .sig-layout { grid-template-columns: 1fr; } }
 
 /* User block at the foot of the drawer */
 .sidebar-user {
@@ -604,8 +639,17 @@ a:hover { text-decoration: underline; }
     gap: 24px;
 }
 
-/* ── Snackbar-style flash banners ── */
-.flash-area { display: flex; flex-direction: column; gap: 10px; }
+/* ── Flash toasts ──
+   Laid over the page, top right, not in its flow: a message appearing or
+   going never moves what is under it. Each fades out on its own, or on a
+   click. On a phone it spans the width, under the top bar. */
+.flash-area { position: fixed; top: 16px; right: 16px; z-index: 1200; display: flex; flex-direction: column; gap: 10px;
+              width: min(440px, calc(100vw - 32px)); pointer-events: none; }
+.flash-area .alert { pointer-events: auto; box-shadow: var(--elev-3); cursor: pointer;
+                     animation: toast-in 0.25s ease-out; transition: opacity 0.4s, transform 0.4s; }
+.flash-area .alert.is-leaving { opacity: 0; transform: translateY(-8px); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) { .flash-area { top: 72px; left: 16px; right: 16px; width: auto; } }
 .alert {
     display: flex;
     align-items: center;

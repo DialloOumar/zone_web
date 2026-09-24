@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 {# The purchase order as a sheet (purchases.print_sheet), after the company's
    own: the logo band and the title, the number and date, who submitted it,
-   the supplier, the lines with their discount, the totals, and the two
+   the supplier, the lines, the totals, and the two
    signature blocks naming who signed and when. Standalone, prints itself. #}
 <html lang="{{ lang }}">
 <head>
@@ -36,7 +36,9 @@
     .signs { display: flex; justify-content: space-between; gap: 40px; margin-top: 34px; }
     .sign { flex: 1; max-width: 300px; }
     .sign .who { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #333; }
-    .sign .name { margin-top: 44px; border-top: 1px solid #333; padding-top: 4px; font-size: 10px; }
+    .sign .name { margin-top: 8px; border-top: 1px solid #333; padding-top: 4px; font-size: 10px; }
+    .sign .stamp { height: 118px; display: flex; align-items: flex-end; }
+    .sign .stamp img { height: 112px; width: 112px; }
     .sign .name small { display: block; color: #555; }
     .foot { margin-top: 18px; font-size: 8.5px; color: #666; text-align: center; }
     @media screen {
@@ -99,7 +101,6 @@
             <th>{{ t['po.line_reference'] }}</th>
             <th class="r">{{ t['po.line_qty'] }}</th>
             <th class="r">{{ t['po.line_price'] }} ({{ currency }})</th>
-            <th class="r">{{ t['po.line_discount'] }}</th>
             <th class="r">{{ t['cinv.amount'] }} ({{ currency }})</th>
         </tr>
     </thead>
@@ -111,17 +112,16 @@
             <td>{{ l.reference or '' }}</td>
             <td class="r">{{ l.quantity | qty }}{% if l.in_pack %} {{ l.part.pack_name }} ({{ l.stock_qty | qty }} {{ unit_label(l.part.unit) }}){% elif l.part %} {{ unit_label(l.part.unit) }}{% elif l.new_unit %} {{ unit_label(l.new_unit) }}{% endif %}</td>
             <td class="r">{{ l.unit_price | num }}</td>
-            <td class="r">{% if l.discount %}{{ l.discount | num }}{% endif %}</td>
             <td class="r">{{ l.amount | num }}</td>
         </tr>
         {% endfor %}
     </tbody>
     <tfoot>
         {% if po.total_discount %}
-        <tr><td colspan="6" class="r">{{ t['po.subtotal'] }}</td><td class="r">{{ po.total_gross | num }}</td></tr>
-        <tr><td colspan="6" class="r">{{ t['po.total_discount'] }}</td><td class="r">− {{ po.total_discount | num }}</td></tr>
+        <tr><td colspan="5" class="r">{{ t['po.subtotal'] }}</td><td class="r">{{ po.total_gross | num }}</td></tr>
+        <tr><td colspan="5" class="r">{{ t['po.total_discount'] }}</td><td class="r">− {{ po.total_discount | num }}</td></tr>
         {% endif %}
-        <tr class="total"><td colspan="6" class="r">TOTAL</td><td class="r">{{ po.total | num }} {{ currency }}</td></tr>
+        <tr class="total"><td colspan="5" class="r">TOTAL</td><td class="r">{{ po.total | num }} {{ currency }}</td></tr>
     </tfoot>
 </table>
 </div>
@@ -131,10 +131,12 @@
 <div class="signs">
     <div class="sign">
         <div class="who">{{ t['po.sign.logistics'] }}</div>
+        <div class="stamp">{% if po.logistics_at and user_has_stamp(po.logistics_signer) %}<img src="{{ url_for('stamp_svg', user_id=po.logistics_by) }}" alt="">{% endif %}</div>
         <div class="name">{% if po.logistics_at %}{{ po.logistics_signer.full_name if po.logistics_signer else '' }}<small>{{ t['po.signed'] }} {{ po.logistics_at.strftime('%d/%m/%Y') }}</small>{% else %}&nbsp;{% endif %}</div>
     </div>
     <div class="sign">
         <div class="who">{{ t['po.sign.finance'] }}</div>
+        <div class="stamp">{% if po.finance_at and user_has_stamp(po.finance_signer) %}<img src="{{ url_for('stamp_svg', user_id=po.finance_by) }}" alt="">{% endif %}</div>
         <div class="name">{% if po.finance_at %}{{ po.finance_signer.full_name if po.finance_signer else '' }}<small>{{ t['po.signed'] }} {{ po.finance_at.strftime('%d/%m/%Y') }}</small>{% else %}&nbsp;{% endif %}</div>
     </div>
 </div>

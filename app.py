@@ -190,6 +190,8 @@ def _inject_globals():
         "category_label": _category_label,
         # The name of a unit the store counts in, from its code.
         "unit_label": _unit_label,
+        # Whether a person has a stamp or signature to print.
+        "user_has_stamp": user_has_stamp,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
         # Shows the Exploitation / Finance switcher at the top of the drawer.
         "finance_visible": can_enter_finance(),
@@ -922,6 +924,147 @@ def logout():
     db.session.commit()
     logout_user()
     return redirect(url_for("login"))
+
+
+# ── Ma signature: the stamp and the strokes each person signs with ───────────
+
+STAMP_COMPANY_FALLBACK = "ZONE EQUIPMENT & PIECES"
+
+
+def _stamp_company():
+    name = (_get_setting("company_name", "") or "").strip()
+    return (name.upper() if name else STAMP_COMPANY_FALLBACK)[:40]
+
+
+STAMP_INK = "#2b3f9e"    # the blue of the company's template, lower-case like the picker
+# A short row of inks to pick from; the picker also takes any other colour.
+STAMP_INKS = [("#2B3F9E", "Bleu"), ("#1F2D6B", "Bleu foncé"), ("#5B2A86", "Violet"),
+              ("#B71C1C", "Rouge"), ("#1B5E20", "Vert"), ("#222222", "Noir")]
+
+
+def clamp_color(value, default=STAMP_INK):
+    """#rrggbb, or the default: the stamp's own blue, or for the strokes
+    whatever the stamp is inked in."""
+    v = (value or "").strip().lower()
+    if len(v) == 7 and v[0] == "#" and all(ch in "0123456789abcdef" for ch in v[1:]):
+        return v
+    return default
+
+
+SIG_SHIFT_MAX = 80      # stamp units either way
+SIG_SCALE_MIN, SIG_SCALE_MAX = 40, 180   # percent
+
+
+def clamp_placement(dx, dy, scale):
+    """The sliders' values, kept within the stamp."""
+    def _int(v, default):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return default
+    dx = max(-SIG_SHIFT_MAX, min(SIG_SHIFT_MAX, _int(dx, 0)))
+    dy = max(-SIG_SHIFT_MAX, min(SIG_SHIFT_MAX, _int(dy, 0)))
+    scale = max(SIG_SCALE_MIN, min(SIG_SCALE_MAX, _int(scale, 100)))
+    return dx, dy, scale
+
+
+def stamp_signature_box(user, dx=None, dy=None, scale=None):
+    """Where the strokes sit on the 300×300 stamp: by default centred in the
+    lower half of the inner circle, under the middle word, their own aspect
+    kept; then shifted and sized as the person set with the sliders."""
+    import base64
+    from PIL import Image
+    import io
+    if not user.signature_png:
+        return None
+    try:
+        w, h = Image.open(io.BytesIO(user.signature_png)).size
+    except Exception:
+        return None
+    dx, dy, scale = clamp_placement(user.sig_dx if dx is None else dx,
+                                    user.sig_dy if dy is None else dy,
+                                    user.sig_scale if scale is None else scale)
+    box_w = 176.0
+    box_h = box_w * h / w if w else 60
+    if box_h > 72:
+        box_h, box_w = 72.0, 72.0 * w / h
+    box_w, box_h = box_w * scale / 100.0, box_h * scale / 100.0
+    return dict(b64=base64.b64encode(user.signature_png).decode("ascii"),
+                w=round(box_w, 1), h=round(box_h, 1),
+                x=round(150 - box_w / 2 + dx, 1), y=round(204 - box_h / 2 + dy, 1))
+
+
+@app.route("/tampon/<int:user_id>.svg")
+@login_required
+def stamp_svg(user_id):
+    """One person's stamp, with their strokes over it, as an SVG image for
+    the sheets that carry their signature."""
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404)
+    label = (user.stamp_label or "").strip()
+    phone = (user.stamp_phone or user.phone or "").strip()
+    color = clamp_color(user.stamp_color)
+    sig_color = clamp_color(user.sig_color, color)
+    box = stamp_signature_box(user)
+    # One's own stamp can be previewed with what is being typed and slid,
+    # before it is saved: the page passes it all along, nothing is written.
+    if user.id == current_user.id and any(k in request.args for k in ("label", "phone", "dx", "dy", "scale", "color", "sig_color")):
+        label = (request.args.get("label") or "").strip()[:40]
+        phone = (request.args.get("phone") or "").strip()[:30]
+        color = clamp_color(request.args.get("color"))
+        sig_color = clamp_color(request.args.get("sig_color"), color)
+        box = stamp_signature_box(user, request.args.get("dx"), request.args.get("dy"), request.args.get("scale"))
+    svg = render_template("stamp.svg", company=_stamp_company(), phone=phone, label=label,
+                          signature=box, color=color, sig_color=sig_color)
+    resp = app.response_class(svg, mimetype="image/svg+xml")
+    resp.headers["Cache-Control"] = "private, max-age=60"
+    return resp
+
+
+def user_has_stamp(user):
+    """Whether there is anything to print for this person: a word on the
+    stamp or a signature."""
+    return bool(user and (user.stamp_label or user.signature_png))
+
+
+@app.route("/ma-signature", methods=["GET", "POST"])
+@login_required
+def my_signature():
+    """Where anyone sets up their own stamp and signature: the word in the
+    middle, the phone on the arc, and a picture of their signature on white
+    paper, which the app turns into ink alone."""
+    from signatures import extract_signature
+    error = success = None
+    if request.method == "POST":
+        current_user.stamp_label = (request.form.get("stamp_label") or "").strip()[:40] or None
+        current_user.stamp_phone = (request.form.get("stamp_phone") or "").strip()[:30] or None
+        current_user.sig_dx, current_user.sig_dy, current_user.sig_scale = clamp_placement(
+            request.form.get("sig_dx"), request.form.get("sig_dy"), request.form.get("sig_scale"))
+        current_user.stamp_color = clamp_color(request.form.get("stamp_color"))
+        current_user.sig_color = clamp_color(request.form.get("sig_color"), current_user.stamp_color)
+        if request.form.get("remove_signature"):
+            current_user.signature_png = None
+            current_user.signature_at = None
+        f = request.files.get("signature")
+        if f and f.filename:
+            png = extract_signature(f.read())
+            if not png:
+                error = "sig.err.unreadable"
+            else:
+                current_user.signature_png = png
+                current_user.signature_at = datetime.utcnow()
+        if not error:
+            log_action("UPDATE", "user", resource_id=current_user.id, detail="Stamp and signature updated")
+            db.session.commit()
+            success = "sig.saved"
+        else:
+            db.session.rollback()
+    return render_template("my_signature.html", error=error, success=success,
+                           inks=STAMP_INKS, ink=clamp_color(current_user.stamp_color),
+                           sig_ink=clamp_color(current_user.sig_color, clamp_color(current_user.stamp_color)),
+                           has_signature=bool(current_user.signature_png),
+                           stamp_version=int(current_user.signature_at.timestamp()) if current_user.signature_at else 0)
 
 
 @app.route("/change-password", methods=["GET", "POST"])

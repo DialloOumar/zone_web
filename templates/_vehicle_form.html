@@ -1,3 +1,4 @@
+{% from "_hint.html" import hint with context %}
 {% set is_edit = vehicle is not none %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 {% if not fleets %}<div class="alert alert--warning">{{ t['vehicle.no_active_fleet'] }}</div>{% endif %}
@@ -52,8 +53,7 @@
                 <option value="{{ o.id }}" data-fleet="{{ o.fleet_id }}" {% if o.id == sel_op %}selected{% endif %}>{{ o.name }}</option>
                 {% endfor %}
             </select>
-            <label for="default_operator_id">{{ t['vehicle.default_operator'] }}</label>
-            <div class="field-hint">{{ t['vehicle.default_operator_hint'] }}</div>
+            <label for="default_operator_id">{{ t['vehicle.default_operator'] }} {{ hint('', t['vehicle.default_operator_hint']) }}</label>
         </div>
         <div class="field">
             <textarea id="description" name="description" placeholder="{{ t['ph.vehicle.description'] }}" rows="1">{{ request.form.get('description') or (vehicle.description if is_edit and vehicle.description else '') }}</textarea>

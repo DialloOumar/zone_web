@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{# A parts supplier written down from the store, on the store's side of the
+   app: the sidebar stays on Stock, and saving comes back to the order. #}
+{% block title %}{{ t['invoice.supplier_new'] }}{% endblock %}
+{% block page_title %}{{ t['invoice.supplier_new'] }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('purchases.new') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+<section class="card" style="max-width: 720px;">
+    {% with row=None, parts_only=True, form_action=url_for('purchases.supplier_new'), cancel_url=url_for('purchases.new') %}
+    {% include "_supplier_form.html" %}
+    {% endwith %}
+</section>
+{% endblock %}

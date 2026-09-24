@@ -1,7 +1,9 @@
-{% set is_edit = part is not none %}
+{% from "_hint.html" import hint with context %}
+{# Editing only: an article is created by receiving a purchase order line. #}
+{% set is_edit = true %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form enctype="multipart/form-data"
-      action="{{ url_for('stock.part_edit', pid=part.id) if is_edit else url_for('stock.part_new') }}">
+      action="{{ url_for('stock.part_edit', pid=part.id) }}">
 
     <div class="form-row">
         <div class="field">
@@ -31,7 +33,7 @@
         <div class="field">
             <input type="text" id="pack_name" name="pack_name" placeholder=" " maxlength="40"
                    value="{{ request.form.get('pack_name') or (part.pack_name or '' if is_edit else '') }}">
-            <label for="pack_name">{{ t['part.pack_name'] }}</label>
+            <label for="pack_name">{{ t['part.pack_name'] }} {{ hint('', t['part.pack_hint']) }}</label>
         </div>
         <div class="field">
             <input type="number" id="pack_size" name="pack_size" placeholder=" " min="0" step="any"
@@ -39,31 +41,12 @@
             <label for="pack_size">{{ t['part.pack_size'] }}</label>
         </div>
     </div>
-    <div class="field-hint">{{ t['part.pack_hint'] }}</div>
 
     <div class="field">
         <input type="number" id="reorder_level" name="reorder_level" placeholder=" " min="0" step="any"
                value="{{ request.form.get('reorder_level') or (part.reorder_level if is_edit and part.reorder_level is not none else '') }}">
-        <label for="reorder_level">{{ t['part.reorder_level'] }}</label>
+        <label for="reorder_level">{{ t['part.reorder_level'] }} {{ hint('', t['part.reorder_hint']) }}</label>
     </div>
-    <div class="field-hint">{{ t['part.reorder_hint'] }}</div>
-
-    {# The only price here belongs to the opening parts themselves. A purchase
-       is a receipt, with its own price, supplier and payment. #}
-    {% set opening_mv = part.movements|selectattr('kind', 'equalto', 'initial')|first if is_edit else None %}
-    <div class="form-row">
-        <div class="field">
-            <input type="number" id="opening_quantity" name="opening_quantity" placeholder=" " min="0" step="any"
-                   value="{{ request.form.get('opening_quantity') or (part.opening_quantity if is_edit else '') }}">
-            <label for="opening_quantity">{{ t['part.opening'] }}</label>
-        </div>
-        <div class="field">
-            <input data-money type="text" inputmode="numeric" id="opening_price" name="opening_price" placeholder=" "
-                   value="{{ request.form.get('opening_price') or (opening_mv.unit_price if opening_mv and opening_mv.unit_price is not none else '') }}">
-            <label for="opening_price">{{ t['part.opening_price'] }}</label>
-        </div>
-    </div>
-    <div class="field-hint">{{ t['part.opening_hint'] }}</div>
 
     {% set photo_current = photo_url(part.photo_key) if is_edit and part.photo_key else None %}
     {% set photo_alt = part.name if is_edit else '' %}

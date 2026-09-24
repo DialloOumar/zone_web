@@ -1,3 +1,4 @@
+{% from "_hint.html" import hint with context %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('carburant.releve_new') }}">
@@ -23,9 +24,8 @@
     <div class="field">
         <input type="number" id="liters" name="liters" placeholder=" " min="0" required
                value="{{ request.form.get('liters') or '' }}">
-        <label for="liters">{{ t['releve.liters'] }}</label>
+        <label for="liters">{{ t['releve.liters'] }} {{ hint('', t['releve.hint']) }}</label>
     </div>
-    <div class="field-hint">{{ t['releve.hint'] }}</div>
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">

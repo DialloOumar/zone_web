@@ -211,6 +211,9 @@ RCCM : {{ inv.client.rccm }}{% endif %}</div>
     </div>
     <div class="stamp">
         <div class="box-label">{{ t['cprint.stamp'] }}</div>
+        {% if inv.issuer and user_has_stamp(inv.issuer) %}
+        <img src="{{ url_for('stamp_svg', user_id=inv.created_by) }}" alt="" style="height:96px; width:96px; align-self:center;">
+        {% endif %}
         <div class="who">{{ co.company_name or '' }}</div>
     </div>
 </div>

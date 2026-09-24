@@ -2,9 +2,12 @@
 {# Who sends the bills. A name is enough; the rest is there for the day someone
    has to call them about one. #}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+{# From the store's purchase order, the form is served on the store's own
+   page (form_action set) and asks nothing about machines: it is a parts
+   supplier that is being written down. #}
 <form method="post" class="entry-form" data-modal-form
-      action="{{ url_for('supplier_invoices.supplier_edit', sid=row.id) if is_edit
-                else url_for('supplier_invoices.supplier_new') }}">
+      action="{{ form_action or (url_for('supplier_invoices.supplier_edit', sid=row.id) if is_edit
+                else url_for('supplier_invoices.supplier_new')) }}">
 
     {% if is_edit %}
     {# Issued by the app, never typed. It changes only if the kind does. #}
@@ -30,7 +33,6 @@
         </label>
         {% endfor %}
     </div>
-    <div class="field-hint">{{ t['supplier.kind_hint'] }}</div>
 
     <div class="field">
         <input type="text" id="contact" name="contact" placeholder=" "
@@ -60,13 +62,13 @@
     {# A lessor: it rents machines to the company and bills their hours and
        trips. Its machines are ticked here, and their daily entries can then
        be pulled up and printed under its name to check the bill. #}
+    {% if not parts_only %}
     {% set provides = (request.form.get('provides_machines') is not none) if request.method == 'POST'
                       else (row.provides_machines if is_edit else False) %}
     <label class="checkbox-item">
         <input type="checkbox" name="provides_machines" id="provides_machines" {% if provides %}checked{% endif %}>
         <span>{{ t['supplier.provides_machines'] }}</span>
     </label>
-    <div class="field-hint">{{ t['supplier.provides_hint'] }}</div>
 
     <div id="supplier-machines" {% if not provides %}hidden{% endif %}>
         {% if machines %}
@@ -94,12 +96,13 @@
         <div class="field-hint">{{ t['supplier.machines_none'] }}</div>
         {% endif %}
     </div>
+    {% endif %}
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
         </button>
-        <a href="{{ url_for('supplier_invoices.index', tab='fournisseurs') if has_perm('supplier_invoice.view') else url_for('supplier_invoices.suppliers') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+        <a href="{{ cancel_url or (url_for('supplier_invoices.index', tab='fournisseurs') if has_perm('supplier_invoice.view') else url_for('supplier_invoices.suppliers')) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
 

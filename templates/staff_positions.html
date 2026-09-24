@@ -12,7 +12,6 @@
     <div class="card-header">
         <div>
             <h2>{{ t['staff.positions'] }}</h2>
-            <p class="muted small" style="margin:4px 0 0; max-width:52ch;">{{ t['staff.positions_intro'] }}</p>
         </div>
         {% if has_perm('staff.create') %}
         <a href="{{ url_for('staff.position_new') }}" class="fab"

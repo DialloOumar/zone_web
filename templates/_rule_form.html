@@ -1,3 +1,4 @@
+{% from "_hint.html" import hint with context %}
 {% set is_edit = rule is not none %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
@@ -36,8 +37,7 @@
         <div class="field">
             <input type="text" inputmode="numeric" id="interval" name="interval" placeholder="{{ t['ph.rule.interval'] }}" required
                    value="{{ request.form.get('interval') or (rule.interval if is_edit else '') }}">
-            <label for="interval">{{ t['maint.interval'] }}</label>
-            <div class="field-hint">{{ t['maint.interval_hint'] }}</div>
+            <label for="interval">{{ t['maint.interval'] }} {{ hint('', t['maint.interval_hint']) }}</label>
         </div>
         <div class="field">
             <input type="text" inputmode="numeric" id="advance_warning" name="advance_warning" placeholder="{{ t['ph.rule.warning'] }}"

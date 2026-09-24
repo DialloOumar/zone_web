@@ -15,7 +15,6 @@
     <div class="card-header">
         <div>
             <h2>{{ t['invoice.tab_suppliers'] }}<span class="tab__count" style="margin-left:8px;">{{ suppliers | length }}</span></h2>
-            <p class="muted small" style="margin:4px 0 0; max-width:56ch;">{{ t['supplier.shared_intro'] }}</p>
         </div>
         {% if can_manage %}
         <a href="{{ url_for('supplier_invoices.supplier_new') }}" class="fab"

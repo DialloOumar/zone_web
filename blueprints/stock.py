@@ -7,7 +7,9 @@ is the vehicle it ends up on, and that link is carried by the sortie.
 A part holds no quantity of its own — what is on hand is computed from its
 movements (see Part.quantity_as_of), the same arrangement as a citerne. This
 first slice is the catalogue: create, edit, archive, and the opening stock.
-Receipts, issues and counts reuse the same movement table in the next step.
+What is on the shelf only comes from receiving a purchase order
+(blueprints/purchases.py): nothing is typed by hand, no opening quantity,
+no receipt, no count. Old movements of those kinds stay readable.
 
 Helpers (require_perm, log_action, get_t, modal helpers) come from app.py; this
 module is imported at the bottom of app.py.
@@ -20,9 +22,8 @@ from flask_login import current_user, login_required
 
 import s3_storage
 from app import (slugify, get_t, is_modal_request, log_action, modal_ok,
-                 parse_amount, require_perm)
-from blueprints.expenses import PARTS_CATEGORY, PAYMENT_METHODS
-from models import Expense, Part, PartUnit, StockMovement, db
+                 require_perm)
+from models import Part, PartUnit, StockMovement, db
 
 stock_bp = Blueprint("stock", __name__, url_prefix="/stock")
 
@@ -129,9 +130,8 @@ def index():
 
 
 def _read_part_form(part):
-    """Validate the part form. Returns (data, error); `opening` and its price
-    ride along in the data and are split out by the caller — they are movement
-    fields, not columns of Part."""
+    """Validate the part form. Returns (data, error). No quantity is typed
+    here: what is on the shelf only comes from receiving an order."""
     t = get_t()
     name = (request.form.get("name") or "").strip()
     unit = (request.form.get("unit") or "").strip()
@@ -166,43 +166,8 @@ def _read_part_form(part):
     if bad or (pack_size is not None and pack_size <= 0) or bool(pack_name) != bool(pack_size):
         return None, t.get("part.err.pack", "Indiquez le nom du conditionnement et son contenu, ou aucun des deux.")
 
-    opening, bad = _num(request.form.get("opening_quantity"), float)
-    if bad or (opening is not None and opening < 0):
-        return None, t.get("part.err.opening", "Quantité de départ invalide.")
-
-    # What the opening stock is worth per unit. Attached to those parts and to
-    # nothing else — there is no catalogue price on a part, so no second price
-    # to wonder about.
-    raw_price = (request.form.get("opening_price") or "").strip()
-    opening_price = parse_amount(raw_price) if raw_price else None
-    bad = bool(raw_price) and opening_price is None
-    if bad or (opening_price is not None and opening_price < 0):
-        return None, t.get("part.err.price", "Prix invalide.")
-
     return dict(name=name, unit=unit, reorder_level=reorder,
-                pack_name=pack_name, pack_size=pack_size,
-                opening=opening or 0, opening_price=opening_price), None
-
-
-def _set_opening_stock(part, quantity, price, today):
-    """The opening stock is a single 'initial' movement, so editing it just
-    adjusts (or removes) that one row. It is deliberately NOT an expense: those
-    parts were paid for before the store existed — only a receipt costs money.
-    Its price is what the user declared them to be worth, which is what lets
-    them weigh into the average like any receipt.
-    """
-    mv = next((m for m in part.movements if m.kind == "initial"), None)
-    if quantity > 0:
-        if mv:
-            mv.quantity = quantity
-            mv.unit_price = price
-        else:
-            db.session.add(StockMovement(
-                part_id=part.id, kind="initial", date=today,
-                quantity=quantity, unit_price=price,
-                created_by=current_user.id))
-    elif mv:
-        db.session.delete(mv)
+                pack_name=pack_name, pack_size=pack_size), None
 
 
 _PHOTO_ERR_KEYS = {
@@ -241,33 +206,6 @@ def _render_part_form(part, error=None):
     return render_template(tpl, part=part, error=error, units=active_units()), status
 
 
-@stock_bp.route("/parts/new", methods=["GET", "POST"])
-@login_required
-@require_perm("stock.manage")
-def part_new():
-    t = get_t()
-    if request.method == "POST":
-        data, error = _read_part_form(None)
-        if error:
-            return _render_part_form(None, error)
-        opening = data.pop("opening")
-        opening_price = data.pop("opening_price")
-        p = Part(created_by=current_user.id, **data)
-        db.session.add(p)
-        db.session.flush()
-        perr = _apply_part_photo_change(p)
-        if perr:
-            db.session.rollback()
-            return _render_part_form(None, perr)
-        _set_opening_stock(p, opening, opening_price, date.today().isoformat())
-        log_action("CREATE", "part", resource_id=p.id,
-                   detail=f"Created part '{p.name}'")
-        db.session.commit()
-        flash("success|" + t.get("part.created", "Article créé."))
-        return modal_ok() if is_modal_request() else redirect(url_for("stock.index"))
-    return _render_part_form(None)
-
-
 @stock_bp.route("/parts/<int:pid>/edit", methods=["GET", "POST"])
 @login_required
 @require_perm("stock.manage")
@@ -278,15 +216,12 @@ def part_edit(pid):
         data, error = _read_part_form(part)
         if error:
             return _render_part_form(part, error)
-        opening = data.pop("opening")
-        opening_price = data.pop("opening_price")
         for k, v in data.items():
             setattr(part, k, v)
         perr = _apply_part_photo_change(part)
         if perr:
             db.session.rollback()
             return _render_part_form(part, perr)
-        _set_opening_stock(part, opening, opening_price, date.today().isoformat())
         log_action("UPDATE", "part", resource_id=part.id,
                    detail=f"Edited part '{part.name}'")
         db.session.commit()
@@ -356,241 +291,6 @@ def part_reactivate(pid):
     db.session.commit()
     flash("success|" + get_t().get("part.reactivated", "Article réactivé."))
     return redirect(url_for("stock.index", archived=1))
-
-
-# ── Entrée (parts received) ──────────────────────────────────────────────────
-
-
-# Payment fields belong to the ledger row, not to the movement — the same
-# arrangement the maintenance blueprint uses for a service's cost.
-MONEY_KEYS = ("payment_method", "payment_reference")
-
-
-def split_money(data):
-    """Pop the ledger-only fields out of a movement payload. Returns (data, money)."""
-    return data, {k: data.pop(k, None) for k in MONEY_KEYS}
-
-
-def sync_receipt_expense(movement, money):
-    """Mirror a receipt into the money ledger as its single 'pieces' row:
-    created or updated so the two can never disagree. Deleting the movement
-    deletes the row through the relationship's cascade.
-
-    This is the ONE moment parts cost money. Issuing one to a vehicle later
-    writes no ledger row at all — it only says who the cost was for. The row
-    carries no fleet and no vehicle: a purchase belongs to the company until a
-    machine actually consumes it.
-    """
-    fields = dict(
-        vehicle_id=None,
-        fleet_id=None,
-        label=movement.part.name,
-        category=PARTS_CATEGORY,
-        date=movement.date,
-        amount=movement.value or 0,
-        currency="GNF",
-        payment_method=money.get("payment_method"),
-        payment_reference=money.get("payment_reference"),
-        supplier=movement.supplier,
-        description=movement.note,
-    )
-    if movement.expense:
-        for k, v in fields.items():
-            setattr(movement.expense, k, v)
-    else:
-        db.session.add(Expense(stock_movement_id=movement.id,
-                               created_by=getattr(current_user, "id", None),
-                               **fields))
-
-
-def _read_entree_form():
-    """A receipt: quantity in, at the price actually paid that day. The price is
-    asked every time — the part's indicative price only pre-fills the field, so
-    what a lot really cost is never overwritten by the next one."""
-    t = get_t()
-    part = db.session.get(Part, request.form.get("part_id", type=int) or 0)
-    if not part or not part.is_active:
-        return None, t.get("mv.err.part", "Choisissez un article actif.")
-
-    date_str = (request.form.get("date") or "").strip()
-    if not _valid_date(date_str):
-        return None, t.get("mv.err.date", "Date invalide.")
-
-    try:
-        quantity = float((request.form.get("quantity") or "").replace(",", "."))
-    except ValueError:
-        return None, t.get("mv.err.quantity", "Quantité invalide.")
-    if quantity <= 0:
-        return None, t.get("mv.err.quantity", "Quantité invalide.")
-
-    try:
-        unit_price = parse_amount(request.form.get("unit_price"))
-        if unit_price is None:
-            raise ValueError
-    except ValueError:
-        return None, t.get("mv.err.price", "Prix invalide.")
-    if unit_price < 0:
-        return None, t.get("mv.err.price", "Prix invalide.")
-
-    # A receipt becomes a ledger row, so it has to say how it was paid.
-    method = (request.form.get("payment_method") or "").strip()
-    if method not in PAYMENT_METHODS:
-        return None, t.get("expense.err.payment_required",
-                           "Choisissez un moyen de paiement.")
-
-    return dict(
-        part_id=part.id, kind="entree", date=date_str, quantity=quantity,
-        unit_price=unit_price,
-        supplier=(request.form.get("supplier") or "").strip() or None,
-        payment_method=method,
-        payment_reference=(request.form.get("payment_reference") or "").strip() or None,
-        note=(request.form.get("note") or "").strip() or None,
-    ), None
-
-
-def _render_movement_form(kind, error=None):
-    tpl = f"_{kind}_form.html" if is_modal_request() else f"{kind}_form.html"
-    status = 422 if (error and is_modal_request()) else 200
-    return render_template(
-        tpl, error=error, parts=_active_parts(),
-        payment_methods=PAYMENT_METHODS, today=date.today().isoformat(),
-        preset_part=request.args.get("part", type=int)), status
-
-
-@stock_bp.route("/entree/new", methods=["GET", "POST"])
-@login_required
-@require_perm("stock.manage")
-def entree_new():
-    t = get_t()
-    if request.method == "POST":
-        data, error = _read_entree_form()
-        if error:
-            return _render_movement_form("entree", error)
-        data, money = split_money(data)
-        mv = StockMovement(created_by=current_user.id, **data)
-        db.session.add(mv)
-        db.session.flush()
-        sync_receipt_expense(mv, money)
-        log_action("CREATE", "stock_movement", resource_id=mv.id,
-                   detail=f"Received {mv.quantity} of '{mv.part.name}'")
-        db.session.commit()
-        flash("success|" + t.get("entree.created", "Réception enregistrée."))
-        return modal_ok() if is_modal_request() else redirect(url_for("stock.index"))
-    return _render_movement_form("entree")
-
-
-# ── Inventaire (physical count) ──────────────────────────────────────────────
-
-
-def _read_inventaire_form():
-    """A physical count. It resets the running quantity to what was counted, so
-    a figure that drifted — including a negative one — gets put right."""
-    t = get_t()
-    part = db.session.get(Part, request.form.get("part_id", type=int) or 0)
-    if not part or not part.is_active:
-        return None, t.get("mv.err.part", "Choisissez un article actif.")
-
-    date_str = (request.form.get("date") or "").strip()
-    if not _valid_date(date_str):
-        return None, t.get("mv.err.date", "Date invalide.")
-
-    try:
-        quantity = float((request.form.get("quantity") or "").replace(",", "."))
-    except ValueError:
-        return None, t.get("mv.err.counted", "Quantité comptée invalide.")
-    if quantity < 0:
-        return None, t.get("mv.err.counted", "Quantité comptée invalide.")
-
-    return dict(part_id=part.id, kind="inventaire", date=date_str,
-                quantity=quantity,
-                note=(request.form.get("note") or "").strip() or None), None
-
-
-@stock_bp.route("/inventaire/new", methods=["GET", "POST"])
-@login_required
-@require_perm("stock.manage")
-def inventaire_new():
-    t = get_t()
-    if request.method == "POST":
-        data, error = _read_inventaire_form()
-        if error:
-            return _render_movement_form("inventaire", error)
-        mv = StockMovement(created_by=current_user.id, **data)
-        db.session.add(mv)
-        db.session.flush()
-        gap = mv.ecart
-        log_action("CREATE", "stock_movement", resource_id=mv.id,
-                   detail=f"Counted {mv.quantity} of '{mv.part.name}'")
-        db.session.commit()
-        if gap:
-            flash("success|" + t.get("inventaire.gap", "Comptage enregistré — écart de %(n)s.")
-                  % {"n": f"{abs(gap):,.10g}"})
-        else:
-            flash("success|" + t.get("inventaire.ok", "Comptage enregistré."))
-        return modal_ok() if is_modal_request() else redirect(url_for("stock.index"))
-    return _render_movement_form("inventaire")
-
-
-# ── History ──────────────────────────────────────────────────────────────────
-
-
-@stock_bp.route("/movements")
-@login_required
-@require_perm("stock.view")
-def history():
-    filters = {
-        "part_id":   request.args.get("part_id", type=int),
-        "kind":      request.args.get("kind") or "",
-        "date_from": (request.args.get("date_from") or "").strip(),
-        "date_to":   (request.args.get("date_to") or "").strip(),
-    }
-    q = StockMovement.query
-    if filters["part_id"]:
-        q = q.filter(StockMovement.part_id == filters["part_id"])
-    if filters["kind"] in MOVEMENT_KINDS:
-        q = q.filter(StockMovement.kind == filters["kind"])
-    if _valid_date(filters["date_from"]):
-        q = q.filter(StockMovement.date >= filters["date_from"])
-    if _valid_date(filters["date_to"]):
-        q = q.filter(StockMovement.date <= filters["date_to"])
-
-    movements = (q.order_by(StockMovement.date.desc(), StockMovement.id.desc())
-                 .limit(HISTORY_LIMIT).all())
-    return render_template(
-        "stock_history.html", movements=movements, filters=filters,
-        kinds=MOVEMENT_KINDS, parts=Part.query.order_by(Part.name).all(),
-        has_filters=any(filters.values()), limit=HISTORY_LIMIT)
-
-
-@stock_bp.route("/movements/<int:mid>/delete", methods=["POST"])
-@login_required
-@require_perm("stock.manage")
-def movement_delete(mid):
-    mv = _get_movement_or_404(mid)
-    t = get_t()
-    # Parts issued to a service belong to that record — removing them here
-    # would leave the service claiming parts it no longer has.
-    if mv.maintenance_record_id:
-        flash("error|" + t.get("mv.err.owned_by_record",
-                               "Ce mouvement appartient à une fiche d'entretien : "
-                               "modifiez-le depuis la fiche."))
-        return redirect(request.referrer or url_for("stock.history"))
-    if mv.kind == "initial":
-        flash("error|" + t.get("mv.err.opening",
-                               "Le stock de départ se modifie sur la fiche article."))
-        return redirect(request.referrer or url_for("stock.history"))
-    name = mv.part.name
-    if mv.purchase_line:
-        line = mv.purchase_line
-        line.received_qty = max((line.received_qty or 0) - mv.quantity, 0)
-        order = line.order
-        order.status = "received_partial" if any(l.received_qty for l in order.lines) else "approved"
-    db.session.delete(mv)          # cascades to its ledger row, if any
-    log_action("DELETE", "stock_movement", resource_id=mid,
-               detail=f"Deleted {mv.kind} of '{name}'")
-    db.session.commit()
-    flash("success|" + t.get("mv.deleted", "Mouvement supprimé."))
-    return redirect(request.referrer or url_for("stock.history"))
 
 
 # ── The units the store counts in ────────────────────────────────────────────

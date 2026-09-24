@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_hint.html" import hint with context %}
 
 {% block title %}{{ t['cinv.new'] }}{% endblock %}
 {% block page_title %}{{ t['cinv.new'] }}{% endblock %}
@@ -12,7 +13,6 @@
     <div class="card-header">
         <div>
             <h2>{{ t['cinv.preview_title'] }}</h2>
-            <p class="muted small" style="margin:4px 0 0; max-width:64ch;">{{ t['cinv.preview_intro'] }}</p>
         </div>
     </div>
 
@@ -109,9 +109,8 @@
         </div>
         <div class="field">
             <input type="text" id="note" name="note" placeholder=" " maxlength="255">
-            <label for="note">{{ t['cinv.note'] }}</label>
+            <label for="note">{{ t['cinv.note'] }} {{ hint('', t['cinv.note_hint']) }}</label>
         </div>
-        <div class="field-hint">{{ t['cinv.note_hint'] }}</div>
         <div class="form-actions">
             <button type="submit" class="btn btn--primary" {% if existing or any_missing %}disabled{% endif %}>
                 <span class="material-symbols-outlined">request_quote</span> {{ t['cinv.issue'] }}

@@ -1,3 +1,4 @@
+{% from "_hint.html" import hint with context %}
 {% set is_edit = category is not none %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
@@ -10,8 +11,7 @@
             <input type="text" id="code" name="code" placeholder="{{ t['ph.vcat.code'] }}" required autocapitalize="characters"
                    value="{{ request.form.get('code', '') }}">
             {% endif %}
-            <label for="code">{{ t['vcat.code'] }}</label>
-            {% if not is_edit %}<div class="field-hint">{{ t['vcat.code_hint'] }}</div>{% endif %}
+            <label for="code">{{ t['vcat.code'] }}{% if not is_edit %} {{ hint('', t['vcat.code_hint']) }}{% endif %}</label>
         </div>
         <div class="field field--select">
             <select id="tracking" name="tracking" required>
@@ -19,8 +19,7 @@
                 {% set sel_tr = request.form.get('tracking') or (category.tracking if is_edit else '') %}
                 {% for tr in tracking_modes %}<option value="{{ tr }}" {% if tr == sel_tr %}selected{% endif %}>{{ t['vcat.track.' + tr] }}</option>{% endfor %}
             </select>
-            <label for="tracking">{{ t['vcat.tracking'] }}</label>
-            <div class="field-hint">{{ t['vcat.tracking_hint'] }}</div>
+            <label for="tracking">{{ t['vcat.tracking'] }} {{ hint('', t['vcat.tracking_hint']) }}</label>
         </div>
     </div>
 
@@ -49,8 +48,7 @@
                 <option value="{{ name }}" {% if name == sel_img %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
-            <label for="default_image">{{ t['vcat.default_image'] }} <span class="muted">({{ t['form.optional'] | lower }})</span></label>
-            <div class="field-hint">{{ t['vcat.default_image_hint'] }}</div>
+            <label for="default_image">{{ t['vcat.default_image'] }} <span class="muted"> {{ hint('', t['vcat.default_image_hint']) }}({{ t['form.optional'] | lower }})</span></label>
         </div>
         <div class="field" style="justify-content:center;">
             <img id="default-image-preview" alt=""

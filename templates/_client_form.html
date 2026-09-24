@@ -1,3 +1,4 @@
+{% from "_hint.html" import hint with context %}
 {% set is_edit = row is not none %}
 {# Who the machines work for. The name is enough to start; the address, NIF
    and RCCM are there for the day a bill has to carry them. #}
@@ -50,7 +51,6 @@
     {# Its machines, each with what it is billed. A rate typed here starts on
        the date below; the one before it is kept for the months it applied. #}
     <span class="photo-input__label">{{ t['client.machines_pick'] }}</span>
-    <div class="field-hint" style="margin-bottom:8px;">{{ t['client.machines_hint'] }}</div>
     {% if machines %}
     {% set chosen = request.form.getlist('machine_ids')|map('int')|list if request.method == 'POST'
                     else (row.machines|map(attribute='id')|list if is_edit else []) %}
@@ -81,9 +81,8 @@
     <div class="field" style="max-width: 220px; margin-top: 12px;">
         <input type="date" id="rate_effective_from" name="rate_effective_from" placeholder=" "
                value="{{ request.form.get('rate_effective_from') or today }}">
-        <label for="rate_effective_from">{{ t['client.rate_from'] }}</label>
+        <label for="rate_effective_from">{{ t['client.rate_from'] }} {{ hint('', t['client.rate_from_hint']) }}</label>
     </div>
-    <div class="field-hint">{{ t['client.rate_from_hint'] }}</div>
     {% else %}
     <div class="field-hint">{{ t['supplier.machines_none'] }}</div>
     {% endif %}

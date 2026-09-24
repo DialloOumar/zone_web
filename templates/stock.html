@@ -26,22 +26,8 @@
                 <span class="material-symbols-outlined">tune</span> {{ t['punit.title'] }}
             </a>
             {% endif %}
-            {% if has_perm('stock.manage') and active_parts %}
-            <a href="{{ url_for('stock.entree_new') }}" class="btn btn--tonal"
-               data-modal-url="{{ url_for('stock.entree_new') }}" data-modal-title="{{ t['entree.new'] }}">
-                <span class="material-symbols-outlined">inventory</span> {{ t['entree.new'] }}
-            </a>
-            <a href="{{ url_for('stock.inventaire_new') }}" class="btn btn--sm btn--tonal"
-               data-modal-url="{{ url_for('stock.inventaire_new') }}" data-modal-title="{{ t['inventaire.new'] }}">
-                <span class="material-symbols-outlined">fact_check</span> {{ t['inventaire.new'] }}
-            </a>
-            {% endif %}
-            {% if has_perm('stock.manage') %}
-            <a href="{{ url_for('stock.part_new') }}" class="fab"
-               data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
-                <span class="material-symbols-outlined">add</span> {{ t['part.new'] }}
-            </a>
-            {% endif %}
+            {# No "new article" here: an article is born on a purchase order
+               line and enters the catalogue when the order is received. #}
         </div>
     </div>
 
@@ -170,9 +156,8 @@
         <span class="material-symbols-outlined">shelves</span>
         <p>{{ t['stock.no_match'] if search else t['stock.empty'] }}</p>
         {% if has_perm('stock.manage') and not search %}
-        <a href="{{ url_for('stock.part_new') }}" class="fab"
-           data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
-            <span class="material-symbols-outlined">add</span> {{ t['part.new'] }}
+        <a href="{{ url_for('purchases.new') }}" class="fab">
+            <span class="material-symbols-outlined">add</span> {{ t['po.new'] }}
         </a>
         {% endif %}
     </div>

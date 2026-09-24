@@ -36,7 +36,6 @@
                    {% if (is_edit and role.approves_finance) or (request.method == 'POST' and request.form.get('approves_finance')) %}checked{% endif %}>
             <span>{{ t['role.approves_finance'] }}</span>
         </label>
-        <div class="field-hint">{{ t['role.approves_hint'] }}</div>
         {% endif %}
     </section>
 

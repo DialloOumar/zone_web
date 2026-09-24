@@ -68,7 +68,7 @@
             {# Day-to-day like fuel: the storekeeper is in here every morning, so
                it belongs beside it rather than down with the maintenance setup. #}
             {% if has_perm('stock.view') %}
-            <li><a href="{{ url_for('stock.index') }}" class="sidebar-sub {% if request.blueprint == 'stock' %}active{% endif %}">
+            <li><a href="{{ url_for('stock.index') }}" class="sidebar-sub {% if request.blueprint in ('stock', 'purchases') %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">shelves</span> {{ t['nav.stock'] }}
             </a></li>
             {% endif %}
@@ -186,6 +186,9 @@
                 </span>
                 <a href="{{ url_for('welcome') }}" class="sidebar-change-pw">
                     <span class="material-symbols-outlined" style="font-size:16px;">fact_check</span> {{ t['tour.replay'] }}
+                </a>
+                <a href="{{ url_for('my_signature') }}" class="sidebar-change-pw">
+                    <span class="material-symbols-outlined" style="font-size:16px;">badge</span> {{ t['sig.title'] }}
                 </a>
                 <a href="{{ url_for('change_password') }}" class="sidebar-change-pw">
                     <span class="material-symbols-outlined" style="font-size:16px;">lock_reset</span> {{ t['nav.change_password'] }}

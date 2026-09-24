@@ -11,7 +11,7 @@ Refusing takes a reason; a refused order is corrected and resubmitted, and
 every refusal stays on it. Editing an order that already had an approval
 takes the approval back -- what was signed is not what is now written.
 
-Prices are known at order time; the discount is an amount per line, summed
+Prices are known at order time; a discount is no longer typed (the column stays at zero), summed
 at the foot. Numbers are BC-2026-001, per year of issue, given by the app.
 Receiving: an approved order is received line by line, in the store's own
 unit (a drum ordered per pack comes in as litres), and each quantity writes
@@ -29,7 +29,7 @@ from sqlalchemy.exc import IntegrityError
 from app import (_get_setting, current_lang, get_t, has_perm, log_action,
                  parse_amount, require_perm)
 from blueprints.stock import active_units, unit_codes
-from blueprints.supplier_invoices import active_suppliers
+from blueprints.supplier_invoices import _save_supplier, active_suppliers
 from models import Part, PurchaseOrder, PurchaseOrderLine, StockMovement, Supplier, db
 
 purchases_bp = Blueprint("purchases", __name__, url_prefix="/stock/commandes")
@@ -116,7 +116,6 @@ def _read_form(po):
     refs = request.form.getlist("reference")
     qtys = request.form.getlist("quantity")
     prices = request.form.getlist("unit_price")
-    discounts = request.form.getlist("discount")
     units = request.form.getlist("unit")
     modes = request.form.getlist("mode")
     new_units = request.form.getlist("new_unit")
@@ -127,9 +126,8 @@ def _read_form(po):
         ref = (refs[i] if i < len(refs) else "").strip()
         qty_raw = (qtys[i] if i < len(qtys) else "").strip().replace(",", ".")
         price_raw = (prices[i] if i < len(prices) else "").strip()
-        disc_raw = (discounts[i] if i < len(discounts) else "").strip()
         unit_choice = (units[i] if i < len(units) else "").strip()
-        mode = (modes[i] if i < len(modes) else "stock").strip() or "stock"
+        mode = (modes[i] if i < len(modes) else "new").strip() or "new"
         new_unit = (new_units[i] if i < len(new_units) else "piece").strip() or "piece"
         if not (pid or desc or qty_raw or price_raw):
             continue
@@ -158,9 +156,7 @@ def _read_form(po):
         price = parse_amount(price_raw)
         if price is None or price < 0:
             return None, None, t["po.err.price"]
-        discount = parse_amount(disc_raw) if disc_raw else 0
-        if discount is None or discount < 0 or discount > qty * price:
-            return None, None, t["po.err.discount"]
+        discount = 0     # no discount is typed any more; the column stays, at zero
         # Per pack only when the part has one: "1 fût" is meaningless on a
         # part sold by the unit.
         in_pack = bool(part and part.pack_size and unit_choice == "pack")
@@ -190,7 +186,7 @@ def _render_form(po, error=None, lines=None):
             g = lambda k: (request.form.getlist(k)[i] if i < len(request.form.getlist(k)) else "")
             lines.append(dict(part_id=g("part_id"), description=g("description"), reference=g("reference"),
                               quantity=g("quantity"), unit_price=g("unit_price"), discount=g("discount"),
-                              unit=g("unit"), new_unit=g("new_unit"), mode=g("mode") or "stock"))
+                              unit=g("unit"), new_unit=g("new_unit"), mode=g("mode") or "new"))
     t = get_t()
     parts = Part.query.filter(Part.is_active.is_(True)).order_by(Part.name).all()
     from app import _unit_label
@@ -281,6 +277,25 @@ def new():
         flash("success|" + t["po.created"])
         return redirect(url_for("purchases.detail", oid=po.id))
     return _render_form(None)
+
+
+@purchases_bp.route("/fournisseur/nouveau", methods=["GET", "POST"])
+@login_required
+@require_perm("stock.manage")
+def supplier_new():
+    """A parts supplier written down on the way to an order, without leaving
+    the store: the same supplier as the bills know, minus the machines a
+    lessor would tick. Saved, the new order opens with it chosen."""
+    t = get_t()
+    if request.method == "POST":
+        error = _save_supplier(None)
+        if error:
+            return render_template("purchase_supplier_form.html", error=error), 422
+        name = (request.form.get("name") or "").strip()
+        row = Supplier.query.filter(db.func.lower(Supplier.name) == name.lower()).first()
+        flash("success|" + t.get("list.created", "Ajouté."))
+        return redirect(url_for("purchases.new", supplier=row.id if row else None))
+    return render_template("purchase_supplier_form.html", error=None)
 
 
 def _editable(po):

@@ -101,9 +101,26 @@
     });
 })();
 
-// ── Auto-dismiss success snackbars ──
+// ── Flash toasts ──
+// The messages laid over the page go on their own: a success after four
+// seconds, an error or a warning after eight, so there is time to read it.
+// A click on one dismisses it at once. They are outside the page's flow, so
+// nothing moves when they go.
 (function () {
+    function leave(el) {
+        if (el.dataset.leaving) return;
+        el.dataset.leaving = "1";
+        el.classList.add("is-leaving");
+        setTimeout(function () { el.remove(); }, 400);
+    }
+    document.querySelectorAll(".flash-area .alert").forEach(function (el) {
+        var wait = el.classList.contains("alert--success") ? 4000 : 8000;
+        setTimeout(function () { leave(el); }, wait);
+        el.addEventListener("click", function () { leave(el); });
+    });
+    // A success confirmed inside a page (a saved form) fades the same way.
     document.querySelectorAll(".alert--success").forEach(function (el) {
+        if (el.closest(".flash-area")) return;
         setTimeout(function () {
             el.style.transition = "opacity 0.4s";
             el.style.opacity = "0";

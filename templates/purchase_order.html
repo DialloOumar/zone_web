@@ -160,7 +160,6 @@
                 <th>{{ t['po.line_reference'] }}</th>
                 <th style="text-align:right;">{{ t['po.line_qty'] }}</th>
                 <th style="text-align:right;">{{ t['po.line_price'] }}</th>
-                <th style="text-align:right;">{{ t['po.line_discount'] }}</th>
                 <th style="text-align:right;">{{ t['cinv.amount'] }}</th>
                 {% if po.status in ('approved', 'received_partial', 'received') %}<th style="text-align:right;">{{ t['po.received'] }}</th>{% endif %}
             </tr>
@@ -176,7 +175,6 @@
                     {% elif l.part %}{{ unit_label(l.part.unit) }}
                     {% elif l.new_unit %}{{ unit_label(l.new_unit) }}{% endif %}</td>
                 <td style="text-align:right;">{{ l.unit_price | num }}{% if l.in_pack %} <span class="muted small">/ {{ l.part.pack_name }}</span>{% endif %}</td>
-                <td style="text-align:right;">{% if l.discount %}{{ l.discount | num }}{% else %}<span class="muted">—</span>{% endif %}</td>
                 <td style="text-align:right;"><strong>{{ l.amount | num }}</strong></td>
                 {% if po.status in ('approved', 'received_partial', 'received') %}
                 <td style="text-align:right; white-space:nowrap;">
@@ -191,11 +189,11 @@
         </tbody>
         <tfoot>
             {% set extra = 1 if po.status in ('approved', 'received_partial', 'received') else 0 %}
-            <tr><td colspan="6" style="text-align:right;">{{ t['po.subtotal'] }}</td><td style="text-align:right;">{{ po.total_gross | num }} {{ currency }}</td>{% if extra %}<td></td>{% endif %}</tr>
             {% if po.total_discount %}
-            <tr><td colspan="6" style="text-align:right;">{{ t['po.total_discount'] }}</td><td style="text-align:right;">− {{ po.total_discount | num }} {{ currency }}</td>{% if extra %}<td></td>{% endif %}</tr>
+            <tr><td colspan="5" style="text-align:right;">{{ t['po.subtotal'] }}</td><td style="text-align:right;">{{ po.total_gross | num }} {{ currency }}</td>{% if extra %}<td></td>{% endif %}</tr>
+            <tr><td colspan="5" style="text-align:right;">{{ t['po.total_discount'] }}</td><td style="text-align:right;">− {{ po.total_discount | num }} {{ currency }}</td>{% if extra %}<td></td>{% endif %}</tr>
             {% endif %}
-            <tr><td colspan="6" style="text-align:right;"><strong>{{ t['cinv.total'] }}</strong></td><td style="text-align:right;"><strong>{{ po.total | num }} {{ currency }}</strong></td>{% if extra %}<td></td>{% endif %}</tr>
+            <tr><td colspan="5" style="text-align:right;"><strong>{{ t['cinv.total'] }}</strong></td><td style="text-align:right;"><strong>{{ po.total | num }} {{ currency }}</strong></td>{% if extra %}<td></td>{% endif %}</tr>
         </tfoot>
     </table></div>
 

@@ -19,7 +19,7 @@
           action="{{ url_for('purchases.edit', oid=po.id) if is_edit else url_for('purchases.new') }}">
         <div class="form-row">
             <div class="field field--select">
-                {% set sel_s = request.form.get('supplier_id')|int(0) or (po.supplier_id if is_edit else 0) %}
+                {% set sel_s = request.form.get('supplier_id')|int(0) or request.args.get('supplier')|int(0) or (po.supplier_id if is_edit else 0) %}
                 <select id="supplier_id" name="supplier_id" required>
                     <option value="" hidden></option>
                     {% for s in suppliers %}
@@ -34,26 +34,32 @@
                 <label for="date">{{ t['po.date'] }}</label>
             </div>
         </div>
-        {% if not suppliers %}
-        <div class="field-hint">{{ t['invoice.supplier_first'] }} :
-            <a href="{{ url_for('supplier_invoices.suppliers') }}">{{ t['invoice.tab_suppliers'] }}</a></div>
-        {% endif %}
+        {# A supplier not in the list yet is written down on the store's own
+           page and the order comes back with it chosen. #}
+        <div class="field-hint">{{ t['invoice.supplier_first'] if not suppliers else t['po.supplier_missing'] }} :
+            <a href="{{ url_for('purchases.supplier_new') }}">{{ t['invoice.supplier_new'] }}</a></div>
 
         {# The lines. "Stock" ticked: the article is one the store already
            knows, picked from the catalogue by browsing or typing. Unticked: a
            new article, with its unit, created in the catalogue when it is
-           received. Totals follow as you type. #}
+           received. The total follows as you type. Nothing is written under
+           a line: a typed name the catalogue does not know is only bordered
+           in amber until it is picked from the list. #}
         <span class="photo-input__label" style="margin-top:12px;">{{ t['po.lines'] }}</span>
-        <div class="field-hint" style="margin-bottom:6px;">{{ t['po.lines_hint'] }}</div>
-        <div class="table-wrap"><table class="data-table po-lines" id="po-lines">
+        <div class="po-wrap"><table class="data-table po-lines" id="po-lines">
+            {# Fixed columns: nothing typed in a cell moves the others. #}
+            <colgroup>
+                <col class="po-col-stock"><col class="po-col-part"><col class="po-col-ref"><col class="po-col-qty">
+                <col class="po-col-unit"><col class="po-col-price"><col class="po-col-amount"><col class="po-col-x">
+            </colgroup>
             <thead>
                 <tr>
                     <th class="po-stock-col" title="{{ t['po.in_stock_title'] }}">{{ t['po.in_stock'] }}</th>
-                    <th style="width:30%;">{{ t['po.line_part'] }}</th>
+                    <th class="po-th-part">{{ t['po.line_part'] }}</th>
                     <th>{{ t['po.line_reference'] }}</th>
-                    <th class="r">{{ t['po.line_qty'] }}</th>
-                    <th class="r">{{ t['po.line_price'] }}</th>
-                    <th class="r">{{ t['po.line_discount'] }}</th>
+                    <th>{{ t['po.line_qty'] }}</th>
+                    <th>{{ t['part.unit'] }}</th>
+                    <th>{{ t['po.line_price'] }}</th>
                     <th class="r">{{ t['cinv.amount'] }}</th>
                     <th></th>
                 </tr>
@@ -73,11 +79,10 @@
                             <button type="button" class="po-combo__toggle" tabindex="-1" aria-label="{{ t['po.browse'] }}"><span class="material-symbols-outlined">unfold_more</span></button>
                             <div class="po-combo__list" hidden></div>
                         </div>
-                        <div class="po-line-kind muted small"></div>
                     </td>
                     <td><input type="text" name="reference" placeholder="{{ t['po.line_reference'] }}" value="{{ l.reference or '' }}" maxlength="60"></td>
-                    <td class="po-qty">
-                        <input type="number" name="quantity" min="0" step="any" class="r" value="{{ l.quantity }}" required>
+                    <td><input type="number" name="quantity" min="0" step="any" class="r" value="{{ l.quantity }}" required></td>
+                    <td class="po-unit-cell">
                         <select name="unit" class="po-unit" hidden>
                             <option value="stock" {% if l.unit != 'pack' %}selected{% endif %}></option>
                             <option value="pack" {% if l.unit == 'pack' %}selected{% endif %}></option>
@@ -86,8 +91,7 @@
                             {% for u in units %}<option value="{{ u.code }}" {% if (l.new_unit or units[0].code) == u.code %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
                         </select>
                     </td>
-                    <td><input type="text" name="unit_price" inputmode="numeric" class="r" value="{{ l.unit_price }}" required></td>
-                    <td><input type="text" name="discount" inputmode="numeric" class="r" value="{{ l.discount or '' }}"></td>
+                    <td><input data-money type="text" name="unit_price" inputmode="numeric" class="r" value="{{ l.unit_price }}" required></td>
                     <td class="r po-amount">0</td>
                     <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon po-remove" title="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
                 </tr>
@@ -95,8 +99,6 @@
             </tbody>
             <tfoot>
                 <tr><td colspan="8"><button type="button" class="btn btn--sm btn--tonal" id="po-add"><span class="material-symbols-outlined">add</span> {{ t['po.add_line'] }}</button></td></tr>
-                <tr><td colspan="6" class="r">{{ t['po.subtotal'] }}</td><td class="r" id="po-gross">0</td><td></td></tr>
-                <tr><td colspan="6" class="r">{{ t['po.total_discount'] }}</td><td class="r" id="po-disc">0</td><td></td></tr>
                 <tr><td colspan="6" class="r"><strong>{{ t['cinv.total'] }}</strong></td><td class="r"><strong id="po-total">0</strong></td><td></td></tr>
             </tfoot>
         </table></div>
@@ -117,10 +119,12 @@
 </section>
 
 <template id="po-line-template">
-    <tr class="po-line is-stock">
+    {# A fresh line starts unticked: a new article, typed freely. Ticking
+       "Stock" is the exception, for something the store already knows. #}
+    <tr class="po-line">
         <td class="po-stock-col">
-            <input type="hidden" name="mode" value="stock">
-            <input type="checkbox" class="po-stock-box" checked aria-label="{{ t['po.in_stock_title'] }}">
+            <input type="hidden" name="mode" value="new">
+            <input type="checkbox" class="po-stock-box" aria-label="{{ t['po.in_stock_title'] }}">
         </td>
         <td>
             <input type="hidden" name="part_id" value="">
@@ -129,18 +133,16 @@
                 <button type="button" class="po-combo__toggle" tabindex="-1" aria-label="{{ t['po.browse'] }}"><span class="material-symbols-outlined">unfold_more</span></button>
                 <div class="po-combo__list" hidden></div>
             </div>
-            <div class="po-line-kind muted small"></div>
         </td>
         <td><input type="text" name="reference" placeholder="{{ t['po.line_reference'] }}" maxlength="60"></td>
-        <td class="po-qty">
-            <input type="number" name="quantity" min="0" step="any" class="r" value="1" required>
+        <td><input type="number" name="quantity" min="0" step="any" class="r" value="1" required></td>
+        <td class="po-unit-cell">
             <select name="unit" class="po-unit" hidden><option value="stock"></option><option value="pack"></option></select>
             <select name="new_unit" class="po-unit po-new-unit" aria-label="{{ t['part.unit'] }}">
                 {% for u in units %}<option value="{{ u.code }}">{{ u.name }}</option>{% endfor %}
             </select>
         </td>
-        <td><input type="text" name="unit_price" inputmode="numeric" class="r" required></td>
-        <td><input type="text" name="discount" inputmode="numeric" class="r"></td>
+        <td><input data-money type="text" name="unit_price" inputmode="numeric" class="r" required></td>
         <td class="r po-amount">0</td>
         <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon po-remove" title="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
     </tr>
@@ -153,8 +155,7 @@
 <script>
 (function () {
     var PARTS = JSON.parse(document.getElementById('po-parts-data').textContent);
-    var KIND_STOCK = {{ t['po.kind_catalogue'] | tojson }}, KIND_NEW = {{ t['po.kind_new'] | tojson }},
-        KIND_PICK = {{ t['po.kind_pick'] | tojson }}, NO_MATCH = {{ t['po.no_match'] | tojson }};
+    var NO_MATCH = {{ t['po.no_match'] | tojson }};
     var table = document.getElementById('po-lines'), body = table.querySelector('tbody'),
         tpl = document.getElementById('po-line-template');
     function num(s) { return parseInt(String(s || '').replace(/[^0-9]/g, ''), 10) || 0; }
@@ -165,18 +166,15 @@
         return null;
     }
     function recompute() {
-        var gross = 0, disc = 0;
+        var total = 0;
         body.querySelectorAll('.po-line').forEach(function (row) {
             var q = parseFloat(row.querySelector('[name=quantity]').value) || 0,
                 p = num(row.querySelector('[name=unit_price]').value),
-                d = num(row.querySelector('[name=discount]').value),
                 g = Math.round(q * p);
-            row.querySelector('.po-amount').textContent = fmt(g - d);
-            gross += g; disc += d;
+            row.querySelector('.po-amount').textContent = fmt(g);
+            total += g;
         });
-        document.getElementById('po-gross').textContent = fmt(gross);
-        document.getElementById('po-disc').textContent = fmt(disc);
-        document.getElementById('po-total').textContent = fmt(gross - disc);
+        document.getElementById('po-total').textContent = fmt(total);
     }
     // One row: stock mode (pick from the catalogue) or new (type a name and
     // its unit). The pack/unit choice only means something for a known part.
@@ -186,19 +184,22 @@
             hid = row.querySelector('[name=part_id]'),
             sel = row.querySelector('[name=unit]'),
             newUnit = row.querySelector('[name=new_unit]'),
-            kind = row.querySelector('.po-line-kind'),
             found = stock ? byName(input.value) : null;
         row.querySelector('[name=mode]').value = stock ? 'stock' : 'new';
         row.classList.toggle('is-stock', stock);
         hid.value = found ? found.id : '';
         newUnit.hidden = stock;
-        if (!stock) { sel.hidden = true; kind.textContent = input.value.trim() ? KIND_NEW : ''; kind.className = 'po-line-kind muted small'; return; }
-        if (!found) { sel.hidden = true; kind.textContent = input.value.trim() ? KIND_PICK : ''; kind.className = 'po-line-kind small po-line-kind--free'; return; }
-        kind.textContent = KIND_STOCK; kind.className = 'po-line-kind muted small';
+        // A stock line whose name is not the catalogue's: bordered until picked,
+        // and its unit box shown idle, with a dash, so the column never has a hole.
+        input.classList.toggle('is-unknown', stock && !found && !!input.value.trim());
+        sel.hidden = !stock;
+        sel.classList.toggle('is-idle', stock && !found);
+        if (!stock) return;
+        if (!found) { sel.options[0].textContent = '—'; sel.options[1].hidden = true; sel.value = 'stock'; sel.title = ''; return; }
         sel.options[0].textContent = found.unit;
         if (found.pack) { sel.options[1].textContent = found.pack + ' (' + found.size + ' ' + found.unit + ')'; sel.options[1].hidden = false; }
         else { sel.options[1].hidden = true; sel.value = 'stock'; }
-        sel.hidden = false;
+        sel.title = sel.options[sel.selectedIndex].textContent;
     }
     // The catalogue list under the field: all of it when opened with the
     // arrow, narrowed to what is typed otherwise.

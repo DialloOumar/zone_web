@@ -39,6 +39,20 @@ class User(UserMixin, db.Model):
     full_name      = db.Column(db.String(120), nullable=False)
     email          = db.Column(db.String(120), nullable=True)            # optional
     phone          = db.Column(db.String(30),  nullable=True)            # optional; printed on the bills they issue
+    # Their stamp: the word in the middle ("Logistique"), the phone on the
+    # lower arc, and the strokes of their signature as a transparent PNG,
+    # laid over the stamp on the sheets they sign.
+    stamp_label    = db.Column(db.String(40),  nullable=True)
+    stamp_phone    = db.Column(db.String(30),  nullable=True)
+    signature_png  = db.Column(db.LargeBinary, nullable=True)
+    signature_at   = db.Column(db.DateTime,    nullable=True)
+    # Where the strokes sit on the stamp, as the person set them: a shift in
+    # stamp units (the stamp is 300 wide) and a size in percent.
+    sig_dx         = db.Column(db.Integer,     nullable=False, default=0)
+    sig_dy         = db.Column(db.Integer,     nullable=False, default=0)
+    sig_scale      = db.Column(db.Integer,     nullable=False, default=100)
+    stamp_color    = db.Column(db.String(7),   nullable=True)    # ink of the stamp itself, #rrggbb; empty = the stamp's blue
+    sig_color      = db.Column(db.String(7),   nullable=True)    # ink of the strokes; empty = same as the stamp
     password_hash  = db.Column(db.String(256), nullable=False)
     # The one super admin flag — exactly one row in the table has it set to True.
     # Bootstrapped via the seed-super-admin CLI command, never editable in the UI.
@@ -975,6 +989,7 @@ class ClientInvoice(db.Model):
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
     client   = db.relationship("Client")
+    issuer   = db.relationship("User", foreign_keys=[created_by])
     lines    = db.relationship("ClientInvoiceLine", back_populates="invoice",
                                cascade="all, delete-orphan", order_by="ClientInvoiceLine.id")
     payments = db.relationship("ClientPayment", back_populates="invoice",

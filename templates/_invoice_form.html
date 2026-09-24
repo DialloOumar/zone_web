@@ -1,3 +1,4 @@
+{% from "_hint.html" import hint with context %}
 {% set is_edit = invoice is not none %}
 {# What the paper in hand says. Nothing about the payment is asked here: a bill
    is recorded when it arrives, and settled later on its own small form. #}
@@ -19,9 +20,8 @@
             <option value="{{ o.id }}" data-supplier="{{ o.supplier_id }}" data-total="{{ o.total }}" {% if o.id == sel_po %}selected{% endif %}>{{ o.number }} — {{ o.supplier }} — {{ o.total | num }} {{ currency }}</option>
             {% endfor %}
         </select>
-        <label for="purchase_order_id">{{ t['invoice.order'] }}</label>
+        <label for="purchase_order_id">{{ t['invoice.order'] }} {{ hint('', t['invoice.order_hint']) }}</label>
     </div>
-    <div class="field-hint">{{ t['invoice.order_hint'] }}</div>
     {% endif %}
 
     <div class="field field--select">
@@ -86,7 +86,7 @@
         <div class="field">
             <input type="date" id="due_date" name="due_date" placeholder=" "
                    value="{{ request.form.get('due_date') or (invoice.due_date or '' if is_edit else '') }}">
-            <label for="due_date">{{ t['invoice.due_date'] }}</label>
+            <label for="due_date">{{ t['invoice.due_date'] }} {{ hint('', t['invoice.due_date_hint']) }}</label>
         </div>
         <div class="field">
             <input type="text" id="number" name="number" placeholder=" "
@@ -94,7 +94,6 @@
             <label for="number">{{ t['invoice.number'] }}</label>
         </div>
     </div>
-    <div class="field-hint">{{ t['invoice.due_date_hint'] }}</div>
 
     <div class="field">
         <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
