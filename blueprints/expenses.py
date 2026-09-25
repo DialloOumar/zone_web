@@ -101,6 +101,19 @@ def active_accounts():
             .order_by(CashAccount.sort_order, CashAccount.name).all())
 
 
+def repayable_accounts():
+    """What may pay a cost in the box's place: the purses that are owed
+    back -- the boss's own money, an agent's advance. Never a bank: the
+    company's own accounts pay by transfer or cheque, on the Banque page."""
+    return [a for a in active_accounts() if a.is_repayable]
+
+
+def company_accounts():
+    """The company's own purses: the banks, the mobile-money line. What the
+    Banque page pays from; never one that is owed back."""
+    return [a for a in active_accounts() if not a.is_repayable]
+
+
 def open_invoices(current=None):
     """Supplier bills a cost can settle: the ones still owing something, plus
     whichever this cost already settles, so editing a cost that closed a bill
@@ -227,10 +240,11 @@ def _read_expense_form(expense):
             return None, t["expense.err.vehicle_required"]
 
     # Which purse it came out of. Empty means the cash in the box, which is the
-    # ordinary case and the default on the form.
+    # ordinary case and the default on the form. Otherwise one that is owed
+    # back: the company's own accounts pay from the Banque page.
     account_id = request.form.get("account_id", type=int) or None
-    if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True).first():
-        return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
+    if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True, is_repayable=True).first():
+        return None, t["caisse.err.repayable_only"]
 
     # The supplier's bill this cost settles, when it settles one. The cash
     # box's money reaches a bill only through here: the invoice screen cannot
@@ -350,7 +364,7 @@ def _form_context(expense):
             .order_by(Expense.id.desc()).first())
     return {
         "payment_methods": PAYMENT_METHODS,
-        "accounts": active_accounts(),
+        "accounts": repayable_accounts(),
         "sites": active_sites(),
         "vehicles": _accessible_vehicles(),
         "staff": active_staff(),

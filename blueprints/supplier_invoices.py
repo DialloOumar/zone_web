@@ -31,7 +31,7 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
                  modal_ok, parse_amount, require_any_perm, require_perm)
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
-from blueprints.expenses import PAYMENT_METHODS, active_accounts
+from blueprints.expenses import PAYMENT_METHODS, company_accounts
 from ledger import charge_accounts, ensure_supplier_account, labels_for, read_code, used_accounts_in
 from models import (BankCharge, CashAccount, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
                     Vehicle, db)
@@ -519,7 +519,7 @@ def _read_charge_form():
     the account of the plan it is coded to. Returns (data, None) or (None, error)."""
     t = get_t()
     account_id = request.form.get("account_id", type=int) or None
-    if not account_id or not CashAccount.query.filter_by(id=account_id, is_active=True).first():
+    if not account_id or not CashAccount.query.filter_by(id=account_id, is_active=True, is_repayable=False).first():
         return None, t["bank.err.account"]
     date_str = (request.form.get("date") or "").strip()
     if not _valid_date(date_str):
@@ -548,7 +548,7 @@ def _render_charge_form(row, error=None):
     tpl = "_bank_charge_form.html" if is_modal_request() else "bank_charge_form.html"
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, charge=row, invoice=row, error=error,
-                           accounts=active_accounts(), methods=BANK_METHODS,
+                           accounts=company_accounts(), methods=BANK_METHODS,
                            ledger_accounts=charge_accounts(),
                            today=date.today().isoformat()), status
 
@@ -641,7 +641,7 @@ def _render_payment_form(inv, pay, error=None):
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, invoice=inv, payment=pay, error=error,
                            payment_methods=PAYMENT_METHODS,
-                           accounts=active_accounts(),
+                           accounts=company_accounts(),
                            today=date.today().isoformat()), status
 
 
@@ -675,7 +675,7 @@ def _read_payment_form(inv, pay):
     # Where it came from, when known. Optional: a transfer whose account
     # nobody remembers is still a payment.
     account_id = request.form.get("account_id", type=int) or None
-    if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True).first():
+    if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True, is_repayable=False).first():
         return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
 
     return dict(
