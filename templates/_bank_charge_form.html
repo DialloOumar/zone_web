@@ -1,0 +1,74 @@
+{% from "_ledger_picker.html" import ledger_picker with context %}
+{% from "_hint.html" import hint with context %}
+{% set is_edit = charge is not none %}
+{# A charge that left a bank account with no bill behind it. Never the cash
+   box's money: that is an Expense on the Caisse page. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form enctype="multipart/form-data"
+      action="{{ url_for('supplier_invoices.charge_edit', cid=charge.id) if is_edit
+                else url_for('supplier_invoices.charge_new') }}">
+
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or (charge.date if is_edit else today) }}">
+            <label for="date">{{ t['bank.date'] }}</label>
+        </div>
+        <div class="field field--select">
+            {% set sel_acc = request.form.get('account_id')|int(0) or (charge.account_id if is_edit else 0) %}
+            <select id="account_id" name="account_id" required>
+                <option value="" hidden></option>
+                {% for a in accounts %}
+                <option value="{{ a.id }}" {% if a.id == sel_acc %}selected{% endif %}>{{ a.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="account_id">{{ t['bank.account'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+                   value="{{ request.form.get('amount') or (charge.amount if is_edit else '') }}">
+            <label for="amount">{{ t['invoice.amount'] }}</label>
+        </div>
+        <div class="field field--select">
+            {% set sel_m = request.form.get('method') or (charge.method if is_edit else 'transfer') %}
+            <select id="method" name="method" required>
+                {% for m in methods %}
+                <option value="{{ m }}" {% if m == sel_m %}selected{% endif %}>{{ t['pay.' + m] }}</option>
+                {% endfor %}
+            </select>
+            <label for="method">{{ t['bank.method'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="payee" name="payee" placeholder=" " required maxlength="120"
+                   value="{{ request.form.get('payee') or (charge.payee if is_edit else '') }}">
+            <label for="payee">{{ t['bank.payee'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="reference" name="reference" placeholder=" " maxlength="60"
+                   value="{{ request.form.get('reference') or (charge.reference or '' if is_edit else '') }}">
+            <label for="reference">{{ t['bank.reference'] }}</label>
+        </div>
+    </div>
+
+    {{ ledger_picker(ledger_accounts, request.form.get('ledger_code') or (charge.ledger_code if is_edit else ''), t['ledger.account'], t['ledger.hint']) }}
+
+    <div class="field">
+        <textarea id="description" name="description" placeholder="{{ t['ph.bank.description'] }}" rows="3" maxlength="255">{{ request.form.get('description') or (charge.description or '' if is_edit else '') }}</textarea>
+        <label for="description">{{ t['bank.description'] }}</label>
+    </div>
+
+    {% include "_scan_field.html" %}
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('supplier_invoices.index', tab='transactions') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

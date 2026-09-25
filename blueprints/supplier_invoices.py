@@ -32,15 +32,19 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
-from ledger import read_code, used_accounts
-from models import (CashAccount, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
+from ledger import labels_for, read_code, used_accounts
+from models import (BankCharge, CashAccount, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
                     Vehicle, db)
 
 supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
 
-# The two halves of the page, shown one at a time: the bills, and the people
-# who send them.
-TABS = ("factures", "fournisseurs")
+# The three parts of the Banque page, shown one at a time: the bills, what
+# has actually moved on the bank accounts, and the people who send the bills.
+TABS = ("factures", "transactions", "fournisseurs")
+
+# How a charge leaves the bank with no bill behind it. Never cash: that is
+# the box's, on the Caisse page.
+BANK_METHODS = ("transfer", "cheque", "other")
 
 # The two kinds of supplier, and the series each one's code is drawn from.
 SUPPLIER_KINDS = ("permanent", "divers")
@@ -240,11 +244,12 @@ def _read_invoice_form():
     ), None
 
 
-def _apply_photo_change(inv):
+def _apply_photo_change(inv, code=None):
     """The optional document of the paper: a new scan (or, from older forms, a
     single photo) replaces and deletes the previous one; the remove button
     clears it. Returns a localized error when what was sent cannot be stored,
-    else None. The row must already have an id.
+    else None. The row must already have an id. `code` names the file; by
+    default the supplier and the bill's number.
 
     A scan is one or more flattened pages, bound into a single PDF on the way to
     storage. Photos saved before the scanner existed stay as they are.
@@ -253,8 +258,9 @@ def _apply_photo_change(inv):
     old_key = inv.photo_key
     if request.form.get("photo_remove") == "1":
         inv.photo_key = None
-    name = inv.supplier.name if inv.supplier else "facture"
-    code = "%s-%s" % (name, inv.number or inv.id)
+    if code is None:
+        name = inv.supplier.name if inv.supplier else "facture"
+        code = "%s-%s" % (name, inv.number or inv.id)
     month = (inv.date or "")[:7]
     # A received PDF, a scan, or (from forms older than the scanner) a single
     # photo -- one document per bill, so the first one present is the one kept.
@@ -374,6 +380,28 @@ def index():
         .group_by(SupplierInvoice.supplier_id).all())
     owed = {r[0]: {"count": int(r[1]), "remaining": int(r[2] or 0)} for r in owed_rows}
 
+    # The transactions tab: everything that left a bank account in the period,
+    # the bills' instalments paid from an account and the charges paid straight
+    # from one, in one list by date. The cash box's instalments are not here.
+    pq = (SupplierPayment.query
+          .filter(SupplierPayment.expense_id.is_(None), SupplierPayment.account_id.isnot(None)))
+    cq = BankCharge.query
+    if date_from:
+        pq, cq = pq.filter(SupplierPayment.date >= date_from), cq.filter(BankCharge.date >= date_from)
+    if date_to:
+        pq, cq = pq.filter(SupplierPayment.date <= date_to), cq.filter(BankCharge.date <= date_to)
+    if search:
+        like = "%" + search + "%"
+        cq = cq.filter(db.or_(BankCharge.payee.ilike(like), BankCharge.description.ilike(like),
+                              BankCharge.reference.ilike(like)))
+        pq = pq.join(SupplierInvoice).join(Supplier).filter(db.or_(
+            Supplier.name.ilike(like), SupplierInvoice.number.ilike(like),
+            SupplierPayment.reference.ilike(like)))
+    transactions = ([("payment", p) for p in pq.all()] + [("charge", c) for c in cq.all()])
+    transactions.sort(key=lambda x: (x[1].date, x[1].id), reverse=True)
+    moved = sum(x[1].amount or 0 for x in transactions)
+    code_labels = labels_for([c.ledger_code for k, c in transactions if k == "charge"])
+
     tab = request.args.get("tab")
     if tab not in TABS:
         # Nothing recorded yet and nobody named either: open where the work
@@ -393,6 +421,7 @@ def index():
         suppliers=suppliers, pickable=active_suppliers(), owed=owed,
         billed=billed, paid=paid, remaining=max(billed - paid, 0),
         tab=tab, tab_urls=tab_urls, statuses=STATUSES, status=status,
+        transactions=transactions, moved=moved, code_labels=code_labels,
         supplier_kinds=SUPPLIER_KINDS, kind=kind,
         date_from=date_from, date_to=date_to, supplier_ids=supplier_ids,
         search=search, today=today,
@@ -469,6 +498,119 @@ def delete(iid):
         s3_storage.delete_photo(photo_key)
     flash("success|" + get_t()["invoice.deleted"])
     return redirect(request.referrer or url_for("supplier_invoices.index"))
+
+
+# ── Routes: a charge paid straight from the bank ─────────────────────────────
+
+
+def _get_charge_or_404(cid):
+    row = db.session.get(BankCharge, cid)
+    if not row:
+        abort(404)
+    return row
+
+
+def _read_charge_form():
+    """A charge that left a bank account with no bill behind it: from which
+    account, when, how much, by transfer or cheque, to whom, for what, and
+    the account of the plan it is coded to. Returns (data, None) or (None, error)."""
+    t = get_t()
+    account_id = request.form.get("account_id", type=int) or None
+    if not account_id or not CashAccount.query.filter_by(id=account_id, is_active=True).first():
+        return None, t["bank.err.account"]
+    date_str = (request.form.get("date") or "").strip()
+    if not _valid_date(date_str):
+        return None, t["bank.err.date"]
+    amount, error = _amount(request.form.get("amount"), t)
+    if error:
+        return None, error
+    if amount <= 0:
+        return None, t["invoice.err.amount"]
+    method = (request.form.get("method") or "").strip()
+    if method not in BANK_METHODS:
+        return None, t["invoice.err.method"]
+    payee = (request.form.get("payee") or "").strip()[:120]
+    if not payee:
+        return None, t["bank.err.payee"]
+    ledger_code, ok = read_code(request.form)
+    if not ok:
+        return None, t["ledger.err.unknown"]
+    return dict(account_id=account_id, date=date_str, amount=amount, currency="GNF",
+                method=method, reference=(request.form.get("reference") or "").strip()[:60] or None,
+                payee=payee, description=(request.form.get("description") or "").strip()[:255] or None,
+                ledger_code=ledger_code), None
+
+
+def _render_charge_form(row, error=None):
+    tpl = "_bank_charge_form.html" if is_modal_request() else "bank_charge_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, charge=row, invoice=row, error=error,
+                           accounts=active_accounts(), methods=BANK_METHODS,
+                           ledger_accounts=used_accounts(),
+                           today=date.today().isoformat()), status
+
+
+@supplier_invoices_bp.route("/banque/transactions/nouvelle", methods=["GET", "POST"])
+@login_required
+@require_perm("supplier_invoice.create")
+def charge_new():
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_charge_form()
+        if error:
+            return _render_charge_form(None, error)
+        row = BankCharge(created_by=current_user.id, **data)
+        db.session.add(row)
+        db.session.flush()
+        perr = _apply_photo_change(row, code="banque-%s" % row.id)
+        if perr:
+            db.session.rollback()
+            return _render_charge_form(None, perr)
+        log_action("CREATE", "bank_charge", resource_id=row.id,
+                   detail="Bank charge of %s GNF to %s from account #%s" % (row.amount, row.payee, row.account_id))
+        db.session.commit()
+        flash("success|" + t["bank.created"])
+        return modal_ok() if is_modal_request() else redirect(url_for("supplier_invoices.index", tab="transactions"))
+    return _render_charge_form(None)
+
+
+@supplier_invoices_bp.route("/banque/transactions/<int:cid>/modifier", methods=["GET", "POST"])
+@login_required
+@require_perm("supplier_invoice.edit")
+def charge_edit(cid):
+    row = _get_charge_or_404(cid)
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_charge_form()
+        if error:
+            return _render_charge_form(row, error)
+        for k, val in data.items():
+            setattr(row, k, val)
+        perr = _apply_photo_change(row, code="banque-%s" % row.id)
+        if perr:
+            db.session.rollback()
+            return _render_charge_form(row, perr)
+        log_action("UPDATE", "bank_charge", resource_id=row.id,
+                   detail="Edited bank charge #%s" % row.id)
+        db.session.commit()
+        flash("success|" + t["bank.updated"])
+        return modal_ok() if is_modal_request() else redirect(url_for("supplier_invoices.index", tab="transactions"))
+    return _render_charge_form(row)
+
+
+@supplier_invoices_bp.route("/banque/transactions/<int:cid>/supprimer", methods=["POST"])
+@login_required
+@require_perm("supplier_invoice.delete")
+def charge_delete(cid):
+    row = _get_charge_or_404(cid)
+    photo_key = row.photo_key
+    db.session.delete(row)
+    log_action("DELETE", "bank_charge", resource_id=cid, detail="Deleted bank charge #%s" % cid)
+    db.session.commit()
+    if photo_key:
+        s3_storage.delete_photo(photo_key)
+    flash("success|" + get_t()["bank.deleted"])
+    return redirect(request.referrer or url_for("supplier_invoices.index", tab="transactions"))
 
 
 # ── Routes: paying it ────────────────────────────────────────────────────────

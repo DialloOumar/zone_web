@@ -1,0 +1,101 @@
+{# What actually left the bank accounts in the period: the bills' instalments
+   paid from an account, and the charges paid straight from one. The cash
+   box's instalments are not here; they are the box's story, on Caisse. #}
+{% if transactions %}
+<div class="table-desktop">
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>{{ t['bank.date'] }}</th>
+            <th>{{ t['bank.account'] }}</th>
+            <th>{{ t['bank.payee'] }}</th>
+            <th>{{ t['bank.description'] }}</th>
+            <th>{{ t['bank.reference'] }}</th>
+            <th>{{ t['ledger.account'] }}</th>
+            <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for kind, row in transactions %}
+        <tr>
+            <td style="white-space:nowrap;">{{ row.date }}</td>
+            <td>{{ row.account.name if row.account else '—' }}</td>
+            <td>
+                {% if kind == 'payment' %}
+                <span class="chip">{{ row.invoice.supplier.code }} · {{ row.invoice.supplier.name }}</span>
+                {% else %}{{ row.payee }}{% endif %}
+            </td>
+            <td>
+                {% if kind == 'payment' %}
+                <a href="{{ url_for('supplier_invoices.payments', iid=row.invoice_id) }}">{{ t['bank.on_invoice'] }}{% if row.invoice.number %} {{ row.invoice.number }}{% endif %}</a>
+                {% if row.invoice.description %}<div class="muted small">{{ row.invoice.description }}</div>{% endif %}
+                {% else %}
+                {% if row.description %}{{ row.description }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+                {% if row.photo_key %}{% set purl = photo_url(row.photo_key) %}{% if purl %}
+                <a href="{{ purl }}" target="_blank" rel="noopener" class="muted small" style="display:inline-flex; align-items:center; gap:4px;">
+                    <span class="material-symbols-outlined" style="font-size:16px;">{{ 'picture_as_pdf' if row.photo_key.endswith('.pdf') else 'image' }}</span>{{ t['scan.view_pdf'] if row.photo_key.endswith('.pdf') else t['invoice.photo_view'] }}
+                </a>
+                {% endif %}{% endif %}
+                {% endif %}
+            </td>
+            <td class="muted small">{{ t['pay.' + row.method] if row.method else '' }}{% if row.reference %} · {{ row.reference }}{% endif %}</td>
+            <td>
+                {% if kind == 'payment' %}
+                <span class="muted small">{{ t['bank.supplier_account'] }}</span>
+                {% elif row.ledger_code %}
+                <code>{{ row.ledger_code }}</code>{% if code_labels.get(row.ledger_code) %} <span class="muted small">{{ code_labels[row.ledger_code] }}</span>{% endif %}
+                {% else %}<span class="muted small">{{ t['ledger.none'] }}</span>{% endif %}
+            </td>
+            <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ row.amount | num }} {{ currency }}</td>
+            <td class="row-actions">
+                {% if kind == 'charge' %}
+                {% if has_perm('supplier_invoice.edit') %}
+                <a href="{{ url_for('supplier_invoices.charge_edit', cid=row.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                   data-modal-url="{{ url_for('supplier_invoices.charge_edit', cid=row.id) }}" data-modal-title="{{ t['bank.edit'] }}"
+                   title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                {% endif %}
+                {% if has_perm('supplier_invoice.delete') %}
+                <form method="post" action="{{ url_for('supplier_invoices.charge_delete', cid=row.id) }}"
+                      data-confirm="{{ t['bank.delete_confirm'] }}" data-confirm-title="{{ t['confirm.delete_title'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger style="display:inline">
+                    <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                </form>
+                {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<div class="list-cards">
+    {% for kind, row in transactions %}
+    <div class="list-card">
+        <div class="list-card__top">
+            {% if kind == 'payment' %}<span class="chip">{{ row.invoice.supplier.code }} · {{ row.invoice.supplier.name }}</span>
+            {% else %}<span class="chip">{{ row.payee }}</span>{% endif %}
+            <span class="list-card__amount">{{ row.amount | num }} <span class="muted small">{{ currency }}</span></span>
+        </div>
+        <div class="list-card__meta">
+            <span class="muted small">{{ row.date }}</span>
+            <span class="muted small">&middot; {{ row.account.name if row.account else '—' }}</span>
+            <span class="muted small">&middot; {{ t['pay.' + row.method] if row.method else '' }}{% if row.reference %} {{ row.reference }}{% endif %}</span>
+        </div>
+        <div class="list-card__meta">
+            {% if kind == 'payment' %}
+            <a href="{{ url_for('supplier_invoices.payments', iid=row.invoice_id) }}" class="small">{{ t['bank.on_invoice'] }}{% if row.invoice.number %} {{ row.invoice.number }}{% endif %}</a>
+            {% else %}
+            {% if row.description %}<span class="muted small">{{ row.description }}</span>{% endif %}
+            {% if row.ledger_code %}<span class="muted small">&middot; <code>{{ row.ledger_code }}</code></span>{% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <span class="material-symbols-outlined">account_balance</span>
+    <p>{{ t['bank.empty'] }}</p>
+</div>
+{% endif %}

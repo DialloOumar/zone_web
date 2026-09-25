@@ -16,7 +16,7 @@ from flask_login import login_required
 
 from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm
 from blueprints.expenses import _save_list_row
-from models import CashAccount, CashMovement, Expense, SupplierPayment, db
+from models import BankCharge, CashAccount, CashMovement, Expense, SupplierPayment, db
 
 accounts_bp = Blueprint("accounts", __name__)
 
@@ -32,23 +32,31 @@ def _used_ids():
     used = set()
     for model, col in ((CashMovement, CashMovement.account_id),
                        (Expense, Expense.account_id),
-                       (SupplierPayment, SupplierPayment.account_id)):
+                       (SupplierPayment, SupplierPayment.account_id),
+                       (BankCharge, BankCharge.account_id)):
         used.update(r[0] for r in db.session.query(col)
                     .filter(col.isnot(None)).distinct().all())
     return used
 
 
 def _paid_to_suppliers():
-    """Per account: what has gone out of it straight to suppliers' bills,
-    entered on the invoices. What the cash box paid is not here -- that money
-    is the box's story, told on the Dépenses page."""
+    """Per account: what has gone out of it on the Banque page -- bills'
+    instalments paid from it, and charges paid straight from it. What the
+    cash box paid is not here -- that money is the box's story, on Caisse."""
     rows = (db.session.query(SupplierPayment.account_id,
                              db.func.count(SupplierPayment.id),
                              db.func.coalesce(db.func.sum(SupplierPayment.amount), 0))
             .filter(SupplierPayment.account_id.isnot(None),
                     SupplierPayment.expense_id.is_(None))
             .group_by(SupplierPayment.account_id).all())
-    return {r[0]: {"count": int(r[1]), "total": int(r[2] or 0)} for r in rows}
+    out = {r[0]: {"count": int(r[1]), "total": int(r[2] or 0)} for r in rows}
+    # ...and the charges paid straight from an account, with no bill behind.
+    for acc_id, n, total in (db.session.query(BankCharge.account_id, db.func.count(BankCharge.id),
+                                              db.func.coalesce(db.func.sum(BankCharge.amount), 0))
+                             .group_by(BankCharge.account_id).all()):
+        e = out.setdefault(acc_id, {"count": 0, "total": 0})
+        e["count"] += int(n); e["total"] += int(total or 0)
+    return out
 
 
 @accounts_bp.route("/comptes")

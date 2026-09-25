@@ -90,6 +90,10 @@
            class="tab {% if tab == 'factures' %}tab--on{% endif %}">
             {{ t['invoice.tab_invoices'] }}<span class="tab__count">{{ pagination.total }}</span>
         </a>
+        <a href="{{ tab_urls['transactions'] }}" role="tab" aria-selected="{{ 'true' if tab == 'transactions' else 'false' }}"
+           class="tab {% if tab == 'transactions' %}tab--on{% endif %}">
+            {{ t['invoice.tab_transactions'] }}<span class="tab__count">{{ transactions | length }}</span>
+        </a>
         <a href="{{ tab_urls['fournisseurs'] }}" role="tab" aria-selected="{{ 'true' if tab == 'fournisseurs' else 'false' }}"
            class="tab {% if tab == 'fournisseurs' %}tab--on{% endif %}">
             {{ t['invoice.tab_suppliers'] }}<span class="tab__count">{{ suppliers | length }}</span>
@@ -112,6 +116,11 @@
                 <span class="material-symbols-outlined">store</span> {{ t['invoice.supplier_first'] }}
             </a>
             {% endif %}
+            {% elif tab == 'transactions' %}
+            <a href="{{ url_for('supplier_invoices.charge_new') }}" class="fab"
+               data-modal-url="{{ url_for('supplier_invoices.charge_new') }}" data-modal-title="{{ t['bank.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['bank.new'] }}
+            </a>
             {% else %}
             <a href="{{ url_for('supplier_invoices.supplier_new') }}" class="fab"
                data-modal-url="{{ url_for('supplier_invoices.supplier_new') }}" data-modal-title="{{ t['invoice.supplier_new'] }}">
@@ -124,6 +133,9 @@
 
     {% if tab == 'fournisseurs' %}
     {% include "_suppliers_table.html" %}
+    {% elif tab == 'transactions' %}
+    {% if transactions %}<p class="muted small" style="margin:0 0 8px;">{{ t['bank.moved'] }} : <strong>{{ moved | num }} {{ currency }}</strong></p>{% endif %}
+    {% include "_bank_transactions_table.html" %}
     {% else %}
     {% if invoices %}
     <div class="table-desktop">

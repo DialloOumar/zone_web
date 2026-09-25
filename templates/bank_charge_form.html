@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% set is_edit = charge is not none %}
+{% block title %}{{ t['bank.edit'] if is_edit else t['bank.new'] }}{% endblock %}
+{% block page_title %}{{ t['bank.edit'] if is_edit else t['bank.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_bank_charge_form.html" %}
+</section>
+{% endblock %}

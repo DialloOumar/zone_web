@@ -850,6 +850,34 @@ class SupplierInvoice(db.Model):
         return self.due_date < (today or date.today().isoformat())
 
 
+class BankCharge(db.Model):
+    """A charge paid straight from a bank account, by transfer or cheque,
+    with no supplier bill behind it: a donation wired to an association,
+    bank fees, a salary paid by transfer. Recorded on the Banque page by the
+    person who keeps the bank, next to the bills. Never the cash box's
+    money: the box's own spending is an Expense.
+
+    Coded to the account of what the money was for, since no other line
+    carries the charge."""
+    __tablename__ = "bank_charges"
+
+    id          = db.Column(db.Integer,     primary_key=True)
+    account_id  = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=False, index=True)
+    date        = db.Column(db.String(10),  nullable=False)   # YYYY-MM-DD
+    amount      = db.Column(db.Integer,     nullable=False)   # GNF
+    currency    = db.Column(db.String(5),   nullable=False, default="GNF")
+    method      = db.Column(db.String(20),  nullable=False)   # transfer | cheque | other
+    reference   = db.Column(db.String(60))                    # cheque no., transfer ref.
+    payee       = db.Column(db.String(120), nullable=False)   # who was paid, in words
+    description = db.Column(db.String(255))                   # what for
+    ledger_code = db.Column(db.String(12),  index=True)       # the account it is coded to
+    photo_key   = db.Column(db.String(200))                   # the transfer order or cheque stub, scanned
+    created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    account = db.relationship("CashAccount")
+
+
 class SupplierPayment(db.Model):
     """One instalment against a supplier's bill.
 
