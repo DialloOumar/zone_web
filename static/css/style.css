@@ -500,6 +500,8 @@ a:hover { text-decoration: underline; }
 .po-line.is-stock .po-new-unit { display: none; }
 .units-modal__new { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
 .conv-new { flex-wrap: wrap; }
+/* The store's settings, above its tabs: the units and their conversions. */
+.stock-settings { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin: -6px 0 8px; }
 .conv-new select, .conv-new input { padding: 8px 10px; border: 1px solid var(--md-outline-variant); border-radius: var(--shape-sm); background: var(--md-surface); color: inherit; font-size: 0.9rem; }
 .units-modal__new input, .units-modal__rename input {
     flex: 1; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid var(--md-outline); border-radius: 8px;

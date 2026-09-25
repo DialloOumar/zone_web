@@ -1,5 +1,18 @@
 {# The store's two tabs, on both of its pages: the catalogue, and what was
-   ordered. Each is its own page; the nav makes them read as one. #}
+   ordered. Each is its own page; the nav makes them read as one. Above
+   them, what both share: the units and the conversions between them. #}
+{% if has_perm('stock.manage') %}
+<div class="stock-settings">
+    <a href="{{ url_for('stock.units') }}" class="btn btn--sm btn--outlined"
+       data-modal-url="{{ url_for('stock.units') }}" data-modal-title="{{ t['punit.title'] }}">
+        <span class="material-symbols-outlined">tune</span> {{ t['punit.title'] }}
+    </a>
+    <a href="{{ url_for('stock.conversions') }}" class="btn btn--sm btn--outlined"
+       data-modal-url="{{ url_for('stock.conversions') }}" data-modal-title="{{ t['conv.title'] }}">
+        <span class="material-symbols-outlined">unfold_more</span> {{ t['conv.title'] }}
+    </a>
+</div>
+{% endif %}
 <nav class="tabs" role="tablist">
     <a href="{{ url_for('stock.index') }}" role="tab" aria-selected="{{ 'true' if stock_tab == 'stock' else 'false' }}"
        class="tab {% if stock_tab == 'stock' %}tab--on{% endif %}">
