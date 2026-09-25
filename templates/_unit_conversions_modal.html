@@ -1,0 +1,43 @@
+{# "1 fût = 200 litre": the conversions between units, kept from a dialog
+   over the store page. One line per conversion; a line to add one, which
+   reads as the sentence it is. Every form posts by fetch and the dialog
+   redraws itself. #}
+<div class="units-modal">
+    {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+    <p class="muted small" style="margin:0 0 10px;">{{ t['conv.intro'] }}</p>
+
+    <form method="post" action="{{ url_for('stock.conversion_new') }}" class="units-modal__new conv-new">
+        <span>1</span>
+        <select name="from_code" required aria-label="{{ t['conv.from'] }}">
+            <option value="" hidden>{{ t['conv.from'] }}</option>
+            {% for u in active %}<option value="{{ u.code }}">{{ u.name }}</option>{% endfor %}
+        </select>
+        <span>=</span>
+        <input type="number" name="factor" min="0" step="any" required placeholder="200" aria-label="{{ t['conv.factor'] }}" style="width:90px;">
+        <select name="to_code" required aria-label="{{ t['conv.to'] }}">
+            <option value="" hidden>{{ t['conv.to'] }}</option>
+            {% for u in active %}<option value="{{ u.code }}">{{ u.name }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn btn--sm btn--primary"><span class="material-symbols-outlined">add</span> {{ t['btn.save'] }}</button>
+    </form>
+
+    {% if conversions %}
+    <div class="table-wrap"><table class="data-table units-modal__table">
+        <tbody>
+            {% for c in conversions %}
+            <tr>
+                <td>1 <strong>{{ units[c.from_code].name if c.from_code in units else c.from_code }}</strong> = {{ c.factor | qty }} <strong>{{ units[c.to_code].name if c.to_code in units else c.to_code }}</strong></td>
+                <td class="muted small" style="white-space:nowrap;">{% if used[c.id] %}{{ used[c.id] }} {{ t['punit.lines'] }}{% endif %}</td>
+                <td class="row-actions">
+                    <form method="post" action="{{ url_for('stock.conversion_delete', cid=c.id) }}" data-ask="{{ t['conv.delete_confirm'] }}">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted small">{{ t['conv.empty'] }}</p>
+    {% endif %}
+</div>

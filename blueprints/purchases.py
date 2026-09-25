@@ -28,7 +28,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app import (_get_setting, current_lang, get_t, has_perm, log_action,
                  parse_amount, require_perm)
-from blueprints.stock import active_units, all_active_units, buying_units_for, unit_codes
+from blueprints.stock import active_units, buying_units_for, unit_codes
 from blueprints.supplier_invoices import _save_supplier, parts_suppliers
 from models import Part, PurchaseOrder, PurchaseOrderLine, StockMovement, Supplier, db
 
@@ -162,10 +162,10 @@ def _read_form(po):
         # conversion is copied onto the line as it stands today.
         buy_unit, factor = None, 1.0
         if part and unit_choice and unit_choice != "stock":
-            bu = next((u for u in buying_units_for(part.unit) if u.code == unit_choice), None)
+            bu = next(((u, f) for u, f in buying_units_for(part.unit) if u.code == unit_choice), None)
             if not bu:
                 return None, None, t["po.err.buy_unit"]
-            buy_unit, factor = bu.code, float(bu.factor)
+            buy_unit, factor = bu[0].code, float(bu[1])
         lines.append(dict(part_id=part.id if part else None,
                           description=(desc or part.name)[:160], reference=ref[:60] or None,
                           quantity=qty, buy_unit=buy_unit, factor=factor, unit_price=price, discount=discount,
@@ -199,8 +199,8 @@ def _render_form(po, error=None, lines=None):
     # For each part: its own unit and the buying units that convert to it,
     # so the line's unit box offers "litre" or "fût (200 litre)".
     parts_json = [dict(id=p.id, name=p.name, unit=_unit_label(p.unit),
-                       buy=[dict(code=u.code, name=u.name, factor=u.factor)
-                            for u in buying_units_for(p.unit)])
+                       buy=[dict(code=u.code, name=u.name, factor=f)
+                            for u, f in buying_units_for(p.unit)])
                   for p in parts]
     return render_template("purchase_order_form.html", po=po, error=error, lines=lines,
                            suppliers=parts_suppliers(), parts_json=parts_json,

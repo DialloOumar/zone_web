@@ -23,7 +23,6 @@
         <thead>
             <tr>
                 <th>{{ t['punit.name'] }}</th>
-                <th>{{ t['punit.kind'] }}</th>
                 <th>{{ t['punit.used_by'] }}</th>
                 <th></th>
             </tr>
@@ -36,11 +35,7 @@
                     <strong {% if not u.is_active %}class="muted"{% endif %}>{{ u.name }}</strong>
                     {% if not u.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
                 </td>
-                <td>
-                    {% if u.is_buying %}<span class="badge badge--info">{{ t['punit.buying'] }}</span> <span class="muted small">1 {{ u.name }} = {{ u.factor | qty }} {{ names.get(u.base_code, u.base_code) }}</span>
-                    {% else %}<span class="badge badge--active">{{ t['punit.counting'] }}</span>{% endif %}
-                </td>
-                <td>{% if n %}{{ n }} {{ t['punit.lines'] if u.is_buying else t['punit.parts'] }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td>{% if n %}{{ n }} {{ t['punit.uses'] }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td class="row-actions">
                     <a href="{{ url_for('stock.unit_edit', uid=u.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('stock.unit_edit', uid=u.id) }}" data-modal-title="{{ t['punit.edit'] }}"

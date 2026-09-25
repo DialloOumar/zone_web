@@ -25,6 +25,11 @@
                data-modal-url="{{ url_for('stock.units') }}" data-modal-title="{{ t['punit.title'] }}">
                 <span class="material-symbols-outlined">tune</span> {{ t['punit.title'] }}
             </a>
+            {# And what one unit makes of another, for the order lines. #}
+            <a href="{{ url_for('stock.conversions') }}" class="btn btn--sm btn--outlined"
+               data-modal-url="{{ url_for('stock.conversions') }}" data-modal-title="{{ t['conv.title'] }}">
+                <span class="material-symbols-outlined">unfold_more</span> {{ t['conv.title'] }}
+            </a>
             {% endif %}
             {# No "new article" here: an article is born on a purchase order
                line and enters the catalogue when the order is received. #}

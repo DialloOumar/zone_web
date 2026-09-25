@@ -1427,33 +1427,35 @@ class FuelMovement(db.Model):
 
 
 class PartUnit(db.Model):
-    """A unit, kept by the store itself. Two kinds, one list:
-
-    - a unit the store counts and hands out in -- pièce, litre, kg, jeu.
-      A part stores its code; every screen prints its name.
-    - a unit things are bought in, converting to one of the first kind:
-      a fût of 200 litres, a carton of 12 pièces, a bidon of 20 litres.
-      Defined once here, offered on every order line whose part counts in
-      the unit it converts to; the receipt converts back.
-
-    The four starters are seeded; the rest is theirs to add. A unit in use
-    is archived, never deleted."""
+    """A unit, kept by the store itself: pièce, litre, kg, jeu, fût,
+    carton... A part stores the code of the one it counts in; every screen
+    prints the name. What one unit makes of another is a UnitConversion,
+    kept apart. The four starters are seeded; the rest is theirs to add.
+    A unit in use is archived, never deleted."""
     __tablename__ = "part_units"
 
     id         = db.Column(db.Integer,    primary_key=True)
     code       = db.Column(db.String(20), nullable=False, unique=True)
     name       = db.Column(db.String(40), nullable=False, unique=True)
-    # Set on a buying unit: the counting unit it converts to, and how many
-    # of it one makes. Empty on a counting unit.
-    base_code  = db.Column(db.String(20), nullable=True, index=True)
-    factor     = db.Column(db.Float,      nullable=True)
     sort_order = db.Column(db.Integer,    nullable=False, default=0)
     is_active  = db.Column(db.Boolean,    nullable=False, default=True)
     created_at = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
 
-    @property
-    def is_buying(self):
-        return bool(self.base_code and self.factor)
+
+class UnitConversion(db.Model):
+    """"1 fût = 200 litre": how many of one unit another makes. Defined
+    once, it lets an order line for a part counting in litres be written
+    in fûts, and the receipt convert back. One row per pair, the larger
+    unit first."""
+    __tablename__ = "unit_conversions"
+
+    id         = db.Column(db.Integer,    primary_key=True)
+    from_code  = db.Column(db.String(20), nullable=False, index=True)   # the unit bought in
+    to_code    = db.Column(db.String(20), nullable=False, index=True)   # the unit counted in
+    factor     = db.Column(db.Float,      nullable=False)               # how many to_code in one from_code
+    created_at = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("from_code", "to_code", name="uq_unit_conversion_pair"),)
 
 
 class Part(db.Model):

@@ -23,7 +23,7 @@ from flask_login import current_user, login_required
 import s3_storage
 from app import (slugify, get_t, is_modal_request, log_action, modal_ok,
                  require_perm)
-from models import Part, PartUnit, PurchaseOrderLine, StockMovement, db
+from models import Part, PartUnit, PurchaseOrderLine, StockMovement, UnitConversion, db
 
 stock_bp = Blueprint("stock", __name__, url_prefix="/stock")
 
@@ -33,25 +33,24 @@ stock_bp = Blueprint("stock", __name__, url_prefix="/stock")
 
 
 def active_units():
-    """The units a part may count in: the active ones that are not
-    buying units."""
-    return [u for u in all_active_units() if not u.is_buying]
-
-
-def all_active_units():
     return (PartUnit.query.filter(PartUnit.is_active.is_(True))
             .order_by(PartUnit.sort_order, PartUnit.name).all())
 
 
 def buying_units_for(unit_code):
-    """The active buying units that convert to a counting unit: what an
-    order line for a part counting in litres may be written in."""
-    return [u for u in all_active_units() if u.is_buying and u.base_code == unit_code]
+    """What an order line for a part counting in `unit_code` may be
+    written in: every active unit a conversion turns into it. Returns
+    (unit, factor) pairs."""
+    names = {u.code: u for u in active_units()}
+    out = []
+    for c in UnitConversion.query.filter_by(to_code=unit_code).all():
+        if c.from_code in names:
+            out.append((names[c.from_code], c.factor))
+    return sorted(out, key=lambda x: (x[0].sort_order, x[0].name))
 
 
 def unit_codes():
-    """The codes a part may count in."""
-    return {u.code for u in PartUnit.query.all() if not u.is_buying}
+    return {u.code for u in PartUnit.query.all()}
 
 # Kinds the store screen writes directly. "sortie" and "retour" are written by
 # a service record, so they are read-only here — they show in the history but
@@ -356,13 +355,14 @@ def _render_units(error=None):
     """The units list: as a dialog over the store page when fetched from it,
     as a page of its own otherwise."""
     rows = PartUnit.query.order_by(PartUnit.sort_order, PartUnit.name).all()
+    # In use: the parts counting in it, the order lines bought in it, and
+    # the conversions naming it.
     used = dict(db.session.query(Part.unit, db.func.count(Part.id)).group_by(Part.unit).all())
-    # A buying unit is "used" by the order lines written in it.
-    used.update(dict(db.session.query(PurchaseOrderLine.buy_unit, db.func.count(PurchaseOrderLine.id))
-                     .filter(PurchaseOrderLine.buy_unit.isnot(None)).group_by(PurchaseOrderLine.buy_unit).all()))
-    names = {u.code: u.name for u in rows}
+    for code, n in (db.session.query(PurchaseOrderLine.buy_unit, db.func.count(PurchaseOrderLine.id))
+                    .filter(PurchaseOrderLine.buy_unit.isnot(None)).group_by(PurchaseOrderLine.buy_unit).all()):
+        used[code] = used.get(code, 0) + n
     tpl = "_part_units_modal.html" if is_modal_request() else "part_units.html"
-    return render_template(tpl, units=rows, used=used, names=names, error=error), (422 if error else 200)
+    return render_template(tpl, units=rows, used=used, error=error), (422 if error else 200)
 
 
 def _render_unit_form(row, error=None):
@@ -372,7 +372,7 @@ def _render_unit_form(row, error=None):
         return _render_units(error)
     tpl = "_part_unit_form.html" if is_modal_request() else "part_unit_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, row=row, error=error, base_units=active_units()), status
+    return render_template(tpl, row=row, error=error), status
 
 
 def _save_unit(row):
@@ -385,39 +385,14 @@ def _save_unit(row):
         clash = clash.filter(PartUnit.id != row.id)
     if clash.first():
         return t.get("list.err.name_taken", "Ce nom existe déjà.")
-    # A buying unit: what it converts to and how many of it one makes. The
-    # list's quick rename sends the name alone and leaves the conversion.
-    base_code = (request.form.get("base_code") or "").strip() or None
-    factor = None
-    if request.form.get("_list") and row:
-        base_code, factor = row.base_code, row.factor
-    elif base_code:
-        if base_code not in unit_codes():
-            return t["punit.err.base"]
-        try:
-            factor = float(request.form.get("factor") or "")
-        except ValueError:
-            factor = 0
-        if factor <= 0:
-            return t["punit.err.factor"]
-        if row and base_code == row.code:
-            return t["punit.err.base"]
     creating = row is None
     if creating:
         nxt = (db.session.query(db.func.max(PartUnit.sort_order)).scalar() or 0) + 1
         row = PartUnit(code=_unit_code(name), sort_order=nxt)
         db.session.add(row)
-    elif not base_code and row.is_buying and PurchaseOrderLine.query.filter_by(buy_unit=row.code).first():
-        # Lines were bought in it: it stays a buying unit.
-        return t["punit.err.in_use_buying"]
-    elif base_code and not row.is_buying and Part.query.filter_by(unit=row.code).first():
-        # Parts count in it: it stays a counting unit.
-        return t["punit.err.in_use_counting"]
     row.name = name
-    row.base_code, row.factor = base_code, factor
     log_action("CREATE" if creating else "UPDATE", "part_unit", resource_id=row.id,
-               detail="%s unit '%s'%s" % ("Created" if creating else "Edited", name,
-                                          " = %g %s" % (factor, base_code) if base_code else ""))
+               detail="%s unit '%s'" % ("Created" if creating else "Renamed", name))
     db.session.commit()
     return None
 
@@ -482,3 +457,80 @@ def unit_action(uid, what):
         return modal_ok()
     flash("success|" + t.get(msg, "Fait."))
     return redirect(url_for("stock.units"))
+# ── Conversions between units ────────────────────────────────────────────────
+# "1 fût = 200 litre", kept apart from the units. A conversion lets an order
+# line for a part counting in litres be written in fûts; the receipt
+# converts back. Kept from a dialog over the store page, like the units.
+
+
+def _render_conversions(error=None):
+    rows = UnitConversion.query.all()
+    units = {u.code: u for u in PartUnit.query.all()}
+    rows.sort(key=lambda c: (units[c.to_code].name if c.to_code in units else c.to_code,
+                             units[c.from_code].name if c.from_code in units else c.from_code))
+    # In use: the order lines written in the from-unit for a part counting
+    # in the to-unit.
+    used = {}
+    for c in rows:
+        used[c.id] = (db.session.query(db.func.count(PurchaseOrderLine.id))
+                      .join(Part, Part.id == PurchaseOrderLine.part_id)
+                      .filter(PurchaseOrderLine.buy_unit == c.from_code, Part.unit == c.to_code).scalar() or 0)
+    tpl = "_unit_conversions_modal.html" if is_modal_request() else "unit_conversions.html"
+    return render_template(tpl, conversions=rows, units=units, used=used,
+                           active=active_units(), error=error), (422 if error else 200)
+
+
+@stock_bp.route("/conversions")
+@login_required
+@require_perm("stock.manage")
+def conversions():
+    return _render_conversions()
+
+
+@stock_bp.route("/conversions/nouvelle", methods=["POST"])
+@login_required
+@require_perm("stock.manage")
+def conversion_new():
+    t = get_t()
+    frm = (request.form.get("from_code") or "").strip()
+    to = (request.form.get("to_code") or "").strip()
+    codes = unit_codes()
+    if frm not in codes or to not in codes or frm == to:
+        return _render_conversions(t["conv.err.units"])
+    try:
+        factor = float(request.form.get("factor") or "")
+    except ValueError:
+        factor = 0
+    if factor <= 0:
+        return _render_conversions(t["conv.err.factor"])
+    row = UnitConversion.query.filter_by(from_code=frm, to_code=to).first()
+    if row:
+        row.factor = factor
+        what = "UPDATE"
+    else:
+        row = UnitConversion(from_code=frm, to_code=to, factor=factor)
+        db.session.add(row)
+        what = "CREATE"
+    db.session.flush()
+    log_action(what, "unit_conversion", resource_id=row.id, detail="1 %s = %g %s" % (frm, factor, to))
+    db.session.commit()
+    flash("success|" + t["conv.saved"])
+    return modal_ok() if is_modal_request() else redirect(url_for("stock.conversions"))
+
+
+@stock_bp.route("/conversions/<int:cid>/supprimer", methods=["POST"])
+@login_required
+@require_perm("stock.manage")
+def conversion_delete(cid):
+    """A conversion goes freely: the lines written with it keep the factor
+    they were written with."""
+    row = db.session.get(UnitConversion, cid)
+    if not row:
+        abort(404)
+    db.session.delete(row)
+    log_action("DELETE", "unit_conversion", resource_id=cid, detail="Deleted conversion %s -> %s" % (row.from_code, row.to_code))
+    db.session.commit()
+    flash("success|" + get_t()["list.deleted"])
+    return modal_ok() if is_modal_request() else redirect(url_for("stock.conversions"))
+
+
