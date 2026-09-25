@@ -19,6 +19,7 @@ TILL_DEFAULT = "5711"
 # boss's own money) under 4621, the partners' current accounts.
 BANK_PARENT = "521"
 PARTNER_PARENT = "4621"
+CLIENT_PARENT = "4111"
 
 # Where suppliers live on the plan: each permanent one under 4011 with his FP
 # number, the occasional ones together on one sub-account.
@@ -192,6 +193,47 @@ def attach_existing_purses():
     ensure_till_code()
     db.session.commit()
     return n
+
+
+def ensure_client_account(client, user_id=None):
+    """The client's account on the plan, under 4111 after his code
+    (CL-003 -> 4111003), made on first need and left alone once set."""
+    if client.ledger_code:
+        return client.ledger_code
+    parent = LedgerAccount.query.filter_by(code=CLIENT_PARENT).first()
+    if not parent:
+        return None
+    number = client.code.split("-", 1)[1] if client.code and "-" in client.code else str(client.id)
+    code = CLIENT_PARENT + number.zfill(3)
+    row = LedgerAccount.query.filter_by(code=code).first()
+    if row:
+        _mark_used(row)
+    else:
+        _add_account(code, client.name, parent.code, user_id)
+    client.ledger_code = code
+    return code
+
+
+def attach_existing_clients():
+    """Catch-up for the clients from before the plan and the receipts
+    already on their invoices. Safe to run again."""
+    from models import Client, ClientInvoice, ClientPayment
+    if not LedgerAccount.query.filter_by(code=CLIENT_PARENT).first():
+        return 0, 0
+    attached = 0
+    for c in Client.query.all():
+        if not c.ledger_code and ensure_client_account(c):
+            attached += 1
+    coded = 0
+    rows = (db.session.query(ClientPayment, Client.ledger_code)
+            .join(ClientInvoice, ClientPayment.invoice_id == ClientInvoice.id)
+            .join(Client, ClientInvoice.client_id == Client.id)
+            .filter(ClientPayment.ledger_code.is_(None), Client.ledger_code.isnot(None)).all())
+    for pay, code in rows:
+        pay.ledger_code = code
+        coded += 1
+    db.session.commit()
+    return attached, coded
 
 
 def attach_existing_suppliers():

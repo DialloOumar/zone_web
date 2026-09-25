@@ -1136,21 +1136,6 @@ def _signature_page(user, back_url=None):
                            stamp_version=int(user.signature_at.timestamp()) if user.signature_at else 0)
 
 
-# ── Finance section: the page still to come ─────────────────────────────────
-# Listed in the drawer already, so the section reads whole; it opens on an
-# empty page that says so, until the real one replaces it. Super admin only
-# until then: nobody else is shown an empty page.
-
-FINANCE_SOON = {"journal": "nav.journal"}
-
-
-@app.route("/<any(journal):page>")
-@login_required
-@super_admin_required
-def finance_soon(page):
-    return render_template("finance_soon.html", page=page, title_key=FINANCE_SOON[page])
-
-
 @app.route("/ma-signature", methods=["GET", "POST"])
 @login_required
 def my_signature():
@@ -1703,9 +1688,12 @@ def seed_cmd():
     from ledger import attach_existing_purses, attach_existing_suppliers
     attached, coded = attach_existing_suppliers()
     click.echo(f"  suppliers on the plan: {attached} attached, {coded} settlements coded")
-    #    ...and the purses, and the till itself.
+    #    ...and the purses, and the till itself, and the clients.
     attached = attach_existing_purses()
     click.echo(f"  purses on the plan: {attached} attached")
+    from ledger import attach_existing_clients
+    attached, coded = attach_existing_clients()
+    click.echo(f"  clients on the plan: {attached} attached, {coded} receipts coded")
 
     click.echo("Seed complete.")
 

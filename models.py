@@ -958,6 +958,10 @@ class Client(db.Model):
     id         = db.Column(db.Integer,     primary_key=True)
     name       = db.Column(db.String(80),  nullable=False, unique=True)
     code       = db.Column(db.String(12),  nullable=False, unique=True)
+    # The client's account on the plan, under 4111, numbered after his code
+    # (CL-003 -> 4111003), made when his first invoice is issued. Every
+    # invoice is owed on it and every receipt clears it.
+    ledger_code = db.Column(db.String(12), index=True)
     contact    = db.Column(db.String(80))
     address    = db.Column(db.String(200))
     tax_id     = db.Column(db.String(40))                   # NIF
@@ -1085,6 +1089,7 @@ class ClientPayment(db.Model):
     reference  = db.Column(db.String(60))                    # the client's transfer or cheque number
     account_id = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=True)
     note       = db.Column(db.String(255))
+    ledger_code = db.Column(db.String(12), index=True)      # the client's account at the time, for the journal
     created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 

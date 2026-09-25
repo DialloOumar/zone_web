@@ -21,11 +21,15 @@ or deleted, only hidden from the pickers; a company account can be renamed,
 and removed while nothing points at it. Nothing points at any of them yet:
 attaching accounts to costs is the next step.
 """
-from flask import (Blueprint, abort, flash, redirect, render_template,
+from datetime import date
+
+from flask import (Blueprint, Response, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user
 
 from app import can_enter_finance, get_t, is_modal_request, log_action, login_manager, modal_ok
+import journal as journal_mod
+from ledger import charge_accounts, read_code, revenue_accounts
 from models import LedgerAccount, db
 
 finance_bp = Blueprint("finance", __name__, url_prefix="/finance")
@@ -56,6 +60,71 @@ def _guard():
 def index():
     """The old workspace's front door: the plan is the section's first page."""
     return redirect(url_for("finance.plan"))
+
+
+# ── Journal ──────────────────────────────────────────────────────────────────
+# Every money line with its two accounts, read from where it was entered;
+# coded in place where the code is the line's own; exported one row per
+# side. Nothing is written here but a code.
+
+
+def _journal_args():
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
+    if not date_from and not date_to:
+        # The current month, unless a period is asked for.
+        today = date.today()
+        date_from = today.replace(day=1).isoformat()
+    book = request.args.get("journal") or ""
+    if book not in journal_mod.JOURNALS:
+        book = ""
+    return date_from, date_to, book
+
+
+@finance_bp.route("/journal")
+def journal():
+    date_from, date_to, book = _journal_args()
+    only = request.args.get("only") or ""      # "" | "a_coder"
+    rows = journal_mod.lines(date_from or None, date_to or None, book or None)
+    uncoded = sum(1 for r in rows if not r["complete"])
+    if only == "a_coder":
+        rows = [r for r in rows if not r["complete"]]
+    labels = journal_mod.with_labels(rows)
+    return render_template("finance/journal.html", rows=rows, labels=labels,
+                           journals=journal_mod.JOURNALS, journal=book,
+                           date_from=date_from, date_to=date_to, only=only,
+                           uncoded=uncoded, total=sum(r["amount"] for r in rows),
+                           charge_accounts=charge_accounts(), revenue_accounts=revenue_accounts())
+
+
+@finance_bp.route("/journal/coder", methods=["POST"])
+def journal_code():
+    """Set a line's code from the journal page."""
+    t = get_t()
+    kind = request.form.get("kind") or ""
+    row_id = request.form.get("id", type=int)
+    allowed = revenue_accounts() if kind == "client_invoice_line" else charge_accounts()
+    code, ok = read_code(request.form, allowed=allowed)
+    if not ok:
+        flash("error|" + t["ledger.err.unknown"])
+    else:
+        row = journal_mod.set_code(kind, row_id, code)
+        if row is None:
+            abort(404)
+        log_action("UPDATE", kind, resource_id=row_id, detail="Coded to %s from the journal" % (code or "none"))
+        db.session.commit()
+        flash("success|" + t["journal.coded"])
+    return redirect(request.form.get("back") or url_for("finance.journal"))
+
+
+@finance_bp.route("/journal/export.csv")
+def journal_export():
+    date_from, date_to, book = _journal_args()
+    rows = journal_mod.lines(date_from or None, date_to or None, book or None)
+    body = journal_mod.to_csv(rows, journal_mod.with_labels(rows))
+    name = "journal-%s-%s.csv" % (book or "tous", date_from or "debut")
+    return Response("\ufeff" + body, mimetype="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": "attachment; filename=%s" % name})
 
 
 # ── Plan comptable ───────────────────────────────────────────────────────────

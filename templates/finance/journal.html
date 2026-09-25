@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['nav.journal'] }}{% endblock %}
+{% block page_title %}{{ t['nav.journal'] }}{% endblock %}
+
+{% block content %}
+{# Every money line with its two accounts, read from where it was entered.
+   One book at a time or all four; the current month unless asked otherwise.
+   A line missing a side stands out and, where the code is the line's own,
+   can be coded here. The export is the same lines, one row per side. #}
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['nav.journal'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0;">{{ t['journal.intro'] }}</p>
+        </div>
+        <a href="{{ url_for('finance.journal_export', journal=journal, date_from=date_from, date_to=date_to) }}" class="btn btn--sm btn--tonal">
+            <span class="material-symbols-outlined">save</span> {{ t['journal.export'] }}
+        </a>
+    </div>
+
+    <nav class="tabs" role="tablist" style="margin-bottom:12px;">
+        <a href="{{ url_for('finance.journal', journal='', date_from=date_from, date_to=date_to, only=only) }}" role="tab" class="tab {% if not journal %}tab--on{% endif %}">{{ t['journal.all'] }}</a>
+        {% for j in journals %}
+        <a href="{{ url_for('finance.journal', journal=j, date_from=date_from, date_to=date_to, only=only) }}" role="tab" class="tab {% if journal == j %}tab--on{% endif %}">{{ t['journal.' + j] }}</a>
+        {% endfor %}
+    </nav>
+
+    <form method="get" class="filter-bar filter-bar--live">
+        <input type="hidden" name="journal" value="{{ journal }}">
+        <label class="filter-date"><span>{{ t['entry.from'] }}</span><input type="date" name="date_from" value="{{ date_from }}"></label>
+        <label class="filter-date"><span>{{ t['entry.to'] }}</span><input type="date" name="date_to" value="{{ date_to }}"></label>
+        <label class="checkbox-item" style="margin:0;">
+            <input type="checkbox" name="only" value="a_coder" {% if only == 'a_coder' %}checked{% endif %}>
+            <span>{{ t['journal.only_uncoded'] }}{% if uncoded %} ({{ uncoded }}){% endif %}</span>
+        </label>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+    </form>
+
+    <p class="muted small" style="margin:0 0 8px;">
+        {{ rows | length }} {{ t['journal.lines'] }} · <strong>{{ total | num }} {{ currency }}</strong>
+        {% if uncoded and only != 'a_coder' %} · <span class="stock-negative">{{ uncoded }} {{ t['journal.uncoded'] }}</span>{% endif %}
+    </p>
+
+    {% if rows %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['journal.date'] }}</th>
+                {% if not journal %}<th>{{ t['journal.book'] }}</th>{% endif %}
+                <th>{{ t['journal.piece'] }}</th>
+                <th>{{ t['journal.label'] }}</th>
+                <th>{{ t['journal.debit'] }}</th>
+                <th>{{ t['journal.credit'] }}</th>
+                <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            {% set back = url_for('finance.journal', journal=journal, date_from=date_from, date_to=date_to, only=only) %}
+            <tr {% if not r.complete %}class="journal-row--uncoded"{% endif %}>
+                <td style="white-space:nowrap;">{{ r.date }}</td>
+                {% if not journal %}<td><span class="chip">{{ t['journal.' + r.journal] }}</span></td>{% endif %}
+                <td class="muted small">{{ r.piece }}</td>
+                <td>{{ r.label }}{% if r.who %}<div class="muted small">{{ r.who }}</div>{% endif %}</td>
+                {% for side in ('debit', 'credit') %}
+                <td>
+                    {% set code = r[side] %}
+                    {% if r.codable and r.code_side == side %}
+                    {# The line's own code: set or changed here. #}
+                    <form method="post" action="{{ url_for('finance.journal_code') }}" class="journal-code">
+                        <input type="hidden" name="kind" value="{{ r.kind }}"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="back" value="{{ back }}">
+                        <select name="ledger_code" onchange="this.form.submit()" title="{{ t['ledger.account'] }}">
+                            <option value="">{{ t['ledger.none'] }}</option>
+                            {% for a in (revenue_accounts if r.kind == 'client_invoice_line' else charge_accounts) %}
+                            <option value="{{ a.code }}" {% if a.code == code %}selected{% endif %}>{{ a.code }} — {{ a.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    {% elif code %}
+                    <code>{{ code }}</code> <span class="muted small">{{ labels.get(code, '') }}</span>
+                    {% else %}
+                    <span class="stock-negative small">{{ t['journal.missing'] }}</span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ r.amount | num }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">menu_book</span>
+        <p>{{ t['journal.empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

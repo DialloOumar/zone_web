@@ -33,7 +33,7 @@ from amount_words import amount_in_words
 from app import (_get_setting, current_lang, current_user_fleet_ids, get_t, has_perm,
                  is_modal_request, log_action, modal_ok, parse_amount, require_perm)
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
-from ledger import labels_for, read_code, revenue_accounts
+from ledger import ensure_client_account, labels_for, read_code, revenue_accounts
 from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine,
                     ClientPayment, ClientRate, DailyEntry, Vehicle, db)
 
@@ -308,6 +308,9 @@ def invoice_new():
                     abort(500)
                 inv.number = _next_number(issue_date)
                 inv = db.session.merge(inv)
+        # His first invoice gives the client his account on the plan.
+        if ensure_client_account(client, current_user.id):
+            db.session.commit()
         log_action("CREATE", "client_invoice", resource_id=inv.id,
                    detail="Issued %s to %s for %s: %d GNF" % (inv.number, client.name, month, inv.total))
         db.session.commit()
@@ -692,6 +695,8 @@ def payment_new(iid):
         if error:
             return _render_payment_form(inv, None, error)
         pay = ClientPayment(invoice_id=inv.id, created_by=current_user.id, **data)
+        # A receipt clears the client's account, never the revenue.
+        pay.ledger_code = ensure_client_account(inv.client, current_user.id)
         db.session.add(pay)
         log_action("CREATE", "client_payment", resource_id=inv.id,
                    detail="Received %s GNF on %s" % (data["amount"], inv.number))
@@ -714,6 +719,8 @@ def payment_edit(iid, pid):
             return _render_payment_form(inv, pay, error)
         for k, val in data.items():
             setattr(pay, k, val)
+        if not pay.ledger_code:
+            pay.ledger_code = ensure_client_account(inv.client, current_user.id)
         log_action("UPDATE", "client_payment", resource_id=pay.id,
                    detail="Edited payment #%s on %s" % (pay.id, inv.number))
         db.session.commit()

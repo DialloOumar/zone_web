@@ -109,7 +109,7 @@
             {% endif %}
             {# Last: the review of everything the three pages above wrote. #}
             {% if finance_visible %}
-            <li><a href="{{ url_for('finance_soon', page='journal') }}" class="sidebar-sub {% if request.endpoint == 'finance_soon' and request.view_args.page == 'journal' %}active{% endif %}">
+            <li><a href="{{ url_for('finance.journal') }}" class="sidebar-sub {% if request.endpoint and request.endpoint.startswith('finance.journal') %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">menu_book</span> {{ t['nav.journal'] }}
             </a></li>
             {% endif %}
