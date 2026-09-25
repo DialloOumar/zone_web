@@ -95,6 +95,37 @@ def ensure_supplier_account(supplier, user_id=None):
     return code
 
 
+def attach_existing_suppliers():
+    """One-time catch-up, safe to run again: every supplier from before the
+    plan gets his account (a permanent one his own after his FP code, an
+    occasional one the shared 4011900), and every settlement already
+    recorded on his bills is coded to it. Set by hand since, a supplier's
+    account is left alone; a settlement already coded is left alone.
+    Returns (suppliers attached, settlements coded)."""
+    from models import Supplier, SupplierInvoice, SupplierPayment, Expense
+    if not LedgerAccount.query.filter_by(code=SUPPLIER_PARENT).first():
+        return 0, 0
+    attached = 0
+    for s in Supplier.query.all():
+        if not s.ledger_code and ensure_supplier_account(s):
+            attached += 1
+    coded = 0
+    rows = (db.session.query(SupplierPayment, Supplier.ledger_code)
+            .join(SupplierInvoice, SupplierPayment.invoice_id == SupplierInvoice.id)
+            .join(Supplier, SupplierInvoice.supplier_id == Supplier.id)
+            .filter(SupplierPayment.ledger_code.is_(None), Supplier.ledger_code.isnot(None)).all())
+    for pay, code in rows:
+        pay.ledger_code = code
+        # The cash box's instalment mirrors a cost: same code on the cost.
+        if pay.expense_id:
+            x = db.session.get(Expense, pay.expense_id)
+            if x is not None and not x.ledger_code:
+                x.ledger_code = code
+        coded += 1
+    db.session.commit()
+    return attached, coded
+
+
 def labels_for(codes):
     """{code: label} for the codes given, for lists and detail pages."""
     codes = {c for c in codes if c}

@@ -1698,6 +1698,12 @@ def seed_cmd():
     added = _seed_part_units_data()
     click.echo(f"  part units: {added} added")
 
+    # 8. Suppliers from before the plan get their account, and the settlements
+    #    already on their bills are coded to it. Safe to run on every boot.
+    from ledger import attach_existing_suppliers
+    attached, coded = attach_existing_suppliers()
+    click.echo(f"  suppliers on the plan: {attached} attached, {coded} settlements coded")
+
     click.echo("Seed complete.")
 
 
