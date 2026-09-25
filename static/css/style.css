@@ -370,6 +370,11 @@ a:hover { text-decoration: underline; }
 .plan-class-count { font-size: 0.72rem; color: var(--md-on-surface-variant); }
 .plan-class.active .plan-class-count { color: inherit; opacity: 0.8; }
 .plan-class--used .plan-class-num .material-symbols-outlined { font-size: 20px; }
+/* Comptes: the cash box's own account, one line above the purses. */
+.till-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -6px 0 14px; font-size: 0.9rem; }
+.till-line .material-symbols-outlined { font-size: 20px; color: var(--md-on-surface-variant); }
+.till-line__form { display: inline; }
+.till-line__form select { font-size: 0.85rem; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--md-outline); background: var(--md-surface); color: inherit; max-width: 100%; }
 /* The journal: a line missing a side, and the in-place coding select. */
 .journal-row--uncoded td { background: color-mix(in srgb, var(--md-error) 6%, transparent); }
 .journal-code { display: inline; }
