@@ -7,6 +7,12 @@ is filled by hand, at entry or later.
 """
 from models import LedgerAccount, db
 
+# Where suppliers live on the plan: each permanent one under 4011 with his FP
+# number, the occasional ones together on one sub-account.
+SUPPLIER_PARENT = "4011"
+SUNDRY_SUPPLIERS_CODE = "4011900"
+SUNDRY_SUPPLIERS_LABEL = {"fr": "Fournisseurs divers", "en": "Sundry suppliers"}
+
 
 def used_accounts():
     """The shortlist, in chart order: active accounts marked used."""
@@ -24,6 +30,50 @@ def read_code(form, field="ledger_code"):
     row = (LedgerAccount.query
            .filter_by(code=code, is_active=True, is_used=True).first())
     return (row.code, True) if row else (None, False)
+
+
+def used_accounts_in(classes):
+    """The shortlist narrowed to some classes, for a picker that only makes
+    sense there: 4 and 5 for a purse, 4 for a supplier."""
+    return [a for a in used_accounts() if a.klass in classes]
+
+
+def _add_account(code, label, parent_code, user_id=None):
+    row = LedgerAccount(code=code, label=label, klass=int(code[0]), parent_code=parent_code,
+                        is_standard=False, is_used=True, is_active=True, created_by=user_id)
+    db.session.add(row)
+    db.session.flush()
+    return row
+
+
+def ensure_supplier_account(supplier, user_id=None):
+    """The supplier's account on the plan, made on first need.
+
+    A permanent supplier (FP-003) gets 4011003, labelled with his name; the
+    occasional ones (FD) share 4011900 Fournisseurs divers. Set by hand on
+    the supplier's form, it is left alone. Returns the code, or None when
+    the plan is not loaded (no 4011 to hang it on)."""
+    if supplier.ledger_code:
+        return supplier.ledger_code
+    parent = LedgerAccount.query.filter_by(code=SUPPLIER_PARENT).first()
+    if not parent:
+        return None
+    if supplier.kind == "permanent" and supplier.code and "-" in supplier.code:
+        number = supplier.code.split("-", 1)[1]
+        code = SUPPLIER_PARENT + number.zfill(3)
+        label = supplier.name
+    else:
+        code, label = SUNDRY_SUPPLIERS_CODE, SUNDRY_SUPPLIERS_LABEL["fr"]
+    row = LedgerAccount.query.filter_by(code=code).first()
+    if row:
+        if not row.is_used:
+            row.is_used = True
+        if not row.is_active:
+            row.is_active = True
+    else:
+        _add_account(code, label, parent.code, user_id)
+    supplier.ledger_code = code
+    return code
 
 
 def labels_for(codes):

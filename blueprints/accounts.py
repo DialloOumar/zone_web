@@ -16,6 +16,7 @@ from flask_login import login_required
 
 from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm
 from blueprints.expenses import _save_list_row
+from ledger import labels_for, used_accounts_in
 from models import BankCharge, CashAccount, CashMovement, Expense, SupplierPayment, db
 
 accounts_bp = Blueprint("accounts", __name__)
@@ -67,13 +68,15 @@ def index():
         "accounts.html",
         accounts=CashAccount.query.order_by(CashAccount.sort_order,
                                             CashAccount.name).all(),
-        used=_used_ids(), paid=_paid_to_suppliers())
+        used=_used_ids(), paid=_paid_to_suppliers(),
+        code_labels=labels_for([a.ledger_code for a in CashAccount.query.all()]))
 
 
 def _render_form(row, error=None):
     tpl = "_account_form.html" if is_modal_request() else "account_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, row=row, error=error), status
+    return render_template(tpl, row=row, error=error,
+                           ledger_accounts=used_accounts_in((4, 5))), status
 
 
 @accounts_bp.route("/comptes/nouveau", methods=["GET", "POST"])

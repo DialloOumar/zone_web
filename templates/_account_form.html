@@ -1,3 +1,4 @@
+{% from "_hint.html" import hint with context %}
 {% set is_edit = row is not none %}
 {# An account: a name, the number when it has one, and whether the money it
    puts into the cash box is owed back. #}
@@ -20,9 +21,42 @@
     {% set rep = (request.form.get('is_repayable') is not none) if request.method == 'POST'
                  else (row.is_repayable if is_edit else False) %}
     <label class="checkbox-item">
-        <input type="checkbox" name="is_repayable" {% if rep %}checked{% endif %}>
+        <input type="checkbox" name="is_repayable" id="is_repayable" {% if rep %}checked{% endif %}>
         <span>{{ t['list.repayable'] }}</span>
     </label>
+
+    {# Its account on the plan. Treasury (class 5) for the company's own
+       money; a tiers (class 4, e.g. 462 the boss's current account) when
+       what it puts in the box is owed back. The box follows the checkbox. #}
+    {% if ledger_accounts %}
+    {% set sel_code = request.form.get('ledger_code') or (row.ledger_code or '' if is_edit else '') %}
+    <div class="field field--select">
+        <select id="ledger_code" name="ledger_code">
+            <option value="">{{ t['ledger.none'] }}</option>
+            {% for a in ledger_accounts %}
+            <option value="{{ a.code }}" data-klass="{{ a.klass }}" {% if a.code == sel_code %}selected{% endif %}>{{ a.code }} — {{ a.label }}</option>
+            {% endfor %}
+        </select>
+        <label for="ledger_code">{{ t['ledger.account'] }} {{ hint(t['form.optional'], t['accounts.ledger_hint']) }}</label>
+    </div>
+    <script>
+    (function () {
+        var box = document.getElementById('is_repayable'), sel = document.getElementById('ledger_code');
+        if (!box || !sel) return;
+        function refresh() {
+            var want = box.checked ? '4' : '5';
+            for (var i = 0; i < sel.options.length; i++) {
+                var o = sel.options[i];
+                if (!o.value) continue;
+                var ok = o.dataset.klass === want;
+                o.hidden = !ok; o.disabled = !ok;
+                if (!ok && o.selected) sel.value = '';
+            }
+        }
+        box.addEventListener('change', refresh); refresh();
+    })();
+    </script>
+    {% endif %}
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">

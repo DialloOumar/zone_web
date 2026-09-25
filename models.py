@@ -661,6 +661,10 @@ class CashAccount(db.Model):
     # money line, or nothing at all -- so it is never checked or added up.
     number       = db.Column(db.String(60))
     is_repayable = db.Column(db.Boolean,     nullable=False, default=False)
+    # The account of the plan this purse is: 571 for the till, a sub-account
+    # of 521 per bank, 462 for the boss's own money (owed back, so a tiers,
+    # not treasury). Every movement from the purse takes it as counterpart.
+    ledger_code  = db.Column(db.String(12),  index=True)
     sort_order   = db.Column(db.Integer,     nullable=False, default=0)
     is_active    = db.Column(db.Boolean,     nullable=False, default=True)
     created_at   = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
@@ -737,6 +741,11 @@ class Supplier(db.Model):
     # both. On by default: a supplier written down from the store is a parts
     # supplier by definition, and the bills page starts its box ticked.
     provides_parts = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    # The supplier's account on the plan, under 4011: a permanent supplier
+    # gets his own, numbered after his FP code (FP-003 -> 4011003), created
+    # the first time a bill or a payment names him; the occasional ones share
+    # one. Every settlement of his bills is coded to it.
+    ledger_code = db.Column(db.String(12), index=True)
     sort_order = db.Column(db.Integer,     nullable=False, default=0)
     is_active  = db.Column(db.Boolean,     nullable=False, default=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
@@ -914,6 +923,9 @@ class SupplierPayment(db.Model):
     # Set when the cash box paid: the cost this instalment mirrors.
     expense_id = db.Column(db.Integer,     db.ForeignKey("expenses.id"),
                            nullable=True, unique=True)
+    # The supplier's account on the plan at the time, for the journal: the
+    # settlement clears the debt, it never carries the bill's charge.
+    ledger_code = db.Column(db.String(12),  index=True)
 
     created_by = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

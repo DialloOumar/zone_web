@@ -41,6 +41,7 @@
                 <td><span class="badge {{ 'badge--active' if s.kind == 'permanent' else 'badge--inactive' }}">{{ t['supplier.kind.' + s.kind] }}</span></td>
                 <td>{% if s.contact %}{{ s.contact }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td style="white-space:nowrap;">
+                    {% if s.ledger_code %}<code class="muted small">{{ s.ledger_code }}</code>{% endif %}
                     {% if s.provides_parts %}<span class="badge badge--active">{{ t['supplier.parts'] }}</span>{% endif %}
                     {% if s.provides_machines %}
                     <span class="badge badge--info">{{ s.live_machines | length }} {{ t['supplier.machines'] | lower }}</span>

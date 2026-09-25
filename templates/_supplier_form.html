@@ -1,3 +1,4 @@
+{% from "_ledger_picker.html" import ledger_picker with context %}
 {% set is_edit = row is not none %}
 {# Who sends the bills. A name is enough; the rest is there for the day someone
    has to call them about one. #}
@@ -107,6 +108,14 @@
         <div class="field-hint">{{ t['supplier.machines_none'] }}</div>
         {% endif %}
     </div>
+    {% endif %}
+
+    {# His account on the plan, under 4011. Left empty, it is made the first
+       time a bill or a payment names him: his own for a permanent supplier,
+       the shared one for an occasional one. Set here to match numbering the
+       comptable already has. Not on the store's short form. #}
+    {% if not parts_only %}
+    {{ ledger_picker(ledger_accounts, request.form.get('ledger_code') or (row.ledger_code or '' if is_edit else ''), t['ledger.account'], t['supplier.ledger_hint']) }}
     {% endif %}
 
     <div class="form-actions">

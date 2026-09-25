@@ -108,7 +108,20 @@
         <label for="account_id">{{ t['expense.paid_from'] }} {{ hint(t['form.optional'], t['expense.paid_from_hint']) }}</label>
     </div>
 
+    <div id="ledger-field">
     {{ ledger_picker(ledger_accounts, request.form.get('ledger_code') or (expense.ledger_code if is_edit else ''), t['ledger.account'], t['ledger.hint']) }}
+    </div>
+    <div id="ledger-locked" class="field-hint" hidden>{{ t['expense.invoice_coded'] }}</div>
+    <script>
+    // A cost that settles a bill is coded to the supplier's account by the
+    // app; the picker only applies to a cost with no bill behind it.
+    (function () {
+        var inv = document.getElementById('invoice_id'), f = document.getElementById('ledger-field'), n = document.getElementById('ledger-locked');
+        if (!inv || !f || !n) return;
+        function refresh() { var on = !!inv.value; f.hidden = on; n.hidden = !on; }
+        inv.addEventListener('change', refresh); refresh();
+    })();
+    </script>
 
     <div class="field">
         <input type="text" id="payment_reference" name="payment_reference" placeholder=" "

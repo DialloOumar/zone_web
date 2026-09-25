@@ -39,6 +39,7 @@
                     {% if not r.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
                     {% if r.is_repayable %}<span class="badge badge--info">{{ t['list.repayable_short'] }}</span>{% endif %}
                     {% if r.number %}<div class="muted small">{{ r.number }}</div>{% endif %}
+                    {% if r.ledger_code %}<div class="muted small"><code>{{ r.ledger_code }}</code> {{ code_labels.get(r.ledger_code, '') }}</div>{% endif %}
                 </td>
                 <td style="text-align:right; white-space:nowrap;">
                     {% if p %}<strong>{{ p.total | num }} {{ currency }}</strong>

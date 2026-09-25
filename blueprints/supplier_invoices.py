@@ -32,7 +32,7 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
-from ledger import labels_for, read_code, used_accounts
+from ledger import ensure_supplier_account, labels_for, read_code, used_accounts, used_accounts_in
 from models import (BankCharge, CashAccount, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
                     Vehicle, db)
 
@@ -442,7 +442,9 @@ def new():
             return _render_invoice_form(None, error)
         inv = SupplierInvoice(created_by=current_user.id, **data)
         db.session.add(inv)
-        db.session.flush()   # the photo's name is built from the row's own id
+        db.session.flush()
+        # The first bill from a supplier gives him his account on the plan.
+        ensure_supplier_account(inv.supplier, current_user.id)   # the photo's name is built from the row's own id
         perr = _apply_photo_change(inv)
         if perr:
             db.session.rollback()
@@ -696,6 +698,9 @@ def payment_new(iid):
         if error:
             return _render_payment_form(inv, None, error)
         pay = SupplierPayment(invoice_id=inv.id, created_by=current_user.id, **data)
+        # The settlement clears the debt: coded to the supplier's account,
+        # never to the bill's charge.
+        pay.ledger_code = ensure_supplier_account(inv.supplier, current_user.id)
         db.session.add(pay)
         log_action("CREATE", "supplier_payment", resource_id=inv.id,
                    detail="Paid %s GNF on invoice #%s" % (data["amount"], inv.id))
@@ -725,6 +730,8 @@ def payment_edit(iid, pid):
             return _render_payment_form(inv, pay, error)
         for k, val in data.items():
             setattr(pay, k, val)
+        if not pay.ledger_code:
+            pay.ledger_code = ensure_supplier_account(inv.supplier, current_user.id)
         log_action("UPDATE", "supplier_payment", resource_id=pay.id,
                    detail="Edited payment #%s on invoice #%s" % (pay.id, inv.id))
         db.session.commit()
@@ -804,6 +811,15 @@ def _save_supplier(row, parts_only=False):
     row.note = (request.form.get("note") or "").strip() or None
     row.provides_machines = request.form.get("provides_machines") is not None
     row.provides_parts = parts_only or request.form.get("provides_parts") is not None
+    if not parts_only:
+        # His account on the plan, set by hand; left empty, it is made under
+        # 4011 the first time a bill or a payment names him.
+        code, ok = read_code(request.form)
+        if not ok:
+            return t["ledger.err.unknown"]
+        if code and code[0] != "4":
+            return t["supplier.err.class"]
+        row.ledger_code = code
     # A new supplier is coded in its kind's series; one that changes kind moves
     # to the other series and its old code is let go -- only the current one
     # is ever shown.
@@ -844,7 +860,8 @@ def _render_supplier_form(row, error=None):
     tpl = "_supplier_form.html" if is_modal_request() else "supplier_form.html"
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, row=row, error=error,
-                           machines=_pickable_machines()), status
+                           machines=_pickable_machines(),
+                           ledger_accounts=used_accounts_in((4,))), status
 
 
 def _suppliers_url():

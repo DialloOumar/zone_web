@@ -19,7 +19,7 @@ from flask_login import current_user, login_required
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, parse_amount, require_perm,
                  submit_change, with_current_fleet)
-from ledger import read_code, used_accounts
+from ledger import ensure_supplier_account, read_code, used_accounts
 from models import (CashAccount, CashMovement, Expense, Fleet, Site,
                     Staff, SupplierInvoice, SupplierPayment, Vehicle, db)
 
@@ -298,6 +298,15 @@ def sync_invoice_payment(expense, invoice_id):
     pay.reference = expense.payment_reference
     # A cost an account paid directly is an instalment from that account.
     pay.account_id = expense.account_id
+    # Settling a bill clears the supplier's debt: the cost and its mirror
+    # are coded to his account, whatever the picker said. The bill keeps
+    # the charge.
+    inv = db.session.get(SupplierInvoice, invoice_id)
+    if inv and inv.supplier:
+        code = ensure_supplier_account(inv.supplier, expense.created_by)
+        pay.ledger_code = code
+        if code:
+            expense.ledger_code = code
 
 
 def sync_account_movement(expense):
@@ -815,6 +824,14 @@ def _save_list_row(model, row, kind):
     if kind == "account":
         row.number = (request.form.get("number") or "").strip() or None
         row.is_repayable = request.form.get("is_repayable") is not None
+        # Its account on the plan: treasury for the company's own purse,
+        # a tiers when the money is owed back.
+        code, ok = read_code(request.form)
+        if not ok:
+            return t["ledger.err.unknown"]
+        if code and code[0] != ("4" if row.is_repayable else "5"):
+            return t["accounts.err.class"]
+        row.ledger_code = code
     db.session.flush()
     log_action("CREATE" if creating else "UPDATE", "cash_%s" % kind,
                resource_id=row.id, detail="%s %s '%s'" % (
