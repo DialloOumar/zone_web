@@ -983,9 +983,10 @@ class Client(db.Model):
 
     @property
     def has_history(self):
-        """True once anything was ever priced for it -- then it is archived,
-        never deleted."""
-        return bool(self.rates)
+        """True once an invoice was issued to it, cancelled or not: a numbered
+        document must keep its client, so from then on it is archived, never
+        deleted. Prices alone are not history; they go with the client."""
+        return db.session.query(ClientInvoice.id).filter_by(client_id=self.id).first() is not None
 
 
 class ClientRate(db.Model):

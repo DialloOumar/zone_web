@@ -35,7 +35,7 @@ from app import (_get_setting, current_lang, current_user_fleet_ids, get_t, has_
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
 from ledger import ensure_client_account, labels_for, read_code, revenue_accounts
 from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine,
-                    ClientPayment, ClientRate, DailyEntry, Vehicle, db)
+                    ClientPayment, ClientRate, DailyEntry, LedgerAccount, Vehicle, db)
 
 invoicing_bp = Blueprint("invoicing", __name__)
 
@@ -541,7 +541,8 @@ def client_edit(cid):
 @require_perm("invoicing.manage")
 def client_action(cid, what):
     """Archive takes it out of the pickers and keeps its history; delete is
-    only for one nothing was ever priced for."""
+    for one no invoice was ever issued to. Its prices go with it, its
+    machines are set free, its account on the plan is hidden."""
     row = db.session.get(Client, cid)
     if not row:
         abort(404)
@@ -554,6 +555,11 @@ def client_action(cid, what):
             return redirect(_clients_url())
         for v in row.machines:
             v.client_id = None
+        if row.ledger_code:
+            acc = LedgerAccount.query.filter_by(code=row.ledger_code, is_standard=False).first()
+            if acc:
+                acc.is_used = False
+                acc.is_active = False
         name = row.name
         db.session.delete(row)
         log_action("DELETE", "client", resource_id=cid, detail="Deleted client '%s'" % name)
