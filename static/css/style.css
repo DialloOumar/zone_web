@@ -936,7 +936,12 @@ a:hover { text-decoration: underline; }
 .tabs {
     display: flex; gap: 2px; margin: 0 0 10px;
     border-bottom: 1px solid var(--md-outline-variant);
+    /* Three tabs and a phone: the bar scrolls sideways rather than losing
+       the last one off the edge. */
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
 }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; }
 .tab {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 7px 12px; text-decoration: none;

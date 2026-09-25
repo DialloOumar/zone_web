@@ -266,8 +266,8 @@ TRANSLATIONS = {
         "invoice.billed":           "Total des factures : ",
         "invoice.paid":             "Déjà payé : ",
         "invoice.count":            "facture(s)",
-        "invoice.tab_invoices":     "Factures fournisseurs",
-        "invoice.tab_transactions": "Transactions bancaires",
+        "invoice.tab_invoices":     "Factures",
+        "invoice.tab_transactions": "Transactions",
         "invoice.tab_suppliers":    "Fournisseurs",
         # Banque : une charge payée directement par la banque, sans facture
         "bank.new":                 "Nouvelle charge bancaire",
@@ -1964,8 +1964,8 @@ TRANSLATIONS = {
         "invoice.billed":           "Invoiced: ",
         "invoice.paid":             "Paid: ",
         "invoice.count":            "invoice(s)",
-        "invoice.tab_invoices":     "Supplier invoices",
-        "invoice.tab_transactions": "Bank transactions",
+        "invoice.tab_invoices":     "Invoices",
+        "invoice.tab_transactions": "Transactions",
         "invoice.tab_suppliers":    "Suppliers",
         # Bank: a charge paid straight from the bank, with no bill behind it
         "bank.new":                 "New bank charge",
