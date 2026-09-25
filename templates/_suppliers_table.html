@@ -12,19 +12,23 @@
             </select>
         </label>
     </form>
+    {# Two readers. Accounting (the Banque page) sees everything: the account
+       on the plan, what each supplier provides, the lessors' daily entries,
+       what is owed. The store sees the parts suppliers it buys from: who
+       they are and how to reach them, nothing of the money. #}
+    {% set full = has_perm('supplier_invoice.view') %}
+    {% set show_accounts = full and (has_perm('accounting.view') or has_perm('accounting.manage')) %}
     {% if suppliers %}
     <div class="table-wrap"><table class="data-table">
-        {# One thing per column: what a row is scanned for -- its code, its
-           kind, whether it leases machines -- each in its own place rather
-           than a heap of badges in the first cell. #}
         <thead>
             <tr>
                 <th>{{ t['supplier.code'] }}</th>
                 <th>{{ t['invoice.supplier'] }}</th>
                 <th>{{ t['supplier.kind'] }}</th>
                 <th>{{ t['invoice.contact'] }}</th>
-                <th>{{ t['supplier.machines'] }}</th>
-                <th style="text-align:right;">{{ t['invoice.remaining'] }}</th>
+                {% if show_accounts %}<th>{{ t['ledger.account'] }}</th>{% endif %}
+                {% if full %}<th>{{ t['supplier.provides'] }}</th>{% endif %}
+                {% if full %}<th style="text-align:right;">{{ t['invoice.remaining'] }}</th>{% endif %}
                 <th></th>
             </tr>
         </thead>
@@ -40,17 +44,20 @@
                 </td>
                 <td><span class="badge {{ 'badge--active' if s.kind == 'permanent' else 'badge--inactive' }}">{{ t['supplier.kind.' + s.kind] }}</span></td>
                 <td>{% if s.contact %}{{ s.contact }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                {% if show_accounts %}
+                <td style="white-space:nowrap;">{% if s.ledger_code %}<code>{{ s.ledger_code }}</code>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                {% endif %}
+                {% if full %}
                 <td style="white-space:nowrap;">
-                    {% if s.ledger_code %}<code class="muted small">{{ s.ledger_code }}</code>{% endif %}
                     {% if s.provides_parts %}<span class="badge badge--active">{{ t['supplier.parts'] }}</span>{% endif %}
                     {% if s.provides_machines %}
                     <span class="badge badge--info">{{ s.live_machines | length }} {{ t['supplier.machines'] | lower }}</span>
                     {% if has_perm('entry.view') %}
-                    <a href="{{ url_for('entries.supplier', sid=s.id) }}" class="btn btn--sm btn--tonal" style="margin-left:6px;">
-                        <span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_btn'] }}
-                    </a>
+                    <a href="{{ url_for('entries.supplier', sid=s.id) }}" class="btn btn--sm btn--tonal" style="margin-left:6px;"
+                       title="{{ t['supplier.entries_btn'] }}"><span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_short'] }}</a>
                     {% endif %}
-                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                    {% endif %}
+                    {% if not s.provides_parts and not s.provides_machines %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td style="text-align:right; white-space:nowrap;">
                     {% if o and o.remaining > 0 %}
@@ -59,11 +66,13 @@
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
                     {% if o %}<div class="muted small">{{ o.count }} {{ t['invoice.count'] }}</div>{% endif %}
                 </td>
+                {% endif %}
                 <td class="row-actions">
                     {% if has_perm('supplier_invoice.create') or has_perm('stock.manage') %}
                     <a href="{{ url_for('supplier_invoices.supplier_edit', sid=s.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('supplier_invoices.supplier_edit', sid=s.id) }}" data-modal-title="{{ t['invoice.supplier_edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% if full %}
                     {% if not s.is_active %}
                     <form method="post" action="{{ url_for('supplier_invoices.supplier_action', sid=s.id, what='reactivate') }}" style="display:inline">
                         <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
@@ -80,6 +89,7 @@
                           data-confirm="{{ t['list.archive_confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
                         <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
                     </form>
+                    {% endif %}
                     {% endif %}
                     {% endif %}
                 </td>

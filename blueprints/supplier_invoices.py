@@ -810,7 +810,12 @@ def _save_supplier(row, parts_only=False):
     row.email = (request.form.get("email") or "").strip().lower()[:120] or None
     row.address = (request.form.get("address") or "").strip()[:200] or None
     row.note = (request.form.get("note") or "").strip() or None
-    row.provides_machines = request.form.get("provides_machines") is not None
+    # The store's short form knows nothing of machines: what the bills page
+    # set there is left as it is.
+    if not parts_only:
+        row.provides_machines = request.form.get("provides_machines") is not None
+    elif creating:
+        row.provides_machines = False
     row.provides_parts = parts_only or request.form.get("provides_parts") is not None
     if not parts_only and has_perm("accounting.manage"):
         # His account on the plan, set by hand; left empty, it is made under
@@ -829,14 +834,15 @@ def _save_supplier(row, parts_only=False):
     db.session.flush()
     # A lessor's machines follow the boxes ticked; one that stops being a
     # lessor lets its machines go.
-    chosen = set()
-    if row.provides_machines:
-        for raw in request.form.getlist("machine_ids"):
-            try:
-                chosen.add(int(raw))
-            except (TypeError, ValueError):
-                pass
-    _assign_machines(row, chosen)
+    if not parts_only:
+        chosen = set()
+        if row.provides_machines:
+            for raw in request.form.getlist("machine_ids"):
+                try:
+                    chosen.add(int(raw))
+                except (TypeError, ValueError):
+                    pass
+        _assign_machines(row, chosen)
     log_action("CREATE" if creating else "UPDATE", "supplier", resource_id=row.id,
                detail="%s supplier '%s' (%s)" % ("Created" if creating else "Updated",
                                                  row.name, row.code))
@@ -858,7 +864,9 @@ def _save_supplier(row, parts_only=False):
 def _render_supplier_form(row, error=None):
     tpl = "_supplier_form.html" if is_modal_request() else "supplier_form.html"
     status = 422 if (error and is_modal_request()) else 200
+    # Without the bills' rights this is the store's form: parts only.
     return render_template(tpl, row=row, error=error,
+                           parts_only=not has_perm("supplier_invoice.create"),
                            machines=_pickable_machines(),
                            ledger_accounts=used_accounts_in((4,))), status
 
@@ -884,6 +892,9 @@ def suppliers():
     sq = Supplier.query
     if kind:
         sq = sq.filter(Supplier.kind == kind)
+    if not has_perm("supplier_invoice.view"):
+        # The store's reading: the parts suppliers it buys from, and only them.
+        sq = sq.filter(Supplier.provides_parts.is_(True))
     rows = sq.order_by(*_by_kind_then_name()).all()
     owed = {}
     if has_perm("supplier_invoice.view"):
@@ -903,7 +914,7 @@ def suppliers():
 @require_any_perm("supplier_invoice.create", "stock.manage")
 def supplier_new():
     if request.method == "POST":
-        error = _save_supplier(None)
+        error = _save_supplier(None, parts_only=not has_perm("supplier_invoice.create"))
         if error:
             return _render_supplier_form(None, error)
         flash("success|" + get_t().get("list.created", "Ajouté."))
@@ -919,7 +930,7 @@ def supplier_edit(sid):
     if not row:
         abort(404)
     if request.method == "POST":
-        error = _save_supplier(row)
+        error = _save_supplier(row, parts_only=not has_perm("supplier_invoice.create"))
         if error:
             return _render_supplier_form(row, error)
         flash("success|" + get_t().get("list.updated", "Modifié."))
