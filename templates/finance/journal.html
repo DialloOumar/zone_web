@@ -14,15 +14,15 @@
             <h2>{{ t['nav.journal'] }}</h2>
             <p class="muted small" style="margin:4px 0 0;">{{ t['journal.intro'] }}</p>
         </div>
-        <a href="{{ url_for('finance.journal_export', journal=journal, date_from=date_from, date_to=date_to) }}" class="btn btn--sm btn--tonal">
+        <a href="{{ url_for('finance.journal_export', journal=journal, date_from=date_from, date_to=date_to, code=code_filter) }}" class="btn btn--sm btn--tonal">
             <span class="material-symbols-outlined">save</span> {{ t['journal.export'] }}
         </a>
     </div>
 
     <nav class="tabs" role="tablist" style="margin-bottom:12px;">
-        <a href="{{ url_for('finance.journal', journal='', date_from=date_from, date_to=date_to, only=only) }}" role="tab" class="tab {% if not journal %}tab--on{% endif %}">{{ t['journal.all'] }}</a>
+        <a href="{{ url_for('finance.journal', journal='', date_from=date_from, date_to=date_to, only=only, code=code_filter) }}" role="tab" class="tab {% if not journal %}tab--on{% endif %}">{{ t['journal.all'] }}</a>
         {% for j in journals %}
-        <a href="{{ url_for('finance.journal', journal=j, date_from=date_from, date_to=date_to, only=only) }}" role="tab" class="tab {% if journal == j %}tab--on{% endif %}">{{ t['journal.' + j] }}</a>
+        <a href="{{ url_for('finance.journal', journal=j, date_from=date_from, date_to=date_to, only=only, code=code_filter) }}" role="tab" class="tab {% if journal == j %}tab--on{% endif %}">{{ t['journal.' + j] }}</a>
         {% endfor %}
     </nav>
 
@@ -30,6 +30,11 @@
         <input type="hidden" name="journal" value="{{ journal }}">
         <label class="filter-date"><span>{{ t['entry.from'] }}</span><input type="date" name="date_from" value="{{ date_from }}"></label>
         <label class="filter-date"><span>{{ t['entry.to'] }}</span><input type="date" name="date_to" value="{{ date_to }}"></label>
+        {# A code or the start of one: "62" is every outside service. #}
+        <label class="filter-date"><span>{{ t['journal.code'] }}</span><input type="text" name="code" value="{{ code_filter }}" inputmode="numeric" placeholder="{{ t['journal.code_ph'] }}" style="width:110px;" list="journal-codes"></label>
+        <datalist id="journal-codes">
+            {% for a in charge_accounts + revenue_accounts %}<option value="{{ a.code }}">{{ a.label }}</option>{% endfor %}
+        </datalist>
         <label class="checkbox-item" style="margin:0;">
             <input type="checkbox" name="only" value="a_coder" {% if only == 'a_coder' %}checked{% endif %}>
             <span>{{ t['journal.only_uncoded'] }}{% if uncoded %} ({{ uncoded }}){% endif %}</span>
@@ -57,7 +62,7 @@
         </thead>
         <tbody>
             {% for r in rows %}
-            {% set back = url_for('finance.journal', journal=journal, date_from=date_from, date_to=date_to, only=only) %}
+            {% set back = url_for('finance.journal', journal=journal, date_from=date_from, date_to=date_to, only=only, code=code_filter) %}
             <tr {% if not r.complete %}class="journal-row--uncoded"{% endif %}>
                 <td style="white-space:nowrap;">{{ r.date }}</td>
                 {% if not journal %}<td><span class="chip">{{ t['journal.' + r.journal] }}</span></td>{% endif %}
@@ -78,7 +83,7 @@
                         </select>
                     </form>
                     {% elif code %}
-                    <code>{{ code }}</code> <span class="muted small">{{ labels.get(code, '') }}</span>
+                    <a href="{{ url_for('finance.journal', journal=journal, date_from=date_from, date_to=date_to, code=code) }}" title="{{ t['journal.filter_this'] }}"><code>{{ code }}</code></a> <span class="muted small">{{ labels.get(code, '') }}</span>
                     {% else %}
                     <span class="stock-negative small">{{ t['journal.missing'] }}</span>
                     {% endif %}

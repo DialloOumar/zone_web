@@ -85,17 +85,27 @@ def _journal_args():
     return date_from, date_to, book
 
 
+def _by_code(rows):
+    """Narrow to the lines one of whose sides starts with the code asked
+    for: "62" is every outside service, "4011003" one supplier."""
+    code = (request.args.get("code") or "").strip()
+    if not code:
+        return rows, ""
+    return [r for r in rows if (r["debit"] or "").startswith(code) or (r["credit"] or "").startswith(code)], code
+
+
 @finance_bp.route("/journal")
 def journal():
     date_from, date_to, book = _journal_args()
     only = request.args.get("only") or ""      # "" | "a_coder"
     rows = journal_mod.lines(date_from or None, date_to or None, book or None)
+    rows, code = _by_code(rows)
     uncoded = sum(1 for r in rows if not r["complete"])
     if only == "a_coder":
         rows = [r for r in rows if not r["complete"]]
     labels = journal_mod.with_labels(rows)
     return render_template("finance/journal.html", rows=rows, labels=labels,
-                           journals=journal_mod.JOURNALS, journal=book,
+                           journals=journal_mod.JOURNALS, journal=book, code_filter=code,
                            date_from=date_from, date_to=date_to, only=only,
                            uncoded=uncoded, total=sum(r["amount"] for r in rows),
                            charge_accounts=charge_accounts(), revenue_accounts=revenue_accounts())
@@ -125,8 +135,9 @@ def journal_code():
 def journal_export():
     date_from, date_to, book = _journal_args()
     rows = journal_mod.lines(date_from or None, date_to or None, book or None)
+    rows, code = _by_code(rows)
     body = journal_mod.to_csv(rows, journal_mod.with_labels(rows))
-    name = "journal-%s-%s.csv" % (book or "tous", date_from or "debut")
+    name = "journal-%s-%s%s.csv" % (book or "tous", date_from or "debut", ("-" + code) if code else "")
     return Response("\ufeff" + body, mimetype="text/csv; charset=utf-8",
                     headers={"Content-Disposition": "attachment; filename=%s" % name})
 
