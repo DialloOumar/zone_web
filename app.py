@@ -1700,9 +1700,12 @@ def seed_cmd():
 
     # 8. Suppliers from before the plan get their account, and the settlements
     #    already on their bills are coded to it. Safe to run on every boot.
-    from ledger import attach_existing_suppliers
+    from ledger import attach_existing_purses, attach_existing_suppliers
     attached, coded = attach_existing_suppliers()
     click.echo(f"  suppliers on the plan: {attached} attached, {coded} settlements coded")
+    #    ...and the purses, and the till itself.
+    attached = attach_existing_purses()
+    click.echo(f"  purses on the plan: {attached} attached")
 
     click.echo("Seed complete.")
 

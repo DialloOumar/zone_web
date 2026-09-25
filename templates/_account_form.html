@@ -28,7 +28,6 @@
     {# Its account on the plan. Treasury (class 5) for the company's own
        money; a tiers (class 4, e.g. 462 the boss's current account) when
        what it puts in the box is owed back. The box follows the checkbox. #}
-    {% if ledger_accounts %}
     {% set sel_code = request.form.get('ledger_code') or (row.ledger_code or '' if is_edit else '') %}
     <div class="field field--select">
         <select id="ledger_code" name="ledger_code">
@@ -38,6 +37,7 @@
             {% endfor %}
         </select>
         <label for="ledger_code">{{ t['ledger.account'] }} {{ hint(t['form.optional'], t['accounts.ledger_hint']) }}</label>
+        {% if not is_edit or not row.ledger_code %}<div class="field-hint">{{ t['accounts.ledger_auto'] }}</div>{% endif %}
     </div>
     <script>
     (function () {
@@ -56,7 +56,6 @@
         box.addEventListener('change', refresh); refresh();
     })();
     </script>
-    {% endif %}
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">

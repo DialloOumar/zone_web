@@ -16,7 +16,7 @@ from flask_login import current_user, login_required
 
 from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm
 from blueprints.expenses import _save_list_row
-from ledger import labels_for, read_code, set_till_code, till_code, used_accounts_in
+from ledger import ensure_till_code, labels_for, read_code, set_till_code, till_code, used_accounts_in
 from models import BankCharge, CashAccount, CashMovement, Expense, SupplierPayment, db
 
 accounts_bp = Blueprint("accounts", __name__)
@@ -64,6 +64,10 @@ def _paid_to_suppliers():
 @login_required
 @require_any_perm(*MANAGE)
 def index():
+    # The till's account, 5711 unless someone chose otherwise: set here on
+    # first visit so the card always has something to show.
+    if ensure_till_code(current_user.id):
+        db.session.commit()
     return render_template(
         "accounts.html",
         accounts=CashAccount.query.order_by(CashAccount.sort_order,

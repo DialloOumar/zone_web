@@ -8,8 +8,17 @@ is filled by hand, at entry or later.
 from models import AppSetting, LedgerAccount, db
 
 # The till itself is not a purse on Comptes ("paid from the box" is the
-# absence of one), so its account lives in a setting: 571 in practice.
+# absence of one), so its account lives in a setting: 5711, cash in local
+# currency, unless someone picks another.
 TILL_KEY = "ledger.till_code"
+TILL_DEFAULT = "5711"
+
+# Where purses live: a bank (or a mobile-money line) under 521, on one of
+# the plan's placeholder accounts (5211 "Banque X") relabelled with its name
+# while any is free, else on the next code; a purse that is owed back (the
+# boss's own money) under 4621, the partners' current accounts.
+BANK_PARENT = "521"
+PARTNER_PARENT = "4621"
 
 # Where suppliers live on the plan: each permanent one under 4011 with his FP
 # number, the occasional ones together on one sub-account.
@@ -93,6 +102,74 @@ def ensure_supplier_account(supplier, user_id=None):
         _add_account(code, label, parent.code, user_id)
     supplier.ledger_code = code
     return code
+
+
+def _mark_used(row):
+    row.is_used = True
+    row.is_active = True
+    return row
+
+
+def ensure_till_code(user_id=None):
+    """The till's account, 5711 by default, set once when none is."""
+    if till_code():
+        return till_code()
+    row = LedgerAccount.query.filter_by(code=TILL_DEFAULT).first()
+    if not row:
+        return None
+    _mark_used(row)
+    set_till_code(row.code, user_id)
+    return row.code
+
+
+def ensure_purse_account(purse, user_id=None):
+    """The purse's account on the plan, made on first need and left alone
+    once set by hand. Returns the code, or None when the plan is not
+    loaded."""
+    if purse.ledger_code:
+        return purse.ledger_code
+    from models import CashAccount
+    parent_code = PARTNER_PARENT if purse.is_repayable else BANK_PARENT
+    parent = LedgerAccount.query.filter_by(code=parent_code).first()
+    if not parent:
+        return None
+    taken = {c for (c,) in db.session.query(CashAccount.ledger_code)
+             .filter(CashAccount.ledger_code.isnot(None)).all()}
+    row = None
+    if not purse.is_repayable:
+        # A placeholder the plan ships with, still free: it becomes this bank.
+        for cand in (LedgerAccount.query
+                     .filter(LedgerAccount.parent_code == parent.code,
+                             LedgerAccount.is_standard.is_(True))
+                     .order_by(LedgerAccount.code).all()):
+            if cand.code not in taken and not cand.is_used and cand.label.lower().startswith("banque "):
+                cand.label = purse.name
+                row = _mark_used(cand)
+                break
+    if row is None:
+        existing = {a.code for a in LedgerAccount.query
+                    .filter(LedgerAccount.code.like(parent.code + "%")).all()}
+        n = 1
+        while parent.code + str(n) in existing or parent.code + str(n) in taken:
+            n += 1
+        row = _add_account(parent.code + str(n), purse.name, parent.code, user_id)
+    purse.ledger_code = row.code
+    return row.code
+
+
+def attach_existing_purses():
+    """Catch-up for the purses from before the plan, and the till's own
+    account. Safe to run again: anything set by hand is left alone."""
+    from models import CashAccount
+    if not LedgerAccount.query.filter_by(code=BANK_PARENT).first():
+        return 0
+    n = 0
+    for p in CashAccount.query.order_by(CashAccount.sort_order, CashAccount.name).all():
+        if not p.ledger_code and ensure_purse_account(p):
+            n += 1
+    ensure_till_code()
+    db.session.commit()
+    return n
 
 
 def attach_existing_suppliers():

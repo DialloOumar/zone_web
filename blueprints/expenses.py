@@ -19,7 +19,7 @@ from flask_login import current_user, login_required
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, parse_amount, require_perm,
                  submit_change, with_current_fleet)
-from ledger import ensure_supplier_account, read_code, used_accounts
+from ledger import ensure_purse_account, ensure_supplier_account, read_code, used_accounts
 from models import (CashAccount, CashMovement, Expense, Fleet, Site,
                     Staff, SupplierInvoice, SupplierPayment, Vehicle, db)
 
@@ -832,6 +832,10 @@ def _save_list_row(model, row, kind):
         if code and code[0] != ("4" if row.is_repayable else "5"):
             return t["accounts.err.class"]
         row.ledger_code = code
+        if not code:
+            # Left empty: made on the plan, under 521 or 4621, in its name.
+            db.session.flush()
+            ensure_purse_account(row, current_user.id)
     db.session.flush()
     log_action("CREATE" if creating else "UPDATE", "cash_%s" % kind,
                resource_id=row.id, detail="%s %s '%s'" % (
