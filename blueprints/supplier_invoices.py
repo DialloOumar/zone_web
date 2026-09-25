@@ -31,7 +31,7 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
                  modal_ok, parse_amount, require_any_perm, require_perm)
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
-from blueprints.expenses import PAYMENT_METHODS, company_accounts
+from blueprints.expenses import PAYMENT_METHODS, _accessible_vehicles, company_accounts
 from ledger import charge_accounts, ensure_supplier_account, labels_for, read_code, used_accounts_in
 from models import (BankCharge, CashAccount, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
                     Vehicle, db)
@@ -231,8 +231,13 @@ def _read_invoice_form():
     if not ok:
         return None, t["ledger.err.unknown"]
 
+    # The machine the bill is about, when it is about one.
+    vehicle_id = request.form.get("vehicle_id", type=int) or None
+    if vehicle_id and vehicle_id not in {v.id for v in _accessible_vehicles()}:
+        return None, t["expense.err.vehicle_required"]
+
     return dict(
-        supplier_id=supplier_id,
+        supplier_id=supplier_id, vehicle_id=vehicle_id,
         purchase_order_id=po_id,
         number=(request.form.get("number") or "").strip() or None,
         date=date_str,
@@ -308,6 +313,7 @@ def _render_invoice_form(inv, error=None):
     return render_template(tpl, invoice=inv, error=error,
                            suppliers=active_suppliers(), orders_json=orders_json,
                            preset_po=preset, ledger_accounts=charge_accounts(),
+                           vehicles=_accessible_vehicles(),
                            today=date.today().isoformat()), status
 
 

@@ -19,7 +19,7 @@ from flask import Blueprint, render_template, request
 from flask_login import login_required
 
 from app import current_user_fleet_ids, require_perm
-from models import DailyEntry, Expense, Fleet, FuelMovement, Vehicle, db
+from models import DailyEntry, Expense, SupplierInvoice, Fleet, FuelMovement, Vehicle, db
 
 insights_bp = Blueprint("insights", __name__)
 
@@ -99,6 +99,16 @@ def _aggregate(vehicle_ids, month):
         .group_by(Expense.vehicle_id).all()
     ):
         other[vid] = int(amount or 0)
+    # ...plus the supplier bills about the machine -- a garage's repair,
+    # parts for it. The bill, once; its settlement from the box carries no
+    # machine, so nothing is counted twice.
+    for vid, amount in (
+        db.session.query(SupplierInvoice.vehicle_id, co(db.func.sum(SupplierInvoice.amount), 0))
+        .filter(SupplierInvoice.vehicle_id.in_(vehicle_ids))
+        .filter(SupplierInvoice.date.like(like))
+        .group_by(SupplierInvoice.vehicle_id).all()
+    ):
+        other[vid] = other.get(vid, 0) + int(amount or 0)
 
     # Service costs now live in the ledger too, as "entretien" rows.
     maint = {}

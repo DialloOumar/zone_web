@@ -16,7 +16,7 @@ import s3_storage
 import vehicle_images
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
-from models import (Alert, DailyEntry, Expense, Fleet, FuelMovement,
+from models import (Alert, DailyEntry, Expense, SupplierInvoice, Fleet, FuelMovement,
                     MaintenanceRecord, MaintenanceRule, Operator, StockMovement,
                     Vehicle, VehicleCategory, db)
 
@@ -239,6 +239,12 @@ def detail(vid):
     expenses = (Expense.query.filter_by(vehicle_id=vid)
                 .order_by(Expense.date.desc(), Expense.id.desc())
                 .limit(10).all())
+    # The supplier bills about this machine: a garage's repair, parts for
+    # it. The cost is the bill's, counted once; its settlement carries no
+    # machine.
+    bills = (SupplierInvoice.query.filter_by(vehicle_id=vid)
+             .order_by(SupplierInvoice.date.desc(), SupplierInvoice.id.desc())
+             .limit(10).all())
     records = (MaintenanceRecord.query.filter_by(vehicle_id=vid)
                .order_by(MaintenanceRecord.date.desc(), MaintenanceRecord.id.desc())
                .limit(10).all())
@@ -266,7 +272,7 @@ def detail(vid):
                        Expense.query.filter_by(vehicle_id=vid).all())
 
     return render_template("vehicle_detail.html", vehicle=vehicle,
-                           entries=entries, expenses=expenses,
+                           entries=entries, expenses=expenses, bills=bills,
                            records=records, alerts=alerts,
                            parts_used=parts_used, parts_total=parts_total,
                            direct_total=direct_total)

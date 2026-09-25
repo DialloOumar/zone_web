@@ -167,6 +167,7 @@
                     {% if inv.purchase_order %}<div class="muted small"><a href="{{ url_for('purchases.detail', oid=inv.purchase_order_id) }}">{{ inv.purchase_order.number }}</a></div>{% endif %}
                 </td>
                 <td>
+                    {% if inv.vehicle %}<a href="{{ url_for('vehicles.detail', vid=inv.vehicle_id) }}" class="chip">{{ inv.vehicle.code }}</a> {% endif %}
                     {% if inv.description %}{{ inv.description }}{% else %}<span class="muted">&mdash;</span>{% endif %}
                     {% if inv.photo_key %}
                     {% set purl = photo_url(inv.photo_key) %}

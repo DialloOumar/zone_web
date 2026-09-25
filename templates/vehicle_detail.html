@@ -128,6 +128,34 @@
     <p class="muted" style="padding: 6px 0;">{{ t['expense.empty'] }}</p>
     {% endif %}
 
+    {# The supplier bills about this machine, next to the costs the box
+       paid: a repair, parts, with whether each is settled. #}
+    {% if bills %}
+    <h3 style="font-size:0.95rem; margin:18px 0 8px;">{{ t['vehicle.bills'] }}</h3>
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['expense.date'] }}</th>
+                <th>{{ t['invoice.supplier'] }}</th>
+                <th>{{ t['bank.description'] }}</th>
+                <th>{{ t['invoice.status'] }}</th>
+                <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inv in bills %}
+            <tr>
+                <td>{{ inv.date }}</td>
+                <td>{{ inv.supplier.name }}{% if inv.number %} <span class="muted small">{{ inv.number }}</span>{% endif %}</td>
+                <td>{{ inv.description or '—' }}</td>
+                <td><span class="badge {{ 'badge--active' if inv.status == 'paid' else ('badge--warning' if inv.status == 'partial' else 'badge--inactive') }}">{{ t['invoice.status.' + inv.status] }}</span></td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ inv.amount | num }} GNF</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% endif %}
+
     {% if parts_total %}
     {# Parts are not ledger rows — they were paid for when bought. Shown apart
        so the two can be added without counting the same money twice. #}

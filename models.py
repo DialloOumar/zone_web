@@ -818,6 +818,10 @@ class SupplierInvoice(db.Model):
     description = db.Column(db.String(255))
     photo_key   = db.Column(db.String(200))                 # S3 photo of the paper
     ledger_code = db.Column(db.String(12), index=True)      # the account it is coded to, for the journal
+    # The machine the bill is about, when it is about one: a garage's repair
+    # of EX-01, parts for it. The cost then shows on the machine's page and
+    # in the per-machine analyses -- the bill, once, never its settlement.
+    vehicle_id  = db.Column(db.Integer, db.ForeignKey("vehicles.id"), nullable=True, index=True)
     # The purchase order this bill settles, when it came from one: what was
     # ordered, received and billed can then be read side by side.
     purchase_order_id = db.Column(db.Integer, db.ForeignKey("purchase_orders.id"), nullable=True, index=True)
@@ -826,6 +830,7 @@ class SupplierInvoice(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     supplier = db.relationship("Supplier")
+    vehicle  = db.relationship("Vehicle")
     purchase_order = db.relationship("PurchaseOrder", backref=db.backref("invoices", order_by="SupplierInvoice.date"))
     payments = db.relationship(
         "SupplierPayment", back_populates="invoice",

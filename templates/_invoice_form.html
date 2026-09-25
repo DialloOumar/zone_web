@@ -104,6 +104,22 @@
 
     {{ ledger_picker(ledger_accounts, request.form.get('ledger_code') or (invoice.ledger_code if is_edit else ''), t['ledger.account'], t['ledger.hint']) }}
 
+    {# The machine the bill is about, when it is about one: a repair of
+       EX-01, parts for it. Its cost then shows on the machine's page and in
+       the analyses. Left empty for a bill that is about no one machine. #}
+    {% if vehicles %}
+    <div class="field field--select">
+        {% set sel_v = request.form.get('vehicle_id')|int(0) or (invoice.vehicle_id if is_edit else 0) %}
+        <select id="vehicle_id" name="vehicle_id">
+            <option value="">{{ t['expense.no_vehicle'] }}</option>
+            {% for v in vehicles %}
+            <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>
+            {% endfor %}
+        </select>
+        <label for="vehicle_id">{{ t['expense.vehicle'] }} {{ hint(t['form.optional'], t['invoice.vehicle_hint']) }}</label>
+    </div>
+    {% endif %}
+
     <div class="field">
         <textarea id="description" name="description" placeholder="{{ t['ph.invoice.description'] }}" rows="3">{{ request.form.get('description') or (invoice.description or '' if is_edit else '') }}</textarea>
         <label for="description">{{ t['invoice.object'] }}</label>
