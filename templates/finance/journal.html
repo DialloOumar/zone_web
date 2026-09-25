@@ -55,6 +55,7 @@
                 {% if not journal %}<th>{{ t['journal.book'] }}</th>{% endif %}
                 <th>{{ t['journal.piece'] }}</th>
                 <th>{{ t['journal.label'] }}</th>
+                <th>{{ t['journal.how'] }}</th>
                 <th>{{ t['journal.debit'] }}</th>
                 <th>{{ t['journal.credit'] }}</th>
                 <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
@@ -68,6 +69,8 @@
                 {% if not journal %}<td><span class="chip">{{ t['journal.' + r.journal] }}</span></td>{% endif %}
                 <td class="muted small">{{ r.piece }}</td>
                 <td>{{ r.label }}{% if r.who %}<div class="muted small">{{ r.who }}</div>{% endif %}</td>
+                {# How the money moved: transfer, cheque, cash, mobile money, and the reference. #}
+                <td class="muted small" style="white-space:nowrap;">{% if r.method %}{{ t['pay.' + r.method] if ('pay.' + r.method) in t else r.method }}{% endif %}{% if r.reference %}<div>{{ r.reference }}</div>{% endif %}</td>
                 {% for side in ('debit', 'credit') %}
                 <td>
                     {% set code = r[side] %}

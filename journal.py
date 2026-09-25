@@ -32,10 +32,11 @@ CODABLE = {"expense", "supplier_invoice", "bank_charge", "client_invoice_line"}
 
 
 def _line(journal, kind, row, date, label, amount, debit, credit, piece=None,
-          who=None, codable=False, code_side=None):
+          who=None, codable=False, code_side=None, method=None, reference=None):
     return dict(journal=journal, kind=kind, id=row.id, date=date, label=label or "",
                 amount=int(amount or 0), debit=debit, credit=credit, piece=piece or "",
                 who=who or "", codable=codable, code_side=code_side,
+                method=method or "", reference=reference or "",
                 complete=bool(debit and credit))
 
 
@@ -66,7 +67,8 @@ def lines(date_from=None, date_to=None, journal=None):
                 x.description or x.label or x.category,
                 x.amount, debit=x.ledger_code, credit=_purse_code(x.account) if x.account_id else till,
                 piece=(x.supplier_payment.invoice.number if settles and x.supplier_payment.invoice else None),
-                who=who, codable=not settles, code_side="debit"))
+                who=who, codable=not settles, code_side="debit",
+                method=x.payment_method, reference=x.payment_reference))
         # Money in and out of the box, against the purse. The money-in the
         # app wrote for a cost a purse paid is not a movement of its own:
         # that money is the cost above.
@@ -74,10 +76,12 @@ def lines(date_from=None, date_to=None, journal=None):
             purse = _purse_code(m.account)
             if m.kind == "depot":
                 out.append(_line("caisse", "cash_movement", m, m.date, m.note or m.source or "Entrée en caisse",
-                                 m.amount, debit=till, credit=purse, who=m.account.name if m.account else None))
+                                 m.amount, debit=till, credit=purse, who=m.account.name if m.account else None,
+                                 method=m.method, reference=m.reference))
             else:
                 out.append(_line("caisse", "cash_movement", m, m.date, m.note or m.source or "Retrait de caisse",
-                                 m.amount, debit=purse, credit=till, who=m.account.name if m.account else None))
+                                 m.amount, debit=purse, credit=till, who=m.account.name if m.account else None,
+                                 method=m.method, reference=m.reference))
 
     if journal in (None, "banque"):
         # A bill's instalment from a bank account: the supplier's account
@@ -87,11 +91,13 @@ def lines(date_from=None, date_to=None, journal=None):
             out.append(_line("banque", "supplier_payment", p, p.date,
                              "Règlement facture" + (" " + inv.number if inv and inv.number else ""),
                              p.amount, debit=p.ledger_code, credit=_purse_code(p.account),
-                             piece=inv.number if inv else None, who=inv.supplier.name if inv and inv.supplier else None))
+                             piece=inv.number if inv else None, who=inv.supplier.name if inv and inv.supplier else None,
+                             method=p.method, reference=p.reference))
         for c in within(BankCharge.query, BankCharge.date).all():
             out.append(_line("banque", "bank_charge", c, c.date, c.description or c.payee, c.amount,
-                             debit=c.ledger_code, credit=_purse_code(c.account), piece=c.reference,
-                             who=c.payee, codable=True, code_side="debit"))
+                             debit=c.ledger_code, credit=_purse_code(c.account),
+                             who=c.payee, codable=True, code_side="debit",
+                             method=c.method, reference=c.reference))
 
     if journal in (None, "achats"):
         # A bill as received: the charge against the supplier's account.
@@ -121,7 +127,8 @@ def lines(date_from=None, date_to=None, journal=None):
                              "Encaissement" + (" " + inv.number if inv and inv.number else ""),
                              p.amount, debit=_purse_code(p.account) if p.account_id else till,
                              credit=p.ledger_code, piece=inv.number if inv else None,
-                             who=inv.client.name if inv and inv.client else None))
+                             who=inv.client.name if inv and inv.client else None,
+                             method=p.method, reference=p.reference))
 
     out.sort(key=lambda r: (r["date"], r["journal"], r["id"]), reverse=True)
     return out
@@ -154,12 +161,13 @@ def set_code(kind, row_id, code):
 
 def to_csv(rows, labels):
     """One row per side, the flat form accounting packages import:
-    date;journal;pièce;compte;libellé du compte;libellé;tiers;débit;crédit"""
+    date;journal;pièce;compte;intitulé;libellé;tiers;mode;référence;débit;crédit"""
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";", lineterminator="\n")
-    w.writerow(["date", "journal", "piece", "compte", "intitule", "libelle", "tiers", "debit", "credit"])
+    w.writerow(["date", "journal", "piece", "compte", "intitule", "libelle", "tiers", "mode", "reference", "debit", "credit"])
     for r in sorted(rows, key=lambda r: (r["date"], r["journal"], r["id"])):
         base = [r["date"], r["journal"].upper(), r["piece"]]
-        w.writerow(base + [r["debit"] or "", labels.get(r["debit"], ""), r["label"], r["who"], r["amount"], ""])
-        w.writerow(base + [r["credit"] or "", labels.get(r["credit"], ""), r["label"], r["who"], "", r["amount"]])
+        tail = [r["who"], r["method"], r["reference"]]
+        w.writerow(base + [r["debit"] or "", labels.get(r["debit"], ""), r["label"]] + tail + [r["amount"], ""])
+        w.writerow(base + [r["credit"] or "", labels.get(r["credit"], ""), r["label"]] + tail + ["", r["amount"]])
     return buf.getvalue()
