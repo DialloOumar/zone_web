@@ -32,7 +32,7 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
-from ledger import ensure_supplier_account, labels_for, read_code, used_accounts, used_accounts_in
+from ledger import charge_accounts, ensure_supplier_account, labels_for, read_code, used_accounts_in
 from models import (BankCharge, CashAccount, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
                     Vehicle, db)
 
@@ -225,8 +225,9 @@ def _read_invoice_form():
         if not po or po.supplier_id != supplier_id or po.status not in ("approved", "received_partial", "received"):
             return None, t["invoice.err.order"]
 
-    # The account on the plan, for the journal. Optional.
-    ledger_code, ok = read_code(request.form)
+    # The charge on the plan, for the journal. Optional. Never the
+    # supplier's account: that is what the settlements carry.
+    ledger_code, ok = read_code(request.form, allowed=charge_accounts())
     if not ok:
         return None, t["ledger.err.unknown"]
 
@@ -306,7 +307,7 @@ def _render_invoice_form(inv, error=None):
     preset = db.session.get(PurchaseOrder, request.args.get("po", type=int) or 0) if inv is None else None
     return render_template(tpl, invoice=inv, error=error,
                            suppliers=active_suppliers(), orders_json=orders_json,
-                           preset_po=preset, ledger_accounts=used_accounts(),
+                           preset_po=preset, ledger_accounts=charge_accounts(),
                            today=date.today().isoformat()), status
 
 
@@ -534,7 +535,7 @@ def _read_charge_form():
     payee = (request.form.get("payee") or "").strip()[:120]
     if not payee:
         return None, t["bank.err.payee"]
-    ledger_code, ok = read_code(request.form)
+    ledger_code, ok = read_code(request.form, allowed=charge_accounts())
     if not ok:
         return None, t["ledger.err.unknown"]
     return dict(account_id=account_id, date=date_str, amount=amount, currency="GNF",
@@ -548,7 +549,7 @@ def _render_charge_form(row, error=None):
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, charge=row, invoice=row, error=error,
                            accounts=active_accounts(), methods=BANK_METHODS,
-                           ledger_accounts=used_accounts(),
+                           ledger_accounts=charge_accounts(),
                            today=date.today().isoformat()), status
 
 
@@ -814,10 +815,8 @@ def _save_supplier(row, parts_only=False):
     if not parts_only:
         # His account on the plan, set by hand; left empty, it is made under
         # 4011 the first time a bill or a payment names him.
-        code, ok = read_code(request.form)
+        code, ok = read_code(request.form, allowed=used_accounts_in((4,)))
         if not ok:
-            return t["ledger.err.unknown"]
-        if code and code[0] != "4":
             return t["supplier.err.class"]
         row.ledger_code = code
     # A new supplier is coded in its kind's series; one that changes kind moves

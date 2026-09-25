@@ -19,7 +19,7 @@ from flask_login import current_user, login_required
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, parse_amount, require_perm,
                  submit_change, with_current_fleet)
-from ledger import ensure_purse_account, ensure_supplier_account, read_code, used_accounts
+from ledger import charge_accounts, ensure_purse_account, ensure_supplier_account, read_code
 from models import (CashAccount, CashMovement, Expense, Fleet, Site,
                     Staff, SupplierInvoice, SupplierPayment, Vehicle, db)
 
@@ -257,7 +257,7 @@ def _read_expense_form(expense):
 
     # The account on the plan, for the journal. Optional: picked now or when
     # the comptable reviews the month.
-    ledger_code, ok = read_code(request.form)
+    ledger_code, ok = read_code(request.form, allowed=charge_accounts())
     if not ok:
         return None, t["ledger.err.unknown"]
 
@@ -352,7 +352,7 @@ def _form_context(expense):
             expense.supplier_payment.invoice if expense is not None
             and expense.supplier_payment else None),
         "last_site_id": last.site_id if last else None,
-        "ledger_accounts": used_accounts(),
+        "ledger_accounts": charge_accounts(),
         "today": date.today().isoformat(),
     }
 

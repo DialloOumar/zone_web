@@ -33,7 +33,7 @@ from amount_words import amount_in_words
 from app import (_get_setting, current_lang, current_user_fleet_ids, get_t, has_perm,
                  is_modal_request, log_action, modal_ok, parse_amount, require_perm)
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
-from ledger import labels_for, read_code, used_accounts
+from ledger import labels_for, read_code, revenue_accounts
 from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine,
                     ClientPayment, ClientRate, DailyEntry, Vehicle, db)
 
@@ -279,7 +279,7 @@ def invoice_new():
             return redirect(url_for("invoicing.invoice_new", client_id=client.id, month=month))
         # The revenue account, for the journal: one pick, written on every
         # line, since a month's lines are all the same kind of sale.
-        ledger_code, ok = read_code(request.form)
+        ledger_code, ok = read_code(request.form, allowed=revenue_accounts())
         if not ok:
             flash("error|" + t["ledger.err.unknown"])
             return redirect(url_for("invoicing.invoice_new", client_id=client.id, month=month))
@@ -322,7 +322,7 @@ def invoice_new():
                            # whoever issues the bill is its contact, unless they say otherwise
                            default_contact_name=current_user.full_name,
                            default_contact_phone=current_user.phone or current_user.email or "",
-                           ledger_accounts=used_accounts(),
+                           ledger_accounts=revenue_accounts(),
                            today=date.today().isoformat())
 
 

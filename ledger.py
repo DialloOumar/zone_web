@@ -34,15 +34,20 @@ def used_accounts():
             .order_by(LedgerAccount.code).all())
 
 
-def read_code(form, field="ledger_code"):
+def read_code(form, field="ledger_code", allowed=None):
     """The code a form sent, or None. Returns (code, ok): a code that is not
-    on the shortlist is refused, an empty one is fine."""
+    on the shortlist -- or not among `allowed`, the accounts the form's
+    picker offered -- is refused, an empty one is fine."""
     code = (form.get(field) or "").strip()
     if not code:
         return None, True
     row = (LedgerAccount.query
            .filter_by(code=code, is_active=True, is_used=True).first())
-    return (row.code, True) if row else (None, False)
+    if not row:
+        return None, False
+    if allowed is not None and code not in {a.code for a in allowed}:
+        return None, False
+    return row.code, True
 
 
 def till_code():
@@ -58,6 +63,23 @@ def set_till_code(code, user_id=None):
         db.session.add(row)
     row.value = code or ""
     row.updated_by = user_id
+
+
+def charge_accounts():
+    """What a cost, a bill or a bank charge may be coded to: the shortlist
+    without the suppliers' accounts (40x), the treasury (class 5) and the
+    revenue (class 7). A supplier is never paid by picking his account; he
+    is paid through his bill, which codes the settlement to his account by
+    itself. Treasury is the purses' side, set on Comptes, never a line's.
+    Taxes (44x), staff (42x), loans (16x), equipment (class 2) stay, since
+    they are paid straight."""
+    return [a for a in used_accounts()
+            if not a.code.startswith("40") and a.klass not in (5, 7)]
+
+
+def revenue_accounts():
+    """What a client invoice line may be coded to: the shortlist's class 7."""
+    return [a for a in used_accounts() if a.klass == 7]
 
 
 def used_accounts_in(classes):
