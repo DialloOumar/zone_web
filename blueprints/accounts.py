@@ -12,11 +12,11 @@ whoever may spend from the box or record a bill.
 """
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
-from flask_login import login_required
+from flask_login import current_user, login_required
 
 from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm
 from blueprints.expenses import _save_list_row
-from ledger import labels_for, used_accounts_in
+from ledger import labels_for, read_code, set_till_code, till_code, used_accounts_in
 from models import BankCharge, CashAccount, CashMovement, Expense, SupplierPayment, db
 
 accounts_bp = Blueprint("accounts", __name__)
@@ -69,7 +69,26 @@ def index():
         accounts=CashAccount.query.order_by(CashAccount.sort_order,
                                             CashAccount.name).all(),
         used=_used_ids(), paid=_paid_to_suppliers(),
-        code_labels=labels_for([a.ledger_code for a in CashAccount.query.all()]))
+        till=till_code(), till_accounts=used_accounts_in((5,)),
+        code_labels=labels_for([a.ledger_code for a in CashAccount.query.all()] + [till_code()]))
+
+
+@accounts_bp.route("/comptes/caisse", methods=["POST"])
+@login_required
+@require_any_perm(*MANAGE)
+def till():
+    """The cash box's own account on the plan: the counterpart of every
+    cost paid in cash, for the journal de caisse."""
+    t = get_t()
+    code, ok = read_code(request.form)
+    if not ok or (code and code[0] != "5"):
+        flash("error|" + t["accounts.err.till_class"])
+    else:
+        set_till_code(code, current_user.id)
+        log_action("UPDATE", "setting", detail="Till account set to %s" % (code or "none"))
+        db.session.commit()
+        flash("success|" + t["accounts.till_saved"])
+    return redirect(url_for("accounts.index"))
 
 
 def _render_form(row, error=None):

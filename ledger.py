@@ -5,7 +5,11 @@ on their lines, for the journal the comptable imports. The pickers offer the
 accounts marked used on the plan and nothing else; the code starts empty and
 is filled by hand, at entry or later.
 """
-from models import LedgerAccount, db
+from models import AppSetting, LedgerAccount, db
+
+# The till itself is not a purse on Comptes ("paid from the box" is the
+# absence of one), so its account lives in a setting: 571 in practice.
+TILL_KEY = "ledger.till_code"
 
 # Where suppliers live on the plan: each permanent one under 4011 with his FP
 # number, the occasional ones together on one sub-account.
@@ -30,6 +34,21 @@ def read_code(form, field="ledger_code"):
     row = (LedgerAccount.query
            .filter_by(code=code, is_active=True, is_used=True).first())
     return (row.code, True) if row else (None, False)
+
+
+def till_code():
+    """The account of the plan the cash box is, or None until it is set."""
+    row = db.session.get(AppSetting, TILL_KEY)
+    return (row.value or None) if row else None
+
+
+def set_till_code(code, user_id=None):
+    row = db.session.get(AppSetting, TILL_KEY)
+    if row is None:
+        row = AppSetting(key=TILL_KEY, value=code or "", label="Compte de la caisse", category="finance")
+        db.session.add(row)
+    row.value = code or ""
+    row.updated_by = user_id
 
 
 def used_accounts_in(classes):

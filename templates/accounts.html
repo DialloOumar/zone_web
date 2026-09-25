@@ -11,6 +11,32 @@
        class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
 </div>
 
+{# The cash box itself, first: it is not a purse in the list below (that
+   list says where money comes from into the box), but the journal de caisse
+   needs its account all the same. #}
+{% if till_accounts %}
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ t['accounts.till'] }}</h2>
+            <p class="muted small" style="margin:4px 0 0;">{{ t['accounts.till_hint'] }}</p>
+        </div>
+    </div>
+    <form method="post" action="{{ url_for('accounts.till') }}" class="entry-form" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="field field--select" style="flex:1 1 260px; margin:0;">
+            <select id="till_code" name="ledger_code">
+                <option value="">{{ t['ledger.none'] }}</option>
+                {% for a in till_accounts %}
+                <option value="{{ a.code }}" {% if a.code == till %}selected{% endif %}>{{ a.code }} — {{ a.label }}</option>
+                {% endfor %}
+            </select>
+            <label for="till_code">{{ t['ledger.account'] }}</label>
+        </div>
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+    </form>
+</section>
+{% endif %}
+
 <section class="card">
     <div class="card-header">
         <div>
