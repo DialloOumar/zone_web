@@ -7,44 +7,12 @@
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('expenses.edit', xid=expense.id) if is_edit else url_for('expenses.new') }}">
 
-    <div class="form-row">
-        <div class="field">
-            <input type="date" id="date" name="date" placeholder=" " required
-                   value="{{ request.form.get('date') or (expense.date if is_edit else today) }}">
-            <label for="date">{{ t['expense.date'] }}</label>
-        </div>
-        <div class="field field--select">
-            {# Pre-set to the last site used: in a day most costs are the same one. #}
-            {% set sel_site = request.form.get('site_id')|int(0)
-                              or (expense.site_id if is_edit else (last_site_id or 0)) %}
-            <select id="site_id" name="site_id">
-                <option value="">{{ t['expense.no_site'] }}</option>
-                {% for s in sites %}
-                <option value="{{ s.id }}" {% if s.id == sel_site %}selected{% endif %}>{{ s.name }}</option>
-                {% endfor %}
-            </select>
-            <label for="site_id">{{ t['expense.site'] }}</label>
-        </div>
-    </div>
-
-    {# A machine belongs to a cost that happened somewhere. Without a site this
-       is the office's own spending, which is for no machine, so the field is
-       not merely empty -- it is not there. #}
-    <div class="field field--select" id="field-vehicle">
-        {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else 0) %}
-        <select id="vehicle_id" name="vehicle_id">
-            <option value="">{{ t['expense.no_vehicle'] }}</option>
-            {% for v in vehicles %}
-            <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>
-            {% endfor %}
-        </select>
-        <label for="vehicle_id">{{ t['expense.vehicle'] }}</label>
-    </div>
-
-    {# The supplier's bill this cost settles. Only shown when there is a bill
-       still owing something: most costs settle nothing. Choosing one records
-       the instalment on that bill -- this is the only way the cash box's money
-       reaches a bill, so it is never entered twice. #}
+    {# First: the supplier's bill this cost settles, when it settles one.
+       Only shown when there is a bill still owing something. Choosing one
+       records the instalment on that bill -- the only way the cash box's
+       money reaches a bill -- and folds away what a settlement does not
+       need: the site, the machine, the person, the account code (the
+       supplier's, set by the app). #}
     {% if invoices %}
     <div class="field field--select">
         {% set cur_inv = expense.supplier_payment.invoice_id if is_edit and expense.supplier_payment else 0 %}
@@ -62,6 +30,42 @@
     </div>
     {% endif %}
 
+    <div class="field">
+        <input type="date" id="date" name="date" placeholder=" " required
+               value="{{ request.form.get('date') or (expense.date if is_edit else today) }}">
+        <label for="date">{{ t['expense.date'] }}</label>
+    </div>
+
+    {# What a settlement does not need, folded away when a bill is chosen:
+       where, for which machine, for whom. The server drops them too. #}
+    <div id="not-for-bill">
+    <div class="form-row">
+        <div class="field field--select">
+            {# Pre-set to the last site used: in a day most costs are the same one. #}
+            {% set sel_site = request.form.get('site_id')|int(0)
+                              or (expense.site_id if is_edit else (last_site_id or 0)) %}
+            <select id="site_id" name="site_id">
+                <option value="">{{ t['expense.no_site'] }}</option>
+                {% for s in sites %}
+                <option value="{{ s.id }}" {% if s.id == sel_site %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="site_id">{{ t['expense.site'] }}</label>
+        </div>
+    {# A machine belongs to a cost that happened somewhere. Without a site this
+       is the office's own spending, which is for no machine, so the field is
+       not merely empty -- it is not there. #}
+    <div class="field field--select" id="field-vehicle">
+        {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else 0) %}
+        <select id="vehicle_id" name="vehicle_id">
+            <option value="">{{ t['expense.no_vehicle'] }}</option>
+            {% for v in vehicles %}
+            <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>
+            {% endfor %}
+        </select>
+        <label for="vehicle_id">{{ t['expense.vehicle'] }}</label>
+    </div>
+
     {# Who the money went out for. Hidden entirely until there is somebody to
        pick: an empty dropdown on every cost teaches people to ignore it. #}
     {% if staff %}
@@ -76,6 +80,7 @@
         <label for="staff_id">{{ t['expense.staff'] }} {{ hint(t['form.optional'], t['expense.staff_hint']) }}</label>
     </div>
     {% endif %}
+    </div>
 
     <div class="form-row">
         <div class="field">
@@ -113,12 +118,21 @@
     </div>
     <div id="ledger-locked" class="field-hint" hidden>{{ t['expense.invoice_coded'] }}</div>
     <script>
-    // A cost that settles a bill is coded to the supplier's account by the
-    // app; the picker only applies to a cost with no bill behind it.
+    // A cost that settles a bill needs only the money's side: date, amount,
+    // how and from where. The site, the machine, the person and the account
+    // code fold away and are cleared (the code is the supplier's, set by the
+    // app). The server holds the same rule.
     (function () {
-        var inv = document.getElementById('invoice_id'), f = document.getElementById('ledger-field'), n = document.getElementById('ledger-locked');
-        if (!inv || !f || !n) return;
-        function refresh() { var on = !!inv.value; f.hidden = on; n.hidden = !on; }
+        var inv = document.getElementById('invoice_id'), rest = document.getElementById('not-for-bill'),
+            f = document.getElementById('ledger-field'), n = document.getElementById('ledger-locked');
+        if (!inv) return;
+        function refresh() {
+            var on = !!inv.value;
+            if (rest) { rest.hidden = on; if (on) rest.querySelectorAll('select').forEach(function (s) { s.value = ''; s.dispatchEvent(new Event('change')); }); }
+            if (f) f.hidden = on;
+            if (n) n.hidden = !on;
+            if (on && f) { var sel = f.querySelector('select'); if (sel) sel.value = ''; }
+        }
         inv.addEventListener('change', refresh); refresh();
     })();
     </script>

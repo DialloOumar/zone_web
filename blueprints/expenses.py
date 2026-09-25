@@ -261,6 +261,12 @@ def _read_expense_form(expense):
     if not ok:
         return None, t["ledger.err.unknown"]
 
+    if invoice_id:
+        # A settlement is money against a bill, nothing more: no site, no
+        # machine, no person, and its code is the supplier's (set on sync).
+        site_id = vehicle_id = staff_id = None
+        ledger_code = None
+
     common.update(vehicle_id=vehicle_id, fleet_id=None, label=None, operator=None,
                   supplier=None, site_id=site_id, liters=None,
                   account_id=account_id, staff_id=staff_id, ledger_code=ledger_code,
