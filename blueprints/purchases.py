@@ -28,7 +28,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app import (_get_setting, current_lang, get_t, has_perm, log_action,
                  parse_amount, require_perm)
-from blueprints.stock import active_units, unit_codes
+from blueprints.stock import active_units, all_active_units, buying_units_for, unit_codes
 from blueprints.supplier_invoices import _save_supplier, parts_suppliers
 from models import Part, PurchaseOrder, PurchaseOrderLine, StockMovement, Supplier, db
 
@@ -157,12 +157,18 @@ def _read_form(po):
         if price is None or price < 0:
             return None, None, t["po.err.price"]
         discount = 0     # no discount is typed any more; the column stays, at zero
-        # Per pack only when the part has one: "1 fût" is meaningless on a
-        # part sold by the unit.
-        in_pack = bool(part and part.pack_size and unit_choice == "pack")
+        # What the line is bought in: the part's own unit, or a buying unit
+        # that converts to it ("fût" for a part counting in litres). The
+        # conversion is copied onto the line as it stands today.
+        buy_unit, factor = None, 1.0
+        if part and unit_choice and unit_choice != "stock":
+            bu = next((u for u in buying_units_for(part.unit) if u.code == unit_choice), None)
+            if not bu:
+                return None, None, t["po.err.buy_unit"]
+            buy_unit, factor = bu.code, float(bu.factor)
         lines.append(dict(part_id=part.id if part else None,
                           description=(desc or part.name)[:160], reference=ref[:60] or None,
-                          quantity=qty, in_pack=in_pack, unit_price=price, discount=discount,
+                          quantity=qty, buy_unit=buy_unit, factor=factor, unit_price=price, discount=discount,
                           new_unit=None if part else new_unit,
                           amount=int(round(qty * price)) - discount))
     if not lines:
@@ -177,7 +183,7 @@ def _render_form(po, error=None, lines=None):
     if lines is None:
         lines = [dict(part_id=l.part_id, description=l.description, reference=l.reference or "",
                       quantity=l.quantity, unit_price=l.unit_price, discount=l.discount,
-                      unit="pack" if l.in_pack else "stock", new_unit=l.new_unit,
+                      unit=l.buy_unit or "stock", new_unit=l.new_unit,
                       mode="stock" if l.part_id else "new")
                  for l in (po.lines if po else [])]
     if request.method == "POST":
@@ -190,8 +196,11 @@ def _render_form(po, error=None, lines=None):
     t = get_t()
     parts = Part.query.filter(Part.is_active.is_(True)).order_by(Part.name).all()
     from app import _unit_label
+    # For each part: its own unit and the buying units that convert to it,
+    # so the line's unit box offers "litre" or "fût (200 litre)".
     parts_json = [dict(id=p.id, name=p.name, unit=_unit_label(p.unit),
-                       pack=p.pack_name or "", size=(("%g" % p.pack_size) if p.pack_size else ""))
+                       buy=[dict(code=u.code, name=u.name, factor=u.factor)
+                            for u in buying_units_for(p.unit)])
                   for p in parts]
     return render_template("purchase_order_form.html", po=po, error=error, lines=lines,
                            suppliers=parts_suppliers(), parts_json=parts_json,

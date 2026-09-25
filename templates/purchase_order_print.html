@@ -110,7 +110,7 @@
             <td class="num">{{ loop.index }}</td>
             <td>{{ l.description }}</td>
             <td>{{ l.reference or '' }}</td>
-            <td class="r">{{ l.quantity | qty }}{% if l.in_pack %} {{ l.part.pack_name }} ({{ l.stock_qty | qty }} {{ unit_label(l.part.unit) }}){% elif l.part %} {{ unit_label(l.part.unit) }}{% elif l.new_unit %} {{ unit_label(l.new_unit) }}{% endif %}</td>
+            <td class="r">{{ l.quantity | qty }}{% if l.buy_unit %} {{ unit_label(l.buy_unit) }} ({{ l.stock_qty | qty }} {{ unit_label(l.part.unit) }}){% elif l.part %} {{ unit_label(l.part.unit) }}{% elif l.new_unit %} {{ unit_label(l.new_unit) }}{% endif %}</td>
             <td class="r">{{ l.unit_price | num }}</td>
             <td class="r">{{ l.amount | num }}</td>
         </tr>

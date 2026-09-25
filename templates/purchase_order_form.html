@@ -83,9 +83,10 @@
                     <td><input type="text" name="reference" placeholder="{{ t['po.line_reference'] }}" value="{{ l.reference or '' }}" maxlength="60"></td>
                     <td><input type="number" name="quantity" min="0" step="any" class="r" value="{{ l.quantity }}" required></td>
                     <td class="po-unit-cell">
-                        <select name="unit" class="po-unit" hidden>
-                            <option value="stock" {% if l.unit != 'pack' %}selected{% endif %}></option>
-                            <option value="pack" {% if l.unit == 'pack' %}selected{% endif %}></option>
+                        {# The part's own unit, or a buying unit that converts to it;
+                           options are filled from the catalogue when the part is known. #}
+                        <select name="unit" class="po-unit" hidden data-chosen="{{ l.unit or 'stock' }}">
+                            <option value="stock"></option>
                         </select>
                         <select name="new_unit" class="po-unit po-new-unit" aria-label="{{ t['part.unit'] }}">
                             {% for u in units %}<option value="{{ u.code }}" {% if (l.new_unit or units[0].code) == u.code %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
@@ -137,7 +138,7 @@
         <td><input type="text" name="reference" placeholder="{{ t['po.line_reference'] }}" maxlength="60"></td>
         <td><input type="number" name="quantity" min="0" step="any" class="r" value="1" required></td>
         <td class="po-unit-cell">
-            <select name="unit" class="po-unit" hidden><option value="stock"></option><option value="pack"></option></select>
+            <select name="unit" class="po-unit" hidden data-chosen="stock"><option value="stock"></option></select>
             <select name="new_unit" class="po-unit po-new-unit" aria-label="{{ t['part.unit'] }}">
                 {% for u in units %}<option value="{{ u.code }}">{{ u.name }}</option>{% endfor %}
             </select>
@@ -195,10 +196,18 @@
         sel.hidden = !stock;
         sel.classList.toggle('is-idle', stock && !found);
         if (!stock) return;
-        if (!found) { sel.options[0].textContent = '—'; sel.options[1].hidden = true; sel.value = 'stock'; sel.title = ''; return; }
-        sel.options[0].textContent = found.unit;
-        if (found.pack) { sel.options[1].textContent = found.pack + ' (' + found.size + ' ' + found.unit + ')'; sel.options[1].hidden = false; }
-        else { sel.options[1].hidden = true; sel.value = 'stock'; }
+        if (!found) { sel.innerHTML = '<option value="stock">—</option>'; sel.value = 'stock'; sel.title = ''; return; }
+        // The part's own unit first, then every buying unit that converts to it.
+        var want = sel.dataset.chosen || 'stock';
+        if (sel.dataset.part !== String(found.id)) {
+            sel.innerHTML = '';
+            var o = document.createElement('option'); o.value = 'stock'; o.textContent = found.unit; sel.appendChild(o);
+            (found.buy || []).forEach(function (u) {
+                var b = document.createElement('option'); b.value = u.code; b.textContent = u.name + ' (' + u.factor + ' ' + found.unit + ')'; sel.appendChild(b);
+            });
+            sel.dataset.part = String(found.id);
+            sel.value = want; if (sel.selectedIndex < 0) sel.value = 'stock';
+        }
         sel.title = sel.options[sel.selectedIndex].textContent;
     }
     // The catalogue list under the field: all of it when opened with the
@@ -211,7 +220,7 @@
             var it = document.createElement('div'); it.className = 'po-combo__item'; it.dataset.name = p.name;
             it.innerHTML = '<span></span><small></small>';
             it.firstChild.textContent = p.name;
-            it.lastChild.textContent = p.unit + (p.pack ? ' · ' + p.pack + ' ' + p.size : '');
+            it.lastChild.textContent = p.unit + ((p.buy || []).length ? ' · ' + p.buy.map(function (u) { return u.name; }).join(', ') : '');
             list.appendChild(it); n++;
         });
         if (!n) { var e = document.createElement('div'); e.className = 'po-combo__empty'; e.textContent = NO_MATCH; list.appendChild(e); }
@@ -241,6 +250,7 @@
     });
     table.addEventListener('change', function (e) {
         if (e.target.classList.contains('po-stock-box')) { var row = e.target.closest('.po-line'); closeLists(); syncRow(row); }
+        if (e.target.name === 'unit') { e.target.dataset.chosen = e.target.value; e.target.title = e.target.options[e.target.selectedIndex].textContent; }
     });
     table.addEventListener('focusin', function (e) {
         if (e.target.name === 'description') { var row = e.target.closest('.po-line'); if (row.querySelector('.po-stock-box').checked) openList(row, e.target.value); }

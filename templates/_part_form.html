@@ -23,22 +23,7 @@
                 <option value="{{ sel_u }}" selected>{{ unit_label(sel_u) }}</option>
                 {% endif %}
             </select>
-            <label for="unit">{{ t['part.unit'] }}</label>
-        </div>
-    </div>
-
-    {# What the supplier sells it in, when that is not what the store counts:
-       a drum of 200 litres. Left empty for a part bought by the unit. #}
-    <div class="form-row">
-        <div class="field">
-            <input type="text" id="pack_name" name="pack_name" placeholder=" " maxlength="40"
-                   value="{{ request.form.get('pack_name') or (part.pack_name or '' if is_edit else '') }}">
-            <label for="pack_name">{{ t['part.pack_name'] }} {{ hint('', t['part.pack_hint']) }}</label>
-        </div>
-        <div class="field">
-            <input type="number" id="pack_size" name="pack_size" placeholder=" " min="0" step="any"
-                   value="{{ request.form.get('pack_size') or (part.pack_size | qty if is_edit and part.pack_size else '') }}">
-            <label for="pack_size">{{ t['part.pack_size'] }}</label>
+            <label for="unit">{{ t['part.unit'] }} {{ hint('', t['part.unit_hint']) }}</label>
         </div>
     </div>
 

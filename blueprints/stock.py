@@ -23,7 +23,7 @@ from flask_login import current_user, login_required
 import s3_storage
 from app import (slugify, get_t, is_modal_request, log_action, modal_ok,
                  require_perm)
-from models import Part, PartUnit, StockMovement, db
+from models import Part, PartUnit, PurchaseOrderLine, StockMovement, db
 
 stock_bp = Blueprint("stock", __name__, url_prefix="/stock")
 
@@ -33,12 +33,25 @@ stock_bp = Blueprint("stock", __name__, url_prefix="/stock")
 
 
 def active_units():
+    """The units a part may count in: the active ones that are not
+    buying units."""
+    return [u for u in all_active_units() if not u.is_buying]
+
+
+def all_active_units():
     return (PartUnit.query.filter(PartUnit.is_active.is_(True))
             .order_by(PartUnit.sort_order, PartUnit.name).all())
 
 
+def buying_units_for(unit_code):
+    """The active buying units that convert to a counting unit: what an
+    order line for a part counting in litres may be written in."""
+    return [u for u in all_active_units() if u.is_buying and u.base_code == unit_code]
+
+
 def unit_codes():
-    return {u.code for u in PartUnit.query.all()}
+    """The codes a part may count in."""
+    return {u.code for u in PartUnit.query.all() if not u.is_buying}
 
 # Kinds the store screen writes directly. "sortie" and "retour" are written by
 # a service record, so they are read-only here — they show in the history but
@@ -160,14 +173,7 @@ def _read_part_form(part):
     if bad or (reorder is not None and reorder < 0):
         return None, t.get("part.err.reorder", "Seuil invalide.")
 
-    # A pack needs both a name and a content; one without the other is a slip.
-    pack_name = (request.form.get("pack_name") or "").strip()[:40] or None
-    pack_size, bad = _num(request.form.get("pack_size"), float)
-    if bad or (pack_size is not None and pack_size <= 0) or bool(pack_name) != bool(pack_size):
-        return None, t.get("part.err.pack", "Indiquez le nom du conditionnement et son contenu, ou aucun des deux.")
-
-    return dict(name=name, unit=unit, reorder_level=reorder,
-                pack_name=pack_name, pack_size=pack_size), None
+    return dict(name=name, unit=unit, reorder_level=reorder), None
 
 
 _PHOTO_ERR_KEYS = {
@@ -351,8 +357,12 @@ def _render_units(error=None):
     as a page of its own otherwise."""
     rows = PartUnit.query.order_by(PartUnit.sort_order, PartUnit.name).all()
     used = dict(db.session.query(Part.unit, db.func.count(Part.id)).group_by(Part.unit).all())
+    # A buying unit is "used" by the order lines written in it.
+    used.update(dict(db.session.query(PurchaseOrderLine.buy_unit, db.func.count(PurchaseOrderLine.id))
+                     .filter(PurchaseOrderLine.buy_unit.isnot(None)).group_by(PurchaseOrderLine.buy_unit).all()))
+    names = {u.code: u.name for u in rows}
     tpl = "_part_units_modal.html" if is_modal_request() else "part_units.html"
-    return render_template(tpl, units=rows, used=used, error=error), (422 if error else 200)
+    return render_template(tpl, units=rows, used=used, names=names, error=error), (422 if error else 200)
 
 
 def _render_unit_form(row, error=None):
@@ -362,7 +372,7 @@ def _render_unit_form(row, error=None):
         return _render_units(error)
     tpl = "_part_unit_form.html" if is_modal_request() else "part_unit_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, row=row, error=error), status
+    return render_template(tpl, row=row, error=error, base_units=active_units()), status
 
 
 def _save_unit(row):
@@ -375,14 +385,39 @@ def _save_unit(row):
         clash = clash.filter(PartUnit.id != row.id)
     if clash.first():
         return t.get("list.err.name_taken", "Ce nom existe déjà.")
+    # A buying unit: what it converts to and how many of it one makes. The
+    # list's quick rename sends the name alone and leaves the conversion.
+    base_code = (request.form.get("base_code") or "").strip() or None
+    factor = None
+    if request.form.get("_list") and row:
+        base_code, factor = row.base_code, row.factor
+    elif base_code:
+        if base_code not in unit_codes():
+            return t["punit.err.base"]
+        try:
+            factor = float(request.form.get("factor") or "")
+        except ValueError:
+            factor = 0
+        if factor <= 0:
+            return t["punit.err.factor"]
+        if row and base_code == row.code:
+            return t["punit.err.base"]
     creating = row is None
     if creating:
         nxt = (db.session.query(db.func.max(PartUnit.sort_order)).scalar() or 0) + 1
         row = PartUnit(code=_unit_code(name), sort_order=nxt)
         db.session.add(row)
+    elif not base_code and row.is_buying and PurchaseOrderLine.query.filter_by(buy_unit=row.code).first():
+        # Lines were bought in it: it stays a buying unit.
+        return t["punit.err.in_use_buying"]
+    elif base_code and not row.is_buying and Part.query.filter_by(unit=row.code).first():
+        # Parts count in it: it stays a counting unit.
+        return t["punit.err.in_use_counting"]
     row.name = name
+    row.base_code, row.factor = base_code, factor
     log_action("CREATE" if creating else "UPDATE", "part_unit", resource_id=row.id,
-               detail="%s unit '%s'" % ("Created" if creating else "Renamed", name))
+               detail="%s unit '%s'%s" % ("Created" if creating else "Edited", name,
+                                          " = %g %s" % (factor, base_code) if base_code else ""))
     db.session.commit()
     return None
 

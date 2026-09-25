@@ -1427,18 +1427,33 @@ class FuelMovement(db.Model):
 
 
 class PartUnit(db.Model):
-    """A unit the store counts in -- pièce, litre, kg, jeu -- kept by the
-    store itself. A part stores the unit's code; the name is what every
-    screen prints. The four starters are seeded; the rest is theirs to add.
-    A unit some part counts in is archived, never deleted."""
+    """A unit, kept by the store itself. Two kinds, one list:
+
+    - a unit the store counts and hands out in -- pièce, litre, kg, jeu.
+      A part stores its code; every screen prints its name.
+    - a unit things are bought in, converting to one of the first kind:
+      a fût of 200 litres, a carton of 12 pièces, a bidon of 20 litres.
+      Defined once here, offered on every order line whose part counts in
+      the unit it converts to; the receipt converts back.
+
+    The four starters are seeded; the rest is theirs to add. A unit in use
+    is archived, never deleted."""
     __tablename__ = "part_units"
 
     id         = db.Column(db.Integer,    primary_key=True)
     code       = db.Column(db.String(20), nullable=False, unique=True)
     name       = db.Column(db.String(40), nullable=False, unique=True)
+    # Set on a buying unit: the counting unit it converts to, and how many
+    # of it one makes. Empty on a counting unit.
+    base_code  = db.Column(db.String(20), nullable=True, index=True)
+    factor     = db.Column(db.Float,      nullable=True)
     sort_order = db.Column(db.Integer,    nullable=False, default=0)
     is_active  = db.Column(db.Boolean,    nullable=False, default=True)
     created_at = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+
+    @property
+    def is_buying(self):
+        return bool(self.base_code and self.factor)
 
 
 class Part(db.Model):
@@ -1453,12 +1468,9 @@ class Part(db.Model):
 
     id            = db.Column(db.Integer,     primary_key=True)
     name          = db.Column(db.String(120), nullable=False)                  # e.g. Filtre à huile Perkins
-    unit          = db.Column(db.String(20),  nullable=False, default="piece")  # piece | litre | kg | set
-    # What the supplier sells it in, when that is not the unit the store
-    # counts: a "fût" of 200 litres. An order may then be written per pack,
-    # and the receipt converts it back to litres.
-    pack_name     = db.Column(db.String(40),  nullable=True)
-    pack_size     = db.Column(db.Float,       nullable=True)   # how many units one pack holds
+    # The unit the store counts and hands it out in. What it is bought in
+    # is chosen per order line, among the buying units that convert to this.
+    unit          = db.Column(db.String(20),  nullable=False, default="piece")  # a PartUnit code
     reorder_level = db.Column(db.Float,       nullable=True)   # below this, the list flags it to re-order
     photo_key     = db.Column(db.String(200), nullable=True)
     is_active     = db.Column(db.Boolean,     nullable=False, default=True)     # soft delete = archive
@@ -1744,9 +1756,13 @@ class PurchaseOrderLine(db.Model):
     part_id     = db.Column(db.Integer,     db.ForeignKey("parts.id"), nullable=True)
     description = db.Column(db.String(160), nullable=False)
     reference   = db.Column(db.String(60),  nullable=True)
-    quantity    = db.Column(db.Float,       nullable=False)   # in packs when in_pack, else in the part's unit
-    in_pack     = db.Column(db.Boolean,     nullable=False, default=False)
-    unit_price  = db.Column(db.Integer,     nullable=False)   # GNF, per pack or per unit likewise
+    quantity    = db.Column(db.Float,       nullable=False)   # in the buying unit
+    # What the line is bought in: a buying unit's code (fût, carton) and how
+    # many of the part's unit one makes, as it was when the line was
+    # written; empty and 1 when bought in the part's own unit.
+    buy_unit    = db.Column(db.String(20),  nullable=True)
+    factor      = db.Column(db.Float,       nullable=False, default=1)
+    unit_price  = db.Column(db.Integer,     nullable=False)   # GNF, per buying unit
     discount    = db.Column(db.Integer,     nullable=False, default=0)   # GNF, on the line
     amount      = db.Column(db.Integer,     nullable=False)   # quantity × price − discount
     received_qty = db.Column(db.Float,      nullable=False, default=0)   # in the part's unit
@@ -1760,11 +1776,9 @@ class PurchaseOrderLine(db.Model):
 
     @property
     def stock_qty(self):
-        """The line in the store's own unit: packs × contents when bought
-        per pack, the quantity itself otherwise."""
-        if self.in_pack and self.part and self.part.pack_size:
-            return self.quantity * self.part.pack_size
-        return self.quantity
+        """The line in the store's own unit: quantity × what one buying
+        unit makes."""
+        return self.quantity * (self.factor or 1)
 
     @property
     def remaining_qty(self):

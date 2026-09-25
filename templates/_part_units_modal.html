@@ -10,6 +10,7 @@
         <input type="hidden" name="_list" value="1">
         <input type="text" name="name" placeholder="{{ t['punit.name_ph'] }}" required maxlength="40" aria-label="{{ t['punit.name'] }}">
         <button type="submit" class="btn btn--sm btn--primary"><span class="material-symbols-outlined">add</span> {{ t['punit.new'] }}</button>
+        <a href="{{ url_for('stock.unit_new') }}" class="btn btn--sm btn--tonal" data-modal-url="{{ url_for('stock.unit_new') }}" data-modal-title="{{ t['punit.new_buying'] }}">{{ t['punit.new_buying'] }}</a>
     </form>
 
     <div class="table-wrap"><table class="data-table units-modal__table">
@@ -25,8 +26,9 @@
                     </form>
                 </td>
                 <td class="muted small" style="white-space:nowrap;">
+                    {% if u.is_buying %}<span class="badge badge--info">{{ t['punit.buying'] }}</span> 1 = {{ u.factor | qty }} {{ names.get(u.base_code, u.base_code) }}<br>{% endif %}
                     {% if not u.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
-                    {% if n %}{{ n }} {{ t['punit.parts'] }}{% endif %}
+                    {% if n %}{{ n }} {{ t['punit.lines'] if u.is_buying else t['punit.parts'] }}{% endif %}
                 </td>
                 <td class="row-actions">
                     {% if not u.is_active %}

@@ -46,7 +46,7 @@
                         </label>
                         {% elif not l.part %}<div class="muted small">{{ t['po.no_stock_line'] }}</div>{% endif %}</td>
                     <td class="r" style="white-space:nowrap;">{{ l.quantity | qty }}
-                        {% if l.in_pack %}{{ l.part.pack_name }} <span class="muted small">= {{ l.stock_qty | qty }} {{ unit }}</span>{% else %}{{ unit }}{% endif %}</td>
+                        {% if l.buy_unit %}{{ unit_label(l.buy_unit) }} <span class="muted small">= {{ l.stock_qty | qty }} {{ unit }}</span>{% else %}{{ unit }}{% endif %}</td>
                     <td class="r" style="white-space:nowrap;">{{ l.received_qty | qty }} {{ unit }}</td>
                     <td class="r po-qty">
                         {% if l.remaining_qty > 0 %}

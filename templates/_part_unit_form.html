@@ -1,5 +1,7 @@
 {% set is_edit = row is not none %}
-{# A unit the store counts in: its name is all there is to it. #}
+{# A unit: one the store counts in (pièce, litre), or one things are bought
+   in that converts to a counting unit -- "1 fût = 200 litre". The second
+   is the same form with the conversion filled. #}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('stock.unit_edit', uid=row.id) if is_edit else url_for('stock.unit_new') }}">
@@ -8,6 +10,45 @@
                value="{{ request.form.get('name') or (row.name if is_edit else '') }}">
         <label for="name">{{ t['punit.name'] }}</label>
     </div>
+
+    {% set sel_base = request.form.get('base_code') if request.method == 'POST' else (row.base_code or '' if is_edit else '') %}
+    {% set sel_factor = request.form.get('factor') if request.method == 'POST' else (row.factor | qty if is_edit and row.factor else '') %}
+    <label class="checkbox-item">
+        <input type="checkbox" id="is_buying" {% if sel_base %}checked{% endif %}>
+        <span>{{ t['punit.is_buying'] }}</span>
+    </label>
+    <div id="conversion" class="form-row" {% if not sel_base %}hidden{% endif %}>
+        <div class="field">
+            <input type="number" id="factor" name="factor" placeholder=" " min="0" step="any" value="{{ sel_factor }}">
+            <label for="factor">{{ t['punit.factor'] }}</label>
+        </div>
+        <div class="field field--select">
+            <select id="base_code" name="base_code">
+                <option value="">—</option>
+                {% for u in base_units %}
+                <option value="{{ u.code }}" {% if u.code == sel_base %}selected{% endif %}>{{ u.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="base_code">{{ t['punit.base'] }}</label>
+        </div>
+    </div>
+    <div id="conversion-says" class="field-hint" {% if not sel_base %}hidden{% endif %}></div>
+    <script>
+    (function () {
+        var box = document.getElementById('is_buying'), conv = document.getElementById('conversion'),
+            says = document.getElementById('conversion-says'), name = document.getElementById('name'),
+            factor = document.getElementById('factor'), base = document.getElementById('base_code');
+        function refresh() {
+            conv.hidden = !box.checked; says.hidden = !box.checked;
+            if (!box.checked) { base.value = ''; factor.value = ''; return; }
+            var b = base.options[base.selectedIndex] ? base.options[base.selectedIndex].textContent : '';
+            says.textContent = '1 ' + (name.value || '…') + ' = ' + (factor.value || '…') + ' ' + (base.value ? b : '…');
+        }
+        [box, name, factor, base].forEach(function (el) { el.addEventListener('input', refresh); el.addEventListener('change', refresh); });
+        refresh();
+    })();
+    </script>
+
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
