@@ -7,12 +7,18 @@
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('expenses.edit', xid=expense.id) if is_edit else url_for('expenses.new') }}">
 
-    {# First: the supplier's bill this cost settles, when it settles one.
-       Only shown when there is a bill still owing something. Choosing one
-       records the instalment on that bill -- the only way the cash box's
-       money reaches a bill -- and folds away what a settlement does not
-       need: the site, the machine, the person, the account code (the
-       supplier's, set by the app). #}
+    <div class="field">
+        <input type="date" id="date" name="date" placeholder=" " required
+               value="{{ request.form.get('date') or (expense.date if is_edit else today) }}">
+        <label for="date">{{ t['expense.date'] }}</label>
+    </div>
+
+    {# Right after the date: the supplier's bill this cost settles, when it
+       settles one. Only shown when there is a bill still owing something.
+       Choosing one records the instalment on that bill -- the only way the
+       cash box's money reaches a bill -- and folds away what a settlement
+       does not need: the site, the machine, the person, the account code
+       (the supplier's, set by the app). The money's side stays. #}
     {% if invoices %}
     <div class="field field--select">
         {% set cur_inv = expense.supplier_payment.invoice_id if is_edit and expense.supplier_payment else 0 %}
@@ -30,12 +36,6 @@
     </div>
     {% endif %}
 
-    <div class="field">
-        <input type="date" id="date" name="date" placeholder=" " required
-               value="{{ request.form.get('date') or (expense.date if is_edit else today) }}">
-        <label for="date">{{ t['expense.date'] }}</label>
-    </div>
-
     {# What a settlement does not need, folded away when a bill is chosen:
        where, for which machine, for whom. The server drops them too. #}
     <div id="not-for-bill">
@@ -52,6 +52,7 @@
             </select>
             <label for="site_id">{{ t['expense.site'] }}</label>
         </div>
+    </div>
     {# A machine belongs to a cost that happened somewhere. Without a site this
        is the office's own spending, which is for no machine, so the field is
        not merely empty -- it is not there. #}
