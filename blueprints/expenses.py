@@ -16,7 +16,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
-from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
+from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_action,
                  modal_ok, needs_approval, parse_amount, require_perm,
                  submit_change, with_current_fleet)
 from ledger import charge_accounts, ensure_purse_account, ensure_supplier_account, read_code
@@ -845,13 +845,16 @@ def _save_list_row(model, row, kind):
         row.number = (request.form.get("number") or "").strip() or None
         row.is_repayable = request.form.get("is_repayable") is not None
         # Its account on the plan: treasury for the company's own purse,
-        # a tiers when the money is owed back.
-        code, ok = read_code(request.form)
-        if not ok:
-            return t["ledger.err.unknown"]
-        if code and code[0] != ("4" if row.is_repayable else "5"):
-            return t["accounts.err.class"]
-        row.ledger_code = code
+        # a tiers when the money is owed back. Only whoever keeps the
+        # accounts changes it; for the others it is left as it is.
+        code = row.ledger_code
+        if has_perm("accounting.manage"):
+            code, ok = read_code(request.form)
+            if not ok:
+                return t["ledger.err.unknown"]
+            if code and code[0] != ("4" if row.is_repayable else "5"):
+                return t["accounts.err.class"]
+            row.ledger_code = code
         if not code:
             # Left empty: made on the plan, under 521 or 4621, in its name.
             db.session.flush()

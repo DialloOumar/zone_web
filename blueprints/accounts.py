@@ -14,7 +14,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
-from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm
+from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm, require_perm
 from blueprints.expenses import _save_list_row
 from ledger import ensure_till_code, labels_for, read_code, set_till_code, till_code, used_accounts_in
 from models import BankCharge, CashAccount, CashMovement, Expense, SupplierPayment, db
@@ -23,7 +23,11 @@ accounts_bp = Blueprint("accounts", __name__)
 
 # Who may keep the list: the cashier, whoever records supplier bills, and
 # whoever records what clients pay.
-MANAGE = ("expense.create", "supplier_invoice.create", "invoicing.manage")
+# Who opens Comptes: whoever spends from the box, records a bill or an
+# invoice -- and whoever keeps the accounts, for the purses' and the till's
+# accounts on the plan.
+MANAGE = ("expense.create", "supplier_invoice.create", "invoicing.manage",
+          "accounting.view", "accounting.manage")
 
 
 def _used_ids():
@@ -79,7 +83,7 @@ def index():
 
 @accounts_bp.route("/comptes/caisse", methods=["POST"])
 @login_required
-@require_any_perm(*MANAGE)
+@require_perm("accounting.manage")
 def till():
     """The cash box's own account on the plan: the counterpart of every
     cost paid in cash, for the journal de caisse."""

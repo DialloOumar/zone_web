@@ -28,6 +28,7 @@
     {# Its account on the plan. Treasury (class 5) for the company's own
        money; a tiers (class 4, e.g. 462 the boss's current account) when
        what it puts in the box is owed back. The box follows the checkbox. #}
+    {% if has_perm('accounting.manage') %}
     {% set sel_code = request.form.get('ledger_code') or (row.ledger_code or '' if is_edit else '') %}
     <div class="field field--select">
         <select id="ledger_code" name="ledger_code">
@@ -56,6 +57,9 @@
         box.addEventListener('change', refresh); refresh();
     })();
     </script>
+    {% elif is_edit and row.ledger_code %}
+    <div class="field-hint">{{ t['ledger.account'] }} : <code>{{ row.ledger_code }}</code></div>
+    {% endif %}
 
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">

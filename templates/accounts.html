@@ -22,6 +22,9 @@
             <p class="muted small" style="margin:4px 0 0;">{{ t['accounts.till_hint'] }}</p>
         </div>
     </div>
+    {% if not has_perm('accounting.manage') %}
+    <p style="margin:0;"><code>{{ till or '—' }}</code> {{ code_labels.get(till, '') }}</p>
+    {% else %}
     <form method="post" action="{{ url_for('accounts.till') }}" class="entry-form" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
         <div class="field field--select" style="flex:1 1 260px; margin:0;">
             <select id="till_code" name="ledger_code">
@@ -34,6 +37,7 @@
         </div>
         <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
     </form>
+    {% endif %}
 </section>
 {% endif %}
 

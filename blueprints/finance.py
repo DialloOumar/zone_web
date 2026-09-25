@@ -27,7 +27,7 @@ from flask import (Blueprint, Response, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user
 
-from app import can_enter_finance, get_t, is_modal_request, log_action, login_manager, modal_ok
+from app import can_enter_finance, get_t, has_perm, is_modal_request, log_action, login_manager, modal_ok
 import journal as journal_mod
 from ledger import charge_accounts, read_code, revenue_accounts
 from models import LedgerAccount, db
@@ -50,10 +50,14 @@ CLASSES = [
 
 @finance_bp.before_request
 def _guard():
+    """Reading needs accounting.view; anything that writes -- the plan's
+    accounts, a code from the journal -- needs accounting.manage."""
     if not current_user.is_authenticated:
         return login_manager.unauthorized()
     if not can_enter_finance():
         abort(404)
+    if request.method == "POST" and not has_perm("accounting.manage"):
+        abort(403)
 
 
 @finance_bp.route("/")

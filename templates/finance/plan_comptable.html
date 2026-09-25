@@ -71,7 +71,7 @@
                 {% if not a.is_standard %}<span class="badge badge--info">{{ t['plan.own'] }}</span>{% endif %}
                 {% if not a.is_active %}<span class="badge badge--inactive">{{ t['plan.hidden_badge'] }}</span>{% endif %}
             </td>
-            <td class="row-actions">
+            <td class="row-actions">{% if has_perm('accounting.manage') %}
                 {% if a.is_active %}
                 {% if a.is_used %}
                 <form method="post" action="{{ url_for('finance.account_action', aid=a.id, what='unuse') }}" style="display:inline">{{ keep }}
@@ -108,7 +108,7 @@
                     <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                 </form>
                 {% endif %}
-            </td>
+            {% endif %}</td>
         </tr>
         {% endfor %}
         </tbody>

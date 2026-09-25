@@ -812,7 +812,7 @@ def _save_supplier(row, parts_only=False):
     row.note = (request.form.get("note") or "").strip() or None
     row.provides_machines = request.form.get("provides_machines") is not None
     row.provides_parts = parts_only or request.form.get("provides_parts") is not None
-    if not parts_only:
+    if not parts_only and has_perm("accounting.manage"):
         # His account on the plan, set by hand; left empty, it is made under
         # 4011 the first time a bill or a payment names him.
         code, ok = read_code(request.form, allowed=used_accounts_in((4,)))

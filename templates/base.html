@@ -87,7 +87,7 @@
                 <span class="nav-icon material-symbols-outlined">account_tree</span> {{ t['plan.title'] }}
             </a></li>
             {% endif %}
-            {% if has_perm('expense.create') or has_perm('supplier_invoice.create') or has_perm('invoicing.manage') %}
+            {% if finance_visible or has_perm('expense.create') or has_perm('supplier_invoice.create') or has_perm('invoicing.manage') %}
             <li><a href="{{ url_for('accounts.index') }}" class="sidebar-sub {% if request.blueprint == 'accounts' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">account_balance</span> {{ t['list.accounts'] }}
             </a></li>

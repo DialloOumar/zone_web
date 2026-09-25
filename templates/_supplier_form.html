@@ -114,8 +114,10 @@
        time a bill or a payment names him: his own for a permanent supplier,
        the shared one for an occasional one. Set here to match numbering the
        comptable already has. Not on the store's short form. #}
-    {% if not parts_only %}
+    {% if not parts_only and has_perm('accounting.manage') %}
     {{ ledger_picker(ledger_accounts, request.form.get('ledger_code') or (row.ledger_code or '' if is_edit else ''), t['ledger.account'], t['supplier.ledger_hint']) }}
+    {% elif is_edit and row.ledger_code %}
+    <div class="field-hint">{{ t['ledger.account'] }} : <code>{{ row.ledger_code }}</code></div>
     {% endif %}
 
     <div class="form-actions">

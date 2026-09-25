@@ -386,11 +386,10 @@ def has_perm(perm_key):
 
 
 def can_enter_finance():
-    """Who may open the accounting pages of the Finance section: the plan,
-    the journal. Super admins only while they are being
-    built; the blueprint's guard and the drawer both ask here, so opening
-    them to a comptable later is a one-line change."""
-    return current_user.is_authenticated and current_user.is_super_admin
+    """Who may open the accounting pages of the Finance section, the plan
+    and the journal: whoever holds an accounting permission (the super
+    admin holds them all)."""
+    return current_user.is_authenticated and (has_perm("accounting.view") or has_perm("accounting.manage"))
 
 
 def can_approve_in_fleet(fleet_id):
@@ -1270,6 +1269,11 @@ PERMISSIONS_CATALOG = [
     ("invoicing.manage",        "Manage clients and rates", "Invoicing",         "invoicing",        "manage"),
     # Invoicing (facturation)
     ("invoicing.view", "View invoicing", "Invoicing", "invoicing", "view"),
+    # Accounting: the plan and the journal. View reads and exports; manage
+    # keeps the plan (accounts used, the company's own) and codes lines from
+    # the journal, and sets the accounts of the purses and of the till.
+    ("accounting.view",   "View the chart of accounts and the journal", "Accounting", "accounting", "view"),
+    ("accounting.manage", "Keep the chart and code the journal",        "Accounting", "accounting", "manage"),
     # Admin (super admin only — these aren't exposed in the role grid, just here for documentation)
     ("admin.users",      "Manage users",      "Administration", "admin", "users"),
     ("admin.fleets",     "Manage fleets",     "Administration", "admin", "fleets"),
