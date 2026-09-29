@@ -231,12 +231,22 @@
 <section class="card">
     <div class="card-header">
         <h2>{{ t['nav.maintenance_records'] }}</h2>
-        {% if has_perm('maintenance_record.create') %}
-        <a href="{{ url_for('maintenance.record_new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--primary"
-           data-modal-url="{{ url_for('maintenance.record_new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['maint.record_new'] }}">
-            <span class="material-symbols-outlined">add</span> {{ t['expense.add'] }}
-        </a>
-        {% endif %}
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            {# Schedule one: a rule aimed at this machine alone. #}
+            {% if has_perm('maintenance_rule.create') %}
+            <a href="{{ url_for('maintenance.rule_new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('maintenance.rule_new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['maint.rule_new'] }}">
+                <span class="material-symbols-outlined">rule</span> {{ t['vehicle.schedule_service'] }}
+            </a>
+            {% endif %}
+            {# Record one done. #}
+            {% if has_perm('maintenance_record.create') %}
+            <a href="{{ url_for('maintenance.record_new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--primary"
+               data-modal-url="{{ url_for('maintenance.record_new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['maint.record_new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['maint.record_new'] }}
+            </a>
+            {% endif %}
+        </div>
     </div>
     {% if records %}
     <div class="table-wrap"><table class="data-table">

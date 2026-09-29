@@ -232,8 +232,11 @@ def _rule_form_ctx(rule):
         "vehicles": _accessible_vehicles(),
         "form_active": (request.form.get("is_active") is not None)
         if request.method == "POST" else (rule.is_active if rule else True),
+        # A rule opened from a machine's page is aimed at that machine.
         "target_value": (request.form.get("target")
-                         or (_rule_target_value(rule) if rule else "all")),
+                         or (_rule_target_value(rule) if rule
+                             else ("vehicle:%d" % request.args.get("vehicle_id", type=int)
+                                   if request.args.get("vehicle_id", type=int) else "all"))),
     }
 
 
