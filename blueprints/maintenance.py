@@ -17,10 +17,9 @@ from flask_login import current_user, login_required
 
 import maintenance_engine
 from app import (current_user_categories, current_user_fleet_ids, get_t,
-                 parse_amount,
                  is_modal_request, log_action, modal_ok, needs_approval,
                  require_perm, scoped, submit_change, with_current_fleet)
-from blueprints.expenses import MAINTENANCE_CATEGORY, PAYMENT_METHODS
+from blueprints.expenses import MAINTENANCE_CATEGORY
 from models import (Alert, Expense, Fleet, MaintenanceRecord, MaintenanceRule,
                     Operator, Part, StockMovement, Vehicle, VehicleCategory, db)
 
@@ -359,16 +358,6 @@ def _read_record_form(record):
     if not date_str or not _valid_date(date_str):
         return None, t["maint.err.date_required"]
 
-    raw_cost = (request.form.get("cost") or "").strip()
-    cost = parse_amount(raw_cost) if raw_cost else None
-    if raw_cost and cost is None:
-        return None, t["maint.err.bad_number"]
-
-    # A cost has to say how it was paid, since it becomes a ledger row.
-    method = (request.form.get("payment_method") or "").strip() or None
-    if cost is not None and method not in PAYMENT_METHODS:
-        return None, t["expense.err.payment_required"]
-
     parts, e4 = _read_part_lines()
     if e4:
         return None, e4
@@ -379,11 +368,9 @@ def _read_record_form(record):
         operator=(request.form.get("operator") or "").strip() or None,
         supplier=(request.form.get("supplier") or "").strip() or None,
         description=(request.form.get("description") or "").strip() or None,
-        # Not columns of MaintenanceRecord — split out by the caller and carried
-        # through the approval payload so a replay rebuilds the ledger row too.
-        cost=cost,
-        payment_method=method,
-        payment_reference=(request.form.get("payment_reference") or "").strip() or None,
+        # No money is typed on a service any more; the keys stay in the payload
+        # so an approval written before this still replays.
+        cost=None, payment_method=None, payment_reference=None,
         parts=parts,
     )
     return data, None
@@ -440,12 +427,12 @@ def split_parts(data):
 
 def sync_service_expense(record, money):
     """Mirror a service's cost into the money ledger as its single 'entretien'
-    row: created, updated, or removed so the two can never disagree."""
+    row. Nothing is typed on a service now, so this only still serves the
+    rows of before: a record that had a cost keeps it, and an old approval
+    that carries one still writes it."""
     cost = money.get("cost")
     existing = record.expense
     if cost is None:
-        if existing:
-            db.session.delete(existing)
         return
     fields = dict(
         vehicle_id=record.vehicle_id,
@@ -561,7 +548,6 @@ def _record_form_ctx(record):
         "record_types": RECORD_TYPES,
         "vehicles": _accessible_vehicles(),
         "operators": _accessible_operators(),
-        "payment_methods": PAYMENT_METHODS,
         "stock_parts": Part.query.filter(Part.is_active.is_(True))
                                  .order_by(Part.name).all(),
         "part_rows": part_rows,

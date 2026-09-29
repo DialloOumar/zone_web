@@ -19,8 +19,15 @@
             {% elif archived_count %}
             <a href="{{ url_for('stock.index', archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
             {% endif %}
-            {# No "new article" here: an article is born on a purchase order
-               line and enters the catalogue when the order is received. #}
+            {# Kept for now: an article, with what is already on the shelf,
+               written straight into the store. The usual way in stays the
+               purchase order. #}
+            {% if has_perm('stock.manage') %}
+            <a href="{{ url_for('stock.part_new') }}" class="fab"
+               data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['part.new'] }}
+            </a>
+            {% endif %}
         </div>
     </div>
 
@@ -149,8 +156,9 @@
         <span class="material-symbols-outlined">shelves</span>
         <p>{{ t['stock.no_match'] if search else t['stock.empty'] }}</p>
         {% if has_perm('stock.manage') and not search %}
-        <a href="{{ url_for('purchases.new') }}" class="fab">
-            <span class="material-symbols-outlined">add</span> {{ t['po.new'] }}
+        <a href="{{ url_for('stock.part_new') }}" class="fab"
+           data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['part.new'] }}
         </a>
         {% endif %}
     </div>

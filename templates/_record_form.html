@@ -30,31 +30,9 @@
                    value="{{ request.form.get('date') or (record.date if is_edit else today) }}">
             <label for="date">{{ t['maint.date'] }}</label>
         </div>
-        <div class="field">
-            <input data-money type="text" inputmode="numeric" id="cost" name="cost" placeholder="{{ t['ph.record.cost'] }}"
-                   value="{{ request.form.get('cost') or (record.cost if is_edit and record.cost is not none else '') }}">
-            <label for="cost">{{ t['maint.cost'] }}</label>
-        </div>
     </div>
-
-    {# The cost is booked in the expense ledger, so it says how it was paid. #}
-    <div class="form-row">
-        <div class="field field--select">
-            <select id="payment_method" name="payment_method">
-                <option value="">{{ t['form.select'] }}</option>
-                {% set sel_pm = request.form.get('payment_method') or (record.expense.payment_method if is_edit and record.expense else '') %}
-                {% for p in payment_methods %}
-                <option value="{{ p }}" {% if p == sel_pm %}selected{% endif %}>{{ t['pay.' + p] }}</option>
-                {% endfor %}
-            </select>
-            <label for="payment_method">{{ t['expense.payment_method'] }}</label>
-        </div>
-        <div class="field">
-            <input type="text" id="payment_reference" name="payment_reference" placeholder=" "
-                   value="{{ request.form.get('payment_reference') or (record.expense.payment_reference if is_edit and record.expense and record.expense.payment_reference else '') }}">
-            <label for="payment_reference">{{ t['expense.payment_reference'] }}</label>
-        </div>
-    </div>
+    {# No money on a service: the parts come out of the store, and an outside
+       garage is a supplier bill or a cash-box expense on the machine. #}
 
     <div class="form-row">
         <div class="field field--select">

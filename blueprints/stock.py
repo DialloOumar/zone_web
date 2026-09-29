@@ -22,7 +22,7 @@ from flask_login import current_user, login_required
 
 import s3_storage
 from app import (slugify, get_t, is_modal_request, log_action, modal_ok,
-                 require_perm)
+                 parse_amount, require_perm)
 from models import Part, PartUnit, PurchaseOrderLine, StockMovement, UnitConversion, db
 
 stock_bp = Blueprint("stock", __name__, url_prefix="/stock")
@@ -172,7 +172,37 @@ def _read_part_form(part):
     if bad or (reorder is not None and reorder < 0):
         return None, t.get("part.err.reorder", "Seuil invalide.")
 
-    return dict(name=name, unit=unit, reorder_level=reorder), None
+    # Kept for now: what is already on the shelf, and what a unit is worth.
+    # Movement fields, not columns of Part: the caller splits them out.
+    opening, bad = _num(request.form.get("opening_quantity"), float)
+    if bad or (opening is not None and opening < 0):
+        return None, t.get("part.err.opening", "Quantité de départ invalide.")
+    raw_price = (request.form.get("opening_price") or "").strip()
+    opening_price = parse_amount(raw_price) if raw_price else None
+    bad = bool(raw_price) and opening_price is None
+    if bad or (opening_price is not None and opening_price < 0):
+        return None, t.get("part.err.price", "Prix invalide.")
+
+    return dict(name=name, unit=unit, reorder_level=reorder,
+                opening=opening or 0, opening_price=opening_price), None
+
+
+def _set_opening_stock(part, quantity, price, today):
+    """The opening stock is a single 'initial' movement, so editing it just
+    adjusts (or removes) that one row. Deliberately NOT an expense: those
+    parts were paid for before the store existed."""
+    mv = next((m for m in part.movements if m.kind == "initial"), None)
+    if quantity > 0:
+        if mv:
+            mv.quantity = quantity
+            mv.unit_price = price
+        else:
+            db.session.add(StockMovement(
+                part_id=part.id, kind="initial", date=today,
+                quantity=quantity, unit_price=price,
+                created_by=current_user.id))
+    elif mv:
+        db.session.delete(mv)
 
 
 _PHOTO_ERR_KEYS = {
@@ -211,6 +241,35 @@ def _render_part_form(part, error=None):
     return render_template(tpl, part=part, error=error, units=active_units()), status
 
 
+@stock_bp.route("/parts/new", methods=["GET", "POST"])
+@login_required
+@require_perm("stock.manage")
+def part_new():
+    """Kept for now: an article written straight into the store, with what
+    is on the shelf. The usual way in is a received purchase order."""
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_part_form(None)
+        if error:
+            return _render_part_form(None, error)
+        opening = data.pop("opening")
+        opening_price = data.pop("opening_price")
+        p = Part(created_by=current_user.id, **data)
+        db.session.add(p)
+        db.session.flush()
+        perr = _apply_part_photo_change(p)
+        if perr:
+            db.session.rollback()
+            return _render_part_form(None, perr)
+        _set_opening_stock(p, opening, opening_price, date.today().isoformat())
+        log_action("CREATE", "part", resource_id=p.id,
+                   detail=f"Created part '{p.name}'")
+        db.session.commit()
+        flash("success|" + t.get("part.created", "Article créé."))
+        return modal_ok() if is_modal_request() else redirect(url_for("stock.index"))
+    return _render_part_form(None)
+
+
 @stock_bp.route("/parts/<int:pid>/edit", methods=["GET", "POST"])
 @login_required
 @require_perm("stock.manage")
@@ -221,12 +280,15 @@ def part_edit(pid):
         data, error = _read_part_form(part)
         if error:
             return _render_part_form(part, error)
+        opening = data.pop("opening")
+        opening_price = data.pop("opening_price")
         for k, v in data.items():
             setattr(part, k, v)
         perr = _apply_part_photo_change(part)
         if perr:
             db.session.rollback()
             return _render_part_form(part, perr)
+        _set_opening_stock(part, opening, opening_price, date.today().isoformat())
         log_action("UPDATE", "part", resource_id=part.id,
                    detail=f"Edited part '{part.name}'")
         db.session.commit()
