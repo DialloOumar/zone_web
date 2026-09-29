@@ -253,7 +253,7 @@
             {% for m in records %}
             <tr>
                 <td>{{ m.date }}</td>
-                <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
+                <td><span class="chip">{{ service_type_label(m.type) }}</span></td>
                 <td class="col-secondary">{{ m.operator or '—' }}</td>
                 <td class="col-secondary" style="text-align:right; white-space:nowrap;">
                     {% if m.parts_value %}{{ m.parts_value | num }} GNF{% else %}<span class="muted">—</span>{% endif %}

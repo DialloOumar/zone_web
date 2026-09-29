@@ -30,7 +30,7 @@
             <tr {% if not r.is_active %}class="muted"{% endif %}>
                 <td>
                     <strong>{{ r.name }}</strong>
-                    {% if r.service_type %}<div><span class="chip">{{ t['maint.rtype.' + r.service_type] }}</span></div>{% endif %}
+                    {% if r.service_type %}<div><span class="chip">{{ service_type_label(r.service_type) }}</span></div>{% endif %}
                 </td>
                 <td><span class="chip">{{ t['maint.ruletype.' + r.type] }}</span></td>
                 <td>

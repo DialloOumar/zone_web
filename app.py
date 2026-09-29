@@ -190,6 +190,8 @@ def _inject_globals():
         "category_label": _category_label,
         # The name of a unit the store counts in, from its code.
         "unit_label": _unit_label,
+        # The name of a kind of service, from its code.
+        "service_type_label": _service_type_label,
         # Whether a person has a stamp or signature to print.
         "user_has_stamp": user_has_stamp,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
@@ -232,6 +234,20 @@ def _vehicle_image(v):
                                v=drawing_tag(cat.default_image, v.code)),
                 "drawing": True}
     return None
+
+
+def _service_type_label(code):
+    """"Vidange" for "oil_change": the team's own name for a kind of
+    service, read once per request; a code the table no longer has falls
+    back to the old built-in label, then to the code."""
+    if not code:
+        return ""
+    names = getattr(g, "_service_type_names", None)
+    if names is None:
+        from models import ServiceType
+        names = {s.code: s.name for s in ServiceType.query.all()}
+        g._service_type_names = names
+    return names.get(code) or get_t().get("maint.rtype." + code, code)
 
 
 def _unit_label(code):

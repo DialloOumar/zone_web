@@ -18,7 +18,7 @@
             <select id="type" name="type" required>
                 <option value="" hidden></option>
                 {% set sel_t = request.form.get('type') or (record.type if is_edit else (preset_type or '')) %}
-                {% for rt in record_types %}<option value="{{ rt }}" {% if rt == sel_t %}selected{% endif %}>{{ t['maint.rtype.' + rt] }}</option>{% endfor %}
+                {% for rt in record_types %}<option value="{{ rt }}" {% if rt == sel_t %}selected{% endif %}>{{ service_type_label(rt) }}</option>{% endfor %}
             </select>
             <label for="type">{{ t['maint.record_type'] }}</label>
         </div>

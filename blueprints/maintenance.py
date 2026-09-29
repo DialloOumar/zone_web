@@ -18,24 +18,39 @@ from flask_login import current_user, login_required
 import maintenance_engine
 from app import (current_user_categories, current_user_fleet_ids, get_t,
                  is_modal_request, log_action, modal_ok, needs_approval,
-                 require_perm, scoped, submit_change, with_current_fleet)
+                 require_perm, scoped, slugify, submit_change, with_current_fleet)
 from blueprints.expenses import MAINTENANCE_CATEGORY
 from models import (Alert, Expense, Fleet, MaintenanceRecord, MaintenanceRule,
-                    Operator, Part, StockMovement, Vehicle, VehicleCategory, db)
+                    Operator, Part, ServiceType, StockMovement, Vehicle, VehicleCategory, db)
 
 maintenance_bp = Blueprint("maintenance", __name__)
 
 # "time_recurring" (calendar-based) is hidden from the form for now — the engine
 # still evaluates any rule already saved with that type.
 RULE_TYPES = ["km_recurring", "hours_recurring", "trips_recurring"]
-RECORD_TYPES = ["oil_change", "filter", "tires", "brakes", "repair", "parts",
-                "revision", "other"]
 SEVERITIES = ["info", "warning", "critical"]
 SNOOZE_DAYS = 7
 PER_PAGE = 50    # rows on one screen
 
 
 # ── Shared helpers ───────────────────────────────────────────────────────────
+
+
+def active_service_types(keep=None):
+    """The kinds of service a record or a rule may be given: the active
+    ones, plus `keep` (the code a row already has) even if it has been
+    archived since, so editing does not silently change it."""
+    rows = (ServiceType.query.filter(ServiceType.is_active.is_(True))
+            .order_by(ServiceType.sort_order, ServiceType.name).all())
+    if keep and keep not in {r.code for r in rows}:
+        kept = ServiceType.query.filter_by(code=keep).first()
+        if kept:
+            rows.append(kept)
+    return rows
+
+
+def service_type_codes():
+    return {s.code for s in ServiceType.query.all()}
 
 
 def _accessible_fleets():
@@ -167,7 +182,7 @@ def _read_rule_form(rule):
         return None, t["maint.err.name_required"]
     if rtype not in RULE_TYPES:
         return None, t["maint.err.type_required"]
-    if service_type not in RECORD_TYPES:
+    if service_type not in service_type_codes():
         return None, t["maint.err.service_type_required"]
     if severity not in SEVERITIES:
         severity = "warning"
@@ -210,7 +225,7 @@ def _read_rule_form(rule):
 def _rule_form_ctx(rule):
     return {
         "rule_types": RULE_TYPES,
-        "record_types": RECORD_TYPES,
+        "record_types": [s.code for s in active_service_types(rule.service_type if rule else None)],
         "severities": SEVERITIES,
         "fleets": with_current_fleet(_accessible_fleets(), rule.fleet if rule else None),
         "categories": _accessible_categories(),
@@ -353,7 +368,7 @@ def _read_record_form(record):
     fids = current_user_fleet_ids()
     if fids is not None and vehicle.fleet_id not in fids:
         return None, t["error.forbidden"]
-    if rtype not in RECORD_TYPES:
+    if rtype not in service_type_codes():
         return None, t["maint.err.rtype_required"]
     if not date_str or not _valid_date(date_str):
         return None, t["maint.err.date_required"]
@@ -545,7 +560,7 @@ def _record_form_ctx(record):
         part_rows = []
 
     return {
-        "record_types": RECORD_TYPES,
+        "record_types": [s.code for s in active_service_types(record.type if record else None)],
         "vehicles": _accessible_vehicles(),
         "operators": _accessible_operators(),
         "stock_parts": Part.query.filter(Part.is_active.is_(True))
@@ -768,3 +783,113 @@ def alert_dismiss(aid):
     db.session.commit()
     flash("success|" + get_t()["maint.alert_dismissed"])
     return redirect(url_for("maintenance.alerts"))
+
+
+# ── Service types ────────────────────────────────────────────────────────────
+# The kinds of service, kept by whoever keeps the rules, from a dialog over
+# the Entretien page the way the store keeps its units: a name is all a
+# type is; a type in use is archived, never deleted.
+
+
+def _service_type_code(name):
+    base = slugify(name).replace("-", "_")[:36] or "type"
+    code, n = base, 2
+    while ServiceType.query.filter_by(code=code).first():
+        code = "%s_%d" % (base[:32], n)
+        n += 1
+    return code
+
+
+def _render_service_types(error=None):
+    rows = ServiceType.query.order_by(ServiceType.sort_order, ServiceType.name).all()
+    used = dict(db.session.query(MaintenanceRecord.type, db.func.count(MaintenanceRecord.id))
+                .group_by(MaintenanceRecord.type).all())
+    for code, n in (db.session.query(MaintenanceRule.service_type, db.func.count(MaintenanceRule.id))
+                    .filter(MaintenanceRule.service_type.isnot(None)).group_by(MaintenanceRule.service_type).all()):
+        used[code] = used.get(code, 0) + n
+    tpl = "_service_types_modal.html" if is_modal_request() else "service_types.html"
+    return render_template(tpl, types=rows, used=used, error=error), (422 if error else 200)
+
+
+def _save_service_type(row):
+    t = get_t()
+    name = (request.form.get("name") or "").strip()[:60]
+    if not name:
+        return t.get("list.err.name_required", "Le nom est obligatoire.")
+    clash = ServiceType.query.filter(db.func.lower(ServiceType.name) == name.lower())
+    if row:
+        clash = clash.filter(ServiceType.id != row.id)
+    if clash.first():
+        return t.get("list.err.name_taken", "Ce nom existe déjà.")
+    creating = row is None
+    if creating:
+        nxt = (db.session.query(db.func.max(ServiceType.sort_order)).scalar() or 0) + 1
+        row = ServiceType(code=_service_type_code(name), sort_order=nxt)
+        db.session.add(row)
+    row.name = name
+    log_action("CREATE" if creating else "UPDATE", "service_type", resource_id=row.id,
+               detail="%s service type '%s'" % ("Created" if creating else "Renamed", name))
+    db.session.commit()
+    return None
+
+
+@maintenance_bp.route("/entretien/types")
+@login_required
+@require_perm("maintenance_rule.create")
+def service_types():
+    return _render_service_types()
+
+
+@maintenance_bp.route("/entretien/types/nouveau", methods=["POST"])
+@login_required
+@require_perm("maintenance_rule.create")
+def service_type_new():
+    error = _save_service_type(None)
+    if error:
+        return _render_service_types(error)
+    flash("success|" + get_t().get("list.created", "Ajouté."))
+    return modal_ok() if is_modal_request() else redirect(url_for("maintenance.service_types"))
+
+
+@maintenance_bp.route("/entretien/types/<int:sid>/modifier", methods=["POST"])
+@login_required
+@require_perm("maintenance_rule.create")
+def service_type_edit(sid):
+    row = db.session.get(ServiceType, sid)
+    if not row:
+        abort(404)
+    error = _save_service_type(row)
+    if error:
+        return _render_service_types(error)
+    flash("success|" + get_t().get("list.updated", "Modifié."))
+    return modal_ok() if is_modal_request() else redirect(url_for("maintenance.service_types"))
+
+
+@maintenance_bp.route("/entretien/types/<int:sid>/<any(archive,reactivate,delete):what>", methods=["POST"])
+@login_required
+@require_perm("maintenance_rule.create")
+def service_type_action(sid, what):
+    """Archive takes a type out of the pickers; the records and rules that
+    carry it keep it. Delete is only for one nothing carries."""
+    t = get_t()
+    row = db.session.get(ServiceType, sid)
+    if not row:
+        abort(404)
+    if what == "delete":
+        if (MaintenanceRecord.query.filter_by(type=row.code).count()
+                or MaintenanceRule.query.filter_by(service_type=row.code).count()):
+            blocked = t.get("list.err.delete_blocked", "Impossible de supprimer : cet élément est utilisé.")
+            if is_modal_request():
+                return _render_service_types(blocked)
+            flash("error|" + blocked)
+            return redirect(url_for("maintenance.service_types"))
+        log_action("DELETE", "service_type", resource_id=sid, detail="Deleted service type '%s'" % row.name)
+        db.session.delete(row)
+        msg = "list.deleted"
+    else:
+        row.is_active = what == "reactivate"
+        log_action("UPDATE", "service_type", resource_id=sid, detail="%s service type '%s'" % (what.title(), row.name))
+        msg = "list.archived" if what == "archive" else "list.reactivated"
+    db.session.commit()
+    flash("success|" + t.get(msg, "Fait."))
+    return modal_ok() if is_modal_request() else redirect(url_for("maintenance.service_types"))

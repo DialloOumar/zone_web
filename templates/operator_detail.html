@@ -115,7 +115,7 @@
             <tr>
                 <td>{{ m.date }}</td>
                 <td><a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a></td>
-                <td><span class="chip">{{ t['maint.rtype.' + m.type] }}</span></td>
+                <td><span class="chip">{{ service_type_label(m.type) }}</span></td>
                 <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ m.cost | num }} {{ currency }}{% else %}—{% endif %}</td>
             </tr>
             {% endfor %}

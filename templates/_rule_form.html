@@ -15,7 +15,7 @@
                 <option value="" hidden></option>
                 {% set sel_st = request.form.get('service_type') or (rule.service_type if is_edit else '') %}
                 {% for rt in record_types %}
-                <option value="{{ rt }}" {% if rt == sel_st %}selected{% endif %}>{{ t['maint.rtype.' + rt] }}</option>
+                <option value="{{ rt }}" {% if rt == sel_st %}selected{% endif %}>{{ service_type_label(rt) }}</option>
                 {% endfor %}
             </select>
             <label for="service_type">{{ t['maint.service_type'] }}</label>

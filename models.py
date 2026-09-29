@@ -449,6 +449,22 @@ class MaintenanceRule(db.Model):
     created_at       = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
 
+class ServiceType(db.Model):
+    """A kind of service -- vidange, filtres, pneus, réparation -- kept by
+    whoever keeps the maintenance rules, the way the store keeps its
+    units. A record and a rule store the code; every screen prints the
+    name. The eight the app started with are seeded; the rest is theirs
+    to add. A type in use is archived, never deleted."""
+    __tablename__ = "service_types"
+
+    id         = db.Column(db.Integer,    primary_key=True)
+    code       = db.Column(db.String(40), nullable=False, unique=True)
+    name       = db.Column(db.String(60), nullable=False, unique=True)
+    sort_order = db.Column(db.Integer,    nullable=False, default=0)
+    is_active  = db.Column(db.Boolean,    nullable=False, default=True)
+    created_at = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+
+
 class MaintenanceRecord(db.Model):
     """A maintenance event that actually happened — closes the relevant alert
     and resets that rule's counter for the vehicle.
@@ -463,7 +479,7 @@ class MaintenanceRecord(db.Model):
     id            = db.Column(db.Integer, primary_key=True)
     vehicle_id    = db.Column(db.Integer, db.ForeignKey("vehicles.id"),          nullable=False)
     rule_id       = db.Column(db.Integer, db.ForeignKey("maintenance_rules.id"), nullable=True)
-    type          = db.Column(db.String(40),  nullable=False)                    # oil_change | filter | tires | …
+    type          = db.Column(db.String(40),  nullable=False)                    # a ServiceType code
     date          = db.Column(db.String(10),  nullable=False)
     kilometers_at = db.Column(db.Float,       nullable=True)
     hours_at      = db.Column(db.Float,       nullable=True)
