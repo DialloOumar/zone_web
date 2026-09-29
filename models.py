@@ -465,6 +465,36 @@ class ServiceType(db.Model):
     created_at = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
 
 
+class ServicePartPurchase(db.Model):
+    """A part a service needed that the store did not have, bought outside:
+    what, how many, from whom, for how much. Written by whoever records the
+    service; it is a request to the cash box until the cashier settles it,
+    which writes the expense (on the machine, linked back here) and moves
+    the money. Refused, it stays on the service as such. The store is never
+    touched: the part went straight onto the machine."""
+    __tablename__ = "service_part_purchases"
+
+    id           = db.Column(db.Integer,     primary_key=True)
+    record_id    = db.Column(db.Integer,     db.ForeignKey("maintenance_records.id"), nullable=False, index=True)
+    description  = db.Column(db.String(160), nullable=False)
+    quantity     = db.Column(db.Float,       nullable=False, default=1)
+    supplier     = db.Column(db.String(120))                   # in words: the seller
+    amount       = db.Column(db.Integer,     nullable=False)   # GNF, paid or to pay
+    state        = db.Column(db.String(12),  nullable=False, default="pending", index=True)  # pending | settled | refused
+    expense_id   = db.Column(db.Integer,     db.ForeignKey("expenses.id"), nullable=True, unique=True)
+    refused_note = db.Column(db.String(255))
+    requested_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at   = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+    settled_at   = db.Column(db.DateTime)
+
+    record  = db.relationship("MaintenanceRecord", back_populates="purchases")
+    # The expense the cashier wrote when she settled it; from the expense's
+    # side, the purchase it paid for.
+    expense = db.relationship("Expense", foreign_keys=[expense_id],
+                              backref=db.backref("part_purchase", uselist=False))
+    requester = db.relationship("User", foreign_keys=[requested_by])
+
+
 class MaintenanceRecord(db.Model):
     """A maintenance event that actually happened — closes the relevant alert
     and resets that rule's counter for the vehicle.
@@ -492,6 +522,9 @@ class MaintenanceRecord(db.Model):
 
     vehicle = db.relationship("Vehicle")
     rule    = db.relationship("MaintenanceRule")
+    # Parts bought outside for this service, each a request to the cash box.
+    purchases = db.relationship("ServicePartPurchase", back_populates="record",
+                                cascade="all, delete-orphan", order_by="ServicePartPurchase.id")
     # The service's cost lives in the money ledger, not here — one row per
     # record, created/updated/removed alongside it by the maintenance blueprint.
     expense = db.relationship(

@@ -17,11 +17,12 @@ from flask_login import current_user, login_required
 
 import maintenance_engine
 from app import (current_user_categories, current_user_fleet_ids, get_t,
-                 is_modal_request, log_action, modal_ok, needs_approval,
+                 is_modal_request, log_action, modal_ok, needs_approval, parse_amount,
                  require_perm, scoped, slugify, submit_change, with_current_fleet)
 from blueprints.expenses import MAINTENANCE_CATEGORY
 from models import (Alert, Expense, Fleet, MaintenanceRecord, MaintenanceRule,
-                    Operator, Part, ServiceType, StockMovement, Vehicle, VehicleCategory, db)
+                    Operator, Part, ServicePartPurchase, ServiceType, StockMovement,
+                    Supplier, Vehicle, VehicleCategory, db)
 
 maintenance_bp = Blueprint("maintenance", __name__)
 
@@ -379,6 +380,9 @@ def _read_record_form(record):
     parts, e4 = _read_part_lines()
     if e4:
         return None, e4
+    bought, e5 = _read_bought_lines()
+    if e5:
+        return None, e5
 
     rule_id = request.form.get("rule_id", type=int) or None
     data = dict(
@@ -389,9 +393,71 @@ def _read_record_form(record):
         # No money is typed on a service any more; the keys stay in the payload
         # so an approval written before this still replays.
         cost=None, payment_method=None, payment_reference=None,
-        parts=parts,
+        parts=parts, bought=bought,
     )
     return data, None
+
+
+def _read_bought_lines():
+    """The parts the store did not have, bought outside: what, how many,
+    from whom, how much. Parallel lists; a blank row is the norm. Each
+    line comes back with the id it already has on the record, if any, so
+    a pending request edited keeps its place and a settled one is left
+    alone."""
+    t = get_t()
+    ids = request.form.getlist("buy_id")
+    descs = request.form.getlist("buy_desc")
+    qtys = request.form.getlist("buy_qty")
+    sups = request.form.getlist("buy_supplier")
+    amts = request.form.getlist("buy_amount")
+    out = []
+    for i, desc in enumerate(descs):
+        desc = (desc or "").strip()[:160]
+        raw_amt = (amts[i] if i < len(amts) else "").strip()
+        if not desc and not raw_amt:
+            continue
+        if not desc:
+            return None, t["maint.err.bought_desc"]
+        try:
+            amount = int(parse_amount(raw_amt))
+        except (TypeError, ValueError):
+            amount = 0
+        if amount <= 0:
+            return None, t["maint.err.bought_amount"]
+        try:
+            qty = float((qtys[i] if i < len(qtys) else "") or 1)
+        except ValueError:
+            qty = 0
+        if qty <= 0:
+            return None, t["maint.err.bought_qty"]
+        rid = (ids[i] if i < len(ids) else "").strip()
+        out.append(dict(id=int(rid) if rid.isdigit() else None, description=desc, quantity=qty,
+                        supplier=((sups[i] if i < len(sups) else "").strip()[:120] or None), amount=amount))
+    return out, None
+
+
+def sync_bought_parts(record, lines):
+    """Keep the record's purchase requests in step with the form: a pending
+    one edited keeps its id, a new one is a fresh request, a pending one
+    gone from the form is dropped. A settled or refused one is never
+    touched from here; it is the cashier's."""
+    existing = {p.id: p for p in record.purchases}
+    seen = set()
+    for line in lines:
+        row = existing.get(line["id"]) if line["id"] else None
+        if row is not None and row.state != "pending":
+            seen.add(row.id)
+            continue
+        if row is None:
+            row = ServicePartPurchase(record_id=record.id, requested_by=getattr(current_user, "id", None))
+            db.session.add(row)
+        for k in ("description", "quantity", "supplier", "amount"):
+            setattr(row, k, line[k])
+        db.session.flush()
+        seen.add(row.id)
+    for pid, row in existing.items():
+        if pid not in seen and row.state == "pending":
+            db.session.delete(row)
 
 
 def _read_part_lines():
@@ -441,6 +507,11 @@ def split_money(data):
 def split_parts(data):
     """Pop the parts lines out of a record payload. Returns (data, lines)."""
     return data, data.pop(PARTS_KEY, None) or []
+
+
+def split_bought(data):
+    """Pop the bought-outside lines out of a record payload."""
+    return data, data.pop("bought", None) or []
 
 
 def sync_service_expense(record, money):
@@ -561,8 +632,29 @@ def _record_form_ctx(record):
                      for m in record.part_movements if m.kind == "sortie"]
     else:
         part_rows = []
+    # The parts bought outside, likewise: the rows submitted on a rejected
+    # form, else the record's; a settled or refused one always as recorded.
+    fixed = {p.id: p for p in (record.purchases if record else []) if p.state != "pending"}
+    def _row(p):
+        return dict(id=p.id, description=p.description, quantity=p.quantity,
+                    supplier=p.supplier or "", amount=p.amount, state=p.state)
+    if request.method == "POST":
+        bought_rows = []
+        for i, d, q, s, a in zip(request.form.getlist("buy_id"), request.form.getlist("buy_desc"),
+                                 request.form.getlist("buy_qty"), request.form.getlist("buy_supplier"),
+                                 request.form.getlist("buy_amount")):
+            if (i or "").isdigit() and int(i) in fixed:
+                bought_rows.append(_row(fixed[int(i)]))
+            elif (d or "").strip() or (a or "").strip():
+                bought_rows.append(dict(id=i, description=d, quantity=q, supplier=s, amount=a, state="pending"))
+    elif record:
+        bought_rows = [_row(p) for p in record.purchases]
+    else:
+        bought_rows = []
 
     return {
+        "bought_rows": bought_rows,
+        "supplier_names": [s.name for s in Supplier.query.filter(Supplier.is_active.is_(True)).order_by(Supplier.name).all()],
         "record_types": [s.code for s in active_service_types(record.type if record else None)],
         "vehicles": _accessible_vehicles(),
         "operators": _accessible_operators(),
@@ -645,12 +737,14 @@ def record_new():
             return modal_ok() if is_modal_request() else redirect(url_for("maintenance.records"))
         data, money = split_money(data)
         data, lines = split_parts(data)
+        data, bought = split_bought(data)
         short = short_parts(None, lines)
         rec = MaintenanceRecord(recorded_by=current_user.id, **data)
         db.session.add(rec)
         db.session.flush()
         sync_service_expense(rec, money)
         sync_record_parts(rec, lines)
+        sync_bought_parts(rec, bought)
         _close_alert_for_record(rec)
         maintenance_engine.evaluate_vehicle(vehicle)
         log_action("CREATE", "maintenance_record", resource_id=rec.id,
@@ -680,12 +774,14 @@ def record_edit(mid):
             return modal_ok() if is_modal_request() else redirect(url_for("maintenance.records"))
         data, money = split_money(data)
         data, lines = split_parts(data)
+        data, bought = split_bought(data)
         short = short_parts(record, lines)
         for k, v in data.items():
             setattr(record, k, v)
         db.session.flush()
         sync_service_expense(record, money)
         sync_record_parts(record, lines)
+        sync_bought_parts(record, bought)
         maintenance_engine.evaluate_vehicle(vehicle)
         log_action("UPDATE", "maintenance_record", resource_id=record.id,
                    fleet_id=vehicle.fleet_id, detail=f"Edited record #{record.id}")

@@ -20,7 +20,7 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
                  modal_ok, needs_approval, parse_amount, require_perm,
                  submit_change, with_current_fleet)
 from ledger import charge_accounts, ensure_purse_account, ensure_supplier_account, read_code
-from models import (CashAccount, CashMovement, Expense, Fleet, Site,
+from models import (CashAccount, CashMovement, Expense, Fleet, ServicePartPurchase, Site,
                     Staff, SupplierInvoice, SupplierPayment, Vehicle, db)
 
 expenses_bp = Blueprint("expenses", __name__)
@@ -59,7 +59,10 @@ SYSTEM_CATEGORIES = [FUEL_CATEGORY, MAINTENANCE_CATEGORY, PARTS_CATEGORY]
 PAYMENT_METHODS = ["cash", "mobile_money", "transfer", "cheque"]
 
 # The two halves of the cash book, shown one at a time.
-TABS = ("depenses", "mouvements")
+TABS = ("a_regler", "depenses", "mouvements")
+# A purchase request settled through the normal cost form: the request's id
+# rides beside the columns, like a bill's.
+PURCHASE_KEY = "purchase_id"
 
 PER_PAGE = 50   # rows on one screen
 
@@ -281,6 +284,16 @@ def _read_expense_form(expense):
         site_id = vehicle_id = staff_id = None
         ledger_code = None
 
+    # Settling a request from a service: the cost is that purchase's, on
+    # that machine, and the request is marked settled once the cost exists.
+    purchase_id = request.form.get("purchase_id", type=int) or None
+    if purchase_id:
+        pr = db.session.get(ServicePartPurchase, purchase_id)
+        if pr is None or pr.state != "pending":
+            return None, t["caisse.err.request_gone"]
+        vehicle_id = pr.record.vehicle_id
+        common["description"] = common.get("description") or ("%s — %s" % (pr.description, pr.supplier) if pr.supplier else pr.description)
+
     common.update(vehicle_id=vehicle_id, fleet_id=None, label=None, operator=None,
                   supplier=None, site_id=site_id, liters=None,
                   account_id=account_id, staff_id=staff_id, ledger_code=ledger_code,
@@ -288,7 +301,21 @@ def _read_expense_form(expense):
     # Not a column on the cost: it names the bill the instalment belongs to,
     # and rides beside the data rather than in it.
     common[INVOICE_KEY] = invoice_id
+    common[PURCHASE_KEY] = purchase_id
     return common, None
+
+
+def settle_purchase(expense, purchase_id):
+    """The request from a service this cost settles: marked settled, tied
+    to the cost. Nothing else moves; the cost itself is the money."""
+    if not purchase_id:
+        return
+    pr = db.session.get(ServicePartPurchase, purchase_id)
+    if pr is None or pr.state != "pending":
+        return
+    pr.state = "settled"
+    pr.expense_id = expense.id
+    pr.settled_at = datetime.utcnow()
 
 
 def sync_invoice_payment(expense, invoice_id):
@@ -362,7 +389,16 @@ def _form_context(expense):
     # The site of the last cost logged, to save picking the same one all day.
     last = (Expense.query.filter(Expense.site_id.isnot(None))
             .order_by(Expense.id.desc()).first())
+    # A request from a service to settle: the form opens filled with what
+    # was bought, and the cashier says how it was paid.
+    purchase = None
+    pid = request.args.get("purchase_id", type=int) if expense is None else None
+    if pid:
+        purchase = db.session.get(ServicePartPurchase, pid)
+        if purchase is None or purchase.state != "pending":
+            purchase = None
     return {
+        "purchase": purchase,
         "payment_methods": PAYMENT_METHODS,
         "accounts": repayable_accounts(),
         "sites": active_sites(),
@@ -527,6 +563,12 @@ def index():
 
     # The tab lives in the address, not in the page: every filter press reloads,
     # and an unremembered tab would drop you back on the costs each time.
+    # The requests from services waiting for the box: parts bought outside,
+    # each settled through the cost form, or refused.
+    requests = (ServicePartPurchase.query.filter_by(state="pending")
+                .order_by(ServicePartPurchase.created_at.desc()).all())
+    requests_total = sum(r.amount for r in requests)
+
     tab = request.args.get("tab")
     if tab not in TABS:
         # Asking about an account empties the costs, asking about a site or a
@@ -546,6 +588,7 @@ def index():
         "expenses.html", expenses=expenses, movements=movements,
         pagination=pagination, mpagination=mpagination, search=search,
         tab=tab, tab_urls=tab_urls, report_args=report_args,
+        requests=requests, requests_total=requests_total,
         total=spent, count=pagination.total,
         deposited=deposited, withdrawn=withdrawn,
         balance=cash_balance(), accounts_summary=account_balances(),
@@ -572,17 +615,39 @@ def new():
             flash("success|" + t["expense.submitted"])
             return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
         invoice_id = data.pop(INVOICE_KEY, None)
+        purchase_id = data.pop(PURCHASE_KEY, None)
         x = Expense(created_by=current_user.id, **data)
         db.session.add(x)
         db.session.flush()
         sync_account_movement(x)
         sync_invoice_payment(x, invoice_id)
+        settle_purchase(x, purchase_id)
         log_action("CREATE", "expense", resource_id=x.id, fleet_id=x.fleet_id,
                    detail=f"Logged {x.category} expense {x.amount} GNF")
         db.session.commit()
         flash("success|" + t["expense.created"])
         return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
     return _render_expense_form(None)
+
+
+@expenses_bp.route("/expenses/requests/<int:pid>/refuse", methods=["POST"])
+@login_required
+@require_perm("expense.create")
+def request_refuse(pid):
+    """A request the box will not pay: it stays on the service, marked so,
+    with the cashier's word on why."""
+    t = get_t()
+    pr = db.session.get(ServicePartPurchase, pid)
+    if pr is None:
+        abort(404)
+    if pr.state == "pending":
+        pr.state = "refused"
+        pr.refused_note = (request.form.get("note") or "").strip()[:255] or None
+        log_action("UPDATE", "service_part_purchase", resource_id=pid,
+                   detail="Refused purchase request #%s (%s GNF)" % (pid, pr.amount))
+        db.session.commit()
+        flash("success|" + t["caisse.request_refused"])
+    return redirect(url_for("expenses.index", tab="a_regler"))
 
 
 @expenses_bp.route("/expenses/<int:xid>/edit", methods=["GET", "POST"])

@@ -7,6 +7,20 @@
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('expenses.edit', xid=expense.id) if is_edit else url_for('expenses.new') }}">
 
+    {# Settling a request from a service: what was bought, for which machine,
+       already known; the cashier says how it was paid. #}
+    {% set pid = request.form.get('purchase_id') or (purchase.id if purchase else '') %}
+    {% if purchase %}
+    <input type="hidden" name="purchase_id" value="{{ purchase.id }}">
+    <div class="alert alert--info" style="margin:0;">
+        <strong>{{ t['caisse.settling'] }}</strong> {{ purchase.quantity | qty }} × {{ purchase.description }}{% if purchase.supplier %} — {{ purchase.supplier }}{% endif %}
+        · {{ purchase.record.vehicle.code }} · {{ purchase.amount | num }} GNF
+        <div class="muted small">{{ t['caisse.settling_hint'] }}</div>
+    </div>
+    {% elif pid %}
+    <input type="hidden" name="purchase_id" value="{{ pid }}">
+    {% endif %}
+
     <div class="field">
         <input type="date" id="date" name="date" placeholder=" " required
                value="{{ request.form.get('date') or (expense.date if is_edit else today) }}">
@@ -19,7 +33,7 @@
        cash box's money reaches a bill -- and folds away what a settlement
        does not need: the site, the machine, the person, the account code
        (the supplier's, set by the app). The money's side stays. #}
-    {% if invoices %}
+    {% if invoices and not purchase and not pid %}
     <div class="field field--select">
         {% set cur_inv = expense.supplier_payment.invoice_id if is_edit and expense.supplier_payment else 0 %}
         {% set sel_inv = request.form.get('invoice_id')|int(0) or cur_inv %}
@@ -57,8 +71,8 @@
        is the office's own spending, which is for no machine, so the field is
        not merely empty -- it is not there. #}
     <div class="field field--select" id="field-vehicle">
-        {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else 0) %}
-        <select id="vehicle_id" name="vehicle_id">
+        {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else (purchase.record.vehicle_id if purchase else 0)) %}
+        <select id="vehicle_id" name="vehicle_id" {% if purchase %}disabled{% endif %}>
             <option value="">{{ t['expense.no_vehicle'] }}</option>
             {% for v in vehicles %}
             <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>
@@ -86,7 +100,7 @@
     <div class="form-row">
         <div class="field">
             <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
-                   value="{{ request.form.get('amount') or (expense.amount if is_edit else '') }}">
+                   value="{{ request.form.get('amount') or (expense.amount if is_edit else (purchase.amount if purchase else '')) }}">
             <label for="amount">{{ t['expense.amount'] }}</label>
         </div>
         <div class="field field--select">
@@ -145,7 +159,7 @@
     </div>
 
     <div class="field">
-        <textarea id="description" name="description" placeholder="{{ t['ph.expense.description'] }}" rows="3">{{ request.form.get('description') or (expense.description if is_edit and expense.description else '') }}</textarea>
+        <textarea id="description" name="description" placeholder="{{ t['ph.expense.description'] }}" rows="3">{{ request.form.get('description') or (expense.description if is_edit and expense.description else ((purchase.description ~ (' — ' ~ purchase.supplier if purchase.supplier else '')) if purchase else '')) }}</textarea>
         <label for="description">{{ t['expense.description'] }}</label>
     </div>
 

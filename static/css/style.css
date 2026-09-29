@@ -370,6 +370,8 @@ a:hover { text-decoration: underline; }
 .plan-class-count { font-size: 0.72rem; color: var(--md-on-surface-variant); }
 .plan-class.active .plan-class-count { color: inherit; opacity: 0.8; }
 .plan-class--used .plan-class-num .material-symbols-outlined { font-size: 20px; }
+/* Caisse: the count of requests waiting, red so it is seen. */
+.tab__count--alert { background: var(--md-error); color: var(--md-on-error); }
 /* Comptes: the cash box's own account, one line above the purses. */
 .till-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -6px 0 14px; font-size: 0.9rem; }
 .till-line .material-symbols-outlined { font-size: 20px; color: var(--md-on-surface-variant); }

@@ -15,9 +15,9 @@ from flask_login import current_user, login_required
 import maintenance_engine
 from app import current_user_fleet_ids, get_t, log_action
 from blueprints.entries import _recompute_cumulatives
-from blueprints.expenses import (INVOICE_KEY, sync_account_movement,
-                                 sync_invoice_payment)
-from blueprints.maintenance import (MONEY_KEYS, PARTS_KEY, _close_alert_for_record,
+from blueprints.expenses import (INVOICE_KEY, PURCHASE_KEY, settle_purchase,
+                                 sync_account_movement, sync_invoice_payment)
+from blueprints.maintenance import (MONEY_KEYS, PARTS_KEY, _close_alert_for_record, sync_bought_parts,
                                     sync_record_parts, sync_service_expense)
 from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Operator,
                     Part, PendingChange, User, Vehicle, VehicleCategory, db)
@@ -143,7 +143,12 @@ def _apply(pc):
     # is set aside here and applied once the cost itself exists.
     invoice_id = (payload.pop(INVOICE_KEY, None)
                   if pc.resource_type == "expense" else None)
+    # ...or settle a service's purchase request, likewise.
+    purchase_id = (payload.pop(PURCHASE_KEY, None)
+                   if pc.resource_type == "expense" else None)
     parts = (payload.pop(PARTS_KEY, None) or []) if is_service else []
+    # ...and the parts bought outside, requests to the cash box.
+    bought = (payload.pop("bought", None) or []) if is_service else []
     if pc.action == "create":
         obj = Model(**payload)
         setattr(obj, creator_attr, pc.requested_by)
@@ -179,10 +184,12 @@ def _apply(pc):
         db.session.flush()
         sync_account_movement(obj)
         sync_invoice_payment(obj, invoice_id)
+        settle_purchase(obj, purchase_id)
     if pc.resource_type == "maintenance_record" and obj is not None:
         db.session.flush()
         sync_service_expense(obj, money or {})
         sync_record_parts(obj, parts)
+        sync_bought_parts(obj, bought)
         if pc.action == "create":
             _close_alert_for_record(obj)
         maintenance_engine.evaluate_vehicle(db.session.get(Vehicle, obj.vehicle_id))

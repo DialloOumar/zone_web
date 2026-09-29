@@ -68,7 +68,7 @@
     {# Parts come out of the store, so they are not typed into the cost above:
        they were paid for when they were received. #}
     <div class="form-section">
-        <div class="form-section__title">{{ t['maint.parts_used'] }}</div>
+        <div class="form-section__title">{{ t['maint.parts_from_store'] }}</div>
         <div id="parts-lines">
             {% for pid, qty in part_rows %}
             <div class="form-row parts-line">
@@ -120,6 +120,81 @@
     </template>
     {% endif %}
 
+    {# Parts the store did not have, bought outside: what, how many, from
+       whom, how much. Each is a request to the cash box; the cashier settles
+       it from Caisse and the expense lands on the machine. A line already
+       settled or refused is shown as recorded and cannot be changed here. #}
+    <div class="form-section">
+        <div class="form-section__title">{{ t['maint.parts_bought'] }}</div>
+        <p class="muted small" style="margin:-4px 0 8px;">{{ t['maint.parts_bought_hint'] }}</p>
+        <div id="bought-lines">
+            {% for b in bought_rows %}
+            {% if b.state != 'pending' %}
+            <div class="form-row bought-line bought-line--fixed">
+                <input type="hidden" name="buy_id" value="{{ b.id }}"><input type="hidden" name="buy_desc" value="{{ b.description }}"><input type="hidden" name="buy_qty" value="{{ b.quantity }}"><input type="hidden" name="buy_supplier" value="{{ b.supplier }}"><input type="hidden" name="buy_amount" value="{{ b.amount }}">
+                <div class="field-hint" style="flex:1;">
+                    <span class="badge {{ 'badge--active' if b.state == 'settled' else 'badge--inactive' }}">{{ t['maint.bought.' + b.state] }}</span>
+                    {{ b.quantity | qty }} × {{ b.description }}{% if b.supplier %} — {{ b.supplier }}{% endif %} · <strong>{{ b.amount | num }} GNF</strong>
+                </div>
+            </div>
+            {% else %}
+            <div class="form-row bought-line">
+                <input type="hidden" name="buy_id" value="{{ b.id or '' }}">
+                <div class="field" style="flex:2;">
+                    <input type="text" name="buy_desc" placeholder="{{ t['ph.bought.desc'] }}" maxlength="160" value="{{ b.description }}">
+                    <label>{{ t['maint.bought_what'] }}</label>
+                </div>
+                <div class="field" style="flex:0 0 80px;">
+                    <input type="number" name="buy_qty" placeholder=" " min="0" step="any" value="{{ b.quantity }}">
+                    <label>{{ t['mv.quantity'] }}</label>
+                </div>
+                <div class="field">
+                    <input type="text" name="buy_supplier" list="bought-suppliers" placeholder="{{ t['ph.record.supplier'] }}" maxlength="120" value="{{ b.supplier }}">
+                    <label>{{ t['maint.supplier'] }}</label>
+                </div>
+                <div class="field">
+                    <input data-money type="text" inputmode="numeric" name="buy_amount" placeholder="{{ t['ph.expense.amount'] }}" value="{{ b.amount }}">
+                    <label>{{ t['invoice.amount'] }}</label>
+                </div>
+                <button type="button" class="btn btn--sm btn--tonal btn--icon" data-bought-remove
+                        title="{{ t['maint.parts_remove'] }}" aria-label="{{ t['maint.parts_remove'] }}">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn--sm btn--outlined" data-bought-add>
+            <span class="material-symbols-outlined">add</span> {{ t['maint.bought_add'] }}
+        </button>
+        <datalist id="bought-suppliers">{% for n in supplier_names %}<option value="{{ n }}">{% endfor %}</datalist>
+    </div>
+    <template id="bought-line-tpl">
+        <div class="form-row bought-line">
+            <input type="hidden" name="buy_id" value="">
+            <div class="field" style="flex:2;">
+                <input type="text" name="buy_desc" placeholder="{{ t['ph.bought.desc'] }}" maxlength="160">
+                <label>{{ t['maint.bought_what'] }}</label>
+            </div>
+            <div class="field" style="flex:0 0 80px;">
+                <input type="number" name="buy_qty" placeholder=" " min="0" step="any" value="1">
+                <label>{{ t['mv.quantity'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" name="buy_supplier" list="bought-suppliers" placeholder="{{ t['ph.record.supplier'] }}" maxlength="120">
+                <label>{{ t['maint.supplier'] }}</label>
+            </div>
+            <div class="field">
+                <input data-money type="text" inputmode="numeric" name="buy_amount" placeholder="{{ t['ph.expense.amount'] }}">
+                <label>{{ t['invoice.amount'] }}</label>
+            </div>
+            <button type="button" class="btn btn--sm btn--tonal btn--icon" data-bought-remove
+                    title="{{ t['maint.parts_remove'] }}" aria-label="{{ t['maint.parts_remove'] }}">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+    </template>
+
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
@@ -149,3 +224,18 @@
 })();
 </script>
 {% endif %}
+<script>
+(function () {
+    // The parts bought outside: same rows-with-a-template pattern; no row
+    // to start with, since most services need none.
+    var box = document.getElementById('bought-lines'), tpl = document.getElementById('bought-line-tpl');
+    if (!box || !tpl) return;
+    document.querySelector('[data-bought-add]').addEventListener('click', function () {
+        box.appendChild(tpl.content.cloneNode(true));
+    });
+    box.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-bought-remove]');
+        if (btn) btn.closest('.bought-line').remove();
+    });
+})();
+</script>
