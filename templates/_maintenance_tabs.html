@@ -1,0 +1,25 @@
+{# Entretien's two tabs, on both of its pages: the services done, and the
+   rules that schedule them. Each is its own page; the nav makes them read
+   as one. Above them, what both share: the kinds of service. #}
+{% if has_perm('maintenance_rule.create') %}
+<div class="stock-settings">
+    <a href="{{ url_for('maintenance.service_types') }}" class="btn btn--sm btn--outlined"
+       data-modal-url="{{ url_for('maintenance.service_types') }}" data-modal-title="{{ t['stype.title'] }}">
+        <span class="material-symbols-outlined">tune</span> {{ t['stype.title'] }}
+    </a>
+</div>
+{% endif %}
+<nav class="tabs" role="tablist">
+    {% if has_perm('maintenance_record.view') %}
+    <a href="{{ url_for('maintenance.records') }}" role="tab" aria-selected="{{ 'true' if maint_tab == 'records' else 'false' }}"
+       class="tab {% if maint_tab == 'records' %}tab--on{% endif %}">
+        <span class="material-symbols-outlined">handyman</span> {{ t['maint.tab_records'] }}
+    </a>
+    {% endif %}
+    {% if has_perm('maintenance_rule.view') %}
+    <a href="{{ url_for('maintenance.rules') }}" role="tab" aria-selected="{{ 'true' if maint_tab == 'rules' else 'false' }}"
+       class="tab {% if maint_tab == 'rules' %}tab--on{% endif %}">
+        <span class="material-symbols-outlined">rule</span> {{ t['maint.tab_rules'] }}
+    </a>
+    {% endif %}
+</nav>

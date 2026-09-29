@@ -1275,6 +1275,8 @@ TRANSLATIONS = {
         "maint.record_delete_confirm": "Supprimer cet entretien ?",
         # Types d'entretien, tenus par l'équipe (les huit de départ ci-dessous ne servent plus qu'en secours)
         "stype.title":            "Types d'entretien",
+        "maint.tab_records":      "Entretiens",
+        "maint.tab_rules":        "Règles",
         "stype.intro":            "Les sortes d'entretien qu'on enregistre : vidange, filtres, pneus, et ce que vous ajoutez. Un type utilisé s'archive, il ne se supprime pas.",
         "stype.name":             "Nom",
         "stype.name_ph":          "Ex. : courroies, hydraulique",
@@ -3002,6 +3004,8 @@ TRANSLATIONS = {
         "maint.record_delete_confirm": "Delete this service record?",
         # Service types, kept by the team (the eight starters below are a fallback only)
         "stype.title":            "Service types",
+        "maint.tab_records":      "Services",
+        "maint.tab_rules":        "Rules",
         "stype.intro":            "The kinds of service recorded: oil change, filters, tyres, and what you add. A type in use is archived, never deleted.",
         "stype.name":             "Name",
         "stype.name_ph":          "E.g. belts, hydraulics",

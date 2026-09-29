@@ -141,14 +141,12 @@
                 {% if active_alerts %}<span class="nav-badge nav-badge--alert">{{ active_alerts }}</span>{% endif %}
             </a></li>
             {% endif %}
-            {% if has_perm('maintenance_record.view') %}
-            <li><a href="{{ url_for('maintenance.records') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.records', 'maintenance.record_new', 'maintenance.record_edit'] %}active{% endif %}">
+            {# One entry for the services done and the rules that schedule
+               them: two tabs of one page. Whoever may see only the rules
+               lands on that tab. #}
+            {% if has_perm('maintenance_record.view') or has_perm('maintenance_rule.view') %}
+            <li><a href="{{ url_for('maintenance.records') if has_perm('maintenance_record.view') else url_for('maintenance.rules') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.records', 'maintenance.record_new', 'maintenance.record_edit', 'maintenance.rules', 'maintenance.rule_new', 'maintenance.rule_edit', 'maintenance.service_types'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">handyman</span> {{ t['nav.maintenance_records'] }}
-            </a></li>
-            {% endif %}
-            {% if has_perm('maintenance_rule.view') %}
-            <li><a href="{{ url_for('maintenance.rules') }}" class="sidebar-sub {% if request.endpoint in ['maintenance.rules', 'maintenance.rule_new', 'maintenance.rule_edit'] %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">rule</span> {{ t['nav.maintenance_rules'] }}
             </a></li>
             {% endif %}
             {% endif %}

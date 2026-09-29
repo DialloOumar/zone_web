@@ -5,15 +5,9 @@
 {% block page_title %}{{ t['nav.maintenance_records'] }}{% endblock %}
 
 {% block content %}
+{% with maint_tab = 'records' %}{% include "_maintenance_tabs.html" %}{% endwith %}
 <section class="card">
     <div class="card-header card-header--end">
-        {# The kinds of service, kept by whoever keeps the rules. #}
-        {% if has_perm('maintenance_rule.create') %}
-        <a href="{{ url_for('maintenance.service_types') }}" class="btn btn--sm btn--outlined"
-           data-modal-url="{{ url_for('maintenance.service_types') }}" data-modal-title="{{ t['stype.title'] }}">
-            <span class="material-symbols-outlined">tune</span> {{ t['stype.title'] }}
-        </a>
-        {% endif %}
         {% if has_perm('maintenance_record.create') %}
         <a href="{{ url_for('maintenance.record_new') }}" class="fab" data-modal-url="{{ url_for('maintenance.record_new') }}" data-modal-title="{{ t['maint.record_new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['maint.record_new'] }}

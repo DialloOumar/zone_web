@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}{{ t['nav.maintenance_rules'] }}{% endblock %}
-{% block page_title %}{{ t['nav.maintenance_rules'] }}{% endblock %}
+{% block title %}{{ t['nav.maintenance_records'] }} · {{ t['maint.tab_rules'] }}{% endblock %}
+{% block page_title %}{{ t['nav.maintenance_records'] }}{% endblock %}
 
 {% block content %}
+{% with maint_tab = 'rules' %}{% include "_maintenance_tabs.html" %}{% endwith %}
 <section class="card">
     <div class="card-header card-header--end">
         {% if has_perm('maintenance_rule.create') %}
