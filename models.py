@@ -201,6 +201,25 @@ class UserFleet(db.Model):
 # ── Domain ────────────────────────────────────────────────────────────────────
 
 
+class VehicleStatusChange(db.Model):
+    """One change of a machine's working state: from what to what, since
+    when, who said so and why. The machine's page reads its timeline here
+    and the analyses count the days out of service from it."""
+    __tablename__ = "vehicle_status_changes"
+
+    id          = db.Column(db.Integer,     primary_key=True)
+    vehicle_id  = db.Column(db.Integer,     db.ForeignKey("vehicles.id"), nullable=False, index=True)
+    from_status = db.Column(db.String(12),  nullable=False)
+    to_status   = db.Column(db.String(12),  nullable=False)
+    date        = db.Column(db.String(10),  nullable=False, index=True)   # YYYY-MM-DD, since when
+    note        = db.Column(db.String(255))
+    changed_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    vehicle = db.relationship("Vehicle", backref=db.backref("status_changes", order_by="VehicleStatusChange.date.desc(), VehicleStatusChange.id.desc()", cascade="all, delete-orphan"))
+    author  = db.relationship("User", foreign_keys=[changed_by])
+
+
 class VehicleCategory(db.Model):
     """Master list of vehicle types (Bus, Minibus, Camion TSF, …).
 
@@ -260,6 +279,12 @@ class Vehicle(db.Model):
     # ClientRate, dated; the machine itself only knows where it is now.
     client_id                     = db.Column(db.Integer,   db.ForeignKey("clients.id"), nullable=True)
     is_active                     = db.Column(db.Boolean,   nullable=False, default=True)
+    # The machine's working state while it is in the fleet: at work, in
+    # the workshop on purpose, or broken and waiting. Inactive is another
+    # thing: out of the fleet. Each change is kept (VehicleStatusChange) so
+    # the time out of service can be counted.
+    status                        = db.Column(db.String(12), nullable=False, default="active", server_default="active", index=True)
+    status_since                  = db.Column(db.String(10), nullable=True)   # YYYY-MM-DD
     # Soft delete beyond archive: set = the machine is gone from every UI, its
     # code is freed for reuse, but the row stays so history isn't orphaned.
     deleted_at                    = db.Column(db.DateTime,  nullable=True)

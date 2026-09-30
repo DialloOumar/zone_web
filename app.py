@@ -11,7 +11,7 @@ admin pages) come in subsequent sprints.
 import logging
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 import click
@@ -192,6 +192,8 @@ def _inject_globals():
         "unit_label": _unit_label,
         # The name of a kind of service, from its code.
         "service_type_label": _service_type_label,
+        # Whole days from an ISO date to today, for "en panne depuis 12 jours".
+        "days_since": lambda iso: max(0, (date.today() - date.fromisoformat(iso)).days) if iso else 0,
         # Whether a person has a stamp or signature to print.
         "user_has_stamp": user_has_stamp,
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
@@ -898,9 +900,18 @@ def dashboard():
 
     charts = _dashboard_charts(fleet_ids, datetime.utcnow(), current_lang())
 
+    # The fleet's working state: how many at work, in the workshop, broken,
+    # and the down ones by name with how long, the boss's first question.
+    fleet_q = vq.filter(Vehicle.is_active.is_(True), Vehicle.deleted_at.is_(None))
+    fleet_state = dict(fleet_q.with_entities(Vehicle.status, db.func.count(Vehicle.id))
+                       .group_by(Vehicle.status).all())
+    down = (fleet_q.filter(Vehicle.status != "active")
+            .order_by(Vehicle.status_since.asc().nullsfirst(), Vehicle.code).all())
+
     return render_template(
         "dashboard.html",
         stats=stats,
+        fleet_state=fleet_state, down=down,
         open_alerts=open_alerts,
         recent_entries=recent_entries,
         charts=charts,

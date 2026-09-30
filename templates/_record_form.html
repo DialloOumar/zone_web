@@ -17,10 +17,24 @@
             <select id="vehicle_id" name="vehicle_id" required>
                 <option value="" hidden></option>
                 {% set sel_v = request.form.get('vehicle_id')|int(0) or (record.vehicle_id if is_edit else preset_vehicle or 0) %}
-                {% for v in vehicles %}<option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
+                {% for v in vehicles %}<option value="{{ v.id }}" data-status="{{ v.status }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
             </select>
             <label for="vehicle_id">{{ t['maint.vehicle'] }}</label>
         </div>
+        {# A machine down comes back into service with the work that fixed
+           it, unless told otherwise. Shown only when the chosen one is down. #}
+        <label class="checkbox-item" id="back-in-service" hidden>
+            <input type="checkbox" name="back_in_service" value="1" {% if request.method != 'POST' or request.form.get('back_in_service') %}checked{% endif %}>
+            <span>{{ t['maint.back_in_service'] }}</span>
+        </label>
+        <script>
+        (function () {
+            var sel = document.getElementById('vehicle_id'), box = document.getElementById('back-in-service');
+            if (!sel || !box) return;
+            function refresh() { var o = sel.options[sel.selectedIndex]; box.hidden = !(o && o.dataset.status && o.dataset.status !== 'active'); }
+            sel.addEventListener('change', refresh); refresh();
+        })();
+        </script>
         <div class="field field--select">
             <select id="type" name="type" required>
                 <option value="" hidden></option>

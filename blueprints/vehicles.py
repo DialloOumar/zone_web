@@ -5,7 +5,7 @@ fleets. First module to wire the approval+grace flow: when a user's role
 marks vehicle.* as requiring approval (and they're outside the grace window),
 the change is parked in the approval queue instead of applied.
 """
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import (Blueprint, abort, flash, make_response, redirect,
                    render_template, request, url_for)
@@ -18,7 +18,56 @@ from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
 from models import (Alert, DailyEntry, Expense, SupplierInvoice, Fleet, FuelMovement,
                     MaintenanceRecord, MaintenanceRule, Operator, StockMovement,
-                    Vehicle, VehicleCategory, db)
+                    Vehicle, VehicleCategory, VehicleStatusChange, db)
+
+# A machine's working states while it is in the fleet. Inactive is another
+# thing: out of the fleet.
+STATUSES = ("active", "maintenance", "broken")
+
+
+def set_status(vehicle, to_status, date_str, note=None, user_id=None):
+    """Move a machine to a state as of a date, keeping the change. A move
+    to the state it is in already is nothing. Returns the change or None."""
+    if to_status not in STATUSES or vehicle.status == to_status:
+        return None
+    change = VehicleStatusChange(vehicle_id=vehicle.id, from_status=vehicle.status, to_status=to_status,
+                                 date=date_str, note=(note or "").strip()[:255] or None, changed_by=user_id)
+    db.session.add(change)
+    vehicle.status = to_status
+    vehicle.status_since = date_str
+    log_action("UPDATE", "vehicle", resource_id=vehicle.id,
+               detail="%s: %s -> %s since %s%s" % (vehicle.code, change.from_status, to_status, date_str,
+                                                     (" (" + change.note + ")") if change.note else ""))
+    return change
+
+
+def down_days(vehicle_id, date_from, date_to, changes=None):
+    """Days a machine was not en service between two dates, inclusive,
+    read off its status changes. `changes` may be passed, oldest first."""
+    from datetime import date as _d, timedelta
+    if changes is None:
+        changes = (VehicleStatusChange.query.filter_by(vehicle_id=vehicle_id)
+                   .order_by(VehicleStatusChange.date, VehicleStatusChange.id).all())
+    try:
+        start, end = _d.fromisoformat(date_from), _d.fromisoformat(date_to)
+    except ValueError:
+        return 0
+    # The state on the first day: the last change before it, else en service.
+    status = "active"
+    for c in changes:
+        if c.date <= date_from:
+            status = c.to_status
+    later = [c for c in changes if date_from < c.date <= date_to]
+    days, day = 0, start
+    while day <= end:
+        iso = day.isoformat()
+        for c in later:
+            if c.date == iso:
+                status = c.to_status
+        if status != "active":
+            days += 1
+        day += timedelta(days=1)
+    return days
 
 vehicles_bp = Blueprint("vehicles", __name__)
 
@@ -190,6 +239,10 @@ def index():
     q = scoped(Vehicle).filter(Vehicle.is_active.is_(not show_archived))
     if active_code and active_code in cat_by_code:
         q = q.filter(Vehicle.category_id == cat_by_code[active_code].id)
+    # The working state: the down ones are what one looks for first.
+    status = request.args.get("status") or ""
+    if status in STATUSES:
+        q = q.filter(Vehicle.status == status)
     # A fleet of sixty scrolls forever; the code is what anyone types first.
     search = (request.args.get("q") or "").strip()
     if search:
@@ -219,6 +272,10 @@ def index():
 
     resp = make_response(render_template(
         "vehicles.html", vehicles=vehicles, pagination=pagination,
+        status=status, statuses=STATUSES,
+        status_counts=dict(db.session.query(Vehicle.status, db.func.count(Vehicle.id))
+                           .filter(Vehicle.is_active.is_(True), Vehicle.deleted_at.is_(None))
+                           .group_by(Vehicle.status).all()),
         view=view, search=search,
         filter_cats=filter_cats, active_code=active_code,
         show_archived=show_archived, archived_count=archived_count))
@@ -226,6 +283,42 @@ def index():
         resp.set_cookie("veh_view", view, max_age=60 * 60 * 24 * 365,
                         samesite="Lax")
     return resp
+
+
+@vehicles_bp.route("/vehicles/<int:vid>/status", methods=["GET", "POST"])
+@login_required
+@require_perm("vehicle.edit")
+def status(vid):
+    """Change a machine's working state: to what, since when, why."""
+    vehicle = _get_vehicle_or_404(vid)
+    t = get_t()
+    if request.method == "POST":
+        to_status = request.form.get("status") or ""
+        date_str = (request.form.get("date") or "").strip()
+        if to_status not in STATUSES:
+            return _render_status_form(vehicle, t["vehicle.err.status"])
+        if not date_str or not _valid_date(date_str):
+            return _render_status_form(vehicle, t["maint.err.date_required"])
+        set_status(vehicle, to_status, date_str, request.form.get("note"), current_user.id)
+        db.session.commit()
+        flash("success|" + t["vehicle.status_saved"])
+        return modal_ok() if is_modal_request() else redirect(url_for("vehicles.detail", vid=vid))
+    return _render_status_form(vehicle)
+
+
+def _valid_date(s):
+    try:
+        date.fromisoformat(s)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _render_status_form(vehicle, error=None):
+    tpl = "_vehicle_status_form.html" if is_modal_request() else "vehicle_status_form.html"
+    code = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, vehicle=vehicle, error=error, statuses=STATUSES,
+                           today=date.today().isoformat()), code
 
 
 @vehicles_bp.route("/vehicles/<int:vid>")
@@ -273,6 +366,7 @@ def detail(vid):
 
     return render_template("vehicle_detail.html", vehicle=vehicle,
                            entries=entries, expenses=expenses, bills=bills,
+                           status_changes=vehicle.status_changes[:10], statuses=STATUSES,
                            records=records, alerts=alerts,
                            parts_used=parts_used, parts_total=parts_total,
                            direct_total=direct_total)

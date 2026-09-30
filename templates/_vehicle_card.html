@@ -7,7 +7,7 @@
         {% if vimg %}<img src="{{ vimg.url }}" alt="{{ v.code }}" loading="lazy">
         {% else %}<span class="material-symbols-outlined">{{ 'directions_bus' if v.category.code == 'BUS' else 'handyman' }}</span>{% endif %}
         {% if v.is_active %}
-        <span class="badge badge--active vehicle-card__status">{{ t['vehicle.active'] }}</span>
+        <span class="badge badge--status-{{ v.status }} vehicle-card__status">{{ t['vehicle.status.' + v.status] }}</span>
         {% else %}
         <span class="badge badge--inactive vehicle-card__status">{{ t['vehicle.inactive'] }}</span>
         {% endif %}

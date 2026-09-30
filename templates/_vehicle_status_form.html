@@ -1,0 +1,26 @@
+{# A machine's working state: to what, since when, why. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form action="{{ url_for('vehicles.status', vid=vehicle.id) }}">
+    <div class="field-hint" style="margin:0;">{{ vehicle.code }} · {{ t['vehicle.status.' + vehicle.status] }}{% if vehicle.status_since %} {{ t['vehicle.since'] }} {{ vehicle.status_since }}{% endif %}</div>
+    <div class="form-row">
+        <div class="field field--select">
+            {% set sel = request.form.get('status') or ('active' if vehicle.status != 'active' else 'maintenance') %}
+            <select id="status" name="status" required>
+                {% for st in statuses %}<option value="{{ st }}" {% if st == sel %}selected{% endif %}>{{ t['vehicle.status.' + st] }}</option>{% endfor %}
+            </select>
+            <label for="status">{{ t['vehicle.new_status'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required value="{{ request.form.get('date') or today }}">
+            <label for="date">{{ t['vehicle.since'] | capitalize }}</label>
+        </div>
+    </div>
+    <div class="field">
+        <input type="text" id="note" name="note" placeholder="{{ t['ph.vehicle.status_note'] }}" maxlength="255" value="{{ request.form.get('note') or '' }}">
+        <label for="note">{{ t['expense.description'] }}</label>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('vehicles.detail', vid=vehicle.id) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

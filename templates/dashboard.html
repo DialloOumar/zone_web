@@ -54,6 +54,14 @@
             <div class="stat-label">{{ t['dash.active_vehicles'] }}</div>
         </div>
     </div>
+    {# The fleet's working state; the down ones are listed below the grid. #}
+    <a class="stat-card" href="{{ url_for('vehicles.index', status='broken') if fleet_state.get('broken') else url_for('vehicles.index') }}">
+        <span class="stat-icon {{ 'stat-icon--red' if fleet_state.get('broken') else ('stat-icon--amber' if fleet_state.get('maintenance') else 'stat-icon--teal') }} material-symbols-outlined">build</span>
+        <div>
+            <div class="stat-value">{{ fleet_state.get('active', 0) }}<span class="stat-unit"> {{ t['vehicle.status.active'] | lower }}</span></div>
+            <div class="stat-label">{{ fleet_state.get('maintenance', 0) }} {{ t['vehicle.status.maintenance'] | lower }} · {{ fleet_state.get('broken', 0) }} {{ t['vehicle.status.broken'] | lower }}</div>
+        </div>
+    </a>
     <a class="stat-card" href="{{ url_for('maintenance.alerts') }}">
         <span class="stat-icon {{ 'stat-icon--red' if stats.alerts_open else 'stat-icon--teal' }} material-symbols-outlined">warning</span>
         <div>
@@ -71,6 +79,24 @@
     </a>
     {% endif %}
 </div>
+
+{% if down %}
+<section class="card" style="margin-top:14px;">
+    <div class="card-header"><h2>{{ t['dash.down_list'] }}</h2></div>
+    <div class="table-wrap"><table class="data-table">
+        <tbody>
+            {% for v in down %}
+            <tr>
+                <td><a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="chip">{{ v.code }}</a></td>
+                <td><span class="badge badge--status-{{ v.status }}">{{ t['vehicle.status.' + v.status] }}</span></td>
+                <td class="muted small">{% if v.status_since %}{{ t['vehicle.since'] }} {{ v.status_since }} · <strong>{{ days_since(v.status_since) }} {{ t['vehicle.days'] }}</strong>{% endif %}</td>
+                <td class="muted small">{{ v.status_changes[0].note if v.status_changes and v.status_changes[0].note else '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+</section>
+{% endif %}
 
 <div class="dash-charts">
     <section class="card dash-chart">

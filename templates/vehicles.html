@@ -45,8 +45,20 @@
     </div>
     {% endif %}
 
+    {# The working state: the down ones are what one looks for first. #}
+    {% if not show_archived and (status_counts.get('maintenance') or status_counts.get('broken') or status) %}
+    <div class="filter-chips" style="margin-bottom:8px;">
+        <a href="{{ url_for('vehicles.index', category=active_code, view=view) }}" class="filter-chip {% if not status %}active{% endif %}">{{ t['vehicle.status.all'] }}</a>
+        {% for st in statuses %}
+        <a href="{{ url_for('vehicles.index', category=active_code, view=view, status=st) }}" class="filter-chip {% if status == st %}active{% endif %}">
+            {{ t['vehicle.status.' + st] }} <span class="muted">{{ status_counts.get(st, 0) }}</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {{ searchbox(search, {'category': active_code, 'archived': '1' if show_archived else '',
-                          'view': view}) }}
+                          'view': view, 'status': status}) }}
 
     {% if vehicles %}
     {% if view == 'cards' %}
@@ -86,7 +98,8 @@
                 <td class="col-secondary">{{ v.site or '—' }}</td>
                 <td>
                     {% if v.is_active %}
-                        <span class="badge badge--active">{{ t['vehicle.active'] }}</span>
+                        <span class="badge badge--status-{{ v.status }}">{{ t['vehicle.status.' + v.status] }}</span>
+                        {% if v.status != 'active' and v.status_since %}<div class="muted small">{{ days_since(v.status_since) }} {{ t['vehicle.days'] }}</div>{% endif %}
                     {% else %}
                         <span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>
                     {% endif %}

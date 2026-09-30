@@ -509,6 +509,20 @@ def split_parts(data):
     return data, data.pop(PARTS_KEY, None) or []
 
 
+def _maybe_back_in_service(vehicle, rec):
+    """A service on a machine that was down puts it back en service as of
+    the service's date, when the form said so (its default)."""
+    if vehicle.status != "active" and request.form.get("back_in_service"):
+        from blueprints.vehicles import set_status
+        set_status(vehicle, "active", rec.date, get_t()["maint.back_note"] % service_type_label_of(rec.type),
+                   current_user.id)
+
+
+def service_type_label_of(code):
+    from app import _service_type_label
+    return _service_type_label(code)
+
+
 def split_bought(data):
     """Pop the bought-outside lines out of a record payload."""
     return data, data.pop("bought", None) or []
@@ -746,6 +760,7 @@ def record_new():
         sync_record_parts(rec, lines)
         sync_bought_parts(rec, bought)
         _close_alert_for_record(rec)
+        _maybe_back_in_service(vehicle, rec)
         maintenance_engine.evaluate_vehicle(vehicle)
         log_action("CREATE", "maintenance_record", resource_id=rec.id,
                    fleet_id=vehicle.fleet_id, detail=f"Logged {rec.type} on {vehicle.code}")
@@ -782,6 +797,7 @@ def record_edit(mid):
         sync_service_expense(record, money)
         sync_record_parts(record, lines)
         sync_bought_parts(record, bought)
+        _maybe_back_in_service(record.vehicle, record)
         maintenance_engine.evaluate_vehicle(vehicle)
         log_action("UPDATE", "maintenance_record", resource_id=record.id,
                    fleet_id=vehicle.fleet_id, detail=f"Edited record #{record.id}")

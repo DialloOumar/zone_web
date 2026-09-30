@@ -370,6 +370,10 @@ a:hover { text-decoration: underline; }
 .plan-class-count { font-size: 0.72rem; color: var(--md-on-surface-variant); }
 .plan-class.active .plan-class-count { color: inherit; opacity: 0.8; }
 .plan-class--used .plan-class-num .material-symbols-outlined { font-size: 20px; }
+/* A machine's working state. */
+.badge--status-active { background: var(--md-tertiary-container); color: var(--md-on-tertiary-container); }
+.badge--status-maintenance { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+.badge--status-broken { background: var(--md-error-container); color: var(--md-on-error-container); }
 /* Caisse: the count of requests waiting, red so it is seen. */
 .tab__count--alert { background: var(--md-error); color: var(--md-on-error); }
 /* Comptes: the cash box's own account, one line above the purses. */

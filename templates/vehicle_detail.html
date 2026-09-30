@@ -18,12 +18,20 @@
             <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                 <span class="chip chip--{{ vehicle.category.code|lower }}">{{ vehicle.category.label_fr if lang == 'fr' else vehicle.category.label }}</span>
                 {% if vehicle.is_active %}
-                <span class="badge badge--active">{{ t['vehicle.active'] }}</span>
+                {# Its working state, and for how long. #}
+                <span class="badge badge--status-{{ vehicle.status }}">{{ t['vehicle.status.' + vehicle.status] }}</span>
+                {% if vehicle.status != 'active' and vehicle.status_since %}<span class="muted small">{{ t['vehicle.since'] }} {{ vehicle.status_since }} · {{ days_since(vehicle.status_since) }} {{ t['vehicle.days'] }}</span>{% endif %}
                 {% else %}
                 <span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>
                 {% endif %}
             </div>
             <div class="row-actions">
+                {% if has_perm('vehicle.edit') and vehicle.is_active %}
+                <a href="{{ url_for('vehicles.status', vid=vehicle.id) }}" class="btn btn--tonal"
+                   data-modal-url="{{ url_for('vehicles.status', vid=vehicle.id) }}" data-modal-title="{{ t['vehicle.change_status'] }}">
+                    <span class="material-symbols-outlined">{{ 'build' if vehicle.status == 'active' else 'check_circle' }}</span> {{ t['vehicle.change_status'] }}
+                </a>
+                {% endif %}
                 {% if has_perm('vehicle.edit') %}
                 <a href="{{ url_for('vehicles.edit', vid=vehicle.id) }}" class="btn btn--tonal"
                    data-modal-url="{{ url_for('vehicles.edit', vid=vehicle.id) }}" data-modal-title="{{ t['vehicle.edit'] }}">
@@ -225,6 +233,26 @@
         </div>
         {% endfor %}
     </div>
+</section>
+{% endif %}
+
+{# The machine's working states over time: when it went down, when it
+   came back, and why. #}
+{% if status_changes %}
+<section class="card">
+    <div class="card-header"><h2>{{ t['vehicle.status_history'] }}</h2></div>
+    <div class="table-wrap"><table class="data-table">
+        <tbody>
+            {% for c in status_changes %}
+            <tr>
+                <td style="white-space:nowrap;">{{ c.date }}</td>
+                <td><span class="badge badge--status-{{ c.to_status }}">{{ t['vehicle.status.' + c.to_status] }}</span> <span class="muted small">{{ t['vehicle.from'] }} {{ t['vehicle.status.' + c.from_status] | lower }}</span></td>
+                <td>{{ c.note or '' }}</td>
+                <td class="muted small col-secondary">{{ c.author.full_name if c.author else '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
 </section>
 {% endif %}
 
