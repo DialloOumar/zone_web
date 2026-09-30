@@ -12,7 +12,7 @@
 <body class="auth-body">
 
 <div class="auth-card">
-    <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ t['app.title'] }}" class="auth-logo">
+    <div class="auth-wordmark">{{ t['app.title'] }}</div>
 
     {% if error %}
     <div class="alert alert--error">{{ error }}</div>

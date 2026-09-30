@@ -11,10 +11,9 @@
 </head>
 <body>
     <nav class="sidebar">
+        {# The name in place of the logo, until a new one is chosen. #}
         <div class="sidebar-logo">
-            <a href="{{ url_for('dashboard') }}" class="sidebar-logo-link">
-                <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ t['app.title'] }}" class="sidebar-logo-img">
-            </a>
+            <a href="{{ url_for('dashboard') }}" class="sidebar-logo-link sidebar-wordmark">{{ t['app.title'] }}</a>
         </div>
         {% block sidebar_nav %}
         <ul class="sidebar-nav">

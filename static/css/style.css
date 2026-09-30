@@ -271,6 +271,10 @@ a:hover { text-decoration: underline; }
     display: flex;
 }
 .sidebar-logo-link { display: block; }
+/* The name where the logo was, until a new one is chosen. */
+.sidebar-wordmark { font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; color: var(--md-on-surface); text-decoration: none; padding: 6px 0; }
+.sidebar-wordmark:hover { text-decoration: none; color: var(--md-primary); }
+.auth-wordmark { font-weight: 700; font-size: 1.4rem; text-align: center; margin: 4px 0 18px; color: var(--md-on-surface); }
 .sidebar-logo-img {
     display: block;
     width: 118px;
