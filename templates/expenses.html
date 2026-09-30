@@ -133,13 +133,6 @@
     {# Two tabs rather than two tables stacked: money in and out is not a cost,
        and reading them one under the other invited adding them up. #}
     <nav class="tabs" role="tablist">
-        {# First: what services are waiting for -- parts bought outside, each
-           settled through the cost form or refused. Not money out yet, so
-           not among the costs; a to-do list with its count. #}
-        <a href="{{ tab_urls['a_regler'] }}" role="tab" aria-selected="{{ 'true' if tab == 'a_regler' else 'false' }}"
-           class="tab {% if tab == 'a_regler' %}tab--on{% endif %}">
-            {{ t['caisse.tab_requests'] }}{% if requests %}<span class="tab__count tab__count--alert">{{ requests | length }}</span>{% endif %}
-        </a>
         <a href="{{ tab_urls['depenses'] }}" role="tab" aria-selected="{{ 'true' if tab == 'depenses' else 'false' }}"
            class="tab {% if tab == 'depenses' %}tab--on{% endif %}">
             {{ t['caisse.tab_expenses'] }}<span class="tab__count">{{ pagination.total }}</span>
@@ -147,6 +140,13 @@
         <a href="{{ tab_urls['mouvements'] }}" role="tab" aria-selected="{{ 'true' if tab == 'mouvements' else 'false' }}"
            class="tab {% if tab == 'mouvements' %}tab--on{% endif %}">
             {{ t['caisse.tab_movements'] }}<span class="tab__count">{{ mpagination.total }}</span>
+        </a>
+        {# Last: what services are waiting for -- parts bought outside, each
+           settled through the cost form or refused. Not money out yet, so
+           not among the costs; a to-do list with its count in red. #}
+        <a href="{{ tab_urls['a_regler'] }}" role="tab" aria-selected="{{ 'true' if tab == 'a_regler' else 'false' }}"
+           class="tab {% if tab == 'a_regler' %}tab--on{% endif %}">
+            {{ t['caisse.tab_requests'] }}{% if requests %}<span class="tab__count tab__count--alert">{{ requests | length }}</span>{% endif %}
         </a>
     </nav>
 
@@ -185,7 +185,7 @@
                data-modal-url="{{ url_for('expenses.new') }}" data-modal-title="{{ t['expense.new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['expense.new'] }}
             </a>
-            {% else %}
+            {% elif tab == 'mouvements' %}
             {# Keeps its word: the icon is the door-and-arrow every other program
                uses for signing out, and read that way here it would frighten. #}
             <a href="{{ url_for('expenses.withdrawal_new') }}" class="btn btn--sm btn--tonal"

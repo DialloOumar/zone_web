@@ -59,7 +59,7 @@ SYSTEM_CATEGORIES = [FUEL_CATEGORY, MAINTENANCE_CATEGORY, PARTS_CATEGORY]
 PAYMENT_METHODS = ["cash", "mobile_money", "transfer", "cheque"]
 
 # The two halves of the cash book, shown one at a time.
-TABS = ("a_regler", "depenses", "mouvements")
+TABS = ("depenses", "mouvements", "a_regler")
 # A purchase request settled through the normal cost form: the request's id
 # rides beside the columns, like a bill's.
 PURCHASE_KEY = "purchase_id"
