@@ -25,12 +25,12 @@
    templates — missing those is exactly how `close` ended up invisible, and
    later how the parts store and the cash box shipped with no icon at all.
 
-   The list as of v12 (66 names), built from the npm material-symbols
+   The list as of v13 (67 names), built from the npm material-symbols
    package with fontTools (instanced at opsz 24 / wght 400 / FILL 0 / GRAD 0,
    then subset to the ligature glyph of each name):
      account_balance, account_balance_wallet, account_tree, add,
      admin_panel_settings, approval, archive, arrow_back, badge,
-     bedtime, category, check, check_circle, chevron_left,
+     bedtime, build, category, check, check_circle, chevron_left,
      chevron_right, close, construction, dark_mode, delete,
      directions_bus, donut_large, edit, engineering, error,
      fact_check, group, handshake, handyman, help, history, home,
@@ -67,7 +67,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2?v=12") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=13") format("woff2");
 }
 
 /* ── Design tokens (light) ── */
