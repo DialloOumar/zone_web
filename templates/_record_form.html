@@ -5,6 +5,13 @@
     {% if is_edit and record.rule_id %}<input type="hidden" name="rule_id" value="{{ record.rule_id }}">
     {% elif preset_rule %}<input type="hidden" name="rule_id" value="{{ preset_rule }}">{% endif %}
 
+    {# When, first; then which machine and what kind of service. #}
+    <div class="field">
+        <input type="date" id="date" name="date" placeholder=" " required
+               value="{{ request.form.get('date') or (record.date if is_edit else today) }}">
+        <label for="date">{{ t['maint.date'] }}</label>
+    </div>
+
     <div class="form-row">
         <div class="field field--select">
             <select id="vehicle_id" name="vehicle_id" required>
@@ -24,17 +31,16 @@
         </div>
     </div>
 
+
+    {# Who did the work -- the in-house workshop or an outside garage -- and
+       which operator was on the machine. No money here: an outside garage's
+       bill goes on Factures, the parts below say where they came from. #}
     <div class="form-row">
         <div class="field">
-            <input type="date" id="date" name="date" placeholder=" " required
-                   value="{{ request.form.get('date') or (record.date if is_edit else today) }}">
-            <label for="date">{{ t['maint.date'] }}</label>
+            <input type="text" id="supplier" name="supplier" placeholder="{{ t['ph.record.supplier'] }}"
+                   value="{{ request.form.get('supplier') or (record.supplier if is_edit and record.supplier else '') }}">
+            <label for="supplier">{{ t['maint.done_by'] }}</label>
         </div>
-    </div>
-    {# No money on a service: the parts come out of the store, and an outside
-       garage is a supplier bill or a cash-box expense on the machine. #}
-
-    <div class="form-row">
         <div class="field field--select">
             {% set sel_op = request.form.get('operator') or (record.operator if is_edit and record.operator else '') %}
             {% set op_names = operators|map(attribute='name')|list %}
@@ -48,11 +54,6 @@
                 {% endif %}
             </select>
             <label for="operator">{{ t['maint.operator'] }}</label>
-        </div>
-        <div class="field">
-            <input type="text" id="supplier" name="supplier" placeholder="{{ t['ph.record.supplier'] }}"
-                   value="{{ request.form.get('supplier') or (record.supplier if is_edit and record.supplier else '') }}">
-            <label for="supplier">{{ t['maint.supplier'] }}</label>
         </div>
     </div>
 
