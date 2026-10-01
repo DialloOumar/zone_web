@@ -519,13 +519,17 @@ def log_action(action, resource_type, *, resource_id=None, detail=None, fleet_id
     try:
         if not current_user.is_authenticated:
             return
-        # Snapshot the user's name + role at time of action — survives renames
+        # Snapshot the user's name + role at time of action — survives renames.
+        # Someone on several fleets, or with long role names, joins to more
+        # than the column holds: cut, never fail -- a login once died on it.
         role_snapshot = "super_admin" if current_user.is_super_admin else (
-            ", ".join(uf.role.name for uf in current_user.user_fleets if uf.role) or "—"
+            ", ".join(sorted({uf.role.name for uf in current_user.user_fleets if uf.role})) or "—"
         )
+        if len(role_snapshot) > 80:
+            role_snapshot = role_snapshot[:77] + "..."
         entry = AuditLog(
             user_id=current_user.id,
-            username=current_user.username,
+            username=current_user.username[:120],
             actor_role=role_snapshot,
             fleet_id=fleet_id,
             action=action,
