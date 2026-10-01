@@ -1661,6 +1661,17 @@ TRANSLATIONS = {
 
         # Errors
         "error.forbidden":  "Accès refusé",
+        "error.title":      "Erreur",
+        "error.server":     "Quelque chose s'est mal passé de notre côté.",
+        "error.ref_hint":   "Référence à communiquer :",
+        "error.nothing_lost": "Rien de ce que vous aviez enregistré avant n'est perdu. Revenez en arrière et réessayez ; si ça se reproduit, signalez la référence.",
+        "admin.errors":     "Journal des erreurs",
+        "errors.intro":     "Chaque erreur interne, avec la référence montrée à l'utilisateur, où elle s'est produite, qui était là, et la trace. Quatre-vingt-dix jours d'historique.",
+        "errors.empty":     "Aucune erreur enregistrée.",
+        "errors.when":      "Quand",
+        "errors.where":     "Où",
+        "errors.who":       "Qui",
+        "errors.what":      "Quoi",
         "error.not_found":  "Page introuvable",
 
         # Common buttons / labels
@@ -3440,6 +3451,17 @@ TRANSLATIONS = {
         "perm.state.approval": "Approval",
 
         "error.forbidden":  "Forbidden",
+        "error.title":      "Error",
+        "error.server":     "Something went wrong on our side.",
+        "error.ref_hint":   "Reference to report:",
+        "error.nothing_lost": "Nothing you had saved before is lost. Go back and try again; if it happens again, report the reference.",
+        "admin.errors":     "Error journal",
+        "errors.intro":     "Every internal error, with the reference shown to the user, where it happened, who was there, and the trace. Ninety days of history.",
+        "errors.empty":     "No error recorded.",
+        "errors.when":      "When",
+        "errors.where":     "Where",
+        "errors.who":       "Who",
+        "errors.what":      "What",
         "error.not_found":  "Not found",
 
         "btn.save":   "Save",

@@ -370,6 +370,11 @@ a:hover { text-decoration: underline; }
 .plan-class-count { font-size: 0.72rem; color: var(--md-on-surface-variant); }
 .plan-class.active .plan-class-count { color: inherit; opacity: 0.8; }
 .plan-class--used .plan-class-num .material-symbols-outlined { font-size: 20px; }
+/* The error journal: one row per error, the trace folded under it. */
+.error-event { border-top: 1px solid var(--md-outline-variant); padding: 8px 0; }
+.error-event summary { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; cursor: pointer; font-size: 0.9rem; }
+.error-event__msg { color: var(--md-error); font-size: 0.85rem; flex-basis: 100%; }
+.error-event__trace { font-size: 0.75rem; white-space: pre-wrap; word-break: break-word; background: var(--md-surface); border: 1px solid var(--md-outline-variant); border-radius: var(--shape-sm); padding: 10px; max-height: 420px; overflow: auto; margin: 6px 0 0; }
 /* A machine's working state. */
 .badge--status-active { background: var(--md-tertiary-container); color: var(--md-on-tertiary-container); }
 .badge--status-maintenance { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }

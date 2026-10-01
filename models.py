@@ -201,6 +201,24 @@ class UserFleet(db.Model):
 # ── Domain ────────────────────────────────────────────────────────────────────
 
 
+class ErrorEvent(db.Model):
+    """One unhandled error, as the super admin reads it: the reference the
+    user was shown, where it happened, who was there, and the traceback.
+    Pruned after ninety days."""
+    __tablename__ = "error_events"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    ref        = db.Column(db.String(12),  nullable=False, unique=True)    # ERR-7F3A2C
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow, index=True)
+    method     = db.Column(db.String(8),   nullable=False)
+    path       = db.Column(db.String(300), nullable=False)
+    user_id    = db.Column(db.Integer,     nullable=True)
+    username   = db.Column(db.String(80),  nullable=True)
+    message    = db.Column(db.String(300), nullable=False)
+    traceback  = db.Column(db.Text,        nullable=False)
+    form_keys  = db.Column(db.String(300))                   # the fields posted, never their values
+
+
 class VehicleStatusChange(db.Model):
     """One change of a machine's working state: from what to what, since
     when, who said so and why. The machine's page reads its timeline here

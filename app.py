@@ -397,7 +397,10 @@ def has_perm(perm_key):
         for uf in current_user.user_fleets:
             if uf.role:
                 for rp in uf.role.role_permissions:
-                    perms.add(rp.permission.key)
+                    # A permission pruned from the catalog leaves its row
+                    # on the role; that must not take the whole page down.
+                    if rp.permission is not None:
+                        perms.add(rp.permission.key)
         g._user_perms = perms
         cache = perms
     return perm_key in cache
@@ -1292,6 +1295,44 @@ def _forbidden(_):
 @app.errorhandler(404)
 def _not_found(_):
     return render_template("error.html", code=404, message=get_t().get("error.not_found", "Not found")), 404
+
+
+@app.errorhandler(Exception)
+def _server_error(exc):
+    """Anything the code did not expect. The half-done transaction is rolled
+    back so the next request from this worker starts clean; the traceback,
+    the place and the person are written to the error journal under a
+    reference the user is shown, so "j'ai eu ERR-7F3A2C" is enough to find
+    it. Inside a dialog the same message comes back as a fragment."""
+    from werkzeug.exceptions import HTTPException
+    if isinstance(exc, HTTPException):
+        return exc   # 403, 404, 405...: their own handlers or Flask's default
+    import secrets
+    import traceback as tb
+    from models import ErrorEvent
+    ref = "ERR-" + secrets.token_hex(3).upper()
+    text = "".join(tb.format_exception(type(exc), exc, exc.__traceback__))
+    log.exception("%s %s %s", ref, request.method, request.path)
+    try:
+        db.session.rollback()
+        who = current_user if current_user.is_authenticated else None
+        db.session.add(ErrorEvent(
+            ref=ref, method=request.method, path=request.full_path.rstrip("?")[:300],
+            user_id=who.id if who else None, username=who.username if who else None,
+            message=("%s: %s" % (type(exc).__name__, exc))[:300], traceback=text[-20000:],
+            form_keys=",".join(sorted(request.form.keys()))[:300] if request.form else None))
+        # Ninety days of history is plenty; older rows go.
+        cutoff = datetime.utcnow() - timedelta(days=90)
+        ErrorEvent.query.filter(ErrorEvent.created_at < cutoff).delete()
+        db.session.commit()
+    except Exception:          # the journal must never be a second error
+        db.session.rollback()
+        log.exception("could not record %s", ref)
+    t = get_t()
+    if is_modal_request():
+        return render_template("_error_fragment.html", ref=ref, t=t), 500
+    return render_template("error.html", code=500, ref=ref,
+                           message=t.get("error.server", "Something went wrong on our side.")), 500
 
 
 # ── CLI bootstrap commands ───────────────────────────────────────────────────

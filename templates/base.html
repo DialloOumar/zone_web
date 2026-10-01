@@ -190,6 +190,9 @@
             <li><a href="{{ url_for('admin.audit') }}" class="sidebar-sub {% if request.endpoint == 'admin.audit' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">history</span> {{ t['admin.audit_log'] }}
             </a></li>
+            <li><a href="{{ url_for('admin.errors') }}" class="sidebar-sub {% if request.endpoint == 'admin.errors' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">error</span> {{ t['admin.errors'] }}
+            </a></li>
             {% endif %}
             {% endif %}
         </ul>

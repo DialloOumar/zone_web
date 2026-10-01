@@ -992,6 +992,23 @@ def category_reactivate(cat_id):
 AUDIT_PER_PAGE = 50
 
 
+@admin_bp.route("/erreurs")
+@login_required
+@super_admin_required
+def errors():
+    """The error journal: every internal error, newest first, each with its
+    reference, place, person and trace. Opened with a reference it jumps to
+    that one."""
+    from models import ErrorEvent
+    ref = (request.args.get("ref") or "").strip().upper()
+    q = ErrorEvent.query
+    if ref:
+        q = q.filter(ErrorEvent.ref.ilike("%" + ref + "%"))
+    page = request.args.get("page", 1, type=int)
+    pagination = q.order_by(ErrorEvent.created_at.desc()).paginate(page=page, per_page=30, error_out=False)
+    return render_template("admin_errors.html", events=pagination.items, pagination=pagination, ref=ref)
+
+
 @admin_bp.route("/audit")
 @login_required
 @super_admin_required
