@@ -5,33 +5,52 @@
 
 {% block content %}
 
+{# The period the figures cover: a year, or a month, stepped with arrows,
+   never past today. What describes now -- alerts, approvals, the fleet's
+   state, the recent entries -- does not follow it. #}
+<div class="period-bar">
+    <div class="period-bar__kind">
+        <a href="{{ url_for('dashboard', period=(other_kind_period if period_kind == 'year' else period)) }}" class="filter-chip {% if period_kind == 'month' %}active{% endif %}">{{ t['dash.by_month'] }}</a>
+        <a href="{{ url_for('dashboard', period=(other_kind_period if period_kind == 'month' else period)) }}" class="filter-chip {% if period_kind == 'year' %}active{% endif %}">{{ t['dash.by_year'] }}</a>
+    </div>
+    <div class="period-bar__nav">
+        <a href="{{ url_for('dashboard', period=prev_period) }}" class="btn btn--sm btn--tonal btn--icon" title="{{ t['dash.prev'] }}" aria-label="{{ t['dash.prev'] }}"><span class="material-symbols-outlined">chevron_left</span></a>
+        <strong class="period-bar__label">{{ period_label }}</strong>
+        {% if next_period %}
+        <a href="{{ url_for('dashboard', period=next_period) }}" class="btn btn--sm btn--tonal btn--icon" title="{{ t['dash.next'] }}" aria-label="{{ t['dash.next'] }}"><span class="material-symbols-outlined">chevron_right</span></a>
+        {% else %}
+        <span class="btn btn--sm btn--tonal btn--icon" style="visibility:hidden;"><span class="material-symbols-outlined">chevron_right</span></span>
+        {% endif %}
+    </div>
+</div>
+
 <div class="stat-grid">
     <div class="stat-card">
         <span class="stat-icon stat-icon--blue material-symbols-outlined">history</span>
         <div>
             <div class="stat-value">{{ stats.hours | num }}<span class="stat-unit"> h</span></div>
-            <div class="stat-label">{{ t['dash.month_hours'] }}</div>
+            <div class="stat-label">{{ t['dash.hours'] }} · {{ period_label }}</div>
         </div>
     </div>
     <div class="stat-card">
         <span class="stat-icon stat-icon--indigo material-symbols-outlined">directions_bus</span>
         <div>
             <div class="stat-value">{{ stats.trips | num }}</div>
-            <div class="stat-label">{{ t['dash.month_trips'] }}</div>
+            <div class="stat-label">{{ t['dash.trips'] }} · {{ period_label }}</div>
         </div>
     </div>
     <div class="stat-card">
         <span class="stat-icon stat-icon--teal material-symbols-outlined">donut_large</span>
         <div>
             <div class="stat-value">{{ stats.km | num }}<span class="stat-unit"> km</span></div>
-            <div class="stat-label">{{ t['dash.month_km'] }}</div>
+            <div class="stat-label">{{ t['dash.km'] }} · {{ period_label }}</div>
         </div>
     </div>
     <div class="stat-card">
         <span class="stat-icon stat-icon--amber material-symbols-outlined">local_gas_station</span>
         <div>
             <div class="stat-value">{{ stats.liters | num }}<span class="stat-unit"> L</span></div>
-            <div class="stat-label">{{ t['dash.month_liters'] }}</div>
+            <div class="stat-label">{{ t['dash.liters'] }} · {{ period_label }}</div>
         </div>
     </div>
     {% if stats.citernes %}
@@ -109,7 +128,7 @@
 
     <section class="card dash-chart">
         <div class="card-header">
-            <h2>{{ t['dash.top_vehicles'] }}</h2>
+            <h2>{{ t['dash.top_vehicles'] }} <span class="muted small">· {{ period_label }}</span></h2>
             <span class="muted small">{{ t['dash.this_month'] }}</span>
         </div>
         {% if charts.top_vehicles.labels %}
@@ -124,7 +143,7 @@
 
     <section class="card dash-chart">
         <div class="card-header">
-            <h2>{{ t['dash.daily_entries'] }}</h2>
+            <h2>{{ t['dash.daily_entries'] if period_kind == 'month' else t['dash.monthly_entries'] }} <span class="muted small">· {{ period_label }}</span></h2>
             <span class="muted small">{{ t['dash.last_30_days'] }}</span>
         </div>
         <div class="chart-box"><canvas id="chart-daily"></canvas></div>

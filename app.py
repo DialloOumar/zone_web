@@ -613,6 +613,40 @@ MONTH_ABBR = {
 }
 
 
+MONTH_NAMES = {
+    "fr": ["janvier", "février", "mars", "avril", "mai", "juin",
+           "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
+    "en": ["January", "February", "March", "April", "May", "June",
+           "July", "August", "September", "October", "November", "December"],
+}
+
+
+def _dashboard_period(now):
+    """The period the dashboard's figures cover, from ?period=: a year
+    ("2026") or a month ("2026-09"). A year by default; never past the
+    current one. Returns (period, kind, like, label_parts) where kind is
+    "year" or "month" and like matches the dates in it."""
+    raw = (request.args.get("period") or "").strip()
+    cur_year, cur_month = now.strftime("%Y"), now.strftime("%Y-%m")
+    if re.fullmatch(r"\d{4}-\d{2}", raw) and "01" <= raw[5:] <= "12":
+        period = min(raw, cur_month)
+        return period, "month", period + "%", (int(period[:4]), int(period[5:]))
+    if re.fullmatch(r"\d{4}", raw):
+        period = min(raw, cur_year)
+        return period, "year", period + "%", (int(period), None)
+    return cur_year, "year", cur_year + "%", (int(cur_year), None)
+
+
+def _months_of(period, kind, now):
+    """The months a chart runs over: the twelve of a year (up to the current
+    month when it is this year), or the six ending at a month."""
+    if kind == "year":
+        last = 12 if period < now.strftime("%Y") else now.month
+        return ["%s-%02d" % (period, m) for m in range(1, last + 1)]
+    y, m = int(period[:4]), int(period[5:])
+    return _months_back(datetime(y, m, 1), 6)
+
+
 def _months_back(now, n=6):
     """The last n months as 'YYYY-MM', oldest first."""
     out = []
@@ -626,22 +660,26 @@ def _months_back(now, n=6):
     return out
 
 
-def _dashboard_charts(fleet_ids, now, lang):
-    """Build the operational dashboard series, fleet-scoped.
+def _dashboard_charts(fleet_ids, now, lang, period=None, kind="year"):
+    """Build the operational dashboard series, fleet-scoped, over a period:
+    a year or a month.
 
-    1. activity_trend — worked hours & trips per month over the last 6 months.
-    2. daily_entries  — entries logged per day over the last 30 days, which is
-       where gaps in the daily logging discipline show up.
-    3. top_vehicles   — the busiest machines this month, each in its own unit.
-    4. fuel_trend     — litres filled per month over the last 6 months.
+    1. activity_trend — worked hours & trips per month: the year's months,
+       or the six ending at the month.
+    2. daily_entries  — entries logged per day of the month, which is where
+       gaps in the daily logging discipline show up; per month of the year.
+    3. top_vehicles   — the busiest machines over the period, each in its own unit.
+    4. fuel_trend     — litres filled per month, same months as 1.
     """
     abbr = MONTH_ABBR.get(lang, MONTH_ABBR["en"])
     co = db.func.coalesce
+    if period is None:
+        period, kind = now.strftime("%Y"), "year"
 
     def scope(q, model=Vehicle):
         return q.filter(model.fleet_id.in_(fleet_ids)) if fleet_ids is not None else q
 
-    months = _months_back(now, 6)
+    months = _months_of(period, kind, now)
     month_labels = [abbr[int(mo[5:]) - 1] for mo in months]
 
     # 1. Hours & trips per month.
@@ -652,16 +690,31 @@ def _dashboard_charts(fleet_ids, now, lang):
          .filter(ym.in_(months)))
     per_month = {mo: (float(h or 0), int(tr or 0)) for mo, h, tr in scope(q).group_by(ym).all()}
 
-    # 2. Entries per day over the last 30 days.
-    days = [(now.date() - timedelta(days=i)).isoformat() for i in range(29, -1, -1)]
-    q = (db.session.query(DailyEntry.date, db.func.count(DailyEntry.id))
-         .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
-         .filter(DailyEntry.date.in_(days)))
-    per_day = dict(scope(q).group_by(DailyEntry.date).all())
+    # 2. Entries per day of the month, or per month of the year.
+    if kind == "month":
+        y, m = int(period[:4]), int(period[5:])
+        first = date(y, m, 1)
+        last = date(y + (m == 12), (m % 12) + 1, 1) - timedelta(days=1)
+        if period == now.strftime("%Y-%m"):
+            last = min(last, now.date())
+        days = [(first + timedelta(days=i)).isoformat() for i in range((last - first).days + 1)]
+        q = (db.session.query(DailyEntry.date, db.func.count(DailyEntry.id))
+             .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+             .filter(DailyEntry.date.in_(days)))
+        per_day = dict(scope(q).group_by(DailyEntry.date).all())
+        entries_labels = [d[8:] for d in days]
+        entries_values = [int(per_day.get(d, 0)) for d in days]
+    else:
+        q = (db.session.query(ym, db.func.count(DailyEntry.id))
+             .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+             .filter(ym.in_(months)))
+        per_mo = dict(scope(q).group_by(ym).all())
+        entries_labels = month_labels
+        entries_values = [int(per_mo.get(mo, 0)) for mo in months]
 
-    # 3. Busiest machines this month — ranked on each one's own unit, and kept
-    #    in two series so hours and trips are never drawn as the same thing.
-    like = now.strftime("%Y-%m") + "%"
+    # 3. Busiest machines over the period — ranked on each one's own unit, and
+    #    kept in two series so hours and trips are never drawn as the same thing.
+    like = period + "%"
     q = (db.session.query(Vehicle.code, VehicleCategory.unit_type,
                           co(db.func.sum(DailyEntry.hours), 0.0),
                           co(db.func.sum(DailyEntry.trips), 0))
@@ -694,8 +747,8 @@ def _dashboard_charts(fleet_ids, now, lang):
             "trips": [per_month.get(mo, (0, 0))[1] for mo in months],
         },
         "daily_entries": {
-            "labels": [d[5:] for d in days],
-            "values": [int(per_day.get(d, 0)) for d in days],
+            "labels": entries_labels,
+            "values": entries_values,
         },
         "top_vehicles": {
             "labels": [code for code, _, _ in ranked],
@@ -839,9 +892,23 @@ def dashboard():
         vq = vq.filter(Vehicle.fleet_id.in_(fleet_ids))
         oq = oq.filter(Operator.fleet_id.in_(fleet_ids))
         aq = aq.join(Vehicle, Alert.vehicle_id == Vehicle.id).filter(Vehicle.fleet_id.in_(fleet_ids))
-    # This month's operational activity, straight from the daily entries.
+    # The period's operational activity, straight from the daily entries: a
+    # year by default, or a month, chosen at the top of the page.
     now = datetime.utcnow()
-    like = now.strftime("%Y-%m") + "%"
+    period, kind, like, (p_year, p_month) = _dashboard_period(now)
+    lang = current_lang()
+    period_label = ("%s %d" % (MONTH_NAMES.get(lang, MONTH_NAMES["en"])[p_month - 1].capitalize(), p_year)
+                    if kind == "month" else str(p_year))
+    # The neighbours, for the arrows; none past today.
+    if kind == "month":
+        prev_p = "%04d-%02d" % ((p_year - 1, 12) if p_month == 1 else (p_year, p_month - 1))
+        nxt = "%04d-%02d" % ((p_year + 1, 1) if p_month == 12 else (p_year, p_month + 1))
+        next_p = nxt if nxt <= now.strftime("%Y-%m") else None
+        other_kind_p = str(p_year)
+    else:
+        prev_p = str(p_year - 1)
+        next_p = str(p_year + 1) if p_year + 1 <= now.year else None
+        other_kind_p = "%04d-%02d" % (p_year, now.month if p_year == now.year else 12)
     co = db.func.coalesce
     act = (db.session.query(co(db.func.sum(DailyEntry.hours), 0.0),
                             co(db.func.sum(DailyEntry.trips), 0),
@@ -898,7 +965,7 @@ def dashboard():
         enq = enq.join(Vehicle, DailyEntry.vehicle_id == Vehicle.id).filter(Vehicle.fleet_id.in_(fleet_ids))
     recent_entries = enq.order_by(DailyEntry.date.desc(), DailyEntry.id.desc()).limit(8).all()
 
-    charts = _dashboard_charts(fleet_ids, datetime.utcnow(), current_lang())
+    charts = _dashboard_charts(fleet_ids, now, lang, period, kind)
 
     # The fleet's working state: how many at work, in the workshop, broken,
     # and the down ones by name with how long, the boss's first question.
@@ -911,6 +978,8 @@ def dashboard():
     return render_template(
         "dashboard.html",
         stats=stats,
+        period=period, period_kind=kind, period_label=period_label,
+        prev_period=prev_p, next_period=next_p, other_kind_period=other_kind_p,
         fleet_state=fleet_state, down=down,
         open_alerts=open_alerts,
         recent_entries=recent_entries,
