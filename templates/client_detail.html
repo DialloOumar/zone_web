@@ -27,6 +27,18 @@
         <div><dt>{{ t['client.tax_id'] }}</dt><dd>{{ client.tax_id or '—' }}</dd></div>
         <div><dt>{{ t['client.rccm'] }}</dt><dd>{{ client.rccm or '—' }}</dd></div>
         {% if client.note %}<div style="grid-column: 1 / -1;"><dt>{{ t['entry.note'] }}</dt><dd>{{ client.note }}</dd></div>{% endif %}
+        {# What the client owed before the app, collected like a bill. #}
+        <div style="grid-column: 1 / -1;"><dt>{{ t['opening.title'] }}</dt><dd>
+            {% if opening %}
+            <a href="{{ url_for('invoicing.invoice_detail', iid=opening.id) }}"><strong>{{ opening.total | num }} {{ currency }}</strong></a>
+            <span class="muted small">{{ t['fund.on'] }} {{ opening.date }}{% if opening.payments %} &middot; {{ t['cpay.remaining'] }} {{ opening.remaining | num }}{% endif %}</span>
+            {% else %}<span class="muted">&mdash;</span>{% endif %}
+            {% if has_perm('invoicing.manage') %}
+            <a href="{{ url_for('invoicing.client_opening', cid=client.id) }}" class="btn btn--sm btn--tonal btn--icon"
+               data-modal-url="{{ url_for('invoicing.client_opening', cid=client.id) }}" data-modal-title="{{ t['opening.client_title'] }}"
+               title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+            {% endif %}
+        </dd></div>
     </dl>
 </section>
 

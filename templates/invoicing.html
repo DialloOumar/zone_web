@@ -125,6 +125,8 @@
     <div class="expense-total">
         {{ t['cpay.billed'] }} <strong>{{ billed | num }}</strong>
         <span class="muted small">&middot;</span>
+        {% if opening %}{{ t['opening.titles'] }} <strong>{{ opening | num }}</strong>
+        <span class="muted small">&middot;</span>{% endif %}
         {{ t['cpay.received'] }} <strong>{{ received | num }}</strong>
         <span class="muted small">&middot;</span>
         {{ t['cpay.remaining'] }} <strong {% if remaining > 0 %}class="stock-negative"{% endif %}>{{ remaining | num }}</strong>

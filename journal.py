@@ -108,7 +108,9 @@ def lines(date_from=None, date_to=None, journal=None):
 
     if journal in (None, "achats"):
         # A bill as received: the charge against the supplier's account.
-        for inv in within(SupplierInvoice.query, SupplierInvoice.date).all():
+        # An old balance was bought before the books here began: not a purchase.
+        for inv in within(SupplierInvoice.query.filter(SupplierInvoice.is_opening.is_(False)),
+                          SupplierInvoice.date).all():
             out.append(_line("achats", "supplier_invoice", inv, inv.date, inv.description or "Facture fournisseur",
                              inv.amount, debit=inv.ledger_code,
                              credit=inv.supplier.ledger_code if inv.supplier else None,

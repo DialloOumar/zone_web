@@ -121,7 +121,7 @@ def _month_lines(client, month):
 
 def _open_invoice(client_id, period):
     """The bill already issued for that client and month, if one stands."""
-    return (ClientInvoice.query.filter_by(client_id=client_id, period=period)
+    return (ClientInvoice.query.filter_by(client_id=client_id, period=period, is_opening=False)
             .filter(ClientInvoice.status != "cancelled").first())
 
 
@@ -163,7 +163,7 @@ def index():
 
     today = date.today().isoformat()
     invoices, pagination = [], None
-    billed = received = remaining = overdue_count = 0
+    billed = received = remaining = overdue_count = opening = 0
     date_from = (request.args.get("date_from") or "").strip()
     date_to = (request.args.get("date_to") or "").strip()
     date_from = date_from if _valid_date(date_from) else ""
@@ -213,11 +213,16 @@ def index():
         # at the top would otherwise cover only the slice on screen. A
         # cancelled bill counts for nothing.
         live = q.filter(ClientInvoice.status != "cancelled")
+        # An old balance is owed and collected like a bill, but it was not
+        # billed in the period: it stands apart from "Facturé".
+        is_new = db.case((ClientInvoice.is_opening.is_(True), 0), else_=ClientInvoice.total)
+        is_old = db.case((ClientInvoice.is_opening.is_(True), ClientInvoice.total), else_=0)
         sums = live.with_entities(
-            db.func.coalesce(db.func.sum(ClientInvoice.total), 0),
-            db.func.coalesce(db.func.sum(capped), 0)).one()
-        billed, received = int(sums[0] or 0), int(sums[1] or 0)
-        remaining = max(billed - received, 0)
+            db.func.coalesce(db.func.sum(is_new), 0),
+            db.func.coalesce(db.func.sum(capped), 0),
+            db.func.coalesce(db.func.sum(is_old), 0)).one()
+        billed, received, opening = int(sums[0] or 0), int(sums[1] or 0), int(sums[2] or 0)
+        remaining = max(billed + opening - received, 0)
         overdue_count = live.filter(paid < ClientInvoice.total, ClientInvoice.due_date.isnot(None),
                                     ClientInvoice.due_date < today).count()
         pagination = (q.order_by(ClientInvoice.date.desc(), ClientInvoice.id.desc())
@@ -251,7 +256,7 @@ def index():
     tab_urls["commandes"] = url_for("invoicing.index", tab="commandes")
     return render_template("invoicing.html", tab=tab, tab_urls=tab_urls,
                            clients=clients, invoices=invoices, pagination=pagination,
-                           billed=billed, received=received, remaining=remaining,
+                           billed=billed, received=received, remaining=remaining, opening=opening,
                            overdue_count=overdue_count, owed=owed,
                            date_from=date_from, date_to=date_to, client_ids=client_ids,
                            status=status, search=search, today=today,
@@ -420,7 +425,8 @@ def client_detail(cid):
         machines.append({"v": v, "rate": billing.rate_on(book, v.id, today),
                          "since": next((eff for eff, _ in hist), None),
                          "history": hist})
-    return render_template("client_detail.html", client=row, machines=machines)
+    return render_template("client_detail.html", client=row, machines=machines,
+                           opening=_client_opening(row.id))
 
 
 def _assign_machines(row, chosen_ids):
@@ -790,3 +796,63 @@ def invoice_delete(iid):
     db.session.commit()
     flash("success|" + t["cinv.deleted"])
     return redirect(url_for("invoicing.index", tab="factures"))
+
+
+# ── What a client owed before the app ───────────────────────────────────────
+
+def _client_opening(client_id):
+    return ClientInvoice.query.filter_by(client_id=client_id, is_opening=True).first()
+
+
+@invoicing_bp.route("/facturation/clients/<int:cid>/solde-anterieur", methods=["GET", "POST"])
+@login_required
+@require_perm("invoicing.manage")
+def client_opening(cid):
+    """One amount and the day it stood on: what the client owed then, from
+    the old books. Held as a bill with no lines, so it is collected with the
+    usual "Règlement" and counts in what is owed. Emptied before anything
+    was paid on it, it goes away; once paid on, never below what was paid."""
+    client = db.session.get(Client, cid)
+    if not client:
+        abort(404)
+    t = get_t()
+    row = _client_opening(cid)
+    error = None
+    if request.method == "POST":
+        raw = (request.form.get("amount") or "").strip()
+        amount = parse_amount(raw) if raw else 0
+        day = (request.form.get("date") or "").strip()
+        paid = row.paid_amount if row else 0
+        if amount is None or amount < 0:
+            error = t["invoice.err.amount"]
+        elif not _valid_date(day):
+            error = t["opening.err.date"]
+        elif amount < paid:
+            error = t["opening.err.below_paid"] % {"paid": "{:,}".format(paid).replace(",", " ")}
+        elif amount == 0 and row is None:
+            return modal_ok() if is_modal_request() else redirect(url_for("invoicing.client_detail", cid=cid))
+        if not error:
+            if amount == 0 and not row.payments:
+                db.session.delete(row)
+                action = "DELETE"
+            else:
+                if row is None:
+                    row = ClientInvoice(client_id=cid, is_opening=True, status="issued",
+                                        number=("SA-" + client.code)[:20], created_by=current_user.id)
+                    db.session.add(row)
+                row.date, row.period, row.total = day, day[:7], amount
+                row.subject = t["opening.subject"]
+                action = "UPDATE"
+            log_action(action, "client_opening", resource_id=cid,
+                       detail="Opening balance of client '%s': %s GNF on %s" % (client.name, amount, day))
+            db.session.commit()
+            flash("success|" + t["opening.saved"])
+            return modal_ok() if is_modal_request() else redirect(url_for("invoicing.client_detail", cid=cid))
+    tpl = "_opening_form.html" if is_modal_request() else "opening_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, row=row, error=error, today=date.today().isoformat(),
+                           action=url_for("invoicing.client_opening", cid=cid),
+                           back=url_for("invoicing.client_detail", cid=cid),
+                           amount=row.total if row else None,
+                           paid=row.paid_amount if row else 0,
+                           title=t["opening.client_title"]), status

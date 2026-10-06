@@ -6,9 +6,11 @@
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
     <a data-back href="{{ url_for('invoicing.index', tab='factures') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    {% if not inv.is_opening %}
     <a href="{{ url_for('invoicing.invoice_print', iid=inv.id) }}" class="btn btn--sm btn--primary" target="_blank" rel="noopener">
         <span class="material-symbols-outlined">print</span> {{ t['help.print'] }}
     </a>
+    {% endif %}
 </div>
 
 {% if inv.is_cancelled %}
@@ -19,6 +21,7 @@
     <div class="card-header">
         <div>
             <h2>{{ inv.number }}
+                {% if inv.is_opening %}<span class="badge badge--info">{{ t['opening.title'] }}</span>{% endif %}
                 {% if inv.is_cancelled %}<span class="badge badge--critical">{{ t['cinv.status.cancelled'] }}</span>
                 {% elif inv.pay_status == 'paid' %}<span class="badge badge--active">{{ t['cpay.status.paid'] }}</span>
                 {% elif inv.is_overdue(today) %}<span class="badge badge--critical">{{ t['cpay.status.overdue'] }}</span>
@@ -107,6 +110,8 @@
 </section>
 {% endif %}
 
+{# An old balance has no lines, no sheet and is never cancelled: it is only collected. #}
+{% if not inv.is_opening %}
 <section class="card">
     <div class="card-header">
         <h2>{{ t['cinv.lines'] }}</h2>
@@ -167,4 +172,5 @@
     <p class="muted small" style="margin-top:12px;">{{ t['cinv.delete_blocked_hint'] }}</p>
     {% endif %}
 </section>
+{% endif %}
 {% endblock %}

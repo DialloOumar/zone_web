@@ -973,6 +973,10 @@ class SupplierInvoice(db.Model):
     supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id"), nullable=False)
     number      = db.Column(db.String(60))                  # the supplier's own reference
     date        = db.Column(db.String(10), nullable=False)  # YYYY-MM-DD, the invoice's date
+    # What the company already owed this supplier when the app started, from
+    # the old books: one per supplier. Paid like any bill and counted in what
+    # is owed, but not a purchase of the period.
+    is_opening  = db.Column(db.Boolean,    nullable=False, default=False)
     # The day the paper actually reached the company, which is rarely the day
     # the supplier wrote on it. It is the one that says whether a bill has been
     # sitting on someone's desk, so it is asked for separately.
@@ -1196,6 +1200,10 @@ class ClientInvoice(db.Model):
     client_id  = db.Column(db.Integer,     db.ForeignKey("clients.id"), nullable=False, index=True)
     number     = db.Column(db.String(20),  nullable=False, unique=True)
     period     = db.Column(db.String(7),   nullable=False)               # YYYY-MM billed
+    # What the client already owed when the app started, from the old books:
+    # one per client, no lines, never printed. It is collected like any bill
+    # and counts in what is owed, but it is not a sale of the period.
+    is_opening = db.Column(db.Boolean,     nullable=False, default=False)
     date       = db.Column(db.String(10),  nullable=False)               # issue date
     due_date   = db.Column(db.String(10),  nullable=True)
     total      = db.Column(db.Integer,     nullable=False)

@@ -73,6 +73,11 @@
                        data-modal-url="{{ url_for('supplier_invoices.supplier_edit', sid=s.id) }}" data-modal-title="{{ t['invoice.supplier_edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% if full %}
+                    {% if has_perm('supplier_invoice.create') %}
+                    <a href="{{ url_for('supplier_invoices.supplier_opening', sid=s.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('supplier_invoices.supplier_opening', sid=s.id) }}" data-modal-title="{{ t['opening.supplier_title'] }}"
+                       title="{{ t['opening.title'] }}" aria-label="{{ t['opening.title'] }}"><span class="material-symbols-outlined">history</span></a>
+                    {% endif %}
                     {% if not s.is_active %}
                     <form method="post" action="{{ url_for('supplier_invoices.supplier_action', sid=s.id, what='reactivate') }}" style="display:inline">
                         <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>

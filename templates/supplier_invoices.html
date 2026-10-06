@@ -81,6 +81,8 @@
     <div class="expense-total">
         {{ t['invoice.billed'] }}<strong>{{ billed | num }}</strong>
         <span class="muted small">&middot;</span>
+        {% if opening %}{{ t['opening.titles'] }} <strong>{{ opening | num }}</strong>
+        <span class="muted small">&middot;</span>{% endif %}
         {{ t['invoice.paid'] }}<strong>{{ paid | num }}</strong>
         <span class="muted small">{{ currency }} &middot; {{ pagination.total | num }} {{ t['invoice.count'] }}</span>
     </div>
@@ -168,7 +170,8 @@
                 </td>
                 <td>
                     {% if inv.vehicle %}<a href="{{ url_for('vehicles.detail', vid=inv.vehicle_id) }}" class="chip">{{ inv.vehicle.code }}</a> {% endif %}
-                    {% if inv.description %}{{ inv.description }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+                    {% if inv.is_opening %}<span class="badge badge--info">{{ t['opening.title'] }}</span>
+                    {% elif inv.description %}{{ inv.description }}{% else %}<span class="muted">&mdash;</span>{% endif %}
                     {% if inv.photo_key %}
                     {% set purl = photo_url(inv.photo_key) %}
                     {% if purl %}

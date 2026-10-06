@@ -359,11 +359,16 @@ def index():
 
     # Totals off the query, not off the page: past 50 invoices the figures at
     # the top would otherwise cover only the slice on screen.
+    # An old balance is owed and paid like a bill, but it was not bought in
+    # the period: it stands apart from "Facturé".
+    is_new = db.case((SupplierInvoice.is_opening.is_(True), 0), else_=SupplierInvoice.amount)
+    is_old = db.case((SupplierInvoice.is_opening.is_(True), SupplierInvoice.amount), else_=0)
     sums = q.with_entities(
-        db.func.coalesce(db.func.sum(SupplierInvoice.amount), 0),
+        db.func.coalesce(db.func.sum(is_new), 0),
         db.func.coalesce(db.func.sum(_paid_expr()), 0),
+        db.func.coalesce(db.func.sum(is_old), 0),
     ).one()
-    billed, paid = int(sums[0] or 0), int(sums[1] or 0)
+    billed, paid, opening = int(sums[0] or 0), int(sums[1] or 0), int(sums[2] or 0)
 
     pagination = q.order_by(SupplierInvoice.date.desc(),
                             SupplierInvoice.id.desc()).paginate(
@@ -426,7 +431,7 @@ def index():
         "supplier_invoices.html",
         invoices=pagination.items, pagination=pagination,
         suppliers=suppliers, pickable=active_suppliers(), owed=owed,
-        billed=billed, paid=paid, remaining=max(billed - paid, 0),
+        billed=billed, paid=paid, opening=opening, remaining=max(billed + opening - paid, 0),
         tab=tab, tab_urls=tab_urls, statuses=STATUSES, status=status,
         transactions=transactions, moved=moved, code_labels=code_labels,
         supplier_kinds=SUPPLIER_KINDS, kind=kind,
@@ -471,6 +476,9 @@ def new():
 @require_perm("supplier_invoice.edit")
 def edit(iid):
     inv = _get_invoice_or_404(iid)
+    if inv.is_opening:
+        # An old balance is one amount and a date, set on its own form.
+        return redirect(url_for("supplier_invoices.supplier_opening", sid=inv.supplier_id))
     t = get_t()
     if request.method == "POST":
         data, error = _read_invoice_form()
@@ -974,3 +982,59 @@ def supplier_action(sid, what):
     db.session.commit()
     flash("success|" + t.get(msg, "Fait."))
     return redirect(_suppliers_url())
+
+
+# ── What was owed to a supplier before the app ──────────────────────────────
+
+@supplier_invoices_bp.route("/fournisseurs/<int:sid>/solde-anterieur", methods=["GET", "POST"])
+@login_required
+@require_perm("supplier_invoice.create")
+def supplier_opening(sid):
+    """One amount and the day it stood on: what the company owed this
+    supplier then, from the old books. Held as a bill marked as such, so it
+    is paid with the usual instalments -- from the box or from an account --
+    and counts in what is owed. Emptied before anything was paid on it, it
+    goes away; once paid on, never below what was paid."""
+    sup = db.session.get(Supplier, sid)
+    if not sup:
+        abort(404)
+    t = get_t()
+    row = SupplierInvoice.query.filter_by(supplier_id=sid, is_opening=True).first()
+    error = None
+    if request.method == "POST":
+        raw = (request.form.get("amount") or "").strip()
+        amount = parse_amount(raw) if raw else 0
+        day = (request.form.get("date") or "").strip()
+        paid = row.paid_amount if row else 0
+        if amount is None or amount < 0:
+            error = t["invoice.err.amount"]
+        elif not _valid_date(day):
+            error = t["opening.err.date"]
+        elif amount < paid:
+            error = t["opening.err.below_paid"] % {"paid": "{:,}".format(paid).replace(",", " ")}
+        elif amount == 0 and row is None:
+            return modal_ok() if is_modal_request() else redirect(url_for("supplier_invoices.index", tab="fournisseurs"))
+        if not error:
+            if amount == 0 and not row.payments:
+                db.session.delete(row)
+                action = "DELETE"
+            else:
+                if row is None:
+                    row = SupplierInvoice(supplier_id=sid, is_opening=True, currency="GNF")
+                    db.session.add(row)
+                row.date, row.amount = day, amount
+                row.description = t["opening.subject"]
+                action = "UPDATE"
+            log_action(action, "supplier_opening", resource_id=sid,
+                       detail="Opening balance owed to '%s': %s GNF on %s" % (sup.name, amount, day))
+            db.session.commit()
+            flash("success|" + t["opening.saved"])
+            return modal_ok() if is_modal_request() else redirect(url_for("supplier_invoices.index", tab="fournisseurs"))
+    tpl = "_opening_form.html" if is_modal_request() else "opening_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, row=row, error=error, today=date.today().isoformat(),
+                           action=url_for("supplier_invoices.supplier_opening", sid=sid),
+                           back=url_for("supplier_invoices.index", tab="fournisseurs"),
+                           amount=row.amount if row else None,
+                           paid=row.paid_amount if row else 0,
+                           title=t["opening.supplier_title"]), status

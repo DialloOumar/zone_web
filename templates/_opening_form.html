@@ -1,0 +1,24 @@
+{% from "_hint.html" import hint with context %}
+{# What a client owed, or what was owed to a supplier, on the day the app
+   started: one amount, one date. Shared by both. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form action="{{ action }}">
+    <div class="form-row">
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}"
+                   value="{{ request.form.get('amount') or (amount if amount is not none else '') }}">
+            <label for="amount">{{ t['opening.amount'] }}{% if paid %} {{ hint(t['opening.paid_so_far'] % {'paid': paid | num}, t['opening.amount_hint']) }}{% else %} {{ hint('', t['opening.amount_hint']) }}{% endif %}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or (row.date if row else today) }}">
+            <label for="date">{{ t['fund.opening_date'] }}</label>
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ back }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
