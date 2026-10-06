@@ -34,13 +34,15 @@ from app import (_get_setting, current_lang, current_user_fleet_ids, get_t, has_
                  is_modal_request, log_action, modal_ok, parse_amount, require_perm)
 from blueprints.expenses import PAYMENT_METHODS, active_accounts
 from ledger import ensure_client_account, labels_for, read_code, revenue_accounts
-from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine,
+from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine, PurchaseOrder,
                     ClientPayment, ClientRate, DailyEntry, LedgerAccount, Vehicle, db)
 
 invoicing_bp = Blueprint("invoicing", __name__)
 
 CODE_PREFIX = "CL-"
-TABS = ("factures", "clients")
+# "commandes": the purchase orders waiting for the finance signature, shown
+# to whoever gives it -- the person who keeps Facturation.
+TABS = ("factures", "clients", "commandes")
 
 MONTHS = {
     "fr": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
@@ -143,8 +145,14 @@ def _next_number(issue_date):
 @login_required
 @require_perm("invoicing.view")
 def index():
+    # Imported here: purchases imports the stock and bill blueprints, which
+    # need not load for the rest of this one.
+    from blueprints.purchases import user_approves
     tab = request.args.get("tab")
     clients = _clients()
+    signs_orders = user_approves("finance")
+    if tab == "commandes" and not signs_orders:
+        tab = None
     if tab not in TABS:
         # Nobody to bill yet: the clients tab is where the work starts.
         tab = "clients" if not clients else "factures"
@@ -231,10 +239,16 @@ def index():
                 .group_by(ClientInvoice.client_id).all())
         owed = {r[0]: {"count": int(r[1]), "remaining": int(r[2] or 0)} for r in rows}
 
+    orders = []
+    if signs_orders:
+        orders = (PurchaseOrder.query.filter(PurchaseOrder.status == "pending_finance")
+                  .order_by(PurchaseOrder.date, PurchaseOrder.id).all())
+
     kept = request.args.to_dict(flat=False)
     kept.pop("tab", None)
     kept.pop("page", None)
     tab_urls = {name: url_for("invoicing.index", tab=name, **kept) for name in TABS}
+    tab_urls["commandes"] = url_for("invoicing.index", tab="commandes")
     return render_template("invoicing.html", tab=tab, tab_urls=tab_urls,
                            clients=clients, invoices=invoices, pagination=pagination,
                            billed=billed, received=received, remaining=remaining,
@@ -242,7 +256,8 @@ def index():
                            date_from=date_from, date_to=date_to, client_ids=client_ids,
                            status=status, search=search, today=today,
                            filtered=bool(date_from or date_to or client_ids or status or search),
-                           show_archived=show_archived, archived=archived)
+                           show_archived=show_archived, archived=archived,
+                           signs_orders=signs_orders, orders=orders)
 
 
 # ── Issuing a bill ───────────────────────────────────────────────────────────

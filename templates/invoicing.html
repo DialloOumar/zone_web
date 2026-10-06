@@ -42,6 +42,12 @@
            class="tab {% if tab == 'clients' %}tab--on{% endif %}">
             {{ t['invoicing.tab_clients'] }}<span class="tab__count">{{ clients | length }}</span>
         </a>
+        {% if signs_orders %}
+        <a href="{{ tab_urls['commandes'] }}" role="tab" aria-selected="{{ 'true' if tab == 'commandes' else 'false' }}"
+           class="tab {% if tab == 'commandes' %}tab--on{% endif %}">
+            {{ t['po.title'] }}{% if orders %}<span class="tab__count">{{ orders | length }}</span>{% endif %}
+        </a>
+        {% endif %}
     </nav>
 
     {% if tab == 'factures' %}
@@ -177,7 +183,7 @@
     {% endif %}
     {% endif %}
 
-    {% else %}
+    {% elif tab == 'clients' %}
     {# ── Clients: who the machines work for ── #}
     <div class="tab-bar">
         <p class="muted small tab-bar__filters" style="max-width:60ch;">{{ t['client.intro'] }}</p>
@@ -275,6 +281,53 @@
     <div class="empty-state">
         <span class="material-symbols-outlined">handshake</span>
         <p>{{ t['client.empty'] }}</p>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if tab == 'commandes' %}
+    {# The orders waiting for the finance signature. Approved here in one
+       click; read, or refused with a reason, on the order itself. #}
+    {% if orders %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['cinv.number'] }}</th>
+                <th>{{ t['invoice.supplier'] }}</th>
+                <th>{{ t['po.date'] }}</th>
+                <th>{{ t['po.requested_by'] }}</th>
+                <th style="text-align:right;">{{ t['cinv.total'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for po in orders %}
+            {% set po_url = url_for('purchases.detail', oid=po.id, **{'from': 'facturation'}) %}
+            <tr>
+                <td style="white-space:nowrap;"><a href="{{ po_url }}"><strong>{{ po.number }}</strong></a></td>
+                <td>{{ po.supplier.name if po.supplier else '' }}</td>
+                <td style="white-space:nowrap;">{{ po.date }}</td>
+                <td>{{ po.requester_name or '' }}</td>
+                <td style="text-align:right; white-space:nowrap;"><strong>{{ po.total | num }}</strong> {{ currency }}</td>
+                <td class="row-actions">
+                    <a href="{{ po_url }}" class="btn btn--sm btn--tonal btn--icon"
+                       title="{{ t['btn.view'] }}" aria-label="{{ t['btn.view'] }}"><span class="material-symbols-outlined">visibility</span></a>
+                    <form method="post" action="{{ url_for('purchases.approve', oid=po.id, kind='finance') }}" style="display:inline"
+                          data-confirm="{{ t['po.approve_confirm'] }}" data-confirm-title="{{ t['po.sign.finance'] }}" data-confirm-ok="{{ t['po.approve'] }}">
+                        <input type="hidden" name="next" value="{{ tab_urls['commandes'] }}">
+                        <button type="submit" class="btn btn--sm btn--primary">
+                            <span class="material-symbols-outlined">task_alt</span> {{ t['po.approve'] }}
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">task_alt</span>
+        <p>{{ t['po.none_to_sign'] }}</p>
     </div>
     {% endif %}
     {% endif %}

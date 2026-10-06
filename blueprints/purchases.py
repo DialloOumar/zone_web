@@ -54,6 +54,19 @@ def user_approves(kind):
     return any(uf.role and getattr(uf.role, flag, False) for uf in current_user.user_fleets)
 
 
+def _may_read():
+    """The store reads its orders; whoever signs them reads them too, from
+    wherever they sign -- Facturation, for the finance signature."""
+    return has_perm("stock.view") or user_approves("logistics") or user_approves("finance")
+
+
+def _back_to(default):
+    """Where to land after signing or refusing: the page the form came from
+    when it says so, else `default`. Only a path inside the app."""
+    nxt = request.form.get("next") or ""
+    return nxt if nxt.startswith("/") and not nxt.startswith("//") else default
+
+
 def _valid_date(s):
     try:
         date.fromisoformat(s)
@@ -345,10 +358,15 @@ def edit(oid):
 
 @purchases_bp.route("/<int:oid>")
 @login_required
-@require_perm("stock.view")
 def detail(oid):
+    if not _may_read():
+        abort(403)
     po = _get_or_404(oid)
-    return render_template("purchase_order.html", po=po,
+    # Opened from Facturation's tab: back goes there, and so does a signature.
+    from_billing = request.args.get("from") == "facturation"
+    back = url_for("invoicing.index", tab="commandes") if from_billing else url_for("purchases.index")
+    return render_template("purchase_order.html", po=po, back=back,
+                           sign_next=back if from_billing else "",
                            can_sign_logistics=po.status == "pending_logistics" and user_approves("logistics"),
                            can_sign_finance=po.status == "pending_finance" and user_approves("finance"),
                            can_reject=po.status in PENDING and (user_approves("logistics") or user_approves("finance")),
@@ -367,7 +385,7 @@ def approve(oid, kind):
     expected = "pending_logistics" if kind == "logistics" else "pending_finance"
     if po.status != expected:
         flash("error|" + t["po.err.not_pending"])
-        return redirect(url_for("purchases.detail", oid=po.id))
+        return redirect(_back_to(url_for("purchases.detail", oid=po.id)))
     now = datetime.utcnow()
     if kind == "logistics":
         po.logistics_by, po.logistics_at, po.status = current_user.id, now, "pending_finance"
@@ -377,7 +395,7 @@ def approve(oid, kind):
                detail="%s signed %s (%s)" % (current_user.full_name, po.number, kind))
     db.session.commit()
     flash("success|" + (t["po.approved_final"] if po.status == "approved" else t["po.approved_step"]))
-    return redirect(url_for("purchases.detail", oid=po.id))
+    return redirect(_back_to(url_for("purchases.detail", oid=po.id)))
 
 
 @purchases_bp.route("/<int:oid>/refuser", methods=["POST"])
@@ -389,7 +407,7 @@ def reject(oid):
         abort(403)
     if po.status not in PENDING:
         flash("error|" + t["po.err.not_pending"])
-        return redirect(url_for("purchases.detail", oid=po.id))
+        return redirect(_back_to(url_for("purchases.detail", oid=po.id)))
     reason = (request.form.get("reason") or "").strip()
     if not reason:
         flash("error|" + t["po.err.reason"])
@@ -401,7 +419,7 @@ def reject(oid):
                detail="%s refused %s: %s" % (current_user.full_name, po.number, reason[:120]))
     db.session.commit()
     flash("success|" + t["po.rejected"])
-    return redirect(url_for("purchases.detail", oid=po.id))
+    return redirect(_back_to(url_for("purchases.detail", oid=po.id)))
 
 
 @purchases_bp.route("/<int:oid>/supprimer", methods=["POST"])
@@ -428,6 +446,8 @@ def print_sheet(oid):
     """The order as a sheet, after the company's own: header, submitted by,
     the supplier, the lines with their discount, and the two signature
     blocks naming who signed and when."""
+    if not _may_read():
+        abort(403)
     po = _get_or_404(oid)
     from blueprints.invoicing import invoice_settings
     return render_template("purchase_order_print.html", po=po, co=invoice_settings(),

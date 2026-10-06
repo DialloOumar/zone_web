@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a href="{{ url_for('purchases.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a href="{{ back }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
     {% if po.logistics_at and po.status != 'rejected' %}
     <a href="{{ url_for('purchases.print_sheet', oid=po.id) }}" class="btn btn--sm btn--outlined" target="_blank" rel="noopener">
         <span class="material-symbols-outlined">print</span> {{ t['help.print'] }}
@@ -68,12 +68,14 @@
         {% if can_sign_logistics %}
         <form method="post" action="{{ url_for('purchases.approve', oid=po.id, kind='logistics') }}" style="display:inline"
               data-confirm="{{ t['po.approve_confirm'] }}" data-confirm-title="{{ t['po.sign.logistics'] }}" data-confirm-ok="{{ t['po.approve'] }}">
+            {% if sign_next %}<input type="hidden" name="next" value="{{ sign_next }}">{% endif %}
             <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">task_alt</span> {{ t['po.approve_as'] % t['po.sign.logistics'] }}</button>
         </form>
         {% endif %}
         {% if can_sign_finance %}
         <form method="post" action="{{ url_for('purchases.approve', oid=po.id, kind='finance') }}" style="display:inline"
               data-confirm="{{ t['po.approve_confirm'] }}" data-confirm-title="{{ t['po.sign.finance'] }}" data-confirm-ok="{{ t['po.approve'] }}">
+            {% if sign_next %}<input type="hidden" name="next" value="{{ sign_next }}">{% endif %}
             <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">task_alt</span> {{ t['po.approve_as'] % t['po.sign.finance'] }}</button>
         </form>
         {% endif %}
@@ -81,6 +83,7 @@
         <details class="po-reject">
             <summary class="btn btn--outlined btn--danger-text"><span class="material-symbols-outlined">close</span> {{ t['po.reject'] }}</summary>
             <form method="post" action="{{ url_for('purchases.reject', oid=po.id) }}" class="entry-form" style="margin-top:10px; max-width:520px;">
+                {% if sign_next %}<input type="hidden" name="next" value="{{ sign_next }}">{% endif %}
                 <div class="field">
                     <input type="text" id="reason" name="reason" placeholder=" " required maxlength="255">
                     <label for="reason">{{ t['po.reject_reason'] }}</label>
