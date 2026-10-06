@@ -43,18 +43,24 @@
         {% endif %}
     </div>
     {% endif %}
+    {# The company's own money first, with what each account holds; below
+       it, the accounts that are owed back, which hold no money of their own. #}
+    {% set groups = [(accounts | rejectattr('is_repayable') | list, t['accounts.group.company'], true),
+                     (accounts | selectattr('is_repayable') | list, t['accounts.group.other'], false)] %}
     {% if accounts %}
+    {% for rows, title, with_balance in groups if rows %}
+    <h3 class="accounts-group">{{ title }}</h3>
     <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['caisse.account'] }}</th>
-                <th style="text-align:right;">{{ t['fund.balance'] }}</th>
+                {% if with_balance %}<th style="text-align:right;">{{ t['fund.balance'] }}</th>{% endif %}
                 <th style="text-align:right;">{{ t['accounts.paid_to_suppliers'] }}</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
-            {% for r in accounts %}
+            {% for r in rows %}
             {% set p = paid.get(r.id) %}
             <tr>
                 <td>
@@ -65,12 +71,14 @@
                     {% if r.number %}<div class="muted small">{{ r.number }}</div>{% endif %}
                     {% if r.ledger_code %}<div class="muted small"><code>{{ r.ledger_code }}</code> {{ code_labels.get(r.ledger_code, '') }}</div>{% endif %}
                 </td>
+                {% if with_balance %}
                 <td style="text-align:right; white-space:nowrap;">
                     {% if r.id in balances %}
                     <a href="{{ url_for('accounts.detail', aid=r.id) }}"><strong {% if balances[r.id] < 0 %}class="stock-negative"{% endif %}>{{ balances[r.id] | num }} {{ currency }}</strong></a>
                     {% if not r.opening_date %}<div class="muted small">{{ t['fund.opening_none'] }}</div>{% endif %}
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
+                {% endif %}
                 <td style="text-align:right; white-space:nowrap;">
                     {% if p %}<strong>{{ p.total | num }} {{ currency }}</strong>
                     <div class="muted small">{{ p.count }} {{ t['invoice.payment_count'] }}</div>
@@ -102,6 +110,7 @@
             {% endfor %}
         </tbody>
     </table></div>
+    {% endfor %}
     {% else %}
     <p class="muted" style="padding: 6px 0;">{{ t['list.empty'] }}</p>
     {% endif %}
