@@ -6,7 +6,7 @@
 {% block content %}
 <section class="card" style="max-width: 720px;">
     <div class="card-header"><h2>{{ t['user.basic_info'] }}</h2>
-        <a href="{{ url_for('admin.users') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+        <a data-back href="{{ url_for('admin.users') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
     </div>
     <form method="post" action="{{ url_for('admin.user_edit', user_id=user.id) }}" class="entry-form">
         <div class="form-row">

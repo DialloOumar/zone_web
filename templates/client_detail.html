@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a href="{{ url_for('invoicing.index', tab='clients') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a data-back href="{{ url_for('invoicing.index', tab='clients') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
     {% if has_perm('invoicing.manage') %}
     <a href="{{ url_for('invoicing.client_edit', cid=client.id) }}" class="btn btn--sm btn--tonal"
        data-modal-url="{{ url_for('invoicing.client_edit', cid=client.id) }}" data-modal-title="{{ t['client.edit'] }}">

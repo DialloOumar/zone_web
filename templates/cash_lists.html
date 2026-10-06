@@ -57,7 +57,7 @@
 
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a href="{{ url_for('expenses.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a data-back href="{{ url_for('expenses.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
 </div>
 
 {{ list_card('site', sites, used_sites, t['list.sites'], t['list.sites_intro'], t['list.site_new']) }}

@@ -7,7 +7,7 @@
 {# The one list of suppliers, reached from the store as well as from the
    bills: whoever buys parts names the same suppliers accounting pays. #}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a href="{{ request.referrer if request.referrer and '/fournisseurs' not in request.referrer else url_for('stock.index') }}"
+    <a data-back href="{{ url_for('stock.index') }}"
        class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
 </div>
 

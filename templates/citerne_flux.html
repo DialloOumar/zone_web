@@ -21,7 +21,7 @@
                     <option value="all" {% if period == 'all' %}selected{% endif %}>{{ t['movement.all_periods'] }}</option>
                 </select>
             </label>
-            <a href="{{ url_for('carburant.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+            <a data-back href="{{ url_for('carburant.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
         </form>
     </div>
 

@@ -600,3 +600,52 @@ console.log("Zone Web booted");
         location.assign(location.pathname + location.search);
     });
 })();
+
+// Retour goes back to where you came from, not to the screen's usual list.
+//
+// Each page notes, for this tab only, the page that led to it -- address,
+// filters and tab included. Saving something on the page reloads it from
+// itself, which leaves the note alone; arriving just after a form (a new
+// order, an edit page) does not count as coming from it; and coming back
+// down a path you went up ("vehicle -> client -> Retour") keeps the older
+// note, so two pages never send you back and forth. With no note -- a link
+// opened in a new tab, a bookmark -- the button keeps its own address.
+(function () {
+    var KEY = 'zw.back', MAX = 60;
+    var FORM = /\/(new|nouveau|nouvelle|edit|modifier|reception|approvisionner|solde-initial|password|login)(\/|$)/;
+    var here = location.pathname;
+    var notes = {};
+    try { notes = JSON.parse(sessionStorage.getItem(KEY) || '{}') || {}; } catch (e) { notes = {}; }
+
+    function pathOf(url) { return url.split('?')[0].split('#')[0]; }
+
+    var ref = null;
+    try {
+        if (document.referrer) {
+            var r = new URL(document.referrer);
+            if (r.origin === location.origin) ref = r.pathname + r.search;
+        }
+    } catch (e) { ref = null; }
+
+    if (ref) {
+        var refPath = pathOf(ref);
+        var goingBack = notes[refPath] && pathOf(notes[refPath]) === here;
+        if (refPath !== here && !FORM.test(refPath) && !goingBack) {
+            delete notes[here];
+            notes[here] = ref;
+            var keys = Object.keys(notes);
+            while (keys.length > MAX) delete notes[keys.shift()];
+            try { sessionStorage.setItem(KEY, JSON.stringify(notes)); } catch (e) { /* private mode */ }
+        }
+    }
+
+    document.addEventListener('click', function (e) {
+        if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        var a = e.target.closest('a[data-back], a[data-modal-cancel]');
+        if (!a || a.closest('.modal')) return;
+        var to = notes[here];
+        if (!to || pathOf(to) === here) return;
+        e.preventDefault();
+        location.assign(to);
+    });
+})();
