@@ -476,7 +476,10 @@ document.addEventListener("click", function (e) {
         var digitsBefore = before.slice(0, caret).replace(/\D/g, "").length;
 
         var digits = before.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
-        var after = group(digits);
+        // A field that may go below zero -- an overdrawn account's opening
+        // balance -- keeps a leading minus.
+        var minus = el.hasAttribute("data-money-signed") && /^\s*[-−]/.test(before) ? "-" : "";
+        var after = minus + group(digits);
         if (after === before) return;
         el.value = after;
 

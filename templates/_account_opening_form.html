@@ -4,9 +4,9 @@
 <form method="post" class="entry-form" data-modal-form action="{{ url_for('accounts.opening', aid=acc.id) }}">
     <div class="form-row">
         <div class="field">
-            <input data-money type="text" inputmode="numeric" id="opening_balance" name="opening_balance" placeholder=" "
+            <input data-money data-money-signed type="text" inputmode="text" id="opening_balance" name="opening_balance" placeholder=" "
                    value="{{ request.form.get('opening_balance') or (acc.opening_balance if acc.opening_date else '') }}">
-            <label for="opening_balance">{{ t['fund.opening_amount'] }}</label>
+            <label for="opening_balance">{{ t['fund.opening_amount'] }} {{ hint('', t['fund.opening_amount_hint']) }}</label>
         </div>
         <div class="field">
             <input type="date" id="opening_date" name="opening_date" placeholder=" " required
@@ -22,3 +22,13 @@
         <a href="{{ url_for('accounts.detail', aid=acc.id) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
+{% if acc.opening_date %}
+{# Taking it away counts every line again, from the first. #}
+<form method="post" action="{{ url_for('accounts.opening', aid=acc.id) }}" style="margin-top:10px;"
+      data-confirm="{{ t['fund.opening_clear_confirm'] }}" data-confirm-title="{{ t['fund.opening_clear'] }}" data-confirm-ok="{{ t['fund.opening_clear'] }}" data-confirm-danger>
+    <input type="hidden" name="clear" value="1">
+    <button type="submit" class="btn btn--sm btn--outlined">
+        <span class="material-symbols-outlined">close</span> {{ t['fund.opening_clear'] }}
+    </button>
+</form>
+{% endif %}

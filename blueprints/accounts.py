@@ -335,8 +335,17 @@ def opening(aid):
     acc = _company_account_or_404(aid)
     t = get_t()
     error = None
+    if request.method == "POST" and request.form.get("clear"):
+        # Taken away: every line counts again, from the first.
+        acc.opening_balance, acc.opening_date = None, None
+        log_action("UPDATE", "cash_account", resource_id=acc.id,
+                   detail="Opening balance of '%s' removed" % acc.name)
+        db.session.commit()
+        flash("success|" + t["fund.opening_cleared"])
+        return redirect(url_for("accounts.detail", aid=acc.id))
     if request.method == "POST":
-        raw = (request.form.get("opening_balance") or "").strip()
+        # May be below zero: an overdrawn account.
+        raw = (request.form.get("opening_balance") or "").strip().replace("−", "-")
         day = (request.form.get("opening_date") or "").strip()
         amount, error = _amount(raw, t) if raw else (0, None)
         if not error and not _valid_date(day):
