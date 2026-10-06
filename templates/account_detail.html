@@ -31,7 +31,7 @@
         {% else %}
         <span class="muted">{{ t['fund.opening_none'] }}</span>
         {% endif %}
-        {% if has_perm('invoicing.manage') %}
+        {% if has_perm('supplier_invoice.edit') %}
         <a href="{{ url_for('accounts.opening', aid=acc.id) }}" class="btn btn--sm btn--tonal btn--icon"
            data-modal-url="{{ url_for('accounts.opening', aid=acc.id) }}" data-modal-title="{{ t['fund.opening'] }}"
            title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
@@ -61,11 +61,13 @@
             </a>
             {% endif %}
             {% if has_perm('invoicing.manage') %}
-            <a href="{{ url_for('accounts.deposit_new', aid=acc.id) }}" class="fab"
-               data-modal-url="{{ url_for('accounts.deposit_new', aid=acc.id) }}"
-               data-modal-title="{{ t['fund.new'] }}">
-                <span class="material-symbols-outlined">add</span> {{ t['fund.new'] }}
+            <a href="{{ url_for('invoicing.account_receipt', aid=acc.id) }}" class="fab"
+               data-modal-url="{{ url_for('invoicing.account_receipt', aid=acc.id) }}"
+               data-modal-title="{{ t['receipt.title'] }}">
+                <span class="material-symbols-outlined">payments</span> {{ t['receipt.title'] }}
             </a>
+            {% endif %}
+            {% if has_perm('supplier_invoice.edit') %}
             <a href="{{ url_for('accounts.move_new', aid=acc.id) }}" class="fab fab--tonal"
                data-modal-url="{{ url_for('accounts.move_new', aid=acc.id) }}"
                data-modal-title="{{ t['move.title'] }}">
@@ -108,7 +110,7 @@
                 <td style="text-align:right; white-space:nowrap;">{% if r.amount_out %}{{ r.amount_out | num }}{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;" {% if r.balance < 0 %}class="stock-negative"{% endif %}><strong>{{ r.balance | num }}</strong></td>
                 <td class="row-actions">
-                    {% if r.kind in ('move_out', 'move_in') and has_perm('invoicing.manage') %}
+                    {% if r.kind in ('move_out', 'move_in') and has_perm('supplier_invoice.edit') %}
                     <a href="{{ url_for('accounts.move_edit', vid=r.row.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('accounts.move_edit', vid=r.row.id) }}" data-modal-title="{{ t['move.edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
@@ -117,7 +119,7 @@
                         <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                     </form>
                     {% endif %}
-                    {% if r.kind == 'transfer' and r.row.status == 'sent' and has_perm('invoicing.manage') %}
+                    {% if r.kind == 'transfer' and r.row.status == 'sent' and has_perm('supplier_invoice.edit') %}
                     <a href="{{ url_for('accounts.transfer_edit', tid=r.row.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('accounts.transfer_edit', tid=r.row.id) }}" data-modal-title="{{ t['transfer.edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
@@ -131,7 +133,7 @@
                     <a href="{{ photo_url(r.row.photo_key) }}" target="_blank" rel="noopener" class="btn btn--sm btn--tonal btn--icon"
                        title="{{ t['scan.field'] }}" aria-label="{{ t['scan.field'] }}"><span class="material-symbols-outlined">description</span></a>
                     {% endif %}
-                    {% if has_perm('invoicing.manage') %}
+                    {% if has_perm('supplier_invoice.edit') %}
                     <a href="{{ url_for('accounts.deposit_edit', did=r.row.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('accounts.deposit_edit', did=r.row.id) }}" data-modal-title="{{ t['fund.edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>

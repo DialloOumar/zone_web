@@ -1320,6 +1320,9 @@ class ClientPayment(db.Model):
     method     = db.Column(db.String(20))                    # cash | mobile_money | transfer | cheque
     reference  = db.Column(db.String(60))                    # the client's transfer or cheque number
     account_id = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=True)
+    # Several bills of one client settled by a single transfer: each gets
+    # its own receipt, sharing this mark, shown as one line on the account.
+    batch      = db.Column(db.String(32),  nullable=True, index=True)
     note       = db.Column(db.String(255))
     ledger_code = db.Column(db.String(12), index=True)      # the client's account at the time, for the journal
     created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['receipt.title'] }}{% endblock %}
+{% block page_title %}{{ t['receipt.title'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_account_client_receipt_form.html" %}
+</section>
+{% endblock %}

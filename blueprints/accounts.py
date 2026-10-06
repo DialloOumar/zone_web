@@ -34,6 +34,11 @@ accounts_bp = Blueprint("accounts", __name__)
 MANAGE = ("expense.create", "supplier_invoice.create", "invoicing.manage",
           "accounting.view", "accounting.manage")
 
+# The accountant -- whoever records the supplier bills -- keeps the
+# accounts: their starting balances, the transfers between them and to the
+# cash box. Facturation only receives the clients' payments on them.
+FUND = "supplier_invoice.edit"
+
 
 def _used_ids():
     """Accounts something points at, which may be archived but never deleted:
@@ -132,7 +137,7 @@ def _render_form(row, error=None):
 
 @accounts_bp.route("/comptes/nouveau", methods=["GET", "POST"])
 @login_required
-@require_any_perm(*MANAGE)
+@require_perm(FUND)
 def new():
     if request.method == "POST":
         error = _save_list_row(CashAccount, None, "account")
@@ -145,7 +150,7 @@ def new():
 
 @accounts_bp.route("/comptes/<int:aid>/modifier", methods=["GET", "POST"])
 @login_required
-@require_any_perm(*MANAGE)
+@require_perm(FUND)
 def edit(aid):
     row = db.session.get(CashAccount, aid)
     if not row:
@@ -162,7 +167,7 @@ def edit(aid):
 @accounts_bp.route("/comptes/<int:aid>/<any(archive,reactivate,delete):what>",
                    methods=["POST"])
 @login_required
-@require_any_perm(*MANAGE)
+@require_perm(FUND)
 def action(aid, what):
     """Archive takes it out of the pickers and leaves its history named; delete
     is only for one nothing has ever pointed at."""
@@ -193,9 +198,6 @@ def action(aid, what):
 
 # ── What a company account holds ─────────────────────────────────────────────
 
-# Whoever keeps Facturation puts money on the accounts: client payments land
-# there already, and the rest of what comes in is theirs to record too.
-FUND = "invoicing.manage"
 
 DEPOSIT_METHODS = ("transfer", "cheque", "cash", "mobile_money", "other")
 
@@ -228,12 +230,23 @@ def account_lines(acc):
     for d in q(AccountDeposit):
         rows.append(dict(kind="deposit", row=d, date=d.date, label=d.description or "",
                          who=d.source, reference=d.reference, amount_in=d.amount, amount_out=0))
+    receipts = {}
     for p in q(ClientPayment):
+        if p.batch:
+            receipts.setdefault(p.batch, []).append(p)
+            continue
         inv = p.invoice
         rows.append(dict(kind="client_payment", row=p, date=p.date,
                          label=inv.number if inv else "",
                          who=inv.client.name if inv and inv.client else "",
                          reference=p.reference, amount_in=p.amount, amount_out=0))
+    # Several bills one transfer paid: the one line of the statement.
+    for parts in receipts.values():
+        first = parts[0]
+        rows.append(dict(kind="client_payment", row=first, date=first.date,
+                         label=", ".join(p.invoice.number for p in parts if p.invoice),
+                         who=first.invoice.client.name if first.invoice and first.invoice.client else "",
+                         reference=first.reference, amount_in=sum(p.amount or 0 for p in parts), amount_out=0))
     # Money sent to the cash box leaves the account the day it is sent,
     # whether the box has confirmed it yet or not; the box's own money-in for
     # it is the same money, so it is not counted a second time below.
@@ -391,31 +404,6 @@ def _get_deposit_or_404(did):
     if not row:
         abort(404)
     return row
-
-
-@accounts_bp.route("/comptes/<int:aid>/approvisionner", methods=["GET", "POST"])
-@login_required
-@require_perm(FUND)
-def deposit_new(aid):
-    acc = _company_account_or_404(aid)
-    t = get_t()
-    if request.method == "POST":
-        data, error = _read_deposit_form()
-        if error:
-            return _render_deposit_form(None, acc, error)
-        row = AccountDeposit(created_by=current_user.id, **data)
-        db.session.add(row)
-        db.session.flush()
-        perr = _apply_photo_change(row, code="appro-%s" % row.id)
-        if perr:
-            db.session.rollback()
-            return _render_deposit_form(None, acc, perr)
-        log_action("CREATE", "account_deposit", resource_id=row.id,
-                   detail="%s GNF put on account #%s from %s" % (row.amount, row.account_id, row.source))
-        db.session.commit()
-        flash("success|" + t["fund.created"])
-        return modal_ok() if is_modal_request() else redirect(url_for("accounts.detail", aid=row.account_id))
-    return _render_deposit_form(None, acc)
 
 
 @accounts_bp.route("/comptes/approvisionnements/<int:did>/modifier", methods=["GET", "POST"])

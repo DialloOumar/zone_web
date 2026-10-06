@@ -1,11 +1,12 @@
 {% from "_ledger_picker.html" import ledger_picker with context %}
 {% set is_edit = deposit is not none %}
 {# Money put on one of the company's accounts with no client bill behind it.
+   No longer created -- the starting balance covers what it was for -- but
+   the ones already written can still be corrected.
    A client's payment is entered on the invoice, never here. #}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form enctype="multipart/form-data"
-      action="{{ url_for('accounts.deposit_edit', did=deposit.id) if is_edit
-                else url_for('accounts.deposit_new', aid=acc.id) }}">
+      action="{{ url_for('accounts.deposit_edit', did=deposit.id) }}">
 
     <div class="form-row">
         <div class="field">

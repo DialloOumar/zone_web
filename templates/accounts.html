@@ -16,7 +16,7 @@
         <div>
             <h2>{{ t['list.accounts'] }}</h2>
         </div>
-        {% if tab == 'comptes' %}
+        {% if tab == 'comptes' and has_perm('supplier_invoice.edit') %}
         <a href="{{ url_for('accounts.new') }}" class="fab"
            data-modal-url="{{ url_for('accounts.new') }}" data-modal-title="{{ t['list.account_new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['list.account_new'] }}
@@ -124,6 +124,7 @@
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td class="row-actions">
+                    {% if has_perm('supplier_invoice.edit') %}
                     <a href="{{ url_for('accounts.edit', aid=r.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('accounts.edit', aid=r.id) }}" data-modal-title="{{ t['list.edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
@@ -143,6 +144,7 @@
                           data-confirm="{{ t['list.archive_confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
                         <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
                     </form>
+                    {% endif %}
                     {% endif %}
                 </td>
             </tr>

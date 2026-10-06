@@ -62,7 +62,7 @@
             </td>
             <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ row.amount | num }} {{ currency }}</td>
             <td class="row-actions">
-                {% if kind == 'move' and has_perm('invoicing.manage') %}
+                {% if kind == 'move' and has_perm('supplier_invoice.edit') %}
                 <a href="{{ url_for('accounts.move_edit', vid=row.id) }}" class="btn btn--sm btn--tonal btn--icon"
                    data-modal-url="{{ url_for('accounts.move_edit', vid=row.id) }}" data-modal-title="{{ t['move.edit'] }}"
                    title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>

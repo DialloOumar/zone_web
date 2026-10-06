@@ -21,6 +21,7 @@ Règlements: what the client paid against a bill, in one or several
 payments; the bill's state (à régler, partielle, réglée, en retard) is read
 off them, never stored.
 """
+import uuid
 from datetime import date, datetime
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
@@ -32,7 +33,7 @@ import billing
 from amount_words import amount_in_words
 from app import (_get_setting, current_lang, current_user_fleet_ids, get_t, has_perm,
                  is_modal_request, log_action, modal_ok, parse_amount, require_perm)
-from blueprints.expenses import PAYMENT_METHODS, active_accounts, method_error
+from blueprints.expenses import PAYMENT_METHODS, active_accounts, method_error, methods_of
 from ledger import ensure_client_account, labels_for, read_code, revenue_accounts
 from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine, PurchaseOrder,
                     ClientPayment, ClientRate, DailyEntry, LedgerAccount, Vehicle, db)
@@ -683,24 +684,25 @@ def _render_payment_form(inv, pay, error=None):
                            today=date.today().isoformat()), status
 
 
-def _read_payment_form(inv, pay):
+def _read_payment_form(inv, pay, form=None):
     """One payment: when, how much, how. Returns (data, None) or (None, err).
     The amount is held to what is still owed, counting every other payment
     but this one, so correcting one downwards is never blocked by itself."""
     t = get_t()
-    amount = parse_amount(request.form.get("amount"))
+    form = request.form if form is None else form
+    amount = parse_amount(form.get("amount"))
     if amount is None or amount <= 0:
         return None, t["invoice.err.amount"]
     others = sum(p.amount or 0 for p in inv.payments if pay is None or p.id != pay.id)
     if amount > (inv.total or 0) - others:
         return None, t["cpay.err.overpaid"]
-    date_str = (request.form.get("date") or "").strip()
+    date_str = (form.get("date") or "").strip()
     if not _valid_date(date_str):
         return None, t["invoice.err.paid_date"]
-    method = (request.form.get("method") or "").strip()
+    method = (form.get("method") or "").strip()
     if method not in PAYMENT_METHODS:
         return None, t["invoice.err.method"]
-    account_id = request.form.get("account_id", type=int) or None
+    account_id = form.get("account_id", type=int) or None
     if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True).first():
         return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
     # Money that did not come in cash landed on an account, and that
@@ -712,8 +714,8 @@ def _read_payment_form(inv, pay):
     if err:
         return None, err
     return dict(date=date_str, amount=amount, method=method, account_id=account_id,
-                reference=(request.form.get("reference") or "").strip()[:60] or None,
-                note=(request.form.get("note") or "").strip()[:255] or None), None
+                reference=(form.get("reference") or "").strip()[:60] or None,
+                note=(form.get("note") or "").strip()[:255] or None), None
 
 
 @invoicing_bp.route("/facturation/factures/<int:iid>/reglements/nouveau", methods=["GET", "POST"])
@@ -859,3 +861,82 @@ def client_opening(cid):
                            amount=row.total if row else None,
                            paid=row.paid_amount if row else 0,
                            title=t["opening.client_title"]), status
+
+
+# ── Receiving clients' payments on an account's page ────────────────────────
+
+def _render_account_receipt_form(acc, error=None):
+    """The client bills still owed, grouped by client, to tick the ones a
+    single transfer pays."""
+    tpl = "_account_client_receipt_form.html" if is_modal_request() else "account_client_receipt_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    bills = [i for i in ClientInvoice.query.filter(ClientInvoice.status != "cancelled").all() if i.remaining > 0]
+    bills.sort(key=lambda i: ((i.client.name if i.client else "").lower(), i.due_date or i.date, i.date, i.id))
+    groups = []
+    for b in bills:
+        if not groups or groups[-1]["client"] is not b.client:
+            groups.append({"client": b.client, "bills": [], "total": 0})
+        groups[-1]["bills"].append(b)
+        groups[-1]["total"] += b.remaining
+    ticked = {int(x) for x in request.form.getlist("invoice_ids") if x.isdigit()}
+    return render_template(tpl, acc=acc, groups=groups, ticked=ticked, error=error,
+                           payment_methods=methods_of(acc, PAYMENT_METHODS),
+                           today=date.today().isoformat()), status
+
+
+@invoicing_bp.route("/comptes/<int:aid>/recevoir-paiement", methods=["GET", "POST"])
+@login_required
+@require_perm("invoicing.manage")
+def account_receipt(aid):
+    """A client's transfer arriving on this account, paying one or several
+    of their bills. Each bill gets its own receipt -- the same as on the
+    bill's page -- sharing a mark when there are several, so the account
+    shows the one line the statement shows. Left empty, the amount settles
+    every ticked bill; a smaller one is shared in proportion to what each
+    still owes, never more than a bill owes."""
+    from blueprints.supplier_invoices import spread
+    acc = db.session.get(CashAccount, aid)
+    if not acc or acc.is_repayable:
+        abort(404)
+    t = get_t()
+    if request.method == "POST":
+        ids = [int(x) for x in request.form.getlist("invoice_ids") if x.isdigit()]
+        bills = [b for b in (db.session.get(ClientInvoice, i) for i in ids) if b is not None]
+        if not bills or any(b.is_cancelled or b.remaining <= 0 for b in bills):
+            return _render_account_receipt_form(acc, t["receipt.err.bill"])
+        if len({b.client_id for b in bills}) > 1:
+            return _render_account_receipt_form(acc, t["receipt.err.one_client"])
+        bills.sort(key=lambda b: (b.due_date or b.date, b.date, b.id))
+        owed = sum(b.remaining for b in bills)
+        raw = (request.form.get("amount") or "").strip()
+        if raw:
+            total = parse_amount(raw)
+            if total is None or total <= 0:
+                return _render_account_receipt_form(acc, t["invoice.err.amount"])
+            if total > owed:
+                return _render_account_receipt_form(acc, t["receipt.err.over"] % {
+                    "owed": "{:,}".format(owed).replace(",", " ")})
+        else:
+            total = owed
+        batch = uuid.uuid4().hex if len(bills) > 1 else None
+        made = []
+        for b, part in zip(bills, spread(total, [b.remaining for b in bills])):
+            if part <= 0:
+                continue
+            form = request.form.copy()
+            form["account_id"], form["amount"] = str(acc.id), str(part)
+            data, error = _read_payment_form(b, None, form)
+            if error:
+                db.session.rollback()
+                return _render_account_receipt_form(acc, error)
+            pay = ClientPayment(invoice_id=b.id, created_by=current_user.id, batch=batch, **data)
+            pay.ledger_code = ensure_client_account(b.client, current_user.id)
+            db.session.add(pay)
+            made.append((b.number, part))
+        log_action("CREATE", "client_payment", resource_id=bills[0].client_id,
+                   detail="Received %s GNF on account #%s for %s" % (
+                       total, acc.id, ", ".join("%s: %s" % m for m in made)))
+        db.session.commit()
+        flash("success|" + (t["receipt.saved_many"] % {"n": len(made)} if len(made) > 1 else t["cpay.saved"]))
+        return modal_ok() if is_modal_request() else redirect(url_for("accounts.detail", aid=acc.id))
+    return _render_account_receipt_form(acc)

@@ -1,0 +1,138 @@
+{% from "_hint.html" import hint with context %}
+{# A client's transfer arriving on this account, paying one or several of
+   their bills. Pick the client first: only their bills show, all ticked,
+   late ones marked, with the ticked total kept up to date. Without the
+   script below every client's bills simply show, grouped. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form data-bill-form
+      data-l-sum="{{ t['bill_pay.sum'] }}" data-l-none="{{ t['bill_pay.sum_none'] }}"
+      action="{{ url_for('invoicing.account_receipt', aid=acc.id) }}">
+    {% if groups %}
+    {% set picked = namespace(id=0) %}
+    {% for g in groups %}{% for b in g.bills %}{% if b.id in ticked %}{% set picked.id = g.client.id %}{% endif %}{% endfor %}{% endfor %}
+    <div class="field field--select">
+        <select id="bill_client" data-bill-supplier>
+            <option value="" {% if not picked.id %}selected{% endif %} hidden>{{ t['receipt.pick_client'] }}</option>
+            {% for g in groups %}
+            <option value="{{ g.client.id }}" {% if g.client.id == picked.id %}selected{% endif %}>
+                {{ g.client.name }} — {{ g.bills | length }} &middot; {{ g.total | num }} {{ currency }}
+            </option>
+            {% endfor %}
+        </select>
+        <label for="bill_client">{{ t['invoicing.client'] }}</label>
+    </div>
+
+    <div class="bill-pick">
+        {% for g in groups %}
+        <fieldset class="bill-pick__group" data-supplier="{{ g.client.id }}">
+            <legend>
+                <label class="bill-pick__all">
+                    <input type="checkbox" data-bill-all>
+                    <span><span class="muted small">{{ g.client.code }}</span> {{ g.client.name }}</span>
+                </label>
+                <span class="muted small">&middot; {{ t['bill_pay.all'] }}</span>
+            </legend>
+            {% for b in g.bills %}
+            {% set late = b.due_date and b.due_date < today %}
+            <label class="bill-pick__row {% if late %}bill-pick__row--late{% endif %}">
+                <input type="checkbox" name="invoice_ids" value="{{ b.id }}" data-left="{{ b.remaining }}" {% if b.id in ticked %}checked{% endif %}>
+                <span class="bill-pick__what">
+                    {{ b.number }}{% if b.is_opening %} <span class="muted small">{{ t['opening.title'] }}</span>{% elif b.subject %} <span class="muted small">{{ b.subject }}</span>{% endif %}
+                    <span class="muted small">{{ b.date }}{% if b.due_date %} &middot; {{ t['invoice.due_short'] }} {{ b.due_date }}{% endif %}
+                        {% if late %}<span class="badge badge--critical">{{ t['cpay.status.overdue'] }}</span>{% endif %}</span>
+                </span>
+                <strong class="bill-pick__left">{{ b.remaining | num }}</strong>
+            </label>
+            {% endfor %}
+        </fieldset>
+        {% endfor %}
+    </div>
+    <p class="bill-pick__sum" data-bill-sum></p>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required value="{{ request.form.get('date') or today }}">
+            <label for="date">{{ t['cpay.date'] }}</label>
+        </div>
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['bill_pay.all_left'] }}"
+                   value="{{ request.form.get('amount') or '' }}">
+            <label for="amount">{{ t['invoice.amount'] }} {{ hint('', t['bill_pay.amount_hint']) }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field field--select">
+            {% set sel_m = request.form.get('method') or 'transfer' %}
+            <select id="method" name="method" required>
+                {% for m in payment_methods %}
+                <option value="{{ m }}" {% if m == sel_m %}selected{% endif %}>{{ t['pay.' + m] }}</option>
+                {% endfor %}
+            </select>
+            <label for="method">{{ t['bank.method'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="reference" name="reference" placeholder=" " maxlength="60" value="{{ request.form.get('reference') or '' }}">
+            <label for="reference">{{ t['bank.reference'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('accounts.detail', aid=acc.id) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+
+    <script>
+    (function () {
+        var form = document.querySelector('form[data-bill-form]:not([data-bill-ready])');
+        if (!form) return;
+        form.setAttribute('data-bill-ready', '');
+        var pick = form.querySelector('[data-bill-supplier]');
+        var groups = form.querySelectorAll('.bill-pick__group');
+        var sum = form.querySelector('[data-bill-sum]');
+        function money(n) { return n.toLocaleString('fr-FR'); }
+        function boxes(g) { return g.querySelectorAll('input[name="invoice_ids"]'); }
+        function refresh() {
+            var n = 0, total = 0;
+            form.querySelectorAll('input[name="invoice_ids"]:checked').forEach(function (b) {
+                n += 1; total += parseInt(b.dataset.left, 10) || 0;
+            });
+            groups.forEach(function (g) {
+                var all = g.querySelector('[data-bill-all]'), bs = boxes(g), on = 0;
+                bs.forEach(function (b) { if (b.checked) on += 1; });
+                all.checked = on > 0 && on === bs.length;
+                all.indeterminate = on > 0 && on < bs.length;
+            });
+            sum.textContent = n ? form.dataset.lSum.replace('{n}', n).replace('{total}', money(total))
+                                : form.dataset.lNone;
+        }
+        // Only the chosen supplier's bills show; choosing one ticks them all
+        // and unticks everybody else's, since a transfer pays one supplier.
+        function show(id, tickAll) {
+            groups.forEach(function (g) {
+                var mine = g.dataset.supplier === id;
+                g.hidden = !mine;
+                boxes(g).forEach(function (b) { if (!mine) b.checked = false; else if (tickAll) b.checked = true; });
+            });
+            refresh();
+        }
+        pick.addEventListener('change', function () { show(pick.value, true); });
+        form.addEventListener('change', function (e) {
+            if (e.target.matches('[data-bill-all]')) {
+                var g = e.target.closest('.bill-pick__group');
+                boxes(g).forEach(function (b) { b.checked = e.target.checked; });
+            }
+            refresh();
+        });
+        show(pick.value, false);
+    })();
+    </script>
+    {% else %}
+    <p class="muted">{{ t['receipt.none'] }}</p>
+    <div class="form-actions">
+        <a href="{{ url_for('accounts.detail', aid=acc.id) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+    {% endif %}
+</form>
