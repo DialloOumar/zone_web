@@ -21,8 +21,8 @@ from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm,
 from blueprints.expenses import _save_list_row
 from blueprints.supplier_invoices import _amount, _apply_photo_change, _valid_date
 from ledger import ensure_till_code, labels_for, read_code, set_till_code, till_code, used_accounts_in
-from models import (AccountDeposit, BankCharge, CashAccount, CashMovement, ClientPayment, Expense,
-                    SupplierPayment, db)
+from models import (AccountDeposit, BankCharge, CashAccount, CashMovement, CashTransfer, ClientPayment,
+                    Expense, SupplierPayment, db)
 
 accounts_bp = Blueprint("accounts", __name__)
 
@@ -45,7 +45,8 @@ def _used_ids():
                        (SupplierPayment, SupplierPayment.account_id),
                        (BankCharge, BankCharge.account_id),
                        (ClientPayment, ClientPayment.account_id),
-                       (AccountDeposit, AccountDeposit.account_id)):
+                       (AccountDeposit, AccountDeposit.account_id),
+                       (CashTransfer, CashTransfer.account_id)):
         used.update(r[0] for r in db.session.query(col)
                     .filter(col.isnot(None)).distinct().all())
     return used
@@ -196,7 +197,7 @@ def account_lines(acc):
     balance, oldest first, each with the balance after it.
 
     In: the money put on it here, a client's payment received on it, money
-    the cash box gave back to it. Out: money it gave the cash box, a supplier
+    the cash box gave back to it. Out: money sent to the cash box, a supplier
     bill's instalment wired from it, a charge paid straight from it. A bill
     the cash box settled is not here: that money left the box, and if it came
     from this account, it did so as money given to the box."""
@@ -218,7 +219,14 @@ def account_lines(acc):
                          label=inv.number if inv else "",
                          who=inv.client.name if inv and inv.client else "",
                          reference=p.reference, amount_in=p.amount, amount_out=0))
-    for m in q(CashMovement):
+    # Money sent to the cash box leaves the account the day it is sent,
+    # whether the box has confirmed it yet or not; the box's own money-in for
+    # it is the same money, so it is not counted a second time below.
+    for x in q(CashTransfer, CashTransfer.status != "refused"):
+        rows.append(dict(kind="transfer", row=x, date=x.date, label=x.note or "",
+                         who=x.sender.full_name if x.sender else "", reference=x.reference,
+                         amount_in=0, amount_out=x.amount))
+    for m in q(CashMovement, CashMovement.transfer_id.is_(None)):
         given_back = m.kind == "retrait"
         rows.append(dict(kind="till_out" if given_back else "till_in", row=m, date=m.date,
                          label=m.note or m.source or "", who="", reference=m.reference,
@@ -409,4 +417,123 @@ def deposit_delete(did):
     if photo_key:
         s3_storage.delete_photo(photo_key)
     flash("success|" + get_t()["fund.deleted"])
+    return redirect(url_for("accounts.detail", aid=aid))
+
+
+# ── Sending money to the cash box ────────────────────────────────────────────
+
+TRANSFER_METHODS = ("cash", "mobile_money", "transfer", "cheque")
+
+
+def _read_transfer_form():
+    """Money sent from a company account to the cash box: from which, when,
+    how much, how. Returns (data, None) or (None, error)."""
+    t = get_t()
+    account_id = request.form.get("account_id", type=int) or None
+    if not account_id or not CashAccount.query.filter_by(id=account_id, is_active=True,
+                                                         is_repayable=False).first():
+        return None, t["fund.err.account"]
+    date_str = (request.form.get("date") or "").strip()
+    if not _valid_date(date_str):
+        return None, t["fund.err.date"]
+    amount, error = _amount(request.form.get("amount"), t)
+    if error:
+        return None, error
+    if amount <= 0:
+        return None, t["invoice.err.amount"]
+    method = (request.form.get("method") or "").strip()
+    if method not in TRANSFER_METHODS:
+        return None, t["invoice.err.method"]
+    return dict(account_id=account_id, date=date_str, amount=amount, method=method,
+                reference=(request.form.get("reference") or "").strip()[:60] or None,
+                note=(request.form.get("note") or "").strip()[:255] or None), None
+
+
+def _render_transfer_form(row, acc, error=None):
+    tpl = "_account_transfer_form.html" if is_modal_request() else "account_transfer_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    accounts = (CashAccount.query.filter_by(is_active=True, is_repayable=False)
+                .order_by(CashAccount.sort_order, CashAccount.name).all())
+    return render_template(tpl, transfer=row, invoice=row, acc=acc, error=error,
+                           accounts=accounts, methods=TRANSFER_METHODS,
+                           today=date.today().isoformat()), status
+
+
+def _open_transfer_or_404(tid):
+    """A sending Facturation may still change: one the box has not answered."""
+    row = db.session.get(CashTransfer, tid)
+    if not row:
+        abort(404)
+    if row.status != "sent":
+        flash("error|" + get_t()["transfer.err.answered"])
+        return None
+    return row
+
+
+@accounts_bp.route("/comptes/<int:aid>/envoyer-caisse", methods=["GET", "POST"])
+@login_required
+@require_perm(FUND)
+def transfer_new(aid):
+    acc = _company_account_or_404(aid)
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_transfer_form()
+        if error:
+            return _render_transfer_form(None, acc, error)
+        row = CashTransfer(created_by=current_user.id, status="sent", **data)
+        db.session.add(row)
+        db.session.flush()
+        perr = _apply_photo_change(row, code="envoi-caisse-%s" % row.id)
+        if perr:
+            db.session.rollback()
+            return _render_transfer_form(None, acc, perr)
+        log_action("CREATE", "cash_transfer", resource_id=row.id,
+                   detail="%s GNF sent to the cash box from account #%s" % (row.amount, row.account_id))
+        db.session.commit()
+        flash("success|" + t["transfer.created"])
+        return modal_ok() if is_modal_request() else redirect(url_for("accounts.detail", aid=row.account_id))
+    return _render_transfer_form(None, acc)
+
+
+@accounts_bp.route("/comptes/envois/<int:tid>/modifier", methods=["GET", "POST"])
+@login_required
+@require_perm(FUND)
+def transfer_edit(tid):
+    row = _open_transfer_or_404(tid)
+    if row is None:
+        return redirect(request.referrer or url_for("accounts.index"))
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_transfer_form()
+        if error:
+            return _render_transfer_form(row, row.account, error)
+        for k, val in data.items():
+            setattr(row, k, val)
+        perr = _apply_photo_change(row, code="envoi-caisse-%s" % row.id)
+        if perr:
+            db.session.rollback()
+            return _render_transfer_form(row, row.account, perr)
+        log_action("UPDATE", "cash_transfer", resource_id=row.id,
+                   detail="Edited sending to the cash box #%s" % row.id)
+        db.session.commit()
+        flash("success|" + t["transfer.updated"])
+        return modal_ok() if is_modal_request() else redirect(url_for("accounts.detail", aid=row.account_id))
+    return _render_transfer_form(row, row.account)
+
+
+@accounts_bp.route("/comptes/envois/<int:tid>/supprimer", methods=["POST"])
+@login_required
+@require_perm(FUND)
+def transfer_delete(tid):
+    row = _open_transfer_or_404(tid)
+    if row is None:
+        return redirect(request.referrer or url_for("accounts.index"))
+    aid, photo_key = row.account_id, row.photo_key
+    db.session.delete(row)
+    log_action("DELETE", "cash_transfer", resource_id=tid,
+               detail="Deleted sending to the cash box #%s" % tid)
+    db.session.commit()
+    if photo_key:
+        s3_storage.delete_photo(photo_key)
+    flash("success|" + get_t()["transfer.deleted"])
     return redirect(url_for("accounts.detail", aid=aid))

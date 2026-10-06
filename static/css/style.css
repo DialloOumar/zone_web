@@ -25,7 +25,7 @@
    templates — missing those is exactly how `close` ended up invisible, and
    later how the parts store and the cash box shipped with no icon at all.
 
-   The list as of v14 (72 names), fetched from the Google Fonts css2 URL
+   The list as of v15 (73 names), fetched from the Google Fonts css2 URL
    above (opsz 24 / wght 400 / FILL 0 / GRAD 0, icon_names= this list) and
    checked with fontTools that each name has its ligature:
      account_balance, account_balance_wallet, account_tree, add,
@@ -40,9 +40,9 @@
      notifications, payments, pending_actions, photo_camera,
      picture_as_pdf, point_of_sale, price_check, print,
      query_stats, receipt_long, refresh, request_quote, rule,
-     save, settings, shelves, space_dashboard, store, task_alt,
-     translate, tune, unarchive, unfold_more, visibility,
-     visibility_off, warning, workspaces */
+     save, send, settings, shelves, space_dashboard, store,
+     task_alt, translate, tune, unarchive, unfold_more,
+     visibility, visibility_off, warning, workspaces */
 @font-face {
     font-family: "Roboto";
     font-style: normal;
@@ -69,7 +69,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2?v=14") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=15") format("woff2");
 }
 
 /* ── Design tokens (light) ── */
@@ -776,6 +776,12 @@ a:hover { text-decoration: underline; }
 }
 .fab:hover { box-shadow: var(--elev-3); text-decoration: none; }
 .fab .material-symbols-outlined { font-size: 22px; }
+.fab--tonal { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+/* Caisse, "À régler": the counted amount typed beside its button. */
+.transfer-receive { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.transfer-receive input { width: 130px; height: 34px; padding: 0 10px; border: 1px solid var(--md-outline); border-radius: 8px; background: var(--md-surface); color: inherit; font-size: 0.85rem; }
+.transfer-refuse { display: inline-block; vertical-align: middle; }
+.transfer-refuse[open] form { margin-top: 6px; }
 
 /* ── Filled text fields ── */
 /* Outlined fields with the label above the control — cleaner and lighter

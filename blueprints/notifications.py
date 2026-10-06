@@ -20,7 +20,7 @@ from flask import Blueprint, abort, jsonify, redirect, render_template, request,
 from flask_login import current_user, login_required
 
 from app import get_t, has_perm
-from models import (Notification, PendingChange, PurchaseOrder, ServicePartPurchase, db)
+from models import (CashTransfer, Notification, PendingChange, PurchaseOrder, ServicePartPurchase, db)
 
 notifications_bp = Blueprint("notifications", __name__)
 
@@ -81,8 +81,14 @@ def todos():
         if n:
             out.append(dict(kind="todo.approvals", url=url_for("approvals.index"), params=dict(n=n)))
 
-    # Parts bought outside for a service, for whoever pays from the box.
+    # Money Facturation sent, and parts bought outside for a service: for
+    # whoever keeps the box.
     if has_perm("expense.create"):
+        sent = CashTransfer.query.filter_by(status="sent").all()
+        if sent:
+            out.append(dict(kind="todo.caisse_transfers", url=url_for("expenses.index", tab="a_regler"),
+                            params=dict(n=len(sent),
+                                        amount="{:,}".format(sum(x.amount for x in sent)).replace(",", " "))))
         n = ServicePartPurchase.query.filter_by(state="pending").count()
         if n:
             out.append(dict(kind="todo.caisse", url=url_for("expenses.index", tab="a_regler"),

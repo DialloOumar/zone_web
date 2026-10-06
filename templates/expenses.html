@@ -146,7 +146,7 @@
            not among the costs; a to-do list with its count in red. #}
         <a href="{{ tab_urls['a_regler'] }}" role="tab" aria-selected="{{ 'true' if tab == 'a_regler' else 'false' }}"
            class="tab {% if tab == 'a_regler' %}tab--on{% endif %}">
-            {{ t['caisse.tab_requests'] }}{% if requests %}<span class="tab__count tab__count--alert">{{ requests | length }}</span>{% endif %}
+            {{ t['caisse.tab_requests'] }}{% if requests or transfers %}<span class="tab__count tab__count--alert">{{ (requests | length) + (transfers | length) }}</span>{% endif %}
         </a>
     </nav>
 
@@ -202,6 +202,53 @@
     </div>
 
     {% if tab == 'a_regler' %}
+    {# Money Facturation sent from a company account. The cashier types what
+       she counted; only the amount sent is taken. #}
+    {% if transfers %}
+    <h3 class="accounts-group">{{ t['transfer.to_receive'] }}</h3>
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['expense.date'] }}</th>
+                <th>{{ t['transfer.from_account'] }}</th>
+                <th class="col-secondary">{{ t['transfer.sent_by'] }}</th>
+                <th style="text-align:right;">{{ t['expense.amount'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for x in transfers %}
+            <tr>
+                <td style="white-space:nowrap;">{{ x.date }}</td>
+                <td><strong>{{ x.account.name }}</strong>
+                    <div class="muted small">{{ t['pay.' + x.method] }}{% if x.reference %} · {{ x.reference }}{% endif %}{% if x.note %} · {{ x.note }}{% endif %}</div></td>
+                <td class="col-secondary muted small">{{ x.sender.full_name if x.sender else '—' }}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ x.amount | num }}</td>
+                <td class="row-actions">
+                    {% if has_perm('expense.create') %}
+                    <form method="post" action="{{ url_for('expenses.transfer_receive', tid=x.id) }}" class="transfer-receive">
+                        <input data-money type="text" inputmode="numeric" name="amount" required
+                               placeholder="{{ t['transfer.counted'] }}" aria-label="{{ t['transfer.counted'] }}">
+                        <button type="submit" class="btn btn--sm btn--primary">
+                            <span class="material-symbols-outlined">check</span> {{ t['transfer.receive'] }}
+                        </button>
+                    </form>
+                    <details class="po-reject transfer-refuse">
+                        <summary class="btn btn--sm btn--tonal btn--icon" title="{{ t['transfer.refuse'] }}" aria-label="{{ t['transfer.refuse'] }}"><span class="material-symbols-outlined">close</span></summary>
+                        <form method="post" action="{{ url_for('expenses.transfer_refuse', tid=x.id) }}" class="transfer-receive">
+                            <input type="text" name="reason" required maxlength="255"
+                                   placeholder="{{ t['transfer.refuse_reason'] }}" aria-label="{{ t['transfer.refuse_reason'] }}">
+                            <button type="submit" class="btn btn--sm btn--danger">{{ t['transfer.refuse'] }}</button>
+                        </form>
+                    </details>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% if requests %}<h3 class="accounts-group">{{ t['caisse.requests_title'] }}</h3>{% endif %}
+    {% endif %}
     {% if requests %}
     <p class="muted small" style="margin:0 0 8px;">{{ t['caisse.requests_intro'] }} · <strong>{{ requests_total | num }} {{ currency }}</strong></p>
     <div class="table-wrap"><table class="data-table">
@@ -242,7 +289,7 @@
             {% endfor %}
         </tbody>
     </table></div>
-    {% else %}
+    {% elif not transfers %}
     <div class="empty-state">
         <span class="material-symbols-outlined">task_alt</span>
         <p>{{ t['caisse.requests_empty'] }}</p>

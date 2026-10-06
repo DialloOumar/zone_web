@@ -21,7 +21,7 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
                  submit_change, with_current_fleet)
 from blueprints.notifications import notify
 from ledger import charge_accounts, ensure_purse_account, ensure_supplier_account, read_code
-from models import (CashAccount, CashMovement, Expense, Fleet, ServicePartPurchase, Site,
+from models import (CashAccount, CashMovement, CashTransfer, Expense, Fleet, ServicePartPurchase, Site,
                     Staff, SupplierInvoice, SupplierPayment, Vehicle, db)
 
 expenses_bp = Blueprint("expenses", __name__)
@@ -571,6 +571,9 @@ def index():
     requests = (ServicePartPurchase.query.filter_by(state="pending")
                 .order_by(ServicePartPurchase.created_at.desc()).all())
     requests_total = sum(r.amount for r in requests)
+    # Money Facturation sent from a company account, waiting to be counted.
+    transfers = (CashTransfer.query.filter_by(status="sent")
+                 .order_by(CashTransfer.date, CashTransfer.id).all())
 
     tab = request.args.get("tab")
     if tab not in TABS:
@@ -591,7 +594,7 @@ def index():
         "expenses.html", expenses=expenses, movements=movements,
         pagination=pagination, mpagination=mpagination, search=search,
         tab=tab, tab_urls=tab_urls, report_args=report_args,
-        requests=requests, requests_total=requests_total,
+        requests=requests, requests_total=requests_total, transfers=transfers,
         total=spent, count=pagination.total,
         deposited=deposited, withdrawn=withdrawn,
         balance=cash_balance(), accounts_summary=account_balances(),
@@ -653,6 +656,76 @@ def request_refuse(pid):
         db.session.commit()
         flash("success|" + t["caisse.request_refused"])
     return redirect(url_for("expenses.index", tab="a_regler"))
+
+
+@expenses_bp.route("/caisse/envois/<int:tid>/recu", methods=["POST"])
+@login_required
+@require_perm("expense.create")
+def transfer_receive(tid):
+    """The cashier counts what Facturation sent and types what she counted.
+    Only the very amount sent is taken: anything else is refused with both
+    figures, and the sending waits until it is corrected or said not to have
+    come. Taking it writes the money-in, tied to the sending."""
+    t = get_t()
+    back = url_for("expenses.index", tab="a_regler")
+    x = db.session.get(CashTransfer, tid)
+    if x is None:
+        abort(404)
+    if x.status != "sent":
+        flash("error|" + t["transfer.err.answered"])
+        return redirect(back)
+    counted = parse_amount(request.form.get("amount"))
+    if counted is None or counted <= 0:
+        flash("error|" + t["expense.err.amount_required"])
+        return redirect(back)
+    if counted != x.amount:
+        fmt = lambda n: "{:,}".format(n).replace(",", " ")
+        flash("error|" + t["transfer.err.mismatch"] % {"counted": fmt(counted), "sent": fmt(x.amount)})
+        return redirect(back)
+    now = datetime.utcnow()
+    m = CashMovement(kind="depot", date=date.today().isoformat(), amount=x.amount, currency="GNF",
+                     method=x.method if x.method in PAYMENT_METHODS else "cash",
+                     account_id=x.account_id, reference=x.reference,
+                     note=x.note or t["transfer.movement_note"], transfer_id=x.id,
+                     created_by=current_user.id)
+    db.session.add(m)
+    x.status, x.received_by, x.received_at = "received", current_user.id, now
+    notify(x.created_by, "info.transfer_received", url_for("accounts.detail", aid=x.account_id),
+           amount="{:,}".format(x.amount).replace(",", " "))
+    db.session.flush()
+    log_action("UPDATE", "cash_transfer", resource_id=x.id,
+               detail="Cash box received %s GNF sent from account #%s" % (x.amount, x.account_id))
+    db.session.commit()
+    flash("success|" + t["transfer.received"])
+    return redirect(back)
+
+
+@expenses_bp.route("/caisse/envois/<int:tid>/pas-recu", methods=["POST"])
+@login_required
+@require_perm("expense.create")
+def transfer_refuse(tid):
+    """The money never came: the sending is cancelled, the account gets it
+    back, and Facturation is told why."""
+    t = get_t()
+    back = url_for("expenses.index", tab="a_regler")
+    x = db.session.get(CashTransfer, tid)
+    if x is None:
+        abort(404)
+    if x.status != "sent":
+        flash("error|" + t["transfer.err.answered"])
+        return redirect(back)
+    reason = (request.form.get("reason") or "").strip()[:255]
+    if not reason:
+        flash("error|" + t["transfer.err.reason"])
+        return redirect(back)
+    x.status, x.refused_by, x.refused_at, x.refused_note = "refused", current_user.id, datetime.utcnow(), reason
+    notify(x.created_by, "info.transfer_refused", url_for("accounts.detail", aid=x.account_id),
+           amount="{:,}".format(x.amount).replace(",", " "), reason=reason)
+    log_action("UPDATE", "cash_transfer", resource_id=x.id,
+               detail="Cash box says %s GNF from account #%s did not arrive: %s" % (x.amount, x.account_id, reason[:120]))
+    db.session.commit()
+    flash("success|" + t["transfer.refused"])
+    return redirect(back)
 
 
 @expenses_bp.route("/expenses/<int:xid>/edit", methods=["GET", "POST"])
@@ -1011,7 +1084,7 @@ def cash_list_action(kind, row_id, what):
 # ── Caisse: money in and out ─────────────────────────────────────────────────
 
 
-def _read_movement_form(kind):
+def _read_movement_form(kind, movement=None):
     """Money in or money out of the box: when, how much, and which account it
     came from or went back to."""
     t = get_t()
@@ -1031,6 +1104,13 @@ def _read_movement_form(kind):
     if not account_id or not CashAccount.query.filter_by(
             id=account_id, is_active=True).first():
         return None, t.get("account.err.required", "Choisissez un compte.")
+    # Money from a company account comes in only through Facturation's
+    # sending, confirmed on "À régler". An older money-in already written
+    # from one may still be corrected as it is.
+    acc = db.session.get(CashAccount, account_id)
+    if (kind == "depot" and not acc.is_repayable
+            and not (movement is not None and movement.account_id == account_id)):
+        return None, t["caisse.err.company_deposit"]
 
     return dict(
         kind=kind, date=date_str, amount=amount, currency="GNF", method=method,
@@ -1043,8 +1123,13 @@ def _read_movement_form(kind):
 def _render_movement_form(movement, kind, error=None):
     tpl = "_movement_form.html" if is_modal_request() else "movement_form.html"
     status = 422 if (error and is_modal_request()) else 200
+    accounts = active_accounts()
+    if kind == "depot":
+        # Only what is owed back; a company account sends through Facturation.
+        keep = movement.account_id if movement is not None else None
+        accounts = [a for a in accounts if a.is_repayable or a.id == keep]
     return render_template(tpl, movement=movement, kind=kind, error=error,
-                           methods=PAYMENT_METHODS, accounts=active_accounts(),
+                           methods=PAYMENT_METHODS, accounts=accounts,
                            today=date.today().isoformat()), status
 
 
@@ -1053,7 +1138,7 @@ def _movement_route(kind, movement=None):
     and in which way the balance moves."""
     t = get_t()
     if request.method == "POST":
-        data, error = _read_movement_form(kind)
+        data, error = _read_movement_form(kind, movement)
         if error:
             return _render_movement_form(movement, kind, error)
         if movement is None:
@@ -1099,6 +1184,9 @@ def withdrawal_new():
 @require_perm("expense.edit")
 def deposit_edit(did):
     m = _get_movement_or_404(did)
+    if m.transfer_id:
+        flash("error|" + get_t()["caisse.err.from_transfer"])
+        return redirect(url_for("expenses.index", tab="mouvements"))
     if m.expense_id:
         # It mirrors a cost an account paid. Correcting it here would let the
         # two disagree, so the correction is made on the cost itself.
@@ -1112,6 +1200,9 @@ def deposit_edit(did):
 @require_perm("expense.delete")
 def deposit_delete(did):
     d = _get_movement_or_404(did)
+    if d.transfer_id:
+        flash("error|" + get_t()["caisse.err.from_transfer"])
+        return redirect(url_for("expenses.index", tab="mouvements"))
     if d.expense_id:
         flash("error|" + get_t()["caisse.err.from_expense"])
         return redirect(url_for("expenses.index", tab="mouvements"))

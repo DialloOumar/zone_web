@@ -797,6 +797,43 @@ class AccountDeposit(db.Model):
 # ── Caisse (petty cash) ───────────────────────────────────────────────────────
 
 
+class CashTransfer(db.Model):
+    """Money Facturation sends from a company account to the cash box.
+
+    The cash box no longer takes money from the company's accounts on its
+    own word. Facturation declares the sending; it leaves the account at
+    once, and waits in the box's "À régler" until the cashier counts it and
+    confirms the same amount -- only then is it in the box, as a money-in
+    tied back here. Or she says it never came, and the sending is cancelled.
+
+        sent      — declared by Facturation, out of the account, not yet in the box
+        received  — confirmed by the cashier; the money-in is `movement`
+        refused   — the cashier says it did not arrive; out of nowhere, into nowhere
+    """
+    __tablename__ = "cash_transfers"
+
+    id           = db.Column(db.Integer,     primary_key=True)
+    account_id   = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=False, index=True)
+    date         = db.Column(db.String(10),  nullable=False)   # YYYY-MM-DD, the day it was sent
+    amount       = db.Column(db.Integer,     nullable=False)   # GNF
+    method       = db.Column(db.String(20),  nullable=False)   # cash | mobile_money | transfer | cheque
+    reference    = db.Column(db.String(60))
+    note         = db.Column(db.String(255))
+    photo_key    = db.Column(db.String(200))                   # the withdrawal slip, scanned
+    status       = db.Column(db.String(12),  nullable=False, default="sent", index=True)
+    created_by   = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at   = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+    received_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    received_at  = db.Column(db.DateTime)
+    refused_by   = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    refused_at   = db.Column(db.DateTime)
+    refused_note = db.Column(db.String(255))
+
+    account  = db.relationship("CashAccount")
+    sender   = db.relationship("User", foreign_keys=[created_by])
+    receiver = db.relationship("User", foreign_keys=[received_by])
+
+
 class CashMovement(db.Model):
     """Money moving between the cash box and an account.
 
@@ -823,6 +860,10 @@ class CashMovement(db.Model):
     # Set when this money-in was written for a cost an account paid directly.
     # Such a line is not the cashier's to edit: it mirrors the cost.
     expense_id = db.Column(db.Integer,     db.ForeignKey("expenses.id"), nullable=True, unique=True)
+    # Set when this money-in is the cash box confirming money Facturation
+    # sent from a company account. Like the line above, it mirrors the
+    # sending and is not the cashier's to edit.
+    transfer_id = db.Column(db.Integer,    db.ForeignKey("cash_transfers.id"), nullable=True, unique=True)
     created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 

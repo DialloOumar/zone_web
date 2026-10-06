@@ -51,6 +51,11 @@
                data-modal-title="{{ t['fund.new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['fund.new'] }}
             </a>
+            <a href="{{ url_for('accounts.transfer_new', aid=acc.id) }}" class="fab fab--tonal"
+               data-modal-url="{{ url_for('accounts.transfer_new', aid=acc.id) }}"
+               data-modal-title="{{ t['transfer.new'] }}">
+                <span class="material-symbols-outlined">send</span> {{ t['transfer.new'] }}
+            </a>
         </div>
     </div>
     {% endif %}
@@ -73,6 +78,10 @@
                 <td style="white-space:nowrap;">{{ r.date }}</td>
                 <td>
                     <span class="badge badge--{{ 'active' if r.amount_in else 'info' }}">{{ t['fund.kind.' + r.kind] }}</span>
+                    {% if r.kind == 'transfer' %}
+                    {% if r.row.status == 'sent' %}<span class="badge badge--warning">{{ t['transfer.status.sent'] }}</span>
+                    {% else %}<span class="badge badge--active">{{ t['transfer.status.received'] }}</span>{% endif %}
+                    {% endif %}
                     {% if r.who %}<strong>{{ r.who }}</strong>{% endif %}
                     {% if r.label %}<div class="muted small">{{ r.label }}</div>{% endif %}
                     {% if r.reference %}<div class="muted small">{{ t['bank.reference'] }} : {{ r.reference }}</div>{% endif %}
@@ -82,6 +91,15 @@
                 <td style="text-align:right; white-space:nowrap;">{% if r.amount_out %}{{ r.amount_out | num }}{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;" {% if r.balance < 0 %}class="stock-negative"{% endif %}><strong>{{ r.balance | num }}</strong></td>
                 <td class="row-actions">
+                    {% if r.kind == 'transfer' and r.row.status == 'sent' and has_perm('invoicing.manage') %}
+                    <a href="{{ url_for('accounts.transfer_edit', tid=r.row.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('accounts.transfer_edit', tid=r.row.id) }}" data-modal-title="{{ t['transfer.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    <form method="post" action="{{ url_for('accounts.transfer_delete', tid=r.row.id) }}"
+                          data-confirm="{{ t['transfer.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
                     {% if r.kind == 'deposit' %}
                     {% if r.row.photo_key %}
                     <a href="{{ photo_url(r.row.photo_key) }}" target="_blank" rel="noopener" class="btn btn--sm btn--tonal btn--icon"
