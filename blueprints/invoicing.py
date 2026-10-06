@@ -682,6 +682,11 @@ def _read_payment_form(inv, pay):
     account_id = request.form.get("account_id", type=int) or None
     if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True).first():
         return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
+    # Money that did not come in cash landed on an account, and that
+    # account's balance counts on knowing which. Cash may go to the box,
+    # which is not an account here.
+    if method != "cash" and not account_id:
+        return None, t["cpay.err.account"]
     return dict(date=date_str, amount=amount, method=method, account_id=account_id,
                 reference=(request.form.get("reference") or "").strip()[:60] or None,
                 note=(request.form.get("note") or "").strip()[:255] or None), None
