@@ -25,22 +25,24 @@
    templates — missing those is exactly how `close` ended up invisible, and
    later how the parts store and the cash box shipped with no icon at all.
 
-   The list as of v13 (67 names), built from the npm material-symbols
-   package with fontTools (instanced at opsz 24 / wght 400 / FILL 0 / GRAD 0,
-   then subset to the ligature glyph of each name):
+   The list as of v14 (72 names), fetched from the Google Fonts css2 URL
+   above (opsz 24 / wght 400 / FILL 0 / GRAD 0, icon_names= this list) and
+   checked with fontTools that each name has its ligature:
      account_balance, account_balance_wallet, account_tree, add,
      admin_panel_settings, approval, archive, arrow_back, badge,
-     bedtime, build, category, check, check_circle, chevron_left,
-     chevron_right, close, construction, dark_mode, delete,
-     directions_bus, donut_large, edit, engineering, error,
-     fact_check, group, handshake, handyman, help, history, home,
-     image, info, inventory, light_mode, list_alt,
-     local_gas_station, local_shipping, lock_reset, logout, menu,
-     menu_book, payments, pending_actions, photo_camera,
-     picture_as_pdf, point_of_sale, price_check, print, query_stats,
-     receipt_long, request_quote, rule, save, settings, shelves,
-     space_dashboard, store, task_alt, translate, tune, unarchive,
-     unfold_more, visibility_off, warning, workspaces */
+     bedtime, build, category, check, check_circle,
+     chevron_left, chevron_right, close, construction,
+     dark_mode, delete, description, directions_bus, done,
+     donut_large, edit, engineering, error, fact_check, group,
+     handshake, handyman, help, history, home, image, info,
+     inventory, light_mode, list_alt, local_gas_station,
+     local_shipping, lock_reset, logout, menu, menu_book,
+     notifications, payments, pending_actions, photo_camera,
+     picture_as_pdf, point_of_sale, price_check, print,
+     query_stats, receipt_long, refresh, request_quote, rule,
+     save, settings, shelves, space_dashboard, store, task_alt,
+     translate, tune, unarchive, unfold_more, visibility,
+     visibility_off, warning, workspaces */
 @font-face {
     font-family: "Roboto";
     font-style: normal;
@@ -67,7 +69,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2?v=13") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=14") format("woff2");
 }
 
 /* ── Design tokens (light) ── */
