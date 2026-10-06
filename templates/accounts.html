@@ -16,11 +16,50 @@
         <div>
             <h2>{{ t['list.accounts'] }}</h2>
         </div>
+        {% if tab == 'comptes' %}
         <a href="{{ url_for('accounts.new') }}" class="fab"
            data-modal-url="{{ url_for('accounts.new') }}" data-modal-title="{{ t['list.account_new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['list.account_new'] }}
         </a>
+        {% elif has_perm('supplier_invoice.create') %}
+        <a href="{{ url_for('supplier_invoices.charge_new') }}" class="fab"
+           data-modal-url="{{ url_for('supplier_invoices.charge_new') }}" data-modal-title="{{ t['bank.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['bank.new'] }}
+        </a>
+        {% endif %}
     </div>
+
+    <nav class="tabs" role="tablist">
+        <a href="{{ url_for('accounts.index') }}" role="tab" aria-selected="{{ 'true' if tab == 'comptes' else 'false' }}"
+           class="tab {% if tab == 'comptes' %}tab--on{% endif %}">
+            {{ t['list.accounts'] }}<span class="tab__count">{{ accounts | length }}</span>
+        </a>
+        <a href="{{ url_for('accounts.index', tab='transactions') }}" role="tab" aria-selected="{{ 'true' if tab == 'transactions' else 'false' }}"
+           class="tab {% if tab == 'transactions' %}tab--on{% endif %}">
+            {{ t['invoice.tab_transactions'] }}<span class="tab__count">{{ transactions | length }}</span>
+        </a>
+    </nav>
+
+    {% if tab == 'transactions' %}
+    <form method="get" class="filter-bar filter-bar--live">
+        <input type="hidden" name="tab" value="transactions">
+        <label class="filter-date">
+            <span>{{ t['entry.from'] }}</span>
+            <input type="date" name="date_from" value="{{ date_from }}">
+        </label>
+        <label class="filter-date">
+            <span>{{ t['entry.to'] }}</span>
+            <input type="date" name="date_to" value="{{ date_to }}">
+        </label>
+        <label class="filter-search">
+            <input type="search" name="q" value="{{ search }}" placeholder="{{ t['invoice.search'] }}">
+        </label>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+        <a href="{{ url_for('accounts.index', tab='transactions') }}" class="btn btn--sm btn--outlined">{{ t['caisse.all_periods'] }}</a>
+    </form>
+    {% if transactions %}<p class="muted small" style="margin:0 0 8px;">{{ t['bank.moved'] }} : <strong>{{ moved | num }} {{ currency }}</strong></p>{% endif %}
+    {% include "_bank_transactions_table.html" %}
+    {% else %}
 
     {# The cash box itself, one line above the purses: it is not a purse
        (the list says where money comes from into the box), but the journal
@@ -113,6 +152,7 @@
     {% endfor %}
     {% else %}
     <p class="muted" style="padding: 6px 0;">{{ t['list.empty'] }}</p>
+    {% endif %}
     {% endif %}
 </section>
 {% endblock %}

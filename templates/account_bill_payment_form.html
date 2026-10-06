@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['bill_pay.title'] }}{% endblock %}
+{% block page_title %}{{ t['bill_pay.title'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_account_bill_payment_form.html" %}
+</section>
+{% endblock %}

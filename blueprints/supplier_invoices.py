@@ -38,9 +38,9 @@ from models import (BankCharge, CashAccount, PurchaseOrder, Supplier, SupplierIn
 
 supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
 
-# The three parts of the Banque page, shown one at a time: the bills, what
-# has actually moved on the bank accounts, and the people who send the bills.
-TABS = ("factures", "transactions", "fournisseurs")
+# The two parts of the page, shown one at a time: the bills and the people
+# who send them. What moved on the bank accounts lives on Comptes.
+TABS = ("factures", "fournisseurs")
 
 # How a charge leaves the bank with no bill behind it. Never cash: that is
 # the box's, on the Caisse page.
@@ -180,6 +180,30 @@ def _period_bounds():
     date_to = (request.args.get("date_to") or "").strip()
     return (date_from if _valid_date(date_from) else "",
             date_to if _valid_date(date_to) else "")
+
+
+def bank_transactions(date_from=None, date_to=None, search=""):
+    """Everything that left a company account in the period: the bills'
+    instalments paid from an account and the charges paid straight from one,
+    in one list by date, newest first. What the cash box paid is not here.
+    Shown on Comptes, under Transactions."""
+    pq = (SupplierPayment.query
+          .filter(SupplierPayment.expense_id.is_(None), SupplierPayment.account_id.isnot(None)))
+    cq = BankCharge.query
+    if date_from:
+        pq, cq = pq.filter(SupplierPayment.date >= date_from), cq.filter(BankCharge.date >= date_from)
+    if date_to:
+        pq, cq = pq.filter(SupplierPayment.date <= date_to), cq.filter(BankCharge.date <= date_to)
+    if search:
+        like = "%" + search + "%"
+        cq = cq.filter(db.or_(BankCharge.payee.ilike(like), BankCharge.description.ilike(like),
+                              BankCharge.reference.ilike(like)))
+        pq = pq.join(SupplierInvoice).join(Supplier).filter(db.or_(
+            Supplier.name.ilike(like), SupplierInvoice.number.ilike(like),
+            SupplierPayment.reference.ilike(like)))
+    rows = ([("payment", p) for p in pq.all()] + [("charge", c) for c in cq.all()])
+    rows.sort(key=lambda x: (x[1].date, x[1].id), reverse=True)
+    return rows
 
 
 # ── The invoice form ─────────────────────────────────────────────────────────
@@ -392,29 +416,10 @@ def index():
         .group_by(SupplierInvoice.supplier_id).all())
     owed = {r[0]: {"count": int(r[1]), "remaining": int(r[2] or 0)} for r in owed_rows}
 
-    # The transactions tab: everything that left a bank account in the period,
-    # the bills' instalments paid from an account and the charges paid straight
-    # from one, in one list by date. The cash box's instalments are not here.
-    pq = (SupplierPayment.query
-          .filter(SupplierPayment.expense_id.is_(None), SupplierPayment.account_id.isnot(None)))
-    cq = BankCharge.query
-    if date_from:
-        pq, cq = pq.filter(SupplierPayment.date >= date_from), cq.filter(BankCharge.date >= date_from)
-    if date_to:
-        pq, cq = pq.filter(SupplierPayment.date <= date_to), cq.filter(BankCharge.date <= date_to)
-    if search:
-        like = "%" + search + "%"
-        cq = cq.filter(db.or_(BankCharge.payee.ilike(like), BankCharge.description.ilike(like),
-                              BankCharge.reference.ilike(like)))
-        pq = pq.join(SupplierInvoice).join(Supplier).filter(db.or_(
-            Supplier.name.ilike(like), SupplierInvoice.number.ilike(like),
-            SupplierPayment.reference.ilike(like)))
-    transactions = ([("payment", p) for p in pq.all()] + [("charge", c) for c in cq.all()])
-    transactions.sort(key=lambda x: (x[1].date, x[1].id), reverse=True)
-    moved = sum(x[1].amount or 0 for x in transactions)
-    code_labels = labels_for([c.ledger_code for k, c in transactions if k == "charge"])
-
     tab = request.args.get("tab")
+    if tab == "transactions":
+        # An old link to the tab that moved to Comptes.
+        return redirect(url_for("accounts.index", tab="transactions"))
     if tab not in TABS:
         # Nothing recorded yet and nobody named either: open where the work
         # actually starts, which is saying who sends the bills.
@@ -433,7 +438,6 @@ def index():
         suppliers=suppliers, pickable=active_suppliers(), owed=owed,
         billed=billed, paid=paid, opening=opening, remaining=max(billed + opening - paid, 0),
         tab=tab, tab_urls=tab_urls, statuses=STATUSES, status=status,
-        transactions=transactions, moved=moved, code_labels=code_labels,
         supplier_kinds=SUPPLIER_KINDS, kind=kind,
         date_from=date_from, date_to=date_to, supplier_ids=supplier_ids,
         search=search, today=today,
@@ -587,7 +591,7 @@ def charge_new():
                    detail="Bank charge of %s GNF to %s from account #%s" % (row.amount, row.payee, row.account_id))
         db.session.commit()
         flash("success|" + t["bank.created"])
-        return modal_ok() if is_modal_request() else redirect(url_for("supplier_invoices.index", tab="transactions"))
+        return modal_ok() if is_modal_request() else redirect(url_for("accounts.index", tab="transactions"))
     return _render_charge_form(None)
 
 
@@ -611,7 +615,7 @@ def charge_edit(cid):
                    detail="Edited bank charge #%s" % row.id)
         db.session.commit()
         flash("success|" + t["bank.updated"])
-        return modal_ok() if is_modal_request() else redirect(url_for("supplier_invoices.index", tab="transactions"))
+        return modal_ok() if is_modal_request() else redirect(url_for("accounts.index", tab="transactions"))
     return _render_charge_form(row)
 
 
@@ -627,7 +631,7 @@ def charge_delete(cid):
     if photo_key:
         s3_storage.delete_photo(photo_key)
     flash("success|" + get_t()["bank.deleted"])
-    return redirect(request.referrer or url_for("supplier_invoices.index", tab="transactions"))
+    return redirect(request.referrer or url_for("accounts.index", tab="transactions"))
 
 
 # ── Routes: paying it ────────────────────────────────────────────────────────
@@ -659,7 +663,7 @@ def _render_payment_form(inv, pay, error=None):
                            today=date.today().isoformat()), status
 
 
-def _read_payment_form(inv, pay):
+def _read_payment_form(inv, pay, form=None):
     """One instalment: when, how much, how. Returns (data, None) or (None, err).
 
     The amount is held to what is still owed, counting every other instalment
@@ -667,7 +671,8 @@ def _read_payment_form(inv, pay):
     itself.
     """
     t = get_t()
-    amount, error = _amount(request.form.get("amount"), t)
+    form = request.form if form is None else form
+    amount, error = _amount(form.get("amount"), t)
     if error:
         return None, error
     if amount <= 0:
@@ -678,23 +683,23 @@ def _read_payment_form(inv, pay):
     if amount > (inv.amount or 0) - others:
         return None, t["invoice.err.overpaid"]
 
-    date_str = (request.form.get("date") or "").strip()
+    date_str = (form.get("date") or "").strip()
     if not _valid_date(date_str):
         return None, t["invoice.err.paid_date"]
 
-    method = (request.form.get("method") or "").strip()
+    method = (form.get("method") or "").strip()
     if method not in PAYMENT_METHODS:
         return None, t["invoice.err.method"]
 
     # Where it came from, when known. Optional: a transfer whose account
     # nobody remembers is still a payment.
-    account_id = request.form.get("account_id", type=int) or None
+    account_id = form.get("account_id", type=int) or None
     if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True, is_repayable=False).first():
         return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
 
     return dict(
         date=date_str, amount=amount, method=method, account_id=account_id,
-        reference=(request.form.get("reference") or "").strip() or None,
+        reference=(form.get("reference") or "").strip() or None,
     ), None
 
 
@@ -1038,3 +1043,48 @@ def supplier_opening(sid):
                            amount=row.amount if row else None,
                            paid=row.paid_amount if row else 0,
                            title=t["opening.supplier_title"]), status
+
+
+# ── Paying a bill from an account's page ────────────────────────────────────
+
+def _render_account_payment_form(acc, error=None):
+    from blueprints.expenses import open_invoices
+    tpl = "_account_bill_payment_form.html" if is_modal_request() else "account_bill_payment_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    bills = sorted(open_invoices(), key=lambda i: ((i.supplier.name if i.supplier else "").lower(), i.date))
+    return render_template(tpl, acc=acc, bills=bills, error=error,
+                           payment_methods=PAYMENT_METHODS,
+                           today=date.today().isoformat()), status
+
+
+@supplier_invoices_bp.route("/comptes/<int:aid>/payer-facture", methods=["GET", "POST"])
+@login_required
+@require_perm("supplier_invoice.edit")
+def account_payment(aid):
+    """The same instalment as on the bill's own page, entered from the
+    account it is paid from: pick the bill, the account is already known.
+    Left empty, the amount is all that is still owed on the bill."""
+    acc = db.session.get(CashAccount, aid)
+    if not acc or acc.is_repayable:
+        abort(404)
+    t = get_t()
+    if request.method == "POST":
+        inv = db.session.get(SupplierInvoice, request.form.get("invoice_id", type=int) or 0)
+        if inv is None or inv.remaining <= 0:
+            return _render_account_payment_form(acc, t["bill_pay.err.bill"])
+        form = request.form.copy()
+        form["account_id"] = str(acc.id)
+        if not (form.get("amount") or "").strip():
+            form["amount"] = str(inv.remaining)
+        data, error = _read_payment_form(inv, None, form)
+        if error:
+            return _render_account_payment_form(acc, error)
+        pay = SupplierPayment(invoice_id=inv.id, created_by=current_user.id, **data)
+        pay.ledger_code = ensure_supplier_account(inv.supplier, current_user.id)
+        db.session.add(pay)
+        log_action("CREATE", "supplier_payment", resource_id=inv.id,
+                   detail="Paid %s GNF on invoice #%s from account #%s" % (data["amount"], inv.id, acc.id))
+        db.session.commit()
+        flash("success|" + t["invoice.payment_saved"])
+        return modal_ok() if is_modal_request() else redirect(url_for("accounts.detail", aid=acc.id))
+    return _render_account_payment_form(acc)

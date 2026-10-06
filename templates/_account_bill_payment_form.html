@@ -1,0 +1,62 @@
+{% from "_hint.html" import hint with context %}
+{# A supplier bill paid from this account: the same instalment as on the
+   bill's own page, the account already chosen. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form action="{{ url_for('supplier_invoices.account_payment', aid=acc.id) }}">
+    {% if bills %}
+    <div class="field field--select">
+        {% set sel = request.form.get('invoice_id')|int(0) %}
+        <select id="invoice_id" name="invoice_id" required>
+            <option value="" hidden></option>
+            {% for i in bills %}
+            <option value="{{ i.id }}" {% if i.id == sel %}selected{% endif %}>
+                {{ i.supplier.code if i.supplier else '' }} {{ i.supplier.name if i.supplier else '' }} —
+                {% if i.is_opening %}{{ t['opening.title'] }}{% elif i.number %}{{ t['invoice.number_short'] }} {{ i.number }}{% else %}{{ i.date }}{% endif %}
+                — {{ t['invoice.remaining'] }} {{ i.remaining | num }} {{ currency }}
+            </option>
+            {% endfor %}
+        </select>
+        <label for="invoice_id">{{ t['bill_pay.bill'] }}</label>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required value="{{ request.form.get('date') or today }}">
+            <label for="date">{{ t['invoice.paid_date'] }}</label>
+        </div>
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['bill_pay.all_left'] }}"
+                   value="{{ request.form.get('amount') or '' }}">
+            <label for="amount">{{ t['invoice.amount'] }} {{ hint('', t['bill_pay.amount_hint']) }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field field--select">
+            {% set sel_m = request.form.get('method') or 'transfer' %}
+            <select id="method" name="method" required>
+                {% for m in payment_methods %}
+                <option value="{{ m }}" {% if m == sel_m %}selected{% endif %}>{{ t['pay.' + m] }}</option>
+                {% endfor %}
+            </select>
+            <label for="method">{{ t['bank.method'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="reference" name="reference" placeholder=" " maxlength="60" value="{{ request.form.get('reference') or '' }}">
+            <label for="reference">{{ t['bank.reference'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('accounts.detail', aid=acc.id) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+    {% else %}
+    <p class="muted">{{ t['bill_pay.none'] }}</p>
+    <div class="form-actions">
+        <a href="{{ url_for('accounts.detail', aid=acc.id) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+    {% endif %}
+</form>

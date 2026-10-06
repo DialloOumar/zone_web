@@ -19,7 +19,7 @@ from flask_login import current_user, login_required
 import s3_storage
 from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm, require_perm
 from blueprints.expenses import _save_list_row
-from blueprints.supplier_invoices import _amount, _apply_photo_change, _valid_date
+from blueprints.supplier_invoices import _amount, _apply_photo_change, _valid_date, bank_transactions
 from ledger import ensure_till_code, labels_for, read_code, set_till_code, till_code, used_accounts_in
 from models import (AccountDeposit, BankCharge, CashAccount, CashMovement, CashTransfer, ClientPayment,
                     Expense, SupplierPayment, db)
@@ -82,12 +82,25 @@ def index():
         db.session.commit()
     accounts = CashAccount.query.order_by(CashAccount.sort_order,
                                           CashAccount.name).all()
+    # Two tabs: the accounts themselves, and what left them -- the bills'
+    # instalments paid from an account and the bank charges, entered here.
+    tab = request.args.get("tab") if request.args.get("tab") in ("comptes", "transactions") else "comptes"
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
+    date_from = date_from if _valid_date(date_from) else ""
+    date_to = date_to if _valid_date(date_to) else ""
+    search = (request.args.get("q") or "").strip()
+    transactions = bank_transactions(date_from, date_to, search)
+    codes = ([a.ledger_code for a in accounts] + [till_code()]
+             + [c.ledger_code for k, c in transactions if k == "charge"])
     return render_template(
-        "accounts.html", accounts=accounts,
+        "accounts.html", accounts=accounts, tab=tab,
         balances={a.id: balance(a) for a in accounts if not a.is_repayable},
         used=_used_ids(), paid=_paid_to_suppliers(),
         till=till_code(), till_accounts=used_accounts_in((5,)),
-        code_labels=labels_for([a.ledger_code for a in CashAccount.query.all()] + [till_code()]))
+        transactions=transactions, moved=sum(x[1].amount or 0 for x in transactions),
+        date_from=date_from, date_to=date_to, search=search,
+        code_labels=labels_for(codes))
 
 
 @accounts_bp.route("/comptes/caisse", methods=["POST"])

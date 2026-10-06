@@ -43,9 +43,24 @@
         <span class="muted small">{{ currency }}</span>
     </div>
 
-    {% if has_perm('invoicing.manage') and acc.is_active %}
+    {% if (has_perm('invoicing.manage') or has_perm('supplier_invoice.edit') or has_perm('supplier_invoice.create')) and acc.is_active %}
     <div class="tab-bar">
         <div class="tab-bar__actions">
+            {% if has_perm('supplier_invoice.create') %}
+            <a href="{{ url_for('supplier_invoices.charge_new', account_id=acc.id) }}" class="fab fab--tonal"
+               data-modal-url="{{ url_for('supplier_invoices.charge_new', account_id=acc.id) }}"
+               data-modal-title="{{ t['bank.new'] }}">
+                <span class="material-symbols-outlined">receipt_long</span> {{ t['bank.new'] }}
+            </a>
+            {% endif %}
+            {% if has_perm('supplier_invoice.edit') %}
+            <a href="{{ url_for('supplier_invoices.account_payment', aid=acc.id) }}" class="fab fab--tonal"
+               data-modal-url="{{ url_for('supplier_invoices.account_payment', aid=acc.id) }}"
+               data-modal-title="{{ t['bill_pay.title'] }}">
+                <span class="material-symbols-outlined">payments</span> {{ t['bill_pay.title'] }}
+            </a>
+            {% endif %}
+            {% if has_perm('invoicing.manage') %}
             <a href="{{ url_for('accounts.deposit_new', aid=acc.id) }}" class="fab"
                data-modal-url="{{ url_for('accounts.deposit_new', aid=acc.id) }}"
                data-modal-title="{{ t['fund.new'] }}">
@@ -56,6 +71,7 @@
                data-modal-title="{{ t['transfer.new'] }}">
                 <span class="material-symbols-outlined">send</span> {{ t['transfer.new'] }}
             </a>
+            {% endif %}
         </div>
     </div>
     {% endif %}

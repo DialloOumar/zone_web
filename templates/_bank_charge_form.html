@@ -15,7 +15,7 @@
             <label for="date">{{ t['bank.date'] }}</label>
         </div>
         <div class="field field--select">
-            {% set sel_acc = request.form.get('account_id')|int(0) or (charge.account_id if is_edit else 0) %}
+            {% set sel_acc = request.form.get('account_id')|int(0) or (charge.account_id if is_edit else request.args.get('account_id')|int(0)) %}
             <select id="account_id" name="account_id" required>
                 <option value="" hidden></option>
                 {% for a in accounts %}
@@ -69,6 +69,6 @@
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
         </button>
-        <a href="{{ url_for('supplier_invoices.index', tab='transactions') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+        <a href="{{ url_for('accounts.index', tab='transactions') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
