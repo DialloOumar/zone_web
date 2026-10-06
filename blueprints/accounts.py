@@ -18,7 +18,7 @@ from flask_login import current_user, login_required
 
 import s3_storage
 from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm, require_perm
-from blueprints.expenses import _save_list_row
+from blueprints.expenses import _save_list_row, method_error, methods_of
 from blueprints.supplier_invoices import _amount, _apply_photo_change, _valid_date, bank_transactions, payment_batch
 from ledger import ensure_till_code, labels_for, read_code, set_till_code, till_code, used_accounts_in
 from models import (AccountDeposit, AccountTransfer, BankCharge, CashAccount, CashMovement, CashTransfer,
@@ -360,6 +360,9 @@ def _read_deposit_form():
     method = (request.form.get("method") or "").strip()
     if method not in DEPOSIT_METHODS:
         return None, t["invoice.err.method"]
+    err = method_error(db.session.get(CashAccount, account_id), method)
+    if err:
+        return None, err
     source = (request.form.get("source") or "").strip()[:120]
     if not source:
         return None, t["fund.err.source"]
@@ -378,7 +381,7 @@ def _render_deposit_form(row, acc, error=None):
     accounts = (CashAccount.query.filter_by(is_active=True, is_repayable=False)
                 .order_by(CashAccount.sort_order, CashAccount.name).all())
     return render_template(tpl, deposit=row, invoice=row, acc=acc, error=error,
-                           accounts=accounts, methods=DEPOSIT_METHODS,
+                           accounts=accounts, methods=methods_of(acc, DEPOSIT_METHODS),
                            ledger_accounts=deposit_accounts(),
                            today=date.today().isoformat()), status
 
@@ -501,6 +504,9 @@ def _read_move_form():
     method = (request.form.get("method") or "").strip()
     if method not in TRANSFER_METHODS:
         return None, t["invoice.err.method"]
+    err = method_error(src, method, to_till=(to == TILL))
+    if err:
+        return None, err
     return dict(account_id=src.id, to=to, date=date_str, amount=amount, fee=fee, method=method,
                 reference=(request.form.get("reference") or "").strip()[:60] or None,
                 note=(request.form.get("note") or "").strip()[:255] or None), None
@@ -532,8 +538,14 @@ def _render_move_form(acc, row=None, kind=None, error=None):
     when correcting one, whose destination stays of its kind."""
     tpl = "_account_move_form.html" if is_modal_request() else "account_move_form.html"
     status = 422 if (error and is_modal_request()) else 200
+    # What the account can do, to another account and to the cash box.
+    ways = methods_of(acc, TRANSFER_METHODS)
+    if kind != "account":
+        ways += [m for m in methods_of(acc, TRANSFER_METHODS, to_till=True) if m not in ways]
+    if kind == "till":
+        ways = methods_of(acc, TRANSFER_METHODS, to_till=True)
     return render_template(tpl, acc=acc, row=row, kind=kind, invoice=row, error=error,
-                           accounts=_company_accounts(), methods=TRANSFER_METHODS, till=TILL,
+                           accounts=_company_accounts(), methods=ways, till=TILL,
                            today=date.today().isoformat()), status
 
 

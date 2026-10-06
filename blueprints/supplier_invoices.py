@@ -33,7 +33,8 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
                  modal_ok, parse_amount, require_any_perm, require_perm)
 # The one list of ways money changes hands, shared with the cash box and every
 # other screen that records a payment, so a method added there shows up here.
-from blueprints.expenses import PAYMENT_METHODS, _accessible_vehicles, company_accounts
+from blueprints.expenses import (PAYMENT_METHODS, _accessible_vehicles, company_accounts, method_error,
+                                 methods_of)
 from ledger import charge_accounts, ensure_supplier_account, labels_for, read_code, used_accounts_in
 from models import (AccountTransfer, BankCharge, CashAccount, CashTransfer, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
                     Vehicle, db)
@@ -46,7 +47,7 @@ TABS = ("factures", "fournisseurs")
 
 # How a charge leaves the bank with no bill behind it. Never cash: that is
 # the box's, on the Caisse page.
-BANK_METHODS = ("transfer", "cheque", "other")
+BANK_METHODS = ("transfer", "cheque", "mobile_money", "other")
 
 # The two kinds of supplier, and the series each one's code is drawn from.
 SUPPLIER_KINDS = ("permanent", "divers")
@@ -618,6 +619,9 @@ def _read_charge_form():
     method = (request.form.get("method") or "").strip()
     if method not in BANK_METHODS:
         return None, t["invoice.err.method"]
+    err = method_error(db.session.get(CashAccount, account_id), method)
+    if err:
+        return None, err
     payee = (request.form.get("payee") or "").strip()[:120]
     if not payee:
         return None, t["bank.err.payee"]
@@ -633,8 +637,12 @@ def _read_charge_form():
 def _render_charge_form(row, error=None):
     tpl = "_bank_charge_form.html" if is_modal_request() else "bank_charge_form.html"
     status = 422 if (error and is_modal_request()) else 200
+    # With its account known -- the one being corrected, or the account page
+    # it was opened from -- only that account's ways are offered.
+    known = row.account if row is not None else db.session.get(
+        CashAccount, request.values.get("account_id", type=int) or 0)
     return render_template(tpl, charge=row, invoice=row, error=error,
-                           accounts=company_accounts(), methods=BANK_METHODS,
+                           accounts=company_accounts(), methods=methods_of(known, BANK_METHODS),
                            ledger_accounts=charge_accounts(),
                            today=date.today().isoformat()), status
 
@@ -770,6 +778,9 @@ def _read_payment_form(inv, pay, form=None):
     account_id = form.get("account_id", type=int) or None
     if account_id and not CashAccount.query.filter_by(id=account_id, is_active=True, is_repayable=False).first():
         return None, t.get("caisse.err.unknown_account", "Choisissez un compte actif.")
+    err = method_error(db.session.get(CashAccount, account_id) if account_id else None, method)
+    if err:
+        return None, err
 
     return dict(
         date=date_str, amount=amount, method=method, account_id=account_id,
@@ -1137,7 +1148,7 @@ def _render_account_payment_form(acc, error=None):
         groups[-1]["total"] += b.remaining
     ticked = {int(x) for x in request.form.getlist("invoice_ids") if x.isdigit()}
     return render_template(tpl, acc=acc, groups=groups, ticked=ticked, error=error,
-                           payment_methods=PAYMENT_METHODS,
+                           payment_methods=methods_of(acc, PAYMENT_METHODS),
                            today=date.today().isoformat()), status
 
 

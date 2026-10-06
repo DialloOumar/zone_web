@@ -25,6 +25,23 @@
         <span>{{ t['list.repayable'] }}</span>
     </label>
 
+    {# A bank moves money by transfer or cheque, a mobile-money line as
+       mobile money: the forms offer only what the account can do. #}
+    {% set sel_kind = request.form.get('kind') or (row.kind if is_edit else 'bank') %}
+    <div class="field field--select" id="kind-field" {% if rep %}hidden{% endif %}>
+        <select id="kind" name="kind">
+            <option value="bank" {% if sel_kind != 'mobile' %}selected{% endif %}>{{ t['account.kind.bank'] }}</option>
+            <option value="mobile" {% if sel_kind == 'mobile' %}selected{% endif %}>{{ t['account.kind.mobile'] }}</option>
+        </select>
+        <label for="kind">{{ t['account.kind'] }} {{ hint('', t['account.kind_hint']) }}</label>
+    </div>
+    <script>
+    (function () {
+        var box = document.getElementById('is_repayable'), f = document.getElementById('kind-field');
+        if (box && f) box.addEventListener('change', function () { f.hidden = box.checked; });
+    })();
+    </script>
+
     {# Its account on the plan. Treasury (class 5) for the company's own
        money; a tiers (class 4, e.g. 462 the boss's current account) when
        what it puts in the box is owed back. The box follows the checkbox. #}

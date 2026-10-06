@@ -753,6 +753,10 @@ class CashAccount(db.Model):
     # money line, or nothing at all -- so it is never checked or added up.
     number       = db.Column(db.String(60))
     is_repayable = db.Column(db.Boolean,     nullable=False, default=False)
+    # What a company account is: a bank, where money moves only by transfer
+    # or cheque, or a mobile-money line, where it moves only as mobile money.
+    # Meaningless on an account that is owed back.
+    kind         = db.Column(db.String(10),  nullable=False, default="bank")   # bank | mobile
     # The account of the plan this purse is: 571 for the till, a sub-account
     # of 521 per bank, 462 for the boss's own money (owed back, so a tiers,
     # not treasury). Every movement from the purse takes it as counterpart.
@@ -766,6 +770,17 @@ class CashAccount(db.Model):
     sort_order   = db.Column(db.Integer,     nullable=False, default=0)
     is_active    = db.Column(db.Boolean,     nullable=False, default=True)
     created_at   = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    def methods(self, to_till=False):
+        """How money may move on this account. A bank: transfer or cheque --
+        and, to fill the cash box, cash drawn at the counter. A mobile-money
+        line: mobile money. An account owed back is not the company's, and
+        keeps every way. None means no limit."""
+        if self.is_repayable:
+            return None
+        if self.kind == "mobile":
+            return ("mobile_money",)
+        return ("cheque", "cash") if to_till else ("transfer", "cheque")
 
 
 class AccountDeposit(db.Model):

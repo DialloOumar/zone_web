@@ -105,6 +105,27 @@ def active_accounts():
             .order_by(CashAccount.sort_order, CashAccount.name).all())
 
 
+def method_error(account, method, to_till=False):
+    """A localized error when this way of paying is not one the account can
+    use -- a bank pays by transfer or cheque, a mobile-money line as mobile
+    money -- else None. Nothing is checked without an account."""
+    if account is None:
+        return None
+    allowed = account.methods(to_till)
+    if not allowed or method in allowed:
+        return None
+    t = get_t()
+    return t["account.err.method"] % {"account": account.name,
+                                        "methods": ", ".join(t["pay." + m] for m in allowed)}
+
+
+def methods_of(account, base, to_till=False):
+    """The ways a form offers for this account: its own, or `base` when it
+    has no limit (or none is chosen yet)."""
+    allowed = account.methods(to_till) if account is not None else None
+    return list(allowed) if allowed else list(base)
+
+
 def repayable_accounts():
     """What may pay a cost in the box's place: the purses that are owed
     back -- the boss's own money, an agent's advance. Never a bank: the
@@ -987,6 +1008,7 @@ def _save_list_row(model, row, kind):
     if kind == "account":
         row.number = (request.form.get("number") or "").strip() or None
         row.is_repayable = request.form.get("is_repayable") is not None
+        row.kind = "mobile" if request.form.get("kind") == "mobile" else "bank"
         # Its account on the plan: treasury for the company's own purse,
         # a tiers when the money is owed back. Only whoever keeps the
         # accounts changes it; for the others it is left as it is.

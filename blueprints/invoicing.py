@@ -32,7 +32,7 @@ import billing
 from amount_words import amount_in_words
 from app import (_get_setting, current_lang, current_user_fleet_ids, get_t, has_perm,
                  is_modal_request, log_action, modal_ok, parse_amount, require_perm)
-from blueprints.expenses import PAYMENT_METHODS, active_accounts
+from blueprints.expenses import PAYMENT_METHODS, active_accounts, method_error
 from ledger import ensure_client_account, labels_for, read_code, revenue_accounts
 from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine, PurchaseOrder,
                     ClientPayment, ClientRate, DailyEntry, LedgerAccount, Vehicle, db)
@@ -708,6 +708,9 @@ def _read_payment_form(inv, pay):
     # which is not an account here.
     if method != "cash" and not account_id:
         return None, t["cpay.err.account"]
+    err = method_error(db.session.get(CashAccount, account_id) if account_id else None, method)
+    if err:
+        return None, err
     return dict(date=date_str, amount=amount, method=method, account_id=account_id,
                 reference=(request.form.get("reference") or "").strip()[:60] or None,
                 note=(request.form.get("note") or "").strip()[:255] or None), None

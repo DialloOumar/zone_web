@@ -787,6 +787,12 @@ a:hover { text-decoration: underline; }
 .bill-pick__row input { width: 18px; height: 18px; flex: none; }
 .bill-pick__what { flex: 1; display: flex; flex-direction: column; }
 .bill-pick__left { white-space: nowrap; }
+.bill-pick__group legend { display: flex; align-items: center; gap: 6px; }
+.bill-pick__all { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.bill-pick__all input { width: 18px; height: 18px; }
+.bill-pick__row--late .bill-pick__left { color: var(--c-red); }
+.bill-pick__sum { margin: -4px 0 12px; font-size: 0.88rem; font-weight: 600; }
+.bill-pick__sum:empty { display: none; }
 /* Caisse, "À régler": the counted amount typed beside its button. */
 .transfer-receive { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .transfer-receive input { width: 130px; height: 34px; padding: 0 10px; border: 1px solid var(--md-outline); border-radius: 8px; background: var(--md-surface); color: inherit; font-size: 0.85rem; }
