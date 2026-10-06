@@ -231,6 +231,23 @@
                 <span class="material-symbols-outlined">menu</span>
             </button>
             <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+            {% if current_user.is_authenticated %}
+            {% set b = notif_bell() %}
+            {# The bell: what waits for you, then what happened to you. #}
+            <details class="bell" data-count-url="{{ url_for('notifications.count') }}">
+                <summary class="lang-toggle bell__btn" title="{{ t['notif.title'] }}" aria-label="{{ t['notif.title'] }}">
+                    <span class="material-symbols-outlined">notifications</span>
+                    {% if b.count %}<span class="bell__count">{{ b.count if b.count < 100 else '99+' }}</span>{% endif %}
+                </summary>
+                <div class="bell__panel" data-panel-url="{{ url_for('notifications.panel') }}">
+                    {% include "_bell_panel.html" %}
+                </div>
+            </details>
+            {% endif %}
+            {# Reload: the page again, as a fresh visit -- never a form sent twice. #}
+            <button type="button" class="lang-toggle" id="reload-page" title="{{ t['btn.reload'] }}" aria-label="{{ t['btn.reload'] }}">
+                <span class="material-symbols-outlined">refresh</span>
+            </button>
             {# The icon shows what you would get, not what you have. #}
             <a href="{{ url_for('set_theme', theme='light' if theme == 'dark' else 'dark') }}"
                class="lang-toggle theme-toggle" id="theme-toggle"

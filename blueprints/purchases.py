@@ -28,6 +28,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app import (_get_setting, current_lang, get_t, has_perm, log_action,
                  parse_amount, require_perm)
+from blueprints.notifications import notify
 from blueprints.stock import active_units, buying_units_for, unit_codes
 from blueprints.supplier_invoices import _save_supplier, parts_suppliers
 from models import Part, PurchaseOrder, PurchaseOrderLine, StockMovement, Supplier, db
@@ -393,6 +394,8 @@ def approve(oid, kind):
         po.finance_by, po.finance_at, po.status = current_user.id, now, "approved"
     log_action("APPROVE", "purchase_order", resource_id=po.id,
                detail="%s signed %s (%s)" % (current_user.full_name, po.number, kind))
+    if po.status == "approved":
+        notify(po.requested_by, "info.po_approved", url_for("purchases.detail", oid=po.id), number=po.number)
     db.session.commit()
     flash("success|" + (t["po.approved_final"] if po.status == "approved" else t["po.approved_step"]))
     return redirect(_back_to(url_for("purchases.detail", oid=po.id)))
@@ -415,6 +418,8 @@ def reject(oid):
     po.status = "rejected"
     po.rejected_by, po.rejected_at, po.rejected_reason = current_user.id, datetime.utcnow(), reason[:255]
     po.rejections = (po.rejections or 0) + 1
+    notify(po.requested_by, "info.po_rejected", url_for("purchases.detail", oid=po.id),
+           number=po.number, reason=po.rejected_reason)
     log_action("REJECT", "purchase_order", resource_id=po.id,
                detail="%s refused %s: %s" % (current_user.full_name, po.number, reason[:120]))
     db.session.commit()

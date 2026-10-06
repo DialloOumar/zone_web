@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['notif.title'] }}{% endblock %}
+{% block page_title %}{{ t['notif.title'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['notif.todo'] }}</h2>
+    </div>
+    {% if todo_lines %}
+    {% for n in todo_lines %}
+    <a href="{{ n.url }}" class="bell__item bell__item--todo">
+        <span class="material-symbols-outlined">pending_actions</span>
+        <span>{{ notif_text(n.kind, n.params) }}</span>
+    </a>
+    {% endfor %}
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['notif.todo_empty'] }}</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['notif.info'] }}</h2>
+        {% if unread_lines %}
+        <form method="post" action="{{ url_for('notifications.read_all') }}">
+            <button type="submit" class="btn btn--sm btn--outlined">{{ t['notif.read_all'] }}</button>
+        </form>
+        {% endif %}
+    </div>
+    {% for n in unread_lines %}
+    <a href="{{ url_for('notifications.open_one', nid=n.id) }}" class="bell__item">
+        <span class="material-symbols-outlined">info</span>
+        <span><strong>{{ notif_text(n.kind, n.params) }}</strong>
+            <span class="muted small bell__when">{{ n.created_at.strftime('%d/%m/%Y %H:%M') }}</span></span>
+    </a>
+    {% endfor %}
+    {% for n in read_lines %}
+    <a href="{{ url_for('notifications.open_one', nid=n.id) }}" class="bell__item">
+        <span class="material-symbols-outlined">done</span>
+        <span class="muted">{{ notif_text(n.kind, n.params) }}
+            <span class="small bell__when">{{ n.created_at.strftime('%d/%m/%Y %H:%M') }}</span></span>
+    </a>
+    {% endfor %}
+    {% if not unread_lines and not read_lines %}
+    <p class="muted" style="padding: 6px 0;">{{ t['notif.info_empty'] }}</p>
+    {% endif %}
+</section>
+{% endblock %}

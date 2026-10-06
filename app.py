@@ -145,6 +145,16 @@ def _category_label(code):
     return category_label(code)
 
 
+def _notif_bell():
+    from blueprints.notifications import bell
+    return bell()
+
+
+def _notif_text(kind, params):
+    from blueprints.notifications import text
+    return text(kind, params)
+
+
 @app.context_processor
 def _inject_globals():
     """Make `t`, `has_perm`, `lang`, `v` callable inside Jinja templates."""
@@ -180,6 +190,9 @@ def _inject_globals():
         "lang": current_lang(),
         "v": STATIC_VERSION,
         "has_perm": has_perm,
+        # The bell in the top bar, worked out only where the page asks for it.
+        "notif_bell": _notif_bell,
+        "notif_text": _notif_text,
         # Fresh 1-hour presigned URL for a private S3 object (photo). Returns
         # None when the key is empty or storage isn't configured.
         "photo_url": s3_storage.signed_url,
@@ -2464,6 +2477,7 @@ from blueprints.staff import staff_bp  # noqa: E402
 from blueprints.accounts import accounts_bp  # noqa: E402  (imports expenses)
 from blueprints.finance import finance_bp  # noqa: E402
 from blueprints.purchases import purchases_bp  # noqa: E402  (imports supplier_invoices)
+from blueprints.notifications import notifications_bp  # noqa: E402
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(vehicles_bp)
@@ -2481,6 +2495,7 @@ app.register_blueprint(staff_bp)
 app.register_blueprint(accounts_bp)
 app.register_blueprint(finance_bp)
 app.register_blueprint(purchases_bp)
+app.register_blueprint(notifications_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────

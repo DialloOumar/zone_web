@@ -1295,6 +1295,24 @@ class PendingChange(db.Model):
     fleet_id = db.Column(db.Integer, db.ForeignKey("fleets.id"), nullable=True)  # denormalized for queue scoping
 
 
+class Notification(db.Model):
+    """Something that happened to one person: their order was approved,
+    their request refused. Kept until read.
+
+    What waits for someone to act -- an order to sign, a request to settle
+    -- is not stored here: it is read off the work itself each time, so it
+    is gone the moment anyone does it."""
+    __tablename__ = "notifications"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    user_id    = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False, index=True)
+    kind       = db.Column(db.String(40),  nullable=False)   # the text, as a translation key under notif.
+    params     = db.Column(db.JSON,        nullable=True)    # what the text fills in: a number, a reason
+    url        = db.Column(db.String(255), nullable=True)    # where opening it leads
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+    read_at    = db.Column(db.DateTime,    nullable=True)
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
 

@@ -15,6 +15,7 @@ from flask_login import current_user, login_required
 import maintenance_engine
 from app import current_user_fleet_ids, get_t, log_action
 from blueprints.entries import _recompute_cumulatives
+from blueprints.notifications import notify
 from blueprints.expenses import (INVOICE_KEY, PURCHASE_KEY, settle_purchase,
                                  sync_account_movement, sync_invoice_payment)
 from blueprints.maintenance import (MONEY_KEYS, PARTS_KEY, _close_alert_for_record, sync_bought_parts,
@@ -281,5 +282,7 @@ def review(pid):
     pc.reviewed_by = current_user.id
     pc.reviewed_at = datetime.utcnow()
     pc.review_note = note
+    notify(pc.requested_by, "info.change_" + pc.status, url_for("approvals.my_requests"),
+           note=(" — " + note) if note else "")
     db.session.commit()
     return redirect(url_for("approvals.index"))

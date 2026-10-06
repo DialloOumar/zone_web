@@ -513,3 +513,90 @@ document.addEventListener("click", function (e) {
 })();
 
 console.log("Zone Web booted");
+
+// The bell: closes on a click anywhere else or on Escape, like any menu;
+// redraws its list each time it is opened; and keeps its number current.
+//
+// The number is asked for every 30 seconds while the page is looked at --
+// a few bytes each time, in the background, never holding the page up.
+// Nothing is asked while the tab is hidden or the phone is locked; coming
+// back asks at once. On a bad connection the misses are let go quietly, and
+// after three in a row it waits five minutes before trying again.
+(function () {
+    var bell = document.querySelector('details.bell');
+    if (!bell) return;
+    var EVERY = 30000, AFTER_FAILURES = 300000;
+    var panel = bell.querySelector('.bell__panel');
+    var summary = bell.querySelector('summary');
+    var baseTitle = document.title.replace(/^\(\d+\+?\)\s*/, '');
+    var timer = null, misses = 0, busy = false;
+
+    function show(n) {
+        var badge = summary.querySelector('.bell__count');
+        if (n > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'bell__count';
+                summary.appendChild(badge);
+            }
+            badge.textContent = n < 100 ? n : '99+';
+            document.title = '(' + (n < 100 ? n : '99+') + ') ' + baseTitle;
+        } else {
+            if (badge) badge.remove();
+            document.title = baseTitle;
+        }
+    }
+
+    function schedule(delay) {
+        clearTimeout(timer);
+        if (!document.hidden) timer = setTimeout(check, delay);
+    }
+
+    function check() {
+        if (busy || document.hidden || !window.fetch) return;
+        busy = true;
+        fetch(bell.dataset.countUrl, { credentials: 'same-origin', cache: 'no-store',
+                                       headers: { 'Accept': 'application/json' } })
+            .then(function (r) { if (!r.ok) throw r; return r.json(); })
+            .then(function (d) { misses = 0; show(d.count || 0); })
+            .catch(function () { misses += 1; })
+            .then(function () {
+                busy = false;
+                schedule(misses >= 3 ? AFTER_FAILURES : EVERY);
+            });
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) clearTimeout(timer);
+        else { misses = 0; check(); }
+    });
+    show(parseInt((summary.querySelector('.bell__count') || {}).textContent, 10) || 0);
+    schedule(EVERY);
+
+    bell.addEventListener('toggle', function () {
+        if (!bell.open || !panel.dataset.panelUrl || !window.fetch) return;
+        var here = location.pathname + location.search;
+        fetch(panel.dataset.panelUrl + '?from=' + encodeURIComponent(here),
+              { credentials: 'same-origin', cache: 'no-store' })
+            .then(function (r) { if (!r.ok) throw r; return r.text(); })
+            .then(function (html) { panel.innerHTML = html; })
+            .catch(function () { /* keep the list drawn with the page */ });
+    });
+    document.addEventListener('click', function (e) {
+        if (bell.open && !bell.contains(e.target)) bell.open = false;
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && bell.open) bell.open = false;
+    });
+})();
+
+// Reload: the same address fetched again, as a fresh visit. Never the
+// browser's own reload, which would offer to send a form a second time.
+(function () {
+    var btn = document.getElementById('reload-page');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+        btn.classList.add('is-spinning');
+        location.assign(location.pathname + location.search);
+    });
+})();

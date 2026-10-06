@@ -1,0 +1,34 @@
+{# What the bell opens on: what waits for you, then what happened to you.
+   Drawn with the page, and again by notifications.panel each time the bell
+   is opened, so it is never older than the click. Expects `b`, from
+   notif_bell(). #}
+<div class="bell__head">
+    <strong>{{ t['notif.title'] }}</strong>
+    {% if b.unread %}
+    <form method="post" action="{{ url_for('notifications.read_all') }}">
+        <input type="hidden" name="next" value="{{ back_path or request.full_path }}">
+        <button type="submit" class="btn btn--sm btn--outlined">{{ t['notif.read_all'] }}</button>
+    </form>
+    {% endif %}
+</div>
+{% if b.todos %}
+<div class="bell__group">{{ t['notif.todo'] }}</div>
+{% for n in b.todos[:8] %}
+<a href="{{ n.url }}" class="bell__item bell__item--todo">
+    <span class="material-symbols-outlined">pending_actions</span>
+    <span>{{ notif_text(n.kind, n.params) }}</span>
+</a>
+{% endfor %}
+{% endif %}
+{% if b.unread %}
+<div class="bell__group">{{ t['notif.info'] }}</div>
+{% for n in b.unread[:8] %}
+<a href="{{ url_for('notifications.open_one', nid=n.id) }}" class="bell__item">
+    <span class="material-symbols-outlined">info</span>
+    <span>{{ notif_text(n.kind, n.params) }}
+        <span class="muted small bell__when">{{ n.created_at.strftime('%d/%m %H:%M') }}</span></span>
+</a>
+{% endfor %}
+{% endif %}
+{% if not b.count %}<p class="muted small bell__empty">{{ t['notif.empty'] }}</p>{% endif %}
+<a href="{{ url_for('notifications.index') }}" class="bell__all">{{ t['notif.see_all'] }}</a>

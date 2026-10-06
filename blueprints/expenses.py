@@ -19,6 +19,7 @@ from flask_login import current_user, login_required
 from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_action,
                  modal_ok, needs_approval, parse_amount, require_perm,
                  submit_change, with_current_fleet)
+from blueprints.notifications import notify
 from ledger import charge_accounts, ensure_purse_account, ensure_supplier_account, read_code
 from models import (CashAccount, CashMovement, Expense, Fleet, ServicePartPurchase, Site,
                     Staff, SupplierInvoice, SupplierPayment, Vehicle, db)
@@ -316,6 +317,8 @@ def settle_purchase(expense, purchase_id):
     pr.state = "settled"
     pr.expense_id = expense.id
     pr.settled_at = datetime.utcnow()
+    notify(pr.requested_by, "info.parts_settled", url_for("maintenance.records"),
+           what=pr.description, amount="{:,}".format(pr.amount or 0).replace(",", " "))
 
 
 def sync_invoice_payment(expense, invoice_id):
@@ -643,6 +646,8 @@ def request_refuse(pid):
     if pr.state == "pending":
         pr.state = "refused"
         pr.refused_note = (request.form.get("note") or "").strip()[:255] or None
+        notify(pr.requested_by, "info.parts_refused", url_for("maintenance.records"),
+               what=pr.description, note=(" — " + pr.refused_note) if pr.refused_note else "")
         log_action("UPDATE", "service_part_purchase", resource_id=pid,
                    detail="Refused purchase request #%s (%s GNF)" % (pid, pr.amount))
         db.session.commit()
