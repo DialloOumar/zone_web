@@ -104,7 +104,7 @@ def lines(date_from=None, date_to=None, journal=None):
         # the one it left.
         for m in within(AccountTransfer.query, AccountTransfer.date).all():
             out.append(_line("banque", "account_transfer", m, m.date,
-                             m.note or "Virement interne", m.amount,
+                             m.note or "Transfert interne", m.amount,
                              debit=_purse_code(m.to_account), credit=_purse_code(m.account),
                              who=m.to_account.name if m.to_account else None,
                              method=m.method, reference=m.reference))

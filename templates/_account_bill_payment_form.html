@@ -1,22 +1,27 @@
 {% from "_hint.html" import hint with context %}
-{# A supplier bill paid from this account: the same instalment as on the
-   bill's own page, the account already chosen. #}
+{# One transfer from this account settling one or several bills of the same
+   supplier: the bills still owed, grouped by supplier, to tick. #}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form action="{{ url_for('supplier_invoices.account_payment', aid=acc.id) }}">
-    {% if bills %}
-    <div class="field field--select">
-        {% set sel = request.form.get('invoice_id')|int(0) %}
-        <select id="invoice_id" name="invoice_id" required>
-            <option value="" hidden></option>
-            {% for i in bills %}
-            <option value="{{ i.id }}" {% if i.id == sel %}selected{% endif %}>
-                {{ i.supplier.code if i.supplier else '' }} {{ i.supplier.name if i.supplier else '' }} —
-                {% if i.is_opening %}{{ t['opening.title'] }}{% elif i.number %}{{ t['invoice.number_short'] }} {{ i.number }}{% else %}{{ i.date }}{% endif %}
-                — {{ t['invoice.remaining'] }} {{ i.remaining | num }} {{ currency }}
-            </option>
+    {% if groups %}
+    <div class="bill-pick">
+        <span class="photo-input__label">{{ t['bill_pay.bills'] }} {{ hint('', t['bill_pay.bills_hint']) }}</span>
+        {% for g in groups %}
+        <fieldset class="bill-pick__group">
+            <legend>{% if g.supplier %}<span class="muted small">{{ g.supplier.code }}</span> {{ g.supplier.name }}{% endif %}
+                <span class="muted small">&middot; {{ g.total | num }} {{ currency }}</span></legend>
+            {% for b in g.bills %}
+            <label class="bill-pick__row">
+                <input type="checkbox" name="invoice_ids" value="{{ b.id }}" {% if b.id in ticked %}checked{% endif %}>
+                <span class="bill-pick__what">
+                    {% if b.is_opening %}{{ t['opening.title'] }}{% elif b.number %}{{ t['invoice.number_short'] }} {{ b.number }}{% else %}{{ b.date }}{% endif %}
+                    <span class="muted small">{{ b.date }}{% if b.due_date %} &middot; {{ t['invoice.due_short'] }} {{ b.due_date }}{% endif %}</span>
+                </span>
+                <strong class="bill-pick__left">{{ b.remaining | num }}</strong>
+            </label>
             {% endfor %}
-        </select>
-        <label for="invoice_id">{{ t['bill_pay.bill'] }}</label>
+        </fieldset>
+        {% endfor %}
     </div>
 
     <div class="form-row">

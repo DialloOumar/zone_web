@@ -778,6 +778,15 @@ a:hover { text-decoration: underline; }
 .fab:hover { box-shadow: var(--elev-3); text-decoration: none; }
 .fab .material-symbols-outlined { font-size: 22px; }
 .fab--tonal { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+/* Paying bills from an account: the bills to tick, by supplier. */
+.bill-pick { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; max-height: 46vh; overflow-y: auto; }
+.bill-pick__group { border: 1px solid var(--md-outline-variant); border-radius: 10px; padding: 4px 10px 6px; margin: 0; }
+.bill-pick__group legend { padding: 0 6px; font-size: 0.88rem; font-weight: 600; }
+.bill-pick__row { display: flex; align-items: center; gap: 10px; padding: 6px 2px; cursor: pointer; font-size: 0.88rem; }
+.bill-pick__row + .bill-pick__row { border-top: 1px solid var(--md-outline-variant); }
+.bill-pick__row input { width: 18px; height: 18px; flex: none; }
+.bill-pick__what { flex: 1; display: flex; flex-direction: column; }
+.bill-pick__left { white-space: nowrap; }
 /* Caisse, "À régler": the counted amount typed beside its button. */
 .transfer-receive { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .transfer-receive input { width: 130px; height: 34px; padding: 0 10px; border: 1px solid var(--md-outline); border-radius: 8px; background: var(--md-surface); color: inherit; font-size: 0.85rem; }

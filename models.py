@@ -1128,6 +1128,10 @@ class SupplierPayment(db.Model):
     # the Orange Money line, the boss's own. A label -- it moves no balance.
     # On the cash box's instalments it mirrors the cost's "Payé par".
     account_id = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=True)
+    # Several bills of one supplier settled by a single transfer: each gets
+    # its own instalment, and they share this mark so the account shows the
+    # one line the bank statement shows.
+    batch      = db.Column(db.String(32),  nullable=True, index=True)
     # Set when the cash box paid: the cost this instalment mirrors.
     expense_id = db.Column(db.Integer,     db.ForeignKey("expenses.id"),
                            nullable=True, unique=True)

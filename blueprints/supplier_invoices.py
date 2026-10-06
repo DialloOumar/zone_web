@@ -19,6 +19,8 @@ Nothing about a payment is stored that can be worked out. Paid, part-paid and
 untouched all follow from the instalments, so a status can never drift away
 from the figures it is supposed to describe.
 """
+import uuid
+from types import SimpleNamespace
 from datetime import date, datetime
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
@@ -182,6 +184,38 @@ def _period_bounds():
             date_to if _valid_date(date_to) else "")
 
 
+def spread(total, owed):
+    """Share `total` between bills in proportion to what each still owes,
+    in whole francs, never more than a bill owes. The francs lost to
+    rounding go to the bills that lost the most, one each."""
+    whole = sum(owed)
+    if total >= whole:
+        return list(owed)
+    exact = [total * o / whole for o in owed]
+    parts = [min(int(x), o) for x, o in zip(exact, owed)]
+    short = total - sum(parts)
+    order = sorted(range(len(owed)), key=lambda i: exact[i] - parts[i], reverse=True)
+    for i in order:
+        if short <= 0:
+            break
+        if parts[i] < owed[i]:
+            parts[i] += 1
+            short -= 1
+    return parts
+
+
+def payment_batch(parts):
+    """Instalments one transfer paid on several bills of one supplier, as a
+    single line: the date, account, method and reference they share, the
+    total, and the bills."""
+    first = parts[0]
+    return SimpleNamespace(id=first.id, date=first.date, created_at=first.created_at,
+                           account=first.account, method=first.method, reference=first.reference,
+                           amount=sum(p.amount or 0 for p in parts),
+                           supplier=first.invoice.supplier if first.invoice else None,
+                           invoices=[p.invoice for p in parts if p.invoice])
+
+
 def bank_transactions(date_from=None, date_to=None, search=""):
     """Everything that left a company account in the period: the bills'
     instalments paid from an account, the charges paid straight from one, and
@@ -214,7 +248,20 @@ def bank_transactions(date_from=None, date_to=None, search=""):
         like = "%" + search + "%"
         mq = mq.filter(db.or_(AccountTransfer.note.ilike(like), AccountTransfer.reference.ilike(like)))
         tq = tq.filter(db.or_(CashTransfer.note.ilike(like), CashTransfer.reference.ilike(like)))
-    rows = ([("payment", p) for p in pq.all()] + [("charge", c) for c in cq.all()]
+    # Instalments that one transfer paid on several bills read as that one
+    # transfer.
+    payments, batches = [], {}
+    for p in pq.all():
+        if p.batch:
+            batches.setdefault(p.batch, []).append(p)
+        else:
+            payments.append(("payment", p))
+    for parts in batches.values():
+        if len(parts) == 1:
+            payments.append(("payment", parts[0]))
+        else:
+            payments.append(("batch", payment_batch(parts)))
+    rows = (payments + [("charge", c) for c in cq.all()]
             + [("move", m) for m in mq.all()] + [("till", x) for x in tq.all()])
     rows.sort(key=lambda x: (x[1].date, x[1].created_at), reverse=True)
     return rows
@@ -1072,14 +1119,24 @@ def supplier_opening(sid):
                            title=t["opening.supplier_title"]), status
 
 
-# ── Paying a bill from an account's page ────────────────────────────────────
+# ── Paying bills from an account's page ─────────────────────────────────────
 
 def _render_account_payment_form(acc, error=None):
+    """The bills still owed, grouped by supplier, to tick the ones a single
+    transfer settles."""
     from blueprints.expenses import open_invoices
     tpl = "_account_bill_payment_form.html" if is_modal_request() else "account_bill_payment_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    bills = sorted(open_invoices(), key=lambda i: ((i.supplier.name if i.supplier else "").lower(), i.date))
-    return render_template(tpl, acc=acc, bills=bills, error=error,
+    bills = sorted(open_invoices(), key=lambda i: ((i.supplier.name if i.supplier else "").lower(),
+                                                   i.due_date or i.date, i.date, i.id))
+    groups = []
+    for b in bills:
+        if not groups or groups[-1]["supplier"] is not b.supplier:
+            groups.append({"supplier": b.supplier, "bills": [], "total": 0})
+        groups[-1]["bills"].append(b)
+        groups[-1]["total"] += b.remaining
+    ticked = {int(x) for x in request.form.getlist("invoice_ids") if x.isdigit()}
+    return render_template(tpl, acc=acc, groups=groups, ticked=ticked, error=error,
                            payment_methods=PAYMENT_METHODS,
                            today=date.today().isoformat()), status
 
@@ -1088,30 +1145,56 @@ def _render_account_payment_form(acc, error=None):
 @login_required
 @require_perm("supplier_invoice.edit")
 def account_payment(aid):
-    """The same instalment as on the bill's own page, entered from the
-    account it is paid from: pick the bill, the account is already known.
-    Left empty, the amount is all that is still owed on the bill."""
+    """One transfer from this account settling one or several bills of the
+    same supplier. Each bill gets its own instalment -- the same as on its
+    own page -- and when there are several they share a mark, so the account
+    shows them as the one line the bank statement shows. Left empty, the
+    amount settles every ticked bill; a smaller one is shared between them in
+    proportion to what each still owes, and no bill ever gets more than it
+    owes."""
     acc = db.session.get(CashAccount, aid)
     if not acc or acc.is_repayable:
         abort(404)
     t = get_t()
     if request.method == "POST":
-        inv = db.session.get(SupplierInvoice, request.form.get("invoice_id", type=int) or 0)
-        if inv is None or inv.remaining <= 0:
+        ids = [int(x) for x in request.form.getlist("invoice_ids") if x.isdigit()]
+        bills = [b for b in (db.session.get(SupplierInvoice, i) for i in ids) if b is not None]
+        if not bills or any(b.remaining <= 0 for b in bills):
             return _render_account_payment_form(acc, t["bill_pay.err.bill"])
-        form = request.form.copy()
-        form["account_id"] = str(acc.id)
-        if not (form.get("amount") or "").strip():
-            form["amount"] = str(inv.remaining)
-        data, error = _read_payment_form(inv, None, form)
-        if error:
-            return _render_account_payment_form(acc, error)
-        pay = SupplierPayment(invoice_id=inv.id, created_by=current_user.id, **data)
-        pay.ledger_code = ensure_supplier_account(inv.supplier, current_user.id)
-        db.session.add(pay)
-        log_action("CREATE", "supplier_payment", resource_id=inv.id,
-                   detail="Paid %s GNF on invoice #%s from account #%s" % (data["amount"], inv.id, acc.id))
+        if len({b.supplier_id for b in bills}) > 1:
+            return _render_account_payment_form(acc, t["bill_pay.err.one_supplier"])
+        bills.sort(key=lambda b: (b.due_date or b.date, b.date, b.id))
+        owed = sum(b.remaining for b in bills)
+        raw = (request.form.get("amount") or "").strip()
+        if raw:
+            total, error = _amount(raw, t)
+            if error or total <= 0:
+                return _render_account_payment_form(acc, error or t["invoice.err.amount"])
+            if total > owed:
+                return _render_account_payment_form(acc, t["bill_pay.err.over"] % {
+                    "owed": "{:,}".format(owed).replace(",", " ")})
+        else:
+            total = owed
+        batch = uuid.uuid4().hex if len(bills) > 1 else None
+        made = []
+        for b, part in zip(bills, spread(total, [b.remaining for b in bills])):
+            if part <= 0:
+                continue
+            form = request.form.copy()
+            form["account_id"], form["amount"] = str(acc.id), str(part)
+            data, error = _read_payment_form(b, None, form)
+            if error:
+                db.session.rollback()
+                return _render_account_payment_form(acc, error)
+            pay = SupplierPayment(invoice_id=b.id, created_by=current_user.id, batch=batch, **data)
+            pay.ledger_code = ensure_supplier_account(b.supplier, current_user.id)
+            db.session.add(pay)
+            made.append((b.id, part))
+        log_action("CREATE", "supplier_payment", resource_id=bills[0].supplier_id,
+                   detail="Paid %s GNF from account #%s on %s" % (
+                       total, acc.id, ", ".join("bill #%s: %s" % m for m in made)))
         db.session.commit()
-        flash("success|" + t["invoice.payment_saved"])
+        flash("success|" + (t["bill_pay.saved_many"] % {"n": len(made)} if len(made) > 1
+                            else t["invoice.payment_saved"]))
         return modal_ok() if is_modal_request() else redirect(url_for("accounts.detail", aid=acc.id))
     return _render_account_payment_form(acc)

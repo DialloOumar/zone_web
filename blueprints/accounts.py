@@ -19,7 +19,7 @@ from flask_login import current_user, login_required
 import s3_storage
 from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm, require_perm
 from blueprints.expenses import _save_list_row
-from blueprints.supplier_invoices import _amount, _apply_photo_change, _valid_date, bank_transactions
+from blueprints.supplier_invoices import _amount, _apply_photo_change, _valid_date, bank_transactions, payment_batch
 from ledger import ensure_till_code, labels_for, read_code, set_till_code, till_code, used_accounts_in
 from models import (AccountDeposit, AccountTransfer, BankCharge, CashAccount, CashMovement, CashTransfer,
                     ClientPayment, Expense, SupplierPayment, db)
@@ -257,12 +257,23 @@ def account_lines(acc):
                          label=m.note or m.source or "", who="", reference=m.reference,
                          amount_in=m.amount if given_back else 0,
                          amount_out=0 if given_back else m.amount))
+    batches = {}
     for p in q(SupplierPayment, SupplierPayment.expense_id.is_(None)):
+        if p.batch:
+            batches.setdefault(p.batch, []).append(p)
+            continue
         inv = p.invoice
         rows.append(dict(kind="supplier_payment", row=p, date=p.date,
                          label=(inv.number or "") if inv else "",
                          who=inv.supplier.name if inv and inv.supplier else "",
                          reference=p.reference, amount_in=0, amount_out=p.amount))
+    # Several bills settled by one transfer: the one line of the statement.
+    for parts in batches.values():
+        b = payment_batch(parts)
+        rows.append(dict(kind="supplier_payment", row=b, date=b.date,
+                         label=", ".join((i.number or i.date) for i in b.invoices),
+                         who=b.supplier.name if b.supplier else "",
+                         reference=b.reference, amount_in=0, amount_out=b.amount))
     for c in q(BankCharge):
         rows.append(dict(kind="bank_charge", row=c, date=c.date, label=c.description or "",
                          who=c.payee, reference=c.reference, amount_in=0, amount_out=c.amount))
