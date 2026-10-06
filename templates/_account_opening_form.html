@@ -1,0 +1,24 @@
+{% from "_hint.html" import hint with context %}
+{# What a company account held on the day the app starts following it. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form action="{{ url_for('accounts.opening', aid=acc.id) }}">
+    <div class="form-row">
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="opening_balance" name="opening_balance" placeholder=" "
+                   value="{{ request.form.get('opening_balance') or (acc.opening_balance if acc.opening_date else '') }}">
+            <label for="opening_balance">{{ t['fund.opening_amount'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="opening_date" name="opening_date" placeholder=" " required
+                   value="{{ request.form.get('opening_date') or acc.opening_date or today }}">
+            <label for="opening_date">{{ t['fund.opening_date'] }} {{ hint('', t['fund.opening_hint']) }}</label>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
+        </button>
+        <a href="{{ url_for('accounts.detail', aid=acc.id) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

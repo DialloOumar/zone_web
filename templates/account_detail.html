@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}{{ acc.name }}{% endblock %}
+{% block page_title %}{{ t['list.accounts'] }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('accounts.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ acc.name }}</h2>
+            <p class="muted small" style="margin:4px 0 0;">
+                {% if acc.number %}{{ acc.number }}{% endif %}
+                {% if acc.ledger_code %}{% if acc.number %} &middot; {% endif %}<code>{{ acc.ledger_code }}</code> {{ code_labels.get(acc.ledger_code, '') }}{% endif %}
+            </p>
+        </div>
+        <div class="caisse-balance {% if balance < 0 %}stock-negative{% endif %}">
+            <span class="caisse-balance__label">{{ t['fund.balance'] }}</span>
+            <strong>{{ balance | num }} {{ currency }}</strong>
+        </div>
+    </div>
+
+    <div class="expense-total">
+        {{ t['fund.opening'] }}
+        {% if acc.opening_date %}
+        <strong>{{ (acc.opening_balance or 0) | num }}</strong>
+        <span class="muted small">{{ currency }} &middot; {{ t['fund.on'] }} {{ acc.opening_date }}</span>
+        {% else %}
+        <span class="muted">{{ t['fund.opening_none'] }}</span>
+        {% endif %}
+        {% if has_perm('invoicing.manage') %}
+        <a href="{{ url_for('accounts.opening', aid=acc.id) }}" class="btn btn--sm btn--tonal btn--icon"
+           data-modal-url="{{ url_for('accounts.opening', aid=acc.id) }}" data-modal-title="{{ t['fund.opening'] }}"
+           title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+        {% endif %}
+        <span class="muted small">&middot;</span>
+        {{ t['fund.in'] }} <strong>{{ total_in | num }}</strong>
+        <span class="muted small">&middot;</span>
+        {{ t['fund.out'] }} <strong>{{ total_out | num }}</strong>
+        <span class="muted small">{{ currency }}</span>
+    </div>
+
+    {% if has_perm('invoicing.manage') and acc.is_active %}
+    <div class="tab-bar">
+        <div class="tab-bar__actions">
+            <a href="{{ url_for('accounts.deposit_new', aid=acc.id) }}" class="fab"
+               data-modal-url="{{ url_for('accounts.deposit_new', aid=acc.id) }}"
+               data-modal-title="{{ t['fund.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['fund.new'] }}
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if rows %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['bank.date'] }}</th>
+                <th>{{ t['fund.what'] }}</th>
+                <th style="text-align:right;">{{ t['fund.in'] }}</th>
+                <th style="text-align:right;">{{ t['fund.out'] }}</th>
+                <th style="text-align:right;">{{ t['fund.balance'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td style="white-space:nowrap;">{{ r.date }}</td>
+                <td>
+                    <span class="badge badge--{{ 'active' if r.amount_in else 'info' }}">{{ t['fund.kind.' + r.kind] }}</span>
+                    {% if r.who %}<strong>{{ r.who }}</strong>{% endif %}
+                    {% if r.label %}<div class="muted small">{{ r.label }}</div>{% endif %}
+                    {% if r.reference %}<div class="muted small">{{ t['bank.reference'] }} : {{ r.reference }}</div>{% endif %}
+                    {% if r.kind == 'deposit' and r.row.ledger_code %}<div class="muted small"><code>{{ r.row.ledger_code }}</code> {{ code_labels.get(r.row.ledger_code, '') }}</div>{% endif %}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">{% if r.amount_in %}{{ r.amount_in | num }}{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if r.amount_out %}{{ r.amount_out | num }}{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;" {% if r.balance < 0 %}class="stock-negative"{% endif %}><strong>{{ r.balance | num }}</strong></td>
+                <td class="row-actions">
+                    {% if r.kind == 'deposit' %}
+                    {% if r.row.photo_key %}
+                    <a href="{{ photo_url(r.row.photo_key) }}" target="_blank" rel="noopener" class="btn btn--sm btn--tonal btn--icon"
+                       title="{{ t['scan.field'] }}" aria-label="{{ t['scan.field'] }}"><span class="material-symbols-outlined">description</span></a>
+                    {% endif %}
+                    {% if has_perm('invoicing.manage') %}
+                    <a href="{{ url_for('accounts.deposit_edit', did=r.row.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('accounts.deposit_edit', did=r.row.id) }}" data-modal-title="{{ t['fund.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    <form method="post" action="{{ url_for('accounts.deposit_delete', did=r.row.id) }}"
+                          data-confirm="{{ t['fund.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted" style="padding: 6px 0;">{{ t['fund.empty'] }}</p>
+    {% endif %}
+</section>
+{% endblock %}

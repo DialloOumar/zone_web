@@ -10,14 +10,19 @@ permission to spend from the box. Accounting settles bills from these accounts
 without ever touching the box, so the list gets a page of its own, open to
 whoever may spend from the box or record a bill.
 """
+from datetime import date
+
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
+import s3_storage
 from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm, require_perm
 from blueprints.expenses import _save_list_row
+from blueprints.supplier_invoices import _amount, _apply_photo_change, _valid_date
 from ledger import ensure_till_code, labels_for, read_code, set_till_code, till_code, used_accounts_in
-from models import BankCharge, CashAccount, CashMovement, Expense, SupplierPayment, db
+from models import (AccountDeposit, BankCharge, CashAccount, CashMovement, ClientPayment, Expense,
+                    SupplierPayment, db)
 
 accounts_bp = Blueprint("accounts", __name__)
 
@@ -38,7 +43,9 @@ def _used_ids():
     for model, col in ((CashMovement, CashMovement.account_id),
                        (Expense, Expense.account_id),
                        (SupplierPayment, SupplierPayment.account_id),
-                       (BankCharge, BankCharge.account_id)):
+                       (BankCharge, BankCharge.account_id),
+                       (ClientPayment, ClientPayment.account_id),
+                       (AccountDeposit, AccountDeposit.account_id)):
         used.update(r[0] for r in db.session.query(col)
                     .filter(col.isnot(None)).distinct().all())
     return used
@@ -72,10 +79,11 @@ def index():
     # first visit so the card always has something to show.
     if ensure_till_code(current_user.id):
         db.session.commit()
+    accounts = CashAccount.query.order_by(CashAccount.sort_order,
+                                          CashAccount.name).all()
     return render_template(
-        "accounts.html",
-        accounts=CashAccount.query.order_by(CashAccount.sort_order,
-                                            CashAccount.name).all(),
+        "accounts.html", accounts=accounts,
+        balances={a.id: balance(a) for a in accounts if not a.is_repayable},
         used=_used_ids(), paid=_paid_to_suppliers(),
         till=till_code(), till_accounts=used_accounts_in((5,)),
         code_labels=labels_for([a.ledger_code for a in CashAccount.query.all()] + [till_code()]))
@@ -165,3 +173,240 @@ def action(aid, what):
     db.session.commit()
     flash("success|" + t.get(msg, "Fait."))
     return redirect(url_for("accounts.index"))
+
+
+# ── What a company account holds ─────────────────────────────────────────────
+
+# Whoever keeps Facturation puts money on the accounts: client payments land
+# there already, and the rest of what comes in is theirs to record too.
+FUND = "invoicing.manage"
+
+DEPOSIT_METHODS = ("transfer", "cheque", "cash", "mobile_money", "other")
+
+
+def deposit_accounts():
+    """What money put on an account may be coded to: the capital and the
+    loans (class 1), a partner's or another third party's money (class 4),
+    an income with no client bill behind it (class 7)."""
+    return used_accounts_in((1, 4, 7))
+
+
+def account_lines(acc):
+    """Everything that moved money on one company account since its starting
+    balance, oldest first, each with the balance after it.
+
+    In: the money put on it here, a client's payment received on it, money
+    the cash box gave back to it. Out: money it gave the cash box, a supplier
+    bill's instalment wired from it, a charge paid straight from it. A bill
+    the cash box settled is not here: that money left the box, and if it came
+    from this account, it did so as money given to the box."""
+    since = acc.opening_date
+
+    def q(model, *crit):
+        query = model.query.filter(model.account_id == acc.id, *crit)
+        if since:
+            query = query.filter(model.date >= since)
+        return query.all()
+
+    rows = []
+    for d in q(AccountDeposit):
+        rows.append(dict(kind="deposit", row=d, date=d.date, label=d.description or "",
+                         who=d.source, reference=d.reference, amount_in=d.amount, amount_out=0))
+    for p in q(ClientPayment):
+        inv = p.invoice
+        rows.append(dict(kind="client_payment", row=p, date=p.date,
+                         label=inv.number if inv else "",
+                         who=inv.client.name if inv and inv.client else "",
+                         reference=p.reference, amount_in=p.amount, amount_out=0))
+    for m in q(CashMovement):
+        given_back = m.kind == "retrait"
+        rows.append(dict(kind="till_out" if given_back else "till_in", row=m, date=m.date,
+                         label=m.note or m.source or "", who="", reference=m.reference,
+                         amount_in=m.amount if given_back else 0,
+                         amount_out=0 if given_back else m.amount))
+    for p in q(SupplierPayment, SupplierPayment.expense_id.is_(None)):
+        inv = p.invoice
+        rows.append(dict(kind="supplier_payment", row=p, date=p.date,
+                         label=(inv.number or "") if inv else "",
+                         who=inv.supplier.name if inv and inv.supplier else "",
+                         reference=p.reference, amount_in=0, amount_out=p.amount))
+    for c in q(BankCharge):
+        rows.append(dict(kind="bank_charge", row=c, date=c.date, label=c.description or "",
+                         who=c.payee, reference=c.reference, amount_in=0, amount_out=c.amount))
+
+    rows.sort(key=lambda r: (r["date"], r["row"].created_at))
+    running = acc.opening_balance or 0
+    for r in rows:
+        running += r["amount_in"] - r["amount_out"]
+        r["balance"] = running
+    return rows
+
+
+def balance(acc):
+    """What the account holds now: its starting balance, plus what came in,
+    less what went out, since that day."""
+    rows = account_lines(acc)
+    return rows[-1]["balance"] if rows else (acc.opening_balance or 0)
+
+
+def _company_account_or_404(aid):
+    acc = db.session.get(CashAccount, aid)
+    if not acc or acc.is_repayable:
+        abort(404)
+    return acc
+
+
+@accounts_bp.route("/comptes/<int:aid>")
+@login_required
+@require_any_perm(*MANAGE)
+def detail(aid):
+    acc = _company_account_or_404(aid)
+    rows = account_lines(acc)
+    codes = [acc.ledger_code] + [r["row"].ledger_code for r in rows if r["kind"] == "deposit"]
+    return render_template(
+        "account_detail.html", acc=acc, rows=list(reversed(rows)),
+        balance=rows[-1]["balance"] if rows else (acc.opening_balance or 0),
+        total_in=sum(r["amount_in"] for r in rows),
+        total_out=sum(r["amount_out"] for r in rows),
+        code_labels=labels_for(codes))
+
+
+@accounts_bp.route("/comptes/<int:aid>/solde-initial", methods=["GET", "POST"])
+@login_required
+@require_perm(FUND)
+def opening(aid):
+    acc = _company_account_or_404(aid)
+    t = get_t()
+    error = None
+    if request.method == "POST":
+        raw = (request.form.get("opening_balance") or "").strip()
+        day = (request.form.get("opening_date") or "").strip()
+        amount, error = _amount(raw, t) if raw else (0, None)
+        if not error and not _valid_date(day):
+            error = t["fund.err.opening_date"]
+        if not error:
+            acc.opening_balance, acc.opening_date = amount, day
+            log_action("UPDATE", "cash_account", resource_id=acc.id,
+                       detail="Starting balance of '%s' set to %s GNF on %s"
+                              % (acc.name, amount, day))
+            db.session.commit()
+            flash("success|" + t["fund.opening_saved"])
+            return modal_ok() if is_modal_request() else redirect(url_for("accounts.detail", aid=acc.id))
+    tpl = "_account_opening_form.html" if is_modal_request() else "account_opening_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, acc=acc, error=error, today=date.today().isoformat()), status
+
+
+def _read_deposit_form():
+    """Money put on a company account: which, when, how much, how it came,
+    from whom, and what it is on the plan. Returns (data, None) or (None, error)."""
+    t = get_t()
+    account_id = request.form.get("account_id", type=int) or None
+    if not account_id or not CashAccount.query.filter_by(id=account_id, is_active=True,
+                                                         is_repayable=False).first():
+        return None, t["fund.err.account"]
+    date_str = (request.form.get("date") or "").strip()
+    if not _valid_date(date_str):
+        return None, t["fund.err.date"]
+    amount, error = _amount(request.form.get("amount"), t)
+    if error:
+        return None, error
+    if amount <= 0:
+        return None, t["invoice.err.amount"]
+    method = (request.form.get("method") or "").strip()
+    if method not in DEPOSIT_METHODS:
+        return None, t["invoice.err.method"]
+    source = (request.form.get("source") or "").strip()[:120]
+    if not source:
+        return None, t["fund.err.source"]
+    ledger_code, ok = read_code(request.form, allowed=deposit_accounts())
+    if not ok:
+        return None, t["ledger.err.unknown"]
+    return dict(account_id=account_id, date=date_str, amount=amount, currency="GNF",
+                method=method, reference=(request.form.get("reference") or "").strip()[:60] or None,
+                source=source, description=(request.form.get("description") or "").strip()[:255] or None,
+                ledger_code=ledger_code), None
+
+
+def _render_deposit_form(row, acc, error=None):
+    tpl = "_account_deposit_form.html" if is_modal_request() else "account_deposit_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    accounts = (CashAccount.query.filter_by(is_active=True, is_repayable=False)
+                .order_by(CashAccount.sort_order, CashAccount.name).all())
+    return render_template(tpl, deposit=row, invoice=row, acc=acc, error=error,
+                           accounts=accounts, methods=DEPOSIT_METHODS,
+                           ledger_accounts=deposit_accounts(),
+                           today=date.today().isoformat()), status
+
+
+def _get_deposit_or_404(did):
+    row = db.session.get(AccountDeposit, did)
+    if not row:
+        abort(404)
+    return row
+
+
+@accounts_bp.route("/comptes/<int:aid>/approvisionner", methods=["GET", "POST"])
+@login_required
+@require_perm(FUND)
+def deposit_new(aid):
+    acc = _company_account_or_404(aid)
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_deposit_form()
+        if error:
+            return _render_deposit_form(None, acc, error)
+        row = AccountDeposit(created_by=current_user.id, **data)
+        db.session.add(row)
+        db.session.flush()
+        perr = _apply_photo_change(row, code="appro-%s" % row.id)
+        if perr:
+            db.session.rollback()
+            return _render_deposit_form(None, acc, perr)
+        log_action("CREATE", "account_deposit", resource_id=row.id,
+                   detail="%s GNF put on account #%s from %s" % (row.amount, row.account_id, row.source))
+        db.session.commit()
+        flash("success|" + t["fund.created"])
+        return modal_ok() if is_modal_request() else redirect(url_for("accounts.detail", aid=row.account_id))
+    return _render_deposit_form(None, acc)
+
+
+@accounts_bp.route("/comptes/approvisionnements/<int:did>/modifier", methods=["GET", "POST"])
+@login_required
+@require_perm(FUND)
+def deposit_edit(did):
+    row = _get_deposit_or_404(did)
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_deposit_form()
+        if error:
+            return _render_deposit_form(row, row.account, error)
+        for k, val in data.items():
+            setattr(row, k, val)
+        perr = _apply_photo_change(row, code="appro-%s" % row.id)
+        if perr:
+            db.session.rollback()
+            return _render_deposit_form(row, row.account, perr)
+        log_action("UPDATE", "account_deposit", resource_id=row.id,
+                   detail="Edited money put on account #%s" % row.id)
+        db.session.commit()
+        flash("success|" + t["fund.updated"])
+        return modal_ok() if is_modal_request() else redirect(url_for("accounts.detail", aid=row.account_id))
+    return _render_deposit_form(row, row.account)
+
+
+@accounts_bp.route("/comptes/approvisionnements/<int:did>/supprimer", methods=["POST"])
+@login_required
+@require_perm(FUND)
+def deposit_delete(did):
+    row = _get_deposit_or_404(did)
+    aid, photo_key = row.account_id, row.photo_key
+    db.session.delete(row)
+    log_action("DELETE", "account_deposit", resource_id=did,
+               detail="Deleted money put on account #%s" % did)
+    db.session.commit()
+    # Only once the row is gone for good, as for a bill's photo.
+    if photo_key:
+        s3_storage.delete_photo(photo_key)
+    flash("success|" + get_t()["fund.deleted"])
+    return redirect(url_for("accounts.detail", aid=aid))

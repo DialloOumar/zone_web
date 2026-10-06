@@ -3,7 +3,8 @@ the plan it moves, in the four books the comptable keeps.
 
     caisse   what the box paid or received: a cost paid in cash or by a
              purse that is owed back, money in and out of the box
-    banque   what left a bank account: a bill's instalment, a bank charge
+    banque   what left a bank account: a bill's instalment, a bank charge;
+             and what was put on one without a client bill behind it
     achats   the supplier bills, as received
     ventes   the client invoices, as issued, and the receipts on them
 
@@ -21,7 +22,7 @@ import csv
 import io
 
 from ledger import labels_for, till_code
-from models import (BankCharge, CashMovement, ClientInvoice, ClientInvoiceLine, ClientPayment,
+from models import (AccountDeposit, BankCharge, CashMovement, ClientInvoice, ClientInvoiceLine, ClientPayment,
                     Expense, SupplierInvoice, SupplierPayment, db)
 
 JOURNALS = ("caisse", "banque", "achats", "ventes")
@@ -98,6 +99,12 @@ def lines(date_from=None, date_to=None, journal=None):
                              debit=c.ledger_code, credit=_purse_code(c.account),
                              who=c.payee, codable=True, code_side="debit",
                              method=c.method, reference=c.reference))
+        # Money put on an account: the account against what the money is --
+        # capital, a loan, a partner's money.
+        for d in within(AccountDeposit.query, AccountDeposit.date).all():
+            out.append(_line("banque", "account_deposit", d, d.date, d.description or d.source, d.amount,
+                             debit=_purse_code(d.account), credit=d.ledger_code,
+                             who=d.source, method=d.method, reference=d.reference))
 
     if journal in (None, "achats"):
         # A bill as received: the charge against the supplier's account.

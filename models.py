@@ -757,9 +757,41 @@ class CashAccount(db.Model):
     # of 521 per bank, 462 for the boss's own money (owed back, so a tiers,
     # not treasury). Every movement from the purse takes it as counterpart.
     ledger_code  = db.Column(db.String(12),  index=True)
+    # What a company account held on the day the app started following it.
+    # Lines dated before that day are already in it, so the balance counts
+    # from there. Never set on an account that is owed back: that one has
+    # no money of its own, only a debt.
+    opening_balance = db.Column(db.Integer)                 # GNF
+    opening_date    = db.Column(db.String(10))              # YYYY-MM-DD
     sort_order   = db.Column(db.Integer,     nullable=False, default=0)
     is_active    = db.Column(db.Boolean,     nullable=False, default=True)
     created_at   = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+
+class AccountDeposit(db.Model):
+    """Money put on one of the company's accounts that is not a client
+    paying a bill: the boss adding money, a loan coming in, a refund.
+    Recorded by whoever keeps Facturation, on the account's page.
+
+    A client's payment is not one: it is entered on the invoice and lands
+    on the account by itself."""
+    __tablename__ = "account_deposits"
+
+    id          = db.Column(db.Integer,     primary_key=True)
+    account_id  = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=False, index=True)
+    date        = db.Column(db.String(10),  nullable=False)   # YYYY-MM-DD
+    amount      = db.Column(db.Integer,     nullable=False)   # GNF
+    currency    = db.Column(db.String(5),   nullable=False, default="GNF")
+    method      = db.Column(db.String(20),  nullable=False)   # transfer | cheque | cash | mobile_money | other
+    reference   = db.Column(db.String(60))                    # transfer ref., cheque no.
+    source      = db.Column(db.String(120), nullable=False)   # where the money came from, in words
+    description = db.Column(db.String(255))
+    ledger_code = db.Column(db.String(12),  index=True)       # what it is: capital, a loan, a partner's money
+    photo_key   = db.Column(db.String(200))                   # the bank slip, scanned
+    created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    account = db.relationship("CashAccount")
 
 
 # ── Caisse (petty cash) ───────────────────────────────────────────────────────
