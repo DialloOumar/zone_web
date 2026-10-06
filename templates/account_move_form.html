@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['move.title'] }}{% endblock %}
+{% block page_title %}{{ t['move.title'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_account_move_form.html" %}
+</section>
+{% endblock %}

@@ -66,10 +66,10 @@
                data-modal-title="{{ t['fund.new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['fund.new'] }}
             </a>
-            <a href="{{ url_for('accounts.transfer_new', aid=acc.id) }}" class="fab fab--tonal"
-               data-modal-url="{{ url_for('accounts.transfer_new', aid=acc.id) }}"
-               data-modal-title="{{ t['transfer.new'] }}">
-                <span class="material-symbols-outlined">send</span> {{ t['transfer.new'] }}
+            <a href="{{ url_for('accounts.move_new', aid=acc.id) }}" class="fab fab--tonal"
+               data-modal-url="{{ url_for('accounts.move_new', aid=acc.id) }}"
+               data-modal-title="{{ t['move.title'] }}">
+                <span class="material-symbols-outlined">swap_horiz</span> {{ t['move.title'] }}
             </a>
             {% endif %}
         </div>
@@ -101,12 +101,22 @@
                     {% if r.who %}<strong>{{ r.who }}</strong>{% endif %}
                     {% if r.label %}<div class="muted small">{{ r.label }}</div>{% endif %}
                     {% if r.reference %}<div class="muted small">{{ t['bank.reference'] }} : {{ r.reference }}</div>{% endif %}
+                    {% if r.kind in ('move_out', 'transfer') and r.row.fee_charge %}<div class="muted small">{{ t['move.fee'] }} : {{ r.row.fee_charge.amount | num }} {{ currency }}</div>{% endif %}
                     {% if r.kind == 'deposit' and r.row.ledger_code %}<div class="muted small"><code>{{ r.row.ledger_code }}</code> {{ code_labels.get(r.row.ledger_code, '') }}</div>{% endif %}
                 </td>
                 <td style="text-align:right; white-space:nowrap;">{% if r.amount_in %}{{ r.amount_in | num }}{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">{% if r.amount_out %}{{ r.amount_out | num }}{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;" {% if r.balance < 0 %}class="stock-negative"{% endif %}><strong>{{ r.balance | num }}</strong></td>
                 <td class="row-actions">
+                    {% if r.kind in ('move_out', 'move_in') and has_perm('invoicing.manage') %}
+                    <a href="{{ url_for('accounts.move_edit', vid=r.row.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('accounts.move_edit', vid=r.row.id) }}" data-modal-title="{{ t['move.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    <form method="post" action="{{ url_for('accounts.move_delete', vid=r.row.id) }}"
+                          data-confirm="{{ t['move.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
                     {% if r.kind == 'transfer' and r.row.status == 'sent' and has_perm('invoicing.manage') %}
                     <a href="{{ url_for('accounts.transfer_edit', tid=r.row.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('accounts.transfer_edit', tid=r.row.id) }}" data-modal-title="{{ t['transfer.edit'] }}"

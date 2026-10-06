@@ -25,7 +25,7 @@
    templates — missing those is exactly how `close` ended up invisible, and
    later how the parts store and the cash box shipped with no icon at all.
 
-   The list as of v15 (73 names), fetched from the Google Fonts css2 URL
+   The list as of v16 (74 names), fetched from the Google Fonts css2 URL
    above (opsz 24 / wght 400 / FILL 0 / GRAD 0, icon_names= this list) and
    checked with fontTools that each name has its ligature:
      account_balance, account_balance_wallet, account_tree, add,
@@ -41,8 +41,9 @@
      picture_as_pdf, point_of_sale, price_check, print,
      query_stats, receipt_long, refresh, request_quote, rule,
      save, send, settings, shelves, space_dashboard, store,
-     task_alt, translate, tune, unarchive, unfold_more,
-     visibility, visibility_off, warning, workspaces */
+     swap_horiz, task_alt, translate, tune, unarchive,
+     unfold_more, visibility, visibility_off, warning,
+     workspaces */
 @font-face {
     font-family: "Roboto";
     font-style: normal;
@@ -69,7 +70,7 @@
     font-style: normal;
     font-weight: 400;
     font-display: block;
-    src: url("../fonts/material-symbols.woff2?v=15") format("woff2");
+    src: url("../fonts/material-symbols.woff2?v=16") format("woff2");
 }
 
 /* ── Design tokens (light) ── */

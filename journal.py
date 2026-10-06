@@ -4,7 +4,8 @@ the plan it moves, in the four books the comptable keeps.
     caisse   what the box paid or received: a cost paid in cash or by a
              purse that is owed back, money in and out of the box
     banque   what left a bank account: a bill's instalment, a bank charge;
-             and what was put on one without a client bill behind it
+             what was put on one without a client bill behind it, and what
+             moved from one company account to another
     achats   the supplier bills, as received
     ventes   the client invoices, as issued, and the receipts on them
 
@@ -22,7 +23,7 @@ import csv
 import io
 
 from ledger import labels_for, till_code
-from models import (AccountDeposit, BankCharge, CashMovement, ClientInvoice, ClientInvoiceLine, ClientPayment,
+from models import (AccountDeposit, AccountTransfer, BankCharge, CashMovement, ClientInvoice, ClientInvoiceLine, ClientPayment,
                     Expense, SupplierInvoice, SupplierPayment, db)
 
 JOURNALS = ("caisse", "banque", "achats", "ventes")
@@ -99,6 +100,14 @@ def lines(date_from=None, date_to=None, journal=None):
                              debit=c.ledger_code, credit=_purse_code(c.account),
                              who=c.payee, codable=True, code_side="debit",
                              method=c.method, reference=c.reference))
+        # Money moved between company accounts: the one it went to against
+        # the one it left.
+        for m in within(AccountTransfer.query, AccountTransfer.date).all():
+            out.append(_line("banque", "account_transfer", m, m.date,
+                             m.note or "Virement interne", m.amount,
+                             debit=_purse_code(m.to_account), credit=_purse_code(m.account),
+                             who=m.to_account.name if m.to_account else None,
+                             method=m.method, reference=m.reference))
         # Money put on an account: the account against what the money is --
         # capital, a loan, a partner's money.
         for d in within(AccountDeposit.query, AccountDeposit.date).all():

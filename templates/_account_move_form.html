@@ -1,0 +1,91 @@
+{% from "_hint.html" import hint with context %}
+{# Money moved from a company account: to another company account (in and
+   out on the same day), or to the cash box (out now, in once the cashier
+   counts it). `kind` is set when correcting one: its destination stays of
+   its kind. The bank's fee becomes a bank charge on the account it left. #}
+{% set is_edit = row is not none %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form enctype="multipart/form-data"
+      action="{{ url_for('accounts.move_edit', vid=row.id) if kind == 'account'
+                else (url_for('accounts.transfer_edit', tid=row.id) if kind == 'till'
+                else url_for('accounts.move_new', aid=acc.id)) }}">
+
+    <div class="form-row">
+        <div class="field field--select">
+            {% set sel_from = request.form.get('account_id')|int(0) or (row.account_id if is_edit else acc.id) %}
+            <select id="account_id" name="account_id" required>
+                {% for a in accounts %}
+                <option value="{{ a.id }}" {% if a.id == sel_from %}selected{% endif %}>{{ a.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="account_id">{{ t['transfer.from_account'] }}</label>
+        </div>
+        <div class="field field--select">
+            {% set sel_to = request.form.get('to') or (till if kind == 'till' else (row.to_account_id|string if kind == 'account' else '')) %}
+            <select id="to" name="to" required>
+                <option value="" hidden></option>
+                {% if kind != 'account' %}
+                <option value="{{ till }}" {% if sel_to == till %}selected{% endif %}>{{ t['move.to_till'] }}</option>
+                {% endif %}
+                {% if kind != 'till' %}
+                {% for a in accounts %}
+                <option value="{{ a.id }}" {% if sel_to == a.id|string %}selected{% endif %}>{{ a.name }}</option>
+                {% endfor %}
+                {% endif %}
+            </select>
+            <label for="to">{{ t['move.to'] }} {{ hint('', t['move.to_hint']) }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+                   value="{{ request.form.get('amount') or (row.amount if is_edit else '') }}">
+            <label for="amount">{{ t['invoice.amount'] }}</label>
+        </div>
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="fee" name="fee" placeholder=" "
+                   value="{{ request.form.get('fee') or (row.fee_charge.amount if is_edit and row.fee_charge else '') }}">
+            <label for="fee">{{ t['move.fee'] }} {{ hint(t['form.optional'], t['move.fee_hint']) }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required
+                   value="{{ request.form.get('date') or (row.date if is_edit else today) }}">
+            <label for="date">{{ t['bank.date'] }}</label>
+        </div>
+        <div class="field field--select">
+            {% set sel_m = request.form.get('method') or (row.method if is_edit else 'transfer') %}
+            <select id="method" name="method" required>
+                {% for m in methods %}
+                <option value="{{ m }}" {% if m == sel_m %}selected{% endif %}>{{ t['pay.' + m] }}</option>
+                {% endfor %}
+            </select>
+            <label for="method">{{ t['bank.method'] }}</label>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="reference" name="reference" placeholder=" " maxlength="60"
+                   value="{{ request.form.get('reference') or (row.reference or '' if is_edit else '') }}">
+            <label for="reference">{{ t['bank.reference'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="note" name="note" placeholder="{{ t['ph.transfer.note'] }}" maxlength="255"
+                   value="{{ request.form.get('note') or (row.note or '' if is_edit else '') }}">
+            <label for="note">{{ t['bank.description'] }}</label>
+        </div>
+    </div>
+
+    {% include "_scan_field.html" %}
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">swap_horiz</span> {{ t['btn.save'] if is_edit else t['move.do'] }}
+        </button>
+        <a href="{{ url_for('accounts.detail', aid=acc.id) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

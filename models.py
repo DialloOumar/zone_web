@@ -828,10 +828,44 @@ class CashTransfer(db.Model):
     refused_by   = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     refused_at   = db.Column(db.DateTime)
     refused_note = db.Column(db.String(255))
+    # The bank's fee on the withdrawal, written as a bank charge on the same
+    # account and kept in step with the sending.
+    fee_charge_id = db.Column(db.Integer, db.ForeignKey("bank_charges.id"), nullable=True, unique=True)
 
     account  = db.relationship("CashAccount")
+    fee_charge = db.relationship("BankCharge", foreign_keys=[fee_charge_id])
     sender   = db.relationship("User", foreign_keys=[created_by])
     receiver = db.relationship("User", foreign_keys=[received_by])
+
+
+class AccountTransfer(db.Model):
+    """Money moved from one company account to another: the bank to the
+    Orange Money line, one bank to another. Out of the first and into the
+    second on the same day; neither a cost nor an income. Never to or from
+    an account that is owed back -- that would be a loan or a repayment.
+    Money for the cash box goes through CashTransfer, which the cashier
+    confirms.
+
+    The bank's fee, when there is one, is a bank charge on the first
+    account, written and kept in step from here."""
+    __tablename__ = "account_transfers"
+
+    id            = db.Column(db.Integer,     primary_key=True)
+    account_id    = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=False, index=True)  # from
+    to_account_id = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=False, index=True)
+    date          = db.Column(db.String(10),  nullable=False)   # YYYY-MM-DD
+    amount        = db.Column(db.Integer,     nullable=False)   # GNF
+    method        = db.Column(db.String(20),  nullable=False)   # transfer | cheque | mobile_money | other
+    reference     = db.Column(db.String(60))
+    note          = db.Column(db.String(255))
+    photo_key     = db.Column(db.String(200))                   # the transfer order, scanned
+    fee_charge_id = db.Column(db.Integer,     db.ForeignKey("bank_charges.id"), nullable=True, unique=True)
+    created_by    = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at    = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    account    = db.relationship("CashAccount", foreign_keys=[account_id])
+    to_account = db.relationship("CashAccount", foreign_keys=[to_account_id])
+    fee_charge = db.relationship("BankCharge", foreign_keys=[fee_charge_id])
 
 
 class CashMovement(db.Model):

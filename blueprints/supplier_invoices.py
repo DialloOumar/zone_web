@@ -33,7 +33,7 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
 # other screen that records a payment, so a method added there shows up here.
 from blueprints.expenses import PAYMENT_METHODS, _accessible_vehicles, company_accounts
 from ledger import charge_accounts, ensure_supplier_account, labels_for, read_code, used_accounts_in
-from models import (BankCharge, CashAccount, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
+from models import (AccountTransfer, BankCharge, CashAccount, CashTransfer, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
                     Vehicle, db)
 
 supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
@@ -184,8 +184,9 @@ def _period_bounds():
 
 def bank_transactions(date_from=None, date_to=None, search=""):
     """Everything that left a company account in the period: the bills'
-    instalments paid from an account and the charges paid straight from one,
-    in one list by date, newest first. What the cash box paid is not here.
+    instalments paid from an account, the charges paid straight from one, and
+    the money moved to another account or to the cash box, in one list by
+    date, newest first. What the cash box paid is not here.
     Shown on Comptes, under Transactions."""
     pq = (SupplierPayment.query
           .filter(SupplierPayment.expense_id.is_(None), SupplierPayment.account_id.isnot(None)))
@@ -201,8 +202,21 @@ def bank_transactions(date_from=None, date_to=None, search=""):
         pq = pq.join(SupplierInvoice).join(Supplier).filter(db.or_(
             Supplier.name.ilike(like), SupplierInvoice.number.ilike(like),
             SupplierPayment.reference.ilike(like)))
-    rows = ([("payment", p) for p in pq.all()] + [("charge", c) for c in cq.all()])
-    rows.sort(key=lambda x: (x[1].date, x[1].id), reverse=True)
+    # ...and money moved: to another company account, or to the cash box
+    # (unless the box said it never came).
+    mq = AccountTransfer.query
+    tq = CashTransfer.query.filter(CashTransfer.status != "refused")
+    if date_from:
+        mq, tq = mq.filter(AccountTransfer.date >= date_from), tq.filter(CashTransfer.date >= date_from)
+    if date_to:
+        mq, tq = mq.filter(AccountTransfer.date <= date_to), tq.filter(CashTransfer.date <= date_to)
+    if search:
+        like = "%" + search + "%"
+        mq = mq.filter(db.or_(AccountTransfer.note.ilike(like), AccountTransfer.reference.ilike(like)))
+        tq = tq.filter(db.or_(CashTransfer.note.ilike(like), CashTransfer.reference.ilike(like)))
+    rows = ([("payment", p) for p in pq.all()] + [("charge", c) for c in cq.all()]
+            + [("move", m) for m in mq.all()] + [("till", x) for x in tq.all()])
+    rows.sort(key=lambda x: (x[1].date, x[1].created_at), reverse=True)
     return rows
 
 
@@ -531,6 +545,13 @@ def _get_charge_or_404(cid):
     return row
 
 
+def _fee_of_transfer(cid):
+    """Whether this charge is the bank's fee on a transfer: then it is
+    corrected or removed through the transfer, never on its own."""
+    return (AccountTransfer.query.filter_by(fee_charge_id=cid).first() is not None
+            or CashTransfer.query.filter_by(fee_charge_id=cid).first() is not None)
+
+
 def _read_charge_form():
     """A charge that left a bank account with no bill behind it: from which
     account, when, how much, by transfer or cheque, to whom, for what, and
@@ -601,6 +622,9 @@ def charge_new():
 def charge_edit(cid):
     row = _get_charge_or_404(cid)
     t = get_t()
+    if _fee_of_transfer(cid):
+        flash("error|" + t["move.err.fee_locked"])
+        return redirect(request.referrer or url_for("accounts.index", tab="transactions"))
     if request.method == "POST":
         data, error = _read_charge_form()
         if error:
@@ -624,6 +648,9 @@ def charge_edit(cid):
 @require_perm("supplier_invoice.delete")
 def charge_delete(cid):
     row = _get_charge_or_404(cid)
+    if _fee_of_transfer(cid):
+        flash("error|" + get_t()["move.err.fee_locked"])
+        return redirect(request.referrer or url_for("accounts.index", tab="transactions"))
     photo_key = row.photo_key
     db.session.delete(row)
     log_action("DELETE", "bank_charge", resource_id=cid, detail="Deleted bank charge #%s" % cid)
