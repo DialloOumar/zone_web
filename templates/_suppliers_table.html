@@ -1,3 +1,4 @@
+{% from "_san.html" import san with context %}
 {# The suppliers list: the kind filter and the table, on the suppliers'
    own page. #}
     <form method="get" class="filter-bar filter-bar--live" style="margin-bottom:10px;">
@@ -76,9 +77,7 @@
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% if full %}
                     {% if has_perm('supplier_invoice.create') %}
-                    <a href="{{ url_for('supplier_invoices.supplier_opening', sid=s.id) }}" class="btn btn--sm btn--tonal btn--icon"
-                       data-modal-url="{{ url_for('supplier_invoices.supplier_opening', sid=s.id) }}" data-modal-title="{{ t['opening.supplier_title'] }}"
-                       title="{{ t['opening.title'] }}" aria-label="{{ t['opening.title'] }}"><span class="material-symbols-outlined">history</span></a>
+                    {{ san(url_for('supplier_invoices.supplier_opening', sid=s.id), t['opening.supplier_title']) }}
                     {% endif %}
                     {% if not s.is_active %}
                     <form method="post" action="{{ url_for('supplier_invoices.supplier_action', sid=s.id, what='reactivate') }}" style="display:inline">

@@ -1,0 +1,7 @@
+{# The opening-balance button, the same everywhere it appears -- the cash
+   box, a purse, a supplier, a client: "SAN" (solde à nouveau), the full
+   name on hover, the history icon, one small tonal button. #}
+{% macro san(url, title) -%}
+<a href="{{ url }}" class="btn btn--sm btn--tonal san-btn" data-modal-url="{{ url }}" data-modal-title="{{ title }}"
+   title="{{ t['fund.opening'] }}" aria-label="{{ t['fund.opening'] }}"><span class="material-symbols-outlined">history</span> SAN</a>
+{%- endmacro %}

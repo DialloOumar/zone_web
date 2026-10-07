@@ -453,19 +453,56 @@ def _cash_expenses():
     return _scoped_expenses().filter(Expense.category.notin_(SYSTEM_CATEGORIES))
 
 
-def _movement_total(kind):
-    return db.session.query(db.func.coalesce(
-        db.func.sum(CashMovement.amount), 0)).filter(
-        CashMovement.kind == kind).scalar() or 0
+# The box's opening balance: what the till held the day the app started
+# following it, kept as two settings. Lines dated before that day are
+# already in it and count no more.
+TILL_OPENING_KEY = "caisse.opening_balance"
+TILL_OPENING_DATE_KEY = "caisse.opening_date"
+
+
+def till_opening():
+    """(amount, date) of the box's opening balance, or (0, None)."""
+    from models import AppSetting
+    d = db.session.get(AppSetting, TILL_OPENING_DATE_KEY)
+    a = db.session.get(AppSetting, TILL_OPENING_KEY)
+    if not d or not d.value:
+        return 0, None
+    try:
+        return int(a.value) if a and a.value else 0, d.value
+    except ValueError:
+        return 0, d.value
+
+
+def set_till_opening(amount, day, user_id=None):
+    from models import AppSetting
+    for key, val, label in ((TILL_OPENING_KEY, "" if amount is None else str(amount), "Solde à nouveau de la caisse"),
+                            (TILL_OPENING_DATE_KEY, day or "", "Date du solde à nouveau de la caisse")):
+        row = db.session.get(AppSetting, key)
+        if row is None:
+            row = AppSetting(key=key, value=val, label=label, category="caisse")
+            db.session.add(row)
+        row.value = val
+        row.updated_by = user_id
+
+
+def _movement_total(kind, since=None):
+    q = db.session.query(db.func.coalesce(db.func.sum(CashMovement.amount), 0)).filter(CashMovement.kind == kind)
+    if since:
+        q = q.filter(CashMovement.date >= since)
+    return q.scalar() or 0
 
 
 def cash_balance():
-    """What is left in the box: paid in, less taken back out, less spent. Not
-    bounded by the period on screen — a balance carries over."""
-    spent = db.session.query(db.func.coalesce(
-        db.func.sum(Expense.amount), 0)).filter(
-        Expense.category.notin_(SYSTEM_CATEGORIES)).scalar() or 0
-    return _movement_total("depot") - _movement_total("retrait") - spent
+    """What is left in the box: the opening balance, plus paid in, less taken
+    back out, less spent, from the opening day on. Not bounded by the period
+    on screen — a balance carries over."""
+    opening, since = till_opening()
+    sq = db.session.query(db.func.coalesce(db.func.sum(Expense.amount), 0)).filter(
+        Expense.category.notin_(SYSTEM_CATEGORIES))
+    if since:
+        sq = sq.filter(Expense.date >= since)
+    spent = sq.scalar() or 0
+    return opening + _movement_total("depot", since) - _movement_total("retrait", since) - spent
 
 
 def account_balances():
@@ -655,6 +692,42 @@ def new():
         flash("success|" + t["expense.created"])
         return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
     return _render_expense_form(None)
+
+
+@expenses_bp.route("/caisse/solde-a-nouveau", methods=["GET", "POST"])
+@login_required
+@require_perm("expense.create")
+def opening():
+    """What the box held the day the app started following it, and that
+    day. Taken away, every line counts again from the first."""
+    t = get_t()
+    error = None
+    amount, day = till_opening()
+    if request.method == "POST" and request.form.get("clear"):
+        set_till_opening(None, None, current_user.id)
+        log_action("UPDATE", "setting", detail="Cash box opening balance removed")
+        db.session.commit()
+        flash("success|" + t["fund.opening_cleared"])
+        return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
+    if request.method == "POST":
+        raw = (request.form.get("opening_balance") or "").strip().replace("−", "-")
+        new_day = (request.form.get("opening_date") or "").strip()
+        try:
+            new_amount = int(parse_amount(raw)) if raw else 0
+        except (TypeError, ValueError):
+            new_amount, error = None, t["expense.err.amount"]
+        if not error and not _valid_date(new_day):
+            error = t["fund.err.opening_date"]
+        if not error:
+            set_till_opening(new_amount, new_day, current_user.id)
+            log_action("UPDATE", "setting", detail="Cash box opening balance set to %s GNF on %s" % (new_amount, new_day))
+            db.session.commit()
+            flash("success|" + t["fund.opening_saved"])
+            return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
+        amount, day = raw, new_day
+    tpl = "_caisse_opening_form.html" if is_modal_request() else "caisse_opening_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, error=error, amount=amount, day=day, today=date.today().isoformat()), status
 
 
 @expenses_bp.route("/expenses/requests/<int:pid>/refuse", methods=["POST"])
@@ -849,14 +922,16 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids,
     # starts from zero instead of quoting a figure that answers another question.
     opening = 0
     if start and not filtered and not part:
+        base, since = till_opening()
         paid = db.session.query(db.func.coalesce(db.func.sum(CashMovement.amount), 0))
-        opening = ((paid.filter(CashMovement.kind == "depot",
-                                CashMovement.date < start).scalar() or 0)
-                   - (paid.filter(CashMovement.kind == "retrait",
-                                  CashMovement.date < start).scalar() or 0)
-                   - (db.session.query(db.func.coalesce(db.func.sum(Expense.amount), 0))
-                      .filter(Expense.category.notin_(SYSTEM_CATEGORIES),
-                              Expense.date < start).scalar() or 0))
+        dep = paid.filter(CashMovement.kind == "depot", CashMovement.date < start)
+        wd = paid.filter(CashMovement.kind == "retrait", CashMovement.date < start)
+        sp = (db.session.query(db.func.coalesce(db.func.sum(Expense.amount), 0))
+              .filter(Expense.category.notin_(SYSTEM_CATEGORIES), Expense.date < start))
+        if since:
+            # Before the opening day everything is in the opening figure.
+            dep, wd, sp = (q.filter(m.date >= since) for q, m in ((dep, CashMovement), (wd, CashMovement), (sp, Expense)))
+        opening = base + (dep.scalar() or 0) - (wd.scalar() or 0) - (sp.scalar() or 0)
 
     cq, mq = cost_q(), move_q()
     if start:

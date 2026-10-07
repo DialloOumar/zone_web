@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_san.html" import san with context %}
 {% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.expenses'] }}{% endblock %}
@@ -50,6 +51,10 @@
         <div class="caisse-balance {% if balance < 0 %}stock-negative{% endif %}">
             <span class="caisse-balance__label">{{ t['caisse.balance'] }}</span>
             <strong>{{ balance | num }} {{ currency }}</strong>
+            {% if has_perm('expense.create') %}
+            {# What the box held the day the app started following it. #}
+            <span style="margin-left:10px;">{{ san(url_for('expenses.opening'), t['fund.opening']) }}</span>
+            {% endif %}
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
             {# The printer below goes without words; this one does not. Its icon

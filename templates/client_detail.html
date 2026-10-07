@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_san.html" import san with context %}
 
 {% block title %}{{ client.name }}{% endblock %}
 {% block page_title %}{{ client.code }} — {{ client.name }}{% endblock %}
@@ -37,9 +38,7 @@
             <span class="muted small">{{ t['fund.on'] }} {{ opening.date }}{% if opening.payments %} &middot; {{ t['cpay.remaining'] }} {{ opening.remaining | num }}{% endif %}</span>
             {% else %}<span class="muted">&mdash;</span>{% endif %}
             {% if has_perm('invoicing.manage') %}
-            <a href="{{ url_for('invoicing.client_opening', cid=client.id) }}" class="btn btn--sm btn--tonal btn--icon"
-               data-modal-url="{{ url_for('invoicing.client_opening', cid=client.id) }}" data-modal-title="{{ t['opening.client_title'] }}"
-               title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+            {{ san(url_for('invoicing.client_opening', cid=client.id), t['opening.client_title']) }}
             {% endif %}
         </dd></div>
     </dl>

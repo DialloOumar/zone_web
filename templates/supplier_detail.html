@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_san.html" import san with context %}
 
 {% block title %}{{ sup.name }}{% endblock %}
 {% block page_title %}{{ t['invoice.supplier'] }}{% endblock %}
@@ -7,10 +8,7 @@
 <div class="card-header card-header--end" style="margin-bottom:0;">
     <a data-back href="{{ url_for('supplier_invoices.suppliers') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
     {% if has_perm('supplier_invoice.create') %}
-    <a href="{{ url_for('supplier_invoices.supplier_opening', sid=sup.id) }}" class="btn btn--sm btn--tonal"
-       data-modal-url="{{ url_for('supplier_invoices.supplier_opening', sid=sup.id) }}" data-modal-title="{{ t['opening.supplier_title'] }}">
-        <span class="material-symbols-outlined">history</span> {{ t['opening.title'] }}
-    </a>
+    {{ san(url_for('supplier_invoices.supplier_opening', sid=sup.id), t['opening.supplier_title']) }}
     {% endif %}
     <a href="{{ url_for('supplier_reports.statement_print', sid=sup.id) }}" class="btn btn--sm btn--primary" target="_blank" rel="noopener">
         <span class="material-symbols-outlined">print</span> {{ t['supplier.print_statement'] }}

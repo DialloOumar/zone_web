@@ -373,6 +373,9 @@ a:hover { text-decoration: underline; }
 .plan-class-count { font-size: 0.72rem; color: var(--md-on-surface-variant); }
 .plan-class.active .plan-class-count { color: inherit; opacity: 0.8; }
 .plan-class--used .plan-class-num .material-symbols-outlined { font-size: 20px; }
+/* SAN -- solde à nouveau -- the same small button wherever an opening
+   balance is set: the box, a purse, a supplier, a client. */
+.san-btn { font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
 /* The error journal: one row per error, the trace folded under it. */
 .error-event { border-top: 1px solid var(--md-outline-variant); padding: 8px 0; }
 .error-event summary { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; cursor: pointer; font-size: 0.9rem; }

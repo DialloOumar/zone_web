@@ -1,0 +1,28 @@
+{% from "_hint.html" import hint with context %}
+{# What the box held the day the app started following it. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form action="{{ url_for('expenses.opening') }}">
+    <div class="form-row">
+        <div class="field">
+            <input data-money data-money-signed type="text" inputmode="text" id="opening_balance" name="opening_balance" placeholder=" "
+                   value="{{ request.form.get('opening_balance') or (amount if day else '') }}">
+            <label for="opening_balance">{{ t['caisse.opening_amount'] }} {{ hint('', t['caisse.opening_amount_hint']) }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="opening_date" name="opening_date" placeholder=" " required
+                   value="{{ request.form.get('opening_date') or day or today }}">
+            <label for="opening_date">{{ t['fund.opening_date'] }} {{ hint('', t['caisse.opening_hint']) }}</label>
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('expenses.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
+{% if day %}
+<form method="post" action="{{ url_for('expenses.opening') }}" style="margin-top:10px;"
+      data-confirm="{{ t['caisse.opening_clear_confirm'] }}" data-confirm-title="{{ t['fund.opening_clear'] }}" data-confirm-ok="{{ t['fund.opening_clear'] }}" data-confirm-danger>
+    <input type="hidden" name="clear" value="1">
+    <button type="submit" class="btn btn--sm btn--outlined"><span class="material-symbols-outlined">close</span> {{ t['fund.opening_clear'] }}</button>
+</form>
+{% endif %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_san.html" import san with context %}
 
 {% block title %}{{ acc.name }}{% endblock %}
 {% block page_title %}{{ t['list.accounts'] }}{% endblock %}
@@ -33,11 +34,7 @@
         {% endif %}
         {% if has_perm('supplier_invoice.edit') %}
         {# Named, not a bare pencil: the accountant has to find it at once. #}
-        <a href="{{ url_for('accounts.opening', aid=acc.id) }}" class="btn btn--sm {{ 'btn--tonal' if acc.opening_date else 'btn--primary' }}"
-           data-modal-url="{{ url_for('accounts.opening', aid=acc.id) }}" data-modal-title="{{ t['fund.opening'] }}">
-            <span class="material-symbols-outlined">{{ 'edit' if acc.opening_date else 'add' }}</span>
-            {{ t['fund.opening_edit'] if acc.opening_date else t['fund.opening_set'] }}
-        </a>
+        {{ san(url_for('accounts.opening', aid=acc.id), t['fund.opening']) }}
         {% endif %}
         <span class="muted small">&middot;</span>
         {{ t['fund.in'] }} <strong>{{ total_in | num }}</strong>
