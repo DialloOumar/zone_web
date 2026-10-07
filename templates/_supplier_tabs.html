@@ -1,0 +1,19 @@
+{# One supplier's views, one tab bar on each of its pages: what is left to
+   pay, the statement, the orders, and -- for a lessor -- its machines'
+   daily entries, which live on a page of their own but read as a tab. #}
+<nav class="tabs" role="tablist">
+    {% for key, label, n in (('a_payer', t['supplier.open_bills'], counts.a_payer),
+                             ('releve', t['supplier.statement'], counts.releve),
+                             ('commandes', t['po.title'], counts.commandes)) %}
+    <a href="{{ url_for('supplier_reports.detail', sid=sup.id, tab=key, date_from=date_from, date_to=date_to) }}" role="tab"
+       aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
+        {{ label }}{% if n is not none %}<span class="tab__count {% if key == 'a_payer' and n %}tab__count--alert{% endif %}">{{ n }}</span>{% endif %}
+    </a>
+    {% endfor %}
+    {% if sup.provides_machines and has_perm('entry.view') %}
+    <a href="{{ url_for('entries.supplier', sid=sup.id) }}" role="tab"
+       aria-selected="{{ 'true' if tab == 'saisies' else 'false' }}" class="tab {% if tab == 'saisies' %}tab--on{% endif %}">
+        <span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_short'] }}
+    </a>
+    {% endif %}
+</nav>

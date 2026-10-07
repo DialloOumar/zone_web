@@ -6,10 +6,13 @@
 
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a data-back href="{{ url_for('supplier_invoices.suppliers') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a data-back href="{{ url_for('supplier_reports.detail', sid=sup.id) }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
 </div>
 
 <section class="card">
+    {% with tab = 'saisies', counts = {'a_payer': none, 'releve': none, 'commandes': none}, date_from = '', date_to = '' %}
+    {% include "_supplier_tabs.html" %}
+    {% endwith %}
     <div class="card-header">
         <div>
             <h2><span class="chip">{{ sup.code }}</span> {{ sup.name }}</h2>

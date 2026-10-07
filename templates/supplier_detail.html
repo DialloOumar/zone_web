@@ -6,6 +6,12 @@
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
     <a data-back href="{{ url_for('supplier_invoices.suppliers') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    {% if has_perm('supplier_invoice.create') %}
+    <a href="{{ url_for('supplier_invoices.supplier_opening', sid=sup.id) }}" class="btn btn--sm btn--tonal"
+       data-modal-url="{{ url_for('supplier_invoices.supplier_opening', sid=sup.id) }}" data-modal-title="{{ t['opening.supplier_title'] }}">
+        <span class="material-symbols-outlined">history</span> {{ t['opening.title'] }}
+    </a>
+    {% endif %}
     <a href="{{ url_for('supplier_reports.statement_print', sid=sup.id) }}" class="btn btn--sm btn--primary" target="_blank" rel="noopener">
         <span class="material-symbols-outlined">print</span> {{ t['supplier.print_statement'] }}
     </a>
@@ -53,16 +59,9 @@
 {# Three views of one supplier, one at a time: what is left to pay, the
    whole statement, the orders. #}
 <section class="card">
-    <nav class="tabs" role="tablist">
-        {% for key, label, n in (('a_payer', t['supplier.open_bills'], open_bills | length),
-                                 ('releve', t['supplier.statement'], rows | length),
-                                 ('commandes', t['po.title'], orders | length)) %}
-        <a href="{{ url_for('supplier_reports.detail', sid=sup.id, tab=key, date_from=date_from, date_to=date_to) }}" role="tab"
-           aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
-            {{ label }}<span class="tab__count {% if key == 'a_payer' and n %}tab__count--alert{% endif %}">{{ n }}</span>
-        </a>
-        {% endfor %}
-    </nav>
+    {% with counts = {'a_payer': open_bills | length, 'releve': rows | length, 'commandes': orders | length} %}
+    {% include "_supplier_tabs.html" %}
+    {% endwith %}
 
     {% if tab == 'a_payer' %}
     {% if open_bills %}

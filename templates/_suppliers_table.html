@@ -53,10 +53,6 @@
                     {% if s.provides_parts %}<span class="badge badge--active">{{ t['supplier.parts'] }}</span>{% endif %}
                     {% if s.provides_machines %}
                     <span class="badge badge--info">{{ s.live_machines | length }} {{ t['supplier.machines'] | lower }}</span>
-                    {% if has_perm('entry.view') %}
-                    <a href="{{ url_for('entries.supplier', sid=s.id) }}" class="btn btn--sm btn--tonal" style="margin-left:6px;"
-                       title="{{ t['supplier.entries_btn'] }}"><span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_short'] }}</a>
-                    {% endif %}
                     {% endif %}
                     {% if not s.provides_parts and not s.provides_machines %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
@@ -69,6 +65,11 @@
                 </td>
                 {% endif %}
                 <td class="row-actions">
+                    {# A lessor's machines' daily entries, what its bill is checked against. #}
+                    {% if full and s.provides_machines and has_perm('entry.view') %}
+                    <a href="{{ url_for('entries.supplier', sid=s.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       title="{{ t['supplier.entries_btn'] }}" aria-label="{{ t['supplier.entries_btn'] }}"><span class="material-symbols-outlined">list_alt</span></a>
+                    {% endif %}
                     {% if has_perm('supplier_invoice.create') or has_perm('stock.manage') %}
                     <a href="{{ url_for('supplier_invoices.supplier_edit', sid=s.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('supplier_invoices.supplier_edit', sid=s.id) }}" data-modal-title="{{ t['invoice.supplier_edit'] }}"
