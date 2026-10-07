@@ -1,0 +1,27 @@
+{# The aged payables: per supplier, what is owed split by how late it is.
+   Shared by the page and its print. Expects rows, totals, buckets, link. #}
+<table class="data-table">
+    <thead><tr>
+        <th>{{ t['invoicing.client'] }}</th>
+        {% for b in buckets %}<th class="r" style="text-align:right;">{{ t['aged.' + b] }}</th>{% endfor %}
+        <th class="r" style="text-align:right;">{{ t['creance.total'] }}</th>
+    </tr></thead>
+    <tbody>
+        {% for r in rows %}
+        <tr>
+            <td>{% if link %}<a href="{{ url_for('invoicing.client_detail', cid=r.who.id) }}">{% endif %}<strong>{{ r.who.name }}</strong>{% if link %}</a>{% endif %}
+                <div class="muted small">{{ r.who.code }} &middot; {{ r.bills }} {{ t['cinv.count'] }}</div></td>
+            {% for b in buckets %}
+            <td class="r" style="text-align:right; white-space:nowrap;">
+                {% if r[b] %}<span {% if b != 'current' %}class="stock-negative"{% endif %}>{{ r[b] | num }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+            {% endfor %}
+            <td class="r" style="text-align:right; white-space:nowrap;"><strong>{{ r.total | num }}</strong></td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <td><strong>{{ t['creance.total'] }}</strong></td>
+            {% for b in buckets %}<td class="r" style="text-align:right; white-space:nowrap;"><strong>{{ totals[b] | num }}</strong></td>{% endfor %}
+            <td class="r" style="text-align:right; white-space:nowrap;"><strong>{{ totals.total | num }} {{ currency }}</strong></td>
+        </tr>
+    </tbody>
+</table>

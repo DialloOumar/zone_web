@@ -38,10 +38,6 @@
            class="tab {% if tab == 'factures' %}tab--on{% endif %}">
             {{ t['invoicing.tab_invoices'] }}{% if pagination %}<span class="tab__count">{{ pagination.total }}</span>{% endif %}
         </a>
-        <a href="{{ tab_urls['clients'] }}" role="tab" aria-selected="{{ 'true' if tab == 'clients' else 'false' }}"
-           class="tab {% if tab == 'clients' %}tab--on{% endif %}">
-            {{ t['invoicing.tab_clients'] }}<span class="tab__count">{{ clients | length }}</span>
-        </a>
         {% if signs_orders %}
         <a href="{{ tab_urls['commandes'] }}" role="tab" aria-selected="{{ 'true' if tab == 'commandes' else 'false' }}"
            class="tab {% if tab == 'commandes' %}tab--on{% endif %}">
@@ -78,7 +74,7 @@
                 <span class="material-symbols-outlined">add</span> {{ t['cinv.new'] }}
             </a>
             {% else %}
-            <a href="{{ tab_urls['clients'] }}" class="btn btn--sm btn--tonal">
+            <a href="{{ url_for('client_reports.clients') }}" class="btn btn--sm btn--tonal">
                 <span class="material-symbols-outlined">handshake</span> {{ t['invoicing.client_first'] }}
             </a>
             {% endif %}
@@ -185,106 +181,6 @@
     {% endif %}
     {% endif %}
 
-    {% elif tab == 'clients' %}
-    {# ── Clients: who the machines work for ── #}
-    <div class="tab-bar">
-        <p class="muted small tab-bar__filters" style="max-width:60ch;">{{ t['client.intro'] }}</p>
-        <div class="tab-bar__actions">
-            {% if has_perm('invoicing.manage') %}
-            <a href="{{ url_for('invoicing.client_new') }}" class="fab"
-               data-modal-url="{{ url_for('invoicing.client_new') }}" data-modal-title="{{ t['client.new'] }}">
-                <span class="material-symbols-outlined">add</span> {{ t['client.new'] }}
-            </a>
-            {% endif %}
-        </div>
-    </div>
-
-    {% if archived %}
-    <p class="muted small" style="margin:0 0 10px;">
-        {% if show_archived %}
-        <a href="{{ tab_urls['clients'] }}">{{ t['client.hide_archived'] }}</a>
-        {% else %}
-        <a href="{{ url_for('invoicing.index', tab='clients', archives=1) }}">{{ t['client.show_archived'] }} ({{ archived }})</a>
-        {% endif %}
-    </p>
-    {% endif %}
-
-    {% if clients %}
-    <div class="table-wrap"><table class="data-table">
-        <thead>
-            <tr>
-                <th>{{ t['supplier.code'] }}</th>
-                <th>{{ t['client.name'] }}</th>
-                <th>{{ t['invoice.contact'] }}</th>
-                <th>{{ t['supplier.machines'] }}</th>
-                <th style="text-align:right;">{{ t['cpay.remaining'] }}</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for c in clients %}
-            {% set o = owed.get(c.id) %}
-            <tr>
-                <td style="white-space:nowrap;"><span class="chip">{{ c.code }}</span></td>
-                <td>
-                    <a href="{{ url_for('invoicing.client_detail', cid=c.id) }}"><strong {% if not c.is_active %}class="muted"{% endif %}>{{ c.name }}</strong></a>
-                    {% if not c.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
-                    {% if c.note %}<div class="muted small">{{ c.note }}</div>{% endif %}
-                </td>
-                <td>{% if c.contact %}{{ c.contact }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
-                <td style="white-space:nowrap;">
-                    {% set n = c.live_machines | length %}
-                    {% if n %}
-                    <span class="badge badge--info">{{ n }} {{ t['supplier.machines'] | lower }}</span>
-                    {% if has_perm('entry.view') %}
-                    <a href="{{ url_for('entries.client', cid=c.id) }}" class="btn btn--sm btn--tonal" style="margin-left:6px;">
-                        <span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_btn'] }}
-                    </a>
-                    {% endif %}
-                    {% else %}<span class="muted">&mdash;</span>{% endif %}
-                </td>
-                <td style="text-align:right; white-space:nowrap;">
-                    {% if o and o.remaining > 0 %}
-                    <strong class="stock-negative">{{ o.remaining | num }} {{ currency }}</strong>
-                    {% elif o %}<span class="muted">{{ t['invoice.all_settled'] }}</span>
-                    {% else %}<span class="muted">&mdash;</span>{% endif %}
-                    {% if o %}<div class="muted small">{{ o.count }} {{ t['cinv.count'] }}</div>{% endif %}
-                </td>
-                <td class="row-actions">
-                    <a href="{{ url_for('invoicing.client_detail', cid=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
-                       title="{{ t['client.detail'] }}" aria-label="{{ t['client.detail'] }}"><span class="material-symbols-outlined">list_alt</span></a>
-                    {% if has_perm('invoicing.manage') %}
-                    <a href="{{ url_for('invoicing.client_edit', cid=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
-                       data-modal-url="{{ url_for('invoicing.client_edit', cid=c.id) }}" data-modal-title="{{ t['client.edit'] }}"
-                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
-                    {% if not c.is_active %}
-                    <form method="post" action="{{ url_for('invoicing.client_action', cid=c.id, what='reactivate') }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
-                    </form>
-                    {% endif %}
-                    {% if not c.has_history %}
-                    <form method="post" action="{{ url_for('invoicing.client_action', cid=c.id, what='delete') }}"
-                          data-confirm="{{ t['client.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
-                    </form>
-                    {% elif c.is_active %}
-                    <form method="post" action="{{ url_for('invoicing.client_action', cid=c.id, what='archive') }}"
-                          data-confirm="{{ t['list.archive_confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
-                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
-                    </form>
-                    {% endif %}
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table></div>
-    {% else %}
-    <div class="empty-state">
-        <span class="material-symbols-outlined">handshake</span>
-        <p>{{ t['client.empty'] }}</p>
-    </div>
-    {% endif %}
     {% endif %}
 
     {% if tab == 'commandes' %}

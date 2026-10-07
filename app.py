@@ -2479,6 +2479,7 @@ from blueprints.finance import finance_bp  # noqa: E402
 from blueprints.purchases import purchases_bp  # noqa: E402  (imports supplier_invoices)
 from blueprints.notifications import notifications_bp  # noqa: E402
 from blueprints.supplier_reports import supplier_reports_bp  # noqa: E402
+from blueprints.client_reports import client_reports_bp  # noqa: E402
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(vehicles_bp)
@@ -2498,6 +2499,7 @@ app.register_blueprint(finance_bp)
 app.register_blueprint(purchases_bp)
 app.register_blueprint(notifications_bp)
 app.register_blueprint(supplier_reports_bp)
+app.register_blueprint(client_reports_bp)
 
 
 # ── Boot ─────────────────────────────────────────────────────────────────────

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+{# A client's statement, laid out for the browser to print or save as PDF:
+   the old balance, every bill and payment, and what is owed after each. #}
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ t['client.statement'] }} — {{ client.name }}</title>
+<style>
+{% include '_export_style.html' %}
+{% include '_print_screen_style.html' %}
+.r { text-align: right; white-space: nowrap; }
+.owed-col { font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="print-toolbar">
+    <span class="print-toolbar__hint">{{ t['export.print_hint'] }}</span>
+    <a href="{{ back_url }}">{{ t['btn.cancel'] }}</a>
+    <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
+</div>
+
+<div class="print-header">
+    <img class="brand-logo" src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ t['app.title'] }}">
+    <div class="print-header-right">
+        <div class="print-report-title">{{ t['client.statement'] }}</div>
+        <div class="print-meta">
+            <strong>{{ client.code }} — {{ client.name }}</strong>{% if client.contact %}<br>{{ client.contact }}{% endif %}<br>
+            {{ t['export.generated'] }} {{ generated }}
+        </div>
+    </div>
+</div>
+
+<div class="print-summary">
+    <div class="print-summary-box ps-navy"><span class="ps-label">{{ t['client.owed'] }}</span><span class="ps-value">{{ f.owed | num }}</span></div>
+    <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['supplier.late'] }}</span><span class="ps-value">{{ f.late | num }}</span></div>
+    <div class="print-summary-box ps-blue"><span class="ps-label">{{ t['client.billed_all'] }}</span><span class="ps-value">{{ f.billed | num }}</span></div>
+    <div class="print-summary-box ps-green"><span class="ps-label">{{ t['client.received_all'] }}</span><span class="ps-value">{{ f.received | num }}</span></div>
+</div>
+
+<div class="doc-table">
+<table class="data-table">
+    <thead><tr>
+        <th>{{ t['bank.date'] }}</th>
+        <th>{{ t['fund.what'] }}</th>
+        <th class="r">{{ t['supplier.col_bill'] }}</th>
+        <th class="r">{{ t['client.col_received'] }}</th>
+        <th class="r">{{ t['supplier.col_owed'] }}</th>
+    </tr></thead>
+    <tbody>
+        {% for r in rows %}
+        <tr>
+            <td>{{ r.date }}</td>
+            <td>{% if r.kind == 'payment' %}{{ t['client.line.payment'] }}{% elif r.kind == 'opening' %}{{ t['opening.title'] }}{% else %}{{ t['supplier.line.bill'] }}{% endif %}
+                {{ r.label }}
+                {% if r.detail %}<div class="muted">{{ r.detail }}</div>{% endif %}</td>
+            <td class="r">{% if r.debit %}{{ r.debit | num }}{% endif %}</td>
+            <td class="r">{% if r.credit %}{{ r.credit | num }}{% endif %}</td>
+            <td class="r owed-col">{{ r.balance | num }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <td colspan="4"><strong>{{ t['supplier.owed_on'] }} {{ today }}</strong></td>
+            <td class="r owed-col">{{ f.owed | num }} {{ currency }}</td>
+        </tr>
+    </tbody>
+</table>
+</div>
+</body>
+</html>

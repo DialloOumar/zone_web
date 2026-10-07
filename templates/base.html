@@ -107,8 +107,12 @@
             </a></li>
             {% endif %}
             {% if has_perm('invoicing.view') %}
-            <li><a href="{{ url_for('invoicing.index') }}" class="sidebar-sub {% if request.blueprint == 'invoicing' %}active{% endif %}">
+            {% set on_clients = request.blueprint == 'client_reports' or (request.endpoint or '').startswith('invoicing.client') %}
+            <li><a href="{{ url_for('invoicing.index') }}" class="sidebar-sub {% if request.blueprint == 'invoicing' and not on_clients %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">request_quote</span> {{ t['nav.invoicing'] }}
+            </a></li>
+            <li><a href="{{ url_for('client_reports.clients') }}" class="sidebar-sub {% if on_clients %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">handshake</span> {{ t['invoicing.tab_clients'] }}
             </a></li>
             {% endif %}
             {# Last: the review of everything the three pages above wrote. #}

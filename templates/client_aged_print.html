@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+{# The aged receivables, laid out for the browser to print or save as PDF. #}
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ t['creance.title'] }} — {{ today }}</title>
+<style>
+{% include '_export_style.html' %}
+{% include '_print_screen_style.html' %}
+.stock-negative { color: #b3261e; }
+</style>
+</head>
+<body>
+<div class="print-toolbar">
+    <span class="print-toolbar__hint">{{ t['export.print_hint'] }}</span>
+    <a href="{{ back_url }}">{{ t['btn.cancel'] }}</a>
+    <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
+</div>
+<div class="print-header">
+    <img class="brand-logo" src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ t['app.title'] }}">
+    <div class="print-header-right">
+        <div class="print-report-title">{{ t['creance.title'] }}</div>
+        <div class="print-meta">{{ t['aged.on'] }} {{ today }}<br>{{ t['export.generated'] }} {{ generated }} · {{ rows | length }} {{ t['creance.clients'] }}</div>
+    </div>
+</div>
+<div class="print-summary">
+    <div class="print-summary-box ps-navy"><span class="ps-label">{{ t['creance.total'] }}</span><span class="ps-value">{{ totals.total | num }}</span></div>
+    <div class="print-summary-box ps-green"><span class="ps-label">{{ t['aged.current'] }}</span><span class="ps-value">{{ totals.current | num }}</span></div>
+    <div class="print-summary-box ps-purple"><span class="ps-label">{{ t['aged.late_total'] }}</span><span class="ps-value">{{ (totals.total - totals.current) | num }}</span></div>
+</div>
+<div class="doc-table">{% set link = false %}{% include "_client_aged_table.html" %}</div>
+</body>
+</html>

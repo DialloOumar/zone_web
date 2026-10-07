@@ -5,7 +5,10 @@
 
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a data-back href="{{ url_for('invoicing.index', tab='clients') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a data-back href="{{ url_for('client_reports.clients') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a href="{{ url_for('client_reports.statement_print', cid=client.id) }}" class="btn btn--sm btn--primary" target="_blank" rel="noopener">
+        <span class="material-symbols-outlined">print</span> {{ t['client.print_statement'] }}
+    </a>
     {% if has_perm('invoicing.manage') %}
     <a href="{{ url_for('invoicing.client_edit', cid=client.id) }}" class="btn btn--sm btn--tonal"
        data-modal-url="{{ url_for('invoicing.client_edit', cid=client.id) }}" data-modal-title="{{ t['client.edit'] }}">
@@ -40,15 +43,107 @@
             {% endif %}
         </dd></div>
     </dl>
+
+    {# What it comes to: owed and late now, billed and received over the period. #}
+    <div class="stat-grid" style="margin-top:12px;">
+        {% for icon, color, value, label, warn in (
+            ('account_balance_wallet', 'blue', f.owed, t['client.owed'], false),
+            ('warning', 'red', f.late, t['supplier.late'], f.late > 0),
+            ('receipt_long', 'amber', f.billed, t['client.billed'], false),
+            ('payments', 'green', f.received, t['client.received'], false)) %}
+        <div class="stat-card">
+            <span class="stat-icon stat-icon--{{ color }} material-symbols-outlined">{{ icon }}</span>
+            <div>
+                <div class="stat-value {% if warn %}stock-negative{% endif %}">{{ value | num }}<span class="stat-unit"> {{ currency }}</span></div>
+                <div class="stat-label">{{ label }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <form method="get" class="filter-bar filter-bar--live" style="margin-top:8px;">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <span class="muted small">{{ t['supplier.period'] }}</span>
+        <label class="filter-date"><span>{{ t['entry.from'] }}</span><input type="date" name="date_from" value="{{ date_from }}"></label>
+        <label class="filter-date"><span>{{ t['entry.to'] }}</span><input type="date" name="date_to" value="{{ date_to }}"></label>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+    </form>
 </section>
 
+{# Three views of one client, one at a time: what is left to collect, the
+   whole statement, the machines and their rates. #}
 <section class="card">
-    <div class="card-header">
-        <div>
-            <h2>{{ t['client.machines_title'] }}</h2>
-        </div>
-        <span class="muted small">{{ machines | length }} {{ t['supplier.machines'] | lower }}</span>
-    </div>
+    <nav class="tabs" role="tablist">
+        {% for key, label, n in (('a_encaisser', t['client.to_collect'], open_bills | length),
+                                 ('releve', t['client.statement'], rows | length),
+                                 ('machines', t['client.machines_title'], machines | length)) %}
+        <a href="{{ url_for('invoicing.client_detail', cid=client.id, tab=key, date_from=date_from, date_to=date_to) }}" role="tab"
+           aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
+            {{ label }}<span class="tab__count {% if key == 'a_encaisser' and n %}tab__count--alert{% endif %}">{{ n }}</span>
+        </a>
+        {% endfor %}
+    </nav>
+
+    {% if tab == 'a_encaisser' %}
+    {% if open_bills %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['cinv.number'] }}</th>
+            <th>{{ t['bank.date'] }}</th>
+            <th>{{ t['invoice.due_short'] }}</th>
+            <th style="text-align:right;">{{ t['cinv.total'] }}</th>
+            <th style="text-align:right;">{{ t['cpay.remaining'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for b in open_bills %}
+            {% set late = (b.due_date or b.date) < today %}
+            <tr>
+                <td><a href="{{ url_for('invoicing.invoice_detail', iid=b.id) }}"><strong>{{ b.number }}</strong></a>
+                    {% if b.is_opening %}<span class="badge badge--info">{{ t['opening.title'] }}</span>{% elif b.subject %}<div class="muted small">{{ b.subject }}</div>{% endif %}</td>
+                <td style="white-space:nowrap;">{{ b.date }}</td>
+                <td style="white-space:nowrap;">{{ b.due_date or '—' }}{% if late %} <span class="badge badge--critical">{{ t['cpay.status.overdue'] }}</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ b.total | num }}</td>
+                <td style="text-align:right; white-space:nowrap;"><strong class="stock-negative">{{ b.remaining | num }}</strong></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state"><span class="material-symbols-outlined">task_alt</span><p>{{ t['client.nothing_due'] }}</p></div>
+    {% endif %}
+
+    {% elif tab == 'releve' %}
+    {% if rows %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['bank.date'] }}</th>
+            <th>{{ t['fund.what'] }}</th>
+            <th style="text-align:right;">{{ t['supplier.col_bill'] }}</th>
+            <th style="text-align:right;">{{ t['client.col_received'] }}</th>
+            <th style="text-align:right;">{{ t['supplier.col_owed'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td style="white-space:nowrap;">{{ r.date }}</td>
+                <td>
+                    {% if r.kind == 'payment' %}<span class="badge badge--active">{{ t['client.line.payment'] }}</span>
+                    {% elif r.kind == 'opening' %}<span class="badge badge--info">{{ t['opening.title'] }}</span>
+                    {% else %}<span class="badge badge--warning">{{ t['supplier.line.bill'] }}</span>{% endif %}
+                    <a href="{{ url_for('invoicing.invoice_detail', iid=r.bill.id) }}">{{ r.label }}</a>
+                    {% if r.detail %}<div class="muted small">{{ r.detail }}</div>{% endif %}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">{% if r.debit %}{{ r.debit | num }}{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if r.credit %}{{ r.credit | num }}{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;"><strong>{{ r.balance | num }}</strong></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted" style="padding:6px 0;">{{ t['client.statement_empty'] }}</p>
+    {% endif %}
+
+    {% else %}
     {% if machines %}
     <div class="table-wrap"><table class="data-table">
         <thead>
@@ -93,6 +188,7 @@
         <span class="material-symbols-outlined">directions_bus</span>
         <p>{{ t['client.no_machines_yet'] }}</p>
     </div>
+    {% endif %}
     {% endif %}
 </section>
 {% endblock %}

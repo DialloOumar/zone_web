@@ -43,7 +43,8 @@ invoicing_bp = Blueprint("invoicing", __name__)
 CODE_PREFIX = "CL-"
 # "commandes": the purchase orders waiting for the finance signature, shown
 # to whoever gives it -- the person who keeps Facturation.
-TABS = ("factures", "clients", "commandes")
+# The clients used to be a tab here; they have a page of their own now.
+TABS = ("factures", "commandes")
 
 MONTHS = {
     "fr": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
@@ -150,13 +151,15 @@ def index():
     # need not load for the rest of this one.
     from blueprints.purchases import user_approves
     tab = request.args.get("tab")
+    if tab == "clients":
+        # An old link to the tab that became the clients' own page.
+        return redirect(url_for("client_reports.clients", archives=request.args.get("archives") or None))
     clients = _clients()
     signs_orders = user_approves("finance")
     if tab == "commandes" and not signs_orders:
         tab = None
     if tab not in TABS:
-        # Nobody to bill yet: the clients tab is where the work starts.
-        tab = "clients" if not clients else "factures"
+        tab = "factures"
     show_archived = request.args.get("archives") == "1"
     if tab == "clients" and show_archived:
         clients = _clients(include_archived=True)
@@ -274,7 +277,7 @@ def index():
 def invoice_new():
     clients = _clients()
     if not clients:
-        return redirect(url_for("invoicing.index", tab="clients"))
+        return redirect(url_for("client_reports.clients"))
     cid = request.values.get("client_id", type=int)
     client = next((c for c in clients if c.id == cid), None) or clients[0]
     month = request.values.get("month", "")
@@ -382,7 +385,7 @@ def invoice_cancel(iid):
 # ── Clients ──────────────────────────────────────────────────────────────────
 
 def _clients_url():
-    return url_for("invoicing.index", tab="clients")
+    return url_for("client_reports.clients")
 
 
 def _next_code():
@@ -426,8 +429,19 @@ def client_detail(cid):
         machines.append({"v": v, "rate": billing.rate_on(book, v.id, today),
                          "since": next((eff for eff, _ in hist), None),
                          "history": hist})
+    # The money side, the mirror of a supplier's page.
+    from blueprints import client_reports as cr
+    date_from, date_to = cr.year_bounds()
+    rows = cr.statement(row)
+    to_collect = cr.open_bills(row.id)
+    tab = request.args.get("tab")
+    if tab not in ("a_encaisser", "releve", "machines"):
+        tab = "a_encaisser" if to_collect else "releve"
     return render_template("client_detail.html", client=row, machines=machines,
-                           opening=_client_opening(row.id))
+                           opening=_client_opening(row.id), tab=tab, today=today,
+                           rows=list(reversed(rows)), open_bills=to_collect,
+                           date_from=date_from, date_to=date_to,
+                           f=cr.figures(row, date_from, date_to, today))
 
 
 def _assign_machines(row, chosen_ids):
