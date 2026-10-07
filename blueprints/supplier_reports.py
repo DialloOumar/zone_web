@@ -14,7 +14,7 @@ from datetime import date, datetime
 from flask import Blueprint, abort, render_template, request, url_for
 from flask_login import login_required
 
-from app import get_t, require_perm
+from app import get_t, has_perm, require_perm
 from models import PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment, db
 
 supplier_reports_bp = Blueprint("supplier_reports", __name__)
@@ -118,12 +118,19 @@ def detail(sid):
     orders = (PurchaseOrder.query.filter_by(supplier_id=sid)
               .order_by(PurchaseOrder.date.desc(), PurchaseOrder.id.desc()).limit(20).all())
     tab = request.args.get("tab")
-    if tab not in ("a_payer", "releve", "commandes"):
+    if tab not in ("a_payer", "releve", "commandes", "saisies"):
         tab = "a_payer" if open_bills else "releve"
+    # A lessor's machines' daily entries, as a tab of this page.
+    extra = {}
+    if tab == "saisies":
+        if not (sup.provides_machines and has_perm("entry.view")):
+            abort(404)
+        from blueprints.entries import lessor_entries_context
+        extra = lessor_entries_context(sup)
     return render_template("supplier_detail.html", sup=sup, rows=list(reversed(rows)), tab=tab,
                            open_bills=open_bills, orders=orders, today=today,
                            date_from=date_from, date_to=date_to,
-                           f=figures(sup, date_from, date_to, today))
+                           f=figures(sup, date_from, date_to, today), **extra)
 
 
 @supplier_reports_bp.route("/fournisseurs/<int:sid>/releve.print")

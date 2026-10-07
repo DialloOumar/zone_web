@@ -63,6 +63,10 @@
     {% include "_supplier_tabs.html" %}
     {% endwith %}
 
+    {% if tab == 'saisies' %}
+    {% include "_supplier_entries_tab.html" %}
+    {% endif %}
+
     {% if tab == 'a_payer' %}
     {% if open_bills %}
     <div class="table-wrap"><table class="data-table">

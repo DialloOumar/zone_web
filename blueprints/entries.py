@@ -375,22 +375,11 @@ def _export_context():
         generated=datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
 
 
-@entries_bp.route("/entries/fournisseur")
-@login_required
-@require_perm("entry.view")
-def supplier():
-    """One lessor's machines and nothing else -- what its bill is checked
-    against. The general page carries fleets, categories and drivers, none of
-    which mean anything here: a bill from a lessor is about its own machines
-    over a month, so those are the only filters offered.
-
-    The lessor rides in the query string rather than the path so the pager and
-    the print link carry it along with every other filter, untouched.
-    """
-    sid = request.args.get("sid", type=int)
-    sup = db.session.get(Supplier, sid) if sid else None
-    if not sup or not sup.provides_machines:
-        abort(404)
+def lessor_entries_context(sup):
+    """One lessor's machines' daily entries -- what its bill is checked
+    against -- read off the request's filters: which machine, which month
+    or dates. Rendered as a tab of the supplier's page. None of the general
+    page's filters (fleets, categories, drivers) mean anything here."""
     # Its machines the user may see: the live ones, in the user's fleets.
     fids = current_user_fleet_ids()
     machines = [v for v in sup.live_machines if fids is None or v.fleet_id in fids]
@@ -431,10 +420,10 @@ def supplier():
     print_args = dict(supplier_id=sup.id, vehicle_id=vehicle_id or None,
                       month=month or None, date_from=date_from or None,
                       date_to=date_to or None)
-    return render_template(
-        "supplier_entries.html", sup=sup, machines=machines,
+    return dict(
+        machines=machines,
         entries=pagination.items, pagination=pagination,
-        f=dict(vehicle_id=vehicle_id, month=month, date_from=date_from, date_to=date_to),
+        ef=dict(vehicle_id=vehicle_id, month=month, date_from=date_from, date_to=date_to),
         filtered=bool(vehicle_id or month or date_from or date_to),
         total_km=total_km, total_trips=total_trips, total_hours=total_hours,
         print_args={k: v for k, v in print_args.items() if v is not None},
@@ -583,6 +572,17 @@ def roster(slug):
         done=done, pending=len(vehicles) - done,
         pending_map=pending_map, ghost_by_vehicle=ghost_by_vehicle,
     )
+
+
+@entries_bp.route("/entries/fournisseur")
+@login_required
+@require_perm("entry.view")
+def supplier():
+    """The old address of a lessor's entries: they live on the supplier's
+    page now, as a tab, with the same filters."""
+    sid = request.args.get("sid", type=int)
+    args = {k: v for k, v in request.args.items() if k != "sid"}
+    return redirect(url_for("supplier_reports.detail", sid=sid, tab="saisies", **args))
 
 
 @entries_bp.route("/entries/new", methods=["GET", "POST"])

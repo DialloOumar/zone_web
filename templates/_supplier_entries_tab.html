@@ -1,29 +1,14 @@
-{% extends "base.html" %}
+{# A lessor's machines' daily entries, as a tab of its page: what its bill
+   is checked against. Filters: which machine, which month or dates. #}
 {% from "_pager.html" import pager with context %}
-
-{% block title %}{{ sup.code }} — {{ sup.name }}{% endblock %}
-{% block page_title %}{{ t['supplier.entries_btn'] }}{% endblock %}
-
-{% block content %}
-<div class="card-header card-header--end" style="margin-bottom:0;">
-    <a data-back href="{{ url_for('supplier_reports.detail', sid=sup.id) }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
-</div>
-
-<section class="card">
-    {% with tab = 'saisies', counts = {'a_payer': none, 'releve': none, 'commandes': none}, date_from = '', date_to = '' %}
-    {% include "_supplier_tabs.html" %}
-    {% endwith %}
-    <div class="card-header">
-        <div>
-            <h2><span class="chip">{{ sup.code }}</span> {{ sup.name }}</h2>
-        </div>
+    <div class="card-header" style="margin:10px 0 6px;">
+        <div class="muted small">{{ t['supplier.entries_btn'] }}</div>
         {% if has_perm('report.export_pdf') and machines %}
         <a href="{{ url_for('entries.export_print', **print_args) }}" class="btn btn--sm btn--tonal" target="_blank">
             <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['export.print_btn'] }}
         </a>
         {% endif %}
     </div>
-
     {% if not machines %}
     <div class="empty-state">
         <span class="material-symbols-outlined">engineering</span>
@@ -34,30 +19,30 @@
     {# Only what a lessor's bill is about: which of its machines, and when.
        No fleet, no category, no driver -- none of those mean anything here. #}
     <form method="get" class="filter-bar">
-        <input type="hidden" name="sid" value="{{ sup.id }}">
+        <input type="hidden" name="tab" value="saisies">
         <div class="field field--select filter-field">
             <select id="filter_vehicle" name="vehicle_id">
                 <option value="">{{ t['supplier.all_machines'] }}</option>
-                {% for v in machines %}<option value="{{ v.id }}" {% if f.vehicle_id == v.id %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
+                {% for v in machines %}<option value="{{ v.id }}" {% if ef.vehicle_id == v.id %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
             </select>
             <label for="filter_vehicle">{{ t['entry.vehicle'] }}</label>
         </div>
         <div class="field filter-field">
-            <input type="month" id="f_month" name="month" value="{{ f.month }}" placeholder=" ">
+            <input type="month" id="f_month" name="month" value="{{ ef.month }}" placeholder=" ">
             <label>{{ t['entry.month'] }}</label>
         </div>
         <div class="field filter-field">
-            <input type="date" id="f_from" name="date_from" value="{{ f.date_from }}" placeholder=" ">
+            <input type="date" id="f_from" name="date_from" value="{{ ef.date_from }}" placeholder=" ">
             <label>{{ t['entry.from'] }}</label>
         </div>
         <div class="field filter-field">
-            <input type="date" id="f_to" name="date_to" value="{{ f.date_to }}" placeholder=" ">
+            <input type="date" id="f_to" name="date_to" value="{{ ef.date_to }}" placeholder=" ">
             <label>{{ t['entry.to'] }}</label>
         </div>
         <div class="filter-actions">
             <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
             {% if filtered %}
-            <a href="{{ url_for('entries.supplier', sid=sup.id) }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
+            <a href="{{ url_for('supplier_reports.detail', sid=sup.id, tab='saisies') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
             {% endif %}
         </div>
     </form>
@@ -109,7 +94,7 @@
         </div>
         {% endfor %}
     </div>
-    {{ pager(pagination, 'entries.supplier') }}
+    {{ pager(pagination, 'supplier_reports.detail') }}
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">list_alt</span>
@@ -117,5 +102,3 @@
     </div>
     {% endif %}
     {% endif %}
-</section>
-{% endblock %}
