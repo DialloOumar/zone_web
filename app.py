@@ -215,6 +215,7 @@ def _inject_globals():
         # Orders waiting for a signature this person can give, for the
         # drawer's badge on Bons de commande.
         "orders_to_sign": _orders_to_sign(),
+        "cashier_only": cashier_only(),
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,
         "my_pending": my_pending,
@@ -252,6 +253,18 @@ def _vehicle_image(v):
                                v=drawing_tag(cat.default_image, v.code)),
                 "drawing": True}
     return None
+
+
+def cashier_only():
+    """True for someone who keeps the box and nothing of the company's own
+    money: no bills, no invoicing, no accounting. They see the purses that
+    are owed back -- the boss's money, an agent's advance -- and not the
+    company's accounts, which are the Factures and Comptes pages' business."""
+    if not current_user.is_authenticated or current_user.is_super_admin:
+        return False
+    return (has_perm("expense.view") and not any(has_perm(p) for p in (
+        "supplier_invoice.view", "supplier_invoice.create", "invoicing.view", "invoicing.manage",
+        "accounting.view", "accounting.manage")))
 
 
 def _orders_to_sign():

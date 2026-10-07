@@ -17,7 +17,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 import s3_storage
-from app import get_t, is_modal_request, log_action, modal_ok, require_any_perm, require_perm
+from app import cashier_only, get_t, is_modal_request, log_action, modal_ok, require_any_perm, require_perm
 from blueprints.expenses import _save_list_row, method_error, methods_of
 from blueprints.supplier_invoices import _amount, _apply_photo_change, _valid_date, bank_transactions, payment_batch
 from ledger import ensure_till_code, labels_for, read_code, set_till_code, till_code, used_accounts_in
@@ -38,6 +38,16 @@ MANAGE = ("expense.create", "supplier_invoice.create", "invoicing.manage",
 # accounts: their starting balances, the transfers between them and to the
 # cash box. Facturation only receives the clients' payments on them.
 FUND = "supplier_invoice.edit"
+# A purse that is owed back -- the boss's money, an agent's advance -- is
+# the cashier's own to make and keep, with expense.create. The company's
+# accounts stay the accountant's.
+PURSE = (FUND, "expense.create")
+
+
+def _purse_or_403(row):
+    """The cashier touches only purses that are owed back."""
+    if row is not None and cashier_only() and not row.is_repayable:
+        abort(403)
 
 
 def _used_ids():
@@ -89,6 +99,10 @@ def index():
         db.session.commit()
     accounts = CashAccount.query.order_by(CashAccount.sort_order,
                                           CashAccount.name).all()
+    if cashier_only():
+        # The cashier's purses: what is owed back. The company's accounts
+        # are the Factures and accounting people's.
+        accounts = [a for a in accounts if a.is_repayable]
     # Two tabs: the accounts themselves, and what left them -- the bills'
     # instalments paid from an account and the bank charges, entered here.
     tab = request.args.get("tab") if request.args.get("tab") in ("comptes", "transactions") else "comptes"
@@ -137,7 +151,7 @@ def _render_form(row, error=None):
 
 @accounts_bp.route("/comptes/nouveau", methods=["GET", "POST"])
 @login_required
-@require_perm(FUND)
+@require_any_perm(*PURSE)
 def new():
     if request.method == "POST":
         error = _save_list_row(CashAccount, None, "account")
@@ -150,11 +164,12 @@ def new():
 
 @accounts_bp.route("/comptes/<int:aid>/modifier", methods=["GET", "POST"])
 @login_required
-@require_perm(FUND)
+@require_any_perm(*PURSE)
 def edit(aid):
     row = db.session.get(CashAccount, aid)
     if not row:
         abort(404)
+    _purse_or_403(row)
     if request.method == "POST":
         error = _save_list_row(CashAccount, row, "account")
         if error:
@@ -167,13 +182,14 @@ def edit(aid):
 @accounts_bp.route("/comptes/<int:aid>/<any(archive,reactivate,delete):what>",
                    methods=["POST"])
 @login_required
-@require_perm(FUND)
+@require_any_perm(*PURSE)
 def action(aid, what):
     """Archive takes it out of the pickers and leaves its history named; delete
     is only for one nothing has ever pointed at."""
     row = db.session.get(CashAccount, aid)
     if not row:
         abort(404)
+    _purse_or_403(row)
     t = get_t()
     if what == "delete":
         if row.id in _used_ids():

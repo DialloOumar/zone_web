@@ -16,7 +16,7 @@
         <div>
             <h2>{{ t['list.accounts'] }}</h2>
         </div>
-        {% if tab == 'comptes' and has_perm('supplier_invoice.edit') %}
+        {% if tab == 'comptes' and (has_perm('supplier_invoice.edit') or has_perm('expense.create')) %}
         <a href="{{ url_for('accounts.new') }}" class="fab"
            data-modal-url="{{ url_for('accounts.new') }}" data-modal-title="{{ t['list.account_new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['list.account_new'] }}
@@ -124,7 +124,7 @@
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td class="row-actions">
-                    {% if has_perm('supplier_invoice.edit') %}
+                    {% if has_perm('supplier_invoice.edit') or (has_perm('expense.create') and r.is_repayable) %}
                     <a href="{{ url_for('accounts.edit', aid=r.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('accounts.edit', aid=r.id) }}" data-modal-title="{{ t['list.edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>

@@ -18,9 +18,11 @@
         <label for="number">{{ t['list.account_number'] }}</label>
     </div>
 
-    {% set rep = (request.form.get('is_repayable') is not none) if request.method == 'POST'
-                 else (row.is_repayable if is_edit else False) %}
-    <label class="checkbox-item">
+    {% set rep = true if cashier_only else ((request.form.get('is_repayable') is not none) if request.method == 'POST'
+                 else (row.is_repayable if is_edit else False)) %}
+    {# The cashier's purses are owed back by nature: the box is the only
+       choice she has, so there is nothing to tick. #}
+    <label class="checkbox-item" {% if cashier_only %}hidden{% endif %}>
         <input type="checkbox" name="is_repayable" id="is_repayable" {% if rep %}checked{% endif %}>
         <span>{{ t['list.repayable'] }}</span>
     </label>

@@ -16,7 +16,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
-from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_action,
+from app import (cashier_only, current_user_fleet_ids, get_t, has_perm, is_modal_request, log_action,
                  modal_ok, needs_approval, parse_amount, require_perm,
                  submit_change, with_current_fleet)
 from blueprints.notifications import notify
@@ -527,6 +527,9 @@ def account_balances():
         e = per.get(acc.id)
         if not e:
             continue
+        # The cashier sees what is owed back, not the company's accounts.
+        if cashier_only() and not acc.is_repayable:
+            continue
         out.append({"account": acc, "in": e["in"], "out": e["out"],
                     "balance": e["in"] - e["out"]})
     return out
@@ -658,7 +661,7 @@ def index():
         balance=cash_balance(), accounts_summary=account_balances(),
         date_from=date_from, date_to=date_to,
         sites=active_sites(), vehicles=_accessible_vehicles(),
-        accounts=active_accounts(), staff=active_staff(),
+        accounts=repayable_accounts() if cashier_only() else active_accounts(), staff=active_staff(),
         site_ids=site_ids, vehicle_ids=vehicle_ids, account_ids=account_ids,
         staff_ids=staff_ids,
         maintenance_category=MAINTENANCE_CATEGORY)
@@ -1082,7 +1085,8 @@ def _save_list_row(model, row, kind):
     row.name = name
     if kind == "account":
         row.number = (request.form.get("number") or "").strip() or None
-        row.is_repayable = request.form.get("is_repayable") is not None
+        # The cashier only ever makes a purse that is owed back.
+        row.is_repayable = cashier_only() or request.form.get("is_repayable") is not None
         row.kind = "mobile" if request.form.get("kind") == "mobile" else "bank"
         # Its account on the plan: treasury for the company's own purse,
         # a tiers when the money is owed back. Only whoever keeps the
@@ -1221,9 +1225,10 @@ def _render_movement_form(movement, kind, error=None):
     tpl = "_movement_form.html" if is_modal_request() else "movement_form.html"
     status = 422 if (error and is_modal_request()) else 200
     accounts = active_accounts()
-    if kind == "depot":
-        # Only what is owed back; a company account sends through Facturation.
-        keep = movement.account_id if movement is not None else None
+    keep = movement.account_id if movement is not None else None
+    if kind == "depot" or cashier_only():
+        # Only what is owed back; a company account sends through Facturation,
+        # and the cashier never handles the company's accounts herself.
         accounts = [a for a in accounts if a.is_repayable or a.id == keep]
     return render_template(tpl, movement=movement, kind=kind, error=error,
                            methods=PAYMENT_METHODS, accounts=accounts,
