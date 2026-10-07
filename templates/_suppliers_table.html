@@ -38,7 +38,9 @@
             <tr>
                 <td style="white-space:nowrap;"><span class="chip">{{ s.code }}</span></td>
                 <td>
-                    <strong {% if not s.is_active %}class="muted"{% endif %}>{{ s.name }}</strong>
+                    {% if full and has_perm('supplier_invoice.view') %}
+                    <a href="{{ url_for('supplier_reports.detail', sid=s.id) }}"><strong {% if not s.is_active %}class="muted"{% endif %}>{{ s.name }}</strong></a>
+                    {% else %}<strong {% if not s.is_active %}class="muted"{% endif %}>{{ s.name }}</strong>{% endif %}
                     {% if not s.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
                     {% if s.note %}<div class="muted small">{{ s.note }}</div>{% endif %}
                 </td>

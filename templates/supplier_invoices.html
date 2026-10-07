@@ -115,6 +115,9 @@
             </a>
             {% endif %}
             {% else %}
+            <a href="{{ url_for('supplier_reports.aged_report') }}" class="btn btn--sm btn--tonal">
+                <span class="material-symbols-outlined">query_stats</span> {{ t['aged.title'] }}
+            </a>
             <a href="{{ url_for('supplier_invoices.supplier_new') }}" class="fab"
                data-modal-url="{{ url_for('supplier_invoices.supplier_new') }}" data-modal-title="{{ t['invoice.supplier_new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['invoice.supplier_new'] }}

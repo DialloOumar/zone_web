@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}{{ sup.name }}{% endblock %}
+{% block page_title %}{{ t['invoice.supplier'] }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a data-back href="{{ url_for('supplier_invoices.index', tab='fournisseurs') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a href="{{ url_for('supplier_reports.statement_print', sid=sup.id) }}" class="btn btn--sm btn--primary" target="_blank" rel="noopener">
+        <span class="material-symbols-outlined">print</span> {{ t['supplier.print_statement'] }}
+    </a>
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2><span class="chip">{{ sup.code }}</span> {{ sup.name }}
+                {% if not sup.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}</h2>
+            <p class="muted small" style="margin:4px 0 0;">
+                {{ t['supplier.kind.' + sup.kind] }}{% if sup.contact %} &middot; {{ sup.contact }}{% endif %}{% if sup.email %} &middot; {{ sup.email }}{% endif %}
+            </p>
+        </div>
+        <div class="caisse-balance {% if f.owed > 0 %}stock-negative{% endif %}">
+            <span class="caisse-balance__label">{{ t['supplier.owed'] }}</span>
+            <strong>{{ f.owed | num }} {{ currency }}</strong>
+        </div>
+    </div>
+
+    {# What it comes to: owed and late now, bought and paid over the period. #}
+    <div class="stat-grid">
+        {% for icon, color, value, label, warn in (
+            ('account_balance_wallet', 'blue', f.owed, t['supplier.owed'], false),
+            ('warning', 'red', f.late, t['supplier.late'], f.late > 0),
+            ('receipt_long', 'amber', f.bought, t['supplier.bought'], false),
+            ('payments', 'green', f.paid, t['supplier.paid'], false)) %}
+        <div class="stat-card">
+            <span class="stat-icon stat-icon--{{ color }} material-symbols-outlined">{{ icon }}</span>
+            <div>
+                <div class="stat-value {% if warn %}stock-negative{% endif %}">{{ value | num }}<span class="stat-unit"> {{ currency }}</span></div>
+                <div class="stat-label">{{ label }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <form method="get" class="filter-bar filter-bar--live" style="margin-top:8px;">
+        <span class="muted small">{{ t['supplier.period'] }}</span>
+        <label class="filter-date"><span>{{ t['entry.from'] }}</span><input type="date" name="date_from" value="{{ date_from }}"></label>
+        <label class="filter-date"><span>{{ t['entry.to'] }}</span><input type="date" name="date_to" value="{{ date_to }}"></label>
+        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+    </form>
+</section>
+
+{% if open_bills %}
+<section class="card">
+    <div class="card-header"><h2>{{ t['supplier.open_bills'] }}</h2></div>
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['invoice.number_short'] }}</th>
+            <th>{{ t['bank.date'] }}</th>
+            <th>{{ t['invoice.due_short'] }}</th>
+            <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
+            <th style="text-align:right;">{{ t['invoice.remaining'] }}</th>
+            <th></th>
+        </tr></thead>
+        <tbody>
+            {% for b in open_bills %}
+            {% set late = (b.due_date or b.date) < today %}
+            <tr>
+                <td>{% if b.is_opening %}<span class="badge badge--info">{{ t['opening.title'] }}</span>{% else %}{{ b.number or '—' }}{% endif %}
+                    {% if b.description and not b.is_opening %}<div class="muted small">{{ b.description }}</div>{% endif %}</td>
+                <td style="white-space:nowrap;">{{ b.date }}</td>
+                <td style="white-space:nowrap;">{{ b.due_date or '—' }}{% if late %} <span class="badge badge--critical">{{ t['cpay.status.overdue'] }}</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ b.amount | num }}</td>
+                <td style="text-align:right; white-space:nowrap;"><strong class="stock-negative">{{ b.remaining | num }}</strong></td>
+                <td class="row-actions">
+                    <a href="{{ url_for('supplier_invoices.payments', iid=b.id) }}" class="btn btn--sm btn--tonal">{{ t['invoice.payments'] }}</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+</section>
+{% endif %}
+
+<section class="card">
+    <div class="card-header">
+        <h2>{{ t['supplier.statement'] }}</h2>
+        <span class="muted small">{{ rows | length }}</span>
+    </div>
+    {% if rows %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['bank.date'] }}</th>
+            <th>{{ t['fund.what'] }}</th>
+            <th style="text-align:right;">{{ t['supplier.col_bill'] }}</th>
+            <th style="text-align:right;">{{ t['supplier.col_paid'] }}</th>
+            <th style="text-align:right;">{{ t['supplier.col_owed'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td style="white-space:nowrap;">{{ r.date }}</td>
+                <td>
+                    {% if r.kind == 'payment' %}<span class="badge badge--active">{{ t['supplier.line.payment'] }}</span>
+                    {% elif r.kind == 'opening' %}<span class="badge badge--info">{{ t['opening.title'] }}</span>
+                    {% else %}<span class="badge badge--warning">{{ t['supplier.line.bill'] }}</span>{% endif %}
+                    {% if r.kind != 'opening' %}<a href="{{ url_for('supplier_invoices.payments', iid=r.bill.id) }}">{{ r.label }}</a>{% endif %}
+                    {% if r.detail %}<div class="muted small">{{ r.detail }}</div>{% endif %}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">{% if r.debit %}{{ r.debit | num }}{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if r.credit %}{{ r.credit | num }}{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;"><strong>{{ r.balance | num }}</strong></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <p class="muted" style="padding:6px 0;">{{ t['supplier.statement_empty'] }}</p>
+    {% endif %}
+</section>
+
+{% if orders %}
+<section class="card">
+    <div class="card-header"><h2>{{ t['po.title'] }}</h2></div>
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['cinv.number'] }}</th><th>{{ t['po.date'] }}</th><th>{{ t['cinv.status'] }}</th>
+            <th style="text-align:right;">{{ t['cinv.total'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for po in orders %}
+            <tr>
+                <td><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a></td>
+                <td style="white-space:nowrap;">{{ po.date }}</td>
+                <td>{{ t['po.status.' + po.status] }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ po.total | num }} {{ currency }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+</section>
+{% endif %}
+{% endblock %}
