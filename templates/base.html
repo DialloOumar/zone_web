@@ -70,7 +70,7 @@
             {# The orders, a page of their own: logistics writes them, logistics
                and finance sign them, the store receives them. The badge is
                what waits for this person's signature. #}
-            <li><a href="{{ url_for('purchases.index', tab='a_signer') if orders_to_sign else url_for('purchases.index') }}" class="sidebar-sub {% if request.blueprint == 'purchases' %}active{% endif %}">
+            <li><a href="{{ url_for('purchases.index', status='pending') if orders_to_sign else url_for('purchases.index') }}" class="sidebar-sub {% if request.blueprint == 'purchases' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">request_quote</span> {{ t['po.title'] }}{% if orders_to_sign %} <span class="tab__count tab__count--alert">{{ orders_to_sign }}</span>{% endif %}
             </a></li>
             {% endif %}

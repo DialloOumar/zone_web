@@ -35,14 +35,6 @@ from models import Part, PurchaseOrder, PurchaseOrderLine, StockMovement, Suppli
 
 purchases_bp = Blueprint("purchases", __name__, url_prefix="/stock/commandes")
 
-# The page's tabs, by life stage.
-TAB_STATUSES = {
-    "a_signer": ("pending_logistics", "pending_finance"),
-    "en_cours": ("approved", "received_partial"),
-    "termines": ("received", "rejected"),
-}
-TABS = tuple(TAB_STATUSES)
-
 STATUSES = ("pending_logistics", "pending_finance", "approved", "rejected",
             "received_partial", "received")
 PENDING = ("pending_logistics", "pending_finance")
@@ -246,18 +238,10 @@ def _write_lines(po, lines):
 @login_required
 @require_perm("stock.view")
 def index():
-    # The page's tabs follow the order's life: waiting for a signature, on
-    # its way (approved, delivered in part), done (received, rejected); a
-    # status picked by name narrows further.
-    tab = request.args.get("tab") or ""
-    if tab not in TABS:
-        tab = ""
     status = request.args.get("status") or ""
     if status not in STATUSES + ("pending",):
         status = ""
     q = PurchaseOrder.query
-    if tab:
-        q = q.filter(PurchaseOrder.status.in_(TAB_STATUSES[tab]))
     if status == "pending":
         q = q.filter(PurchaseOrder.status.in_(PENDING))
     elif status:
@@ -277,9 +261,7 @@ def index():
         mine += counts.get("pending_logistics", 0)
     if user_approves("finance"):
         mine += counts.get("pending_finance", 0)
-    tab_counts = {k: sum(counts.get(s, 0) for s in v) for k, v in TAB_STATUSES.items()}
     return render_template("purchase_orders.html", orders=pagination.items, pagination=pagination,
-                           tab=tab, tab_counts=tab_counts,
                            status=status, search=search, counts=counts, mine=mine,
                            statuses=STATUSES, can_create=has_perm("stock.manage"),
                            parts_count=Part.query.filter(Part.is_active.is_(True)).count(),

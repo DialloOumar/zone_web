@@ -1,11 +1,7 @@
-{# The store's tools, above its catalogue: the units, the conversions
-   between them, and the way to a new order (the orders live on their own
-   page, Bons de commande). #}
+{# The store's tools, above its catalogue: the units and the conversions
+   between them. The orders live on their own page, Bons de commande. #}
 {% if has_perm('stock.manage') %}
 <div class="stock-settings">
-    <a href="{{ url_for('purchases.new') }}" class="btn btn--sm btn--tonal">
-        <span class="material-symbols-outlined">add</span> {{ t['po.new'] }}
-    </a>
     <a href="{{ url_for('stock.units') }}" class="btn btn--sm btn--outlined"
        data-modal-url="{{ url_for('stock.units') }}" data-modal-title="{{ t['punit.title'] }}">
         <span class="material-symbols-outlined">tune</span> {{ t['punit.title'] }}

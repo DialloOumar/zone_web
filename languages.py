@@ -1675,9 +1675,6 @@ TRANSLATIONS = {
         "role.approves_finance":   "Responsable financier : approuve les bons de commande (2e signature)",
         "role.approves_hint":      "Les deux signatures du bon de commande. Un bon créé par un responsable logistique porte déjà la première.",
         # Bons de commande
-        "po.tab.a_signer":        "À signer",
-        "po.tab.en_cours":        "En cours",
-        "po.tab.termines":        "Terminés",
         "po.title":               "Bons de commande",
         "po.one":                 "Bon de commande",
         "po.new":                 "Nouveau bon",
@@ -3683,9 +3680,6 @@ TRANSLATIONS = {
         "role.approves_finance":   "Finance manager: approves purchase orders (2nd signature)",
         "role.approves_hint":      "The two signatures on a purchase order. An order created by a logistics manager already carries the first.",
         # Bons de commande
-        "po.tab.a_signer":        "To sign",
-        "po.tab.en_cours":        "In progress",
-        "po.tab.termines":        "Done",
         "po.title":               "Purchase orders",
         "po.one":                 "Purchase order",
         "po.new":                 "New order",
