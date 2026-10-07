@@ -699,10 +699,20 @@ def transfer_edit(tid):
 @login_required
 @require_perm(FUND)
 def transfer_delete(tid):
-    row = _open_transfer_or_404(tid)
-    if row is None:
+    """A sending the box has not answered goes with its fee. One the box
+    already counted is taken back only by the super admin -- a test, a
+    mistake -- and the money-in it wrote in the box goes with it, so both
+    balances stay true."""
+    row = db.session.get(CashTransfer, tid)
+    if not row:
+        abort(404)
+    if row.status == "received" and not current_user.is_super_admin:
+        flash("error|" + get_t()["transfer.err.answered"])
         return redirect(request.referrer or url_for("accounts.index"))
     aid, photo_key = row.account_id, row.photo_key
+    for m in CashMovement.query.filter_by(transfer_id=row.id).all():
+        db.session.delete(m)
+    db.session.flush()
     _drop_with_fee(row)
     log_action("DELETE", "cash_transfer", resource_id=tid,
                detail="Deleted sending to the cash box #%s" % tid)

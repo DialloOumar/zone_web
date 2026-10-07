@@ -66,6 +66,24 @@
                 <a href="{{ url_for('accounts.move_edit', vid=row.id) }}" class="btn btn--sm btn--tonal btn--icon"
                    data-modal-url="{{ url_for('accounts.move_edit', vid=row.id) }}" data-modal-title="{{ t['move.edit'] }}"
                    title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                <form method="post" action="{{ url_for('accounts.move_delete', vid=row.id) }}"
+                      data-confirm="{{ t['move.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                    <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                </form>
+                {% endif %}
+                {# A sending to the box: changed or taken back while the box has
+                   not answered; once counted, only the super admin takes it
+                   back, with the money-in it wrote. #}
+                {% if kind == 'till' and ((row.status == 'sent' and has_perm('supplier_invoice.edit')) or is_super_admin) %}
+                {% if row.status == 'sent' %}
+                <a href="{{ url_for('accounts.transfer_edit', tid=row.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                   data-modal-url="{{ url_for('accounts.transfer_edit', tid=row.id) }}" data-modal-title="{{ t['transfer.edit'] }}"
+                   title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                {% endif %}
+                <form method="post" action="{{ url_for('accounts.transfer_delete', tid=row.id) }}"
+                      data-confirm="{{ t['transfer.delete_received_confirm'] if row.status == 'received' else t['transfer.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                    <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                </form>
                 {% endif %}
                 {% if kind == 'charge' %}
                 {% if has_perm('supplier_invoice.edit') %}

@@ -122,12 +122,14 @@
                         <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                     </form>
                     {% endif %}
-                    {% if r.kind == 'transfer' and r.row.status == 'sent' and has_perm('supplier_invoice.edit') %}
+                    {% if r.kind == 'transfer' and ((r.row.status == 'sent' and has_perm('supplier_invoice.edit')) or is_super_admin) %}
+                    {% if r.row.status == 'sent' %}
                     <a href="{{ url_for('accounts.transfer_edit', tid=r.row.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('accounts.transfer_edit', tid=r.row.id) }}" data-modal-title="{{ t['transfer.edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% endif %}
                     <form method="post" action="{{ url_for('accounts.transfer_delete', tid=r.row.id) }}"
-                          data-confirm="{{ t['transfer.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                          data-confirm="{{ t['transfer.delete_received_confirm'] if r.row.status == 'received' else t['transfer.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
                         <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
                     </form>
                     {% endif %}
