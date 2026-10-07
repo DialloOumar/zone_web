@@ -212,6 +212,9 @@ def _inject_globals():
         "is_super_admin": current_user.is_authenticated and current_user.is_super_admin,
         # Shows the accounting pages of the Finance section in the drawer.
         "finance_visible": can_enter_finance(),
+        # Orders waiting for a signature this person can give, for the
+        # drawer's badge on Bons de commande.
+        "orders_to_sign": _orders_to_sign(),
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,
         "my_pending": my_pending,
@@ -249,6 +252,22 @@ def _vehicle_image(v):
                                v=drawing_tag(cat.default_image, v.code)),
                 "drawing": True}
     return None
+
+
+def _orders_to_sign():
+    """How many purchase orders wait for a signature the current user can
+    give; zero for anyone who signs nothing. Cheap, read once per request."""
+    if not current_user.is_authenticated:
+        return 0
+    try:
+        from blueprints.purchases import PENDING_BY_ROLE, user_approves
+        from models import PurchaseOrder
+        waiting = [st for role, st in PENDING_BY_ROLE.items() if user_approves(role)]
+        if not waiting:
+            return 0
+        return PurchaseOrder.query.filter(PurchaseOrder.status.in_(waiting)).count()
+    except Exception:
+        return 0
 
 
 def _service_type_label(code):

@@ -15,7 +15,25 @@
 
 {% block content %}
 <section class="card">
-    {% with stock_tab = 'commandes' %}{% include "_stock_tabs.html" %}{% endwith %}
+    {# The units a new article may count in are set here as on Stock; the
+       conversions between units stay on Stock, the store's business. #}
+    {% if has_perm('stock.manage') %}
+    <div class="stock-settings">
+        <a href="{{ url_for('stock.units') }}" class="btn btn--sm btn--outlined"
+           data-modal-url="{{ url_for('stock.units') }}" data-modal-title="{{ t['punit.title'] }}">
+            <span class="material-symbols-outlined">tune</span> {{ t['punit.title'] }}
+        </a>
+    </div>
+    {% endif %}
+    {# The order's life, as tabs: waiting for a signature, on its way, done. #}
+    <nav class="tabs" role="tablist">
+        <a href="{{ url_for('purchases.index') }}" role="tab" class="tab {% if not tab %}tab--on{% endif %}">{{ t['cpay.filter.all'] }}<span class="tab__count">{{ pagination.total if not tab else orders_count }}</span></a>
+        {% for k in ('a_signer', 'en_cours', 'termines') %}
+        <a href="{{ url_for('purchases.index', tab=k) }}" role="tab" class="tab {% if tab == k %}tab--on{% endif %}">
+            {{ t['po.tab.' + k] }}<span class="tab__count {% if k == 'a_signer' and mine %}tab__count--alert{% endif %}">{{ tab_counts.get(k, 0) }}</span>
+        </a>
+        {% endfor %}
+    </nav>
     <div class="tab-bar">
         <div class="tab-bar__filters"></div>
         <div class="tab-bar__actions">
@@ -34,11 +52,12 @@
     {% if mine %}
     <div class="alert alert--warning">
         {{ t['po.mine'] % mine }}
-        <a href="{{ url_for('purchases.index', status='pending') }}">{{ t['po.mine_link'] }}</a>
+        <a href="{{ url_for('purchases.index', tab='a_signer') }}">{{ t['po.mine_link'] }}</a>
     </div>
     {% endif %}
 
     <form method="get" class="filter-bar filter-bar--live">
+        <input type="hidden" name="tab" value="{{ tab }}">
         <label class="filter-date">
             <span>{{ t['cinv.status'] }}</span>
             <select name="status" onchange="this.form.submit()">
@@ -54,7 +73,7 @@
         </label>
         <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
         {% if status or search %}
-        <a href="{{ url_for('purchases.index') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
+        <a href="{{ url_for('purchases.index', tab=tab) }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
         {% endif %}
     </form>
 

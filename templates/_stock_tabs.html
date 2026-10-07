@@ -1,8 +1,11 @@
-{# The store's two tabs, on both of its pages: the catalogue, and what was
-   ordered. Each is its own page; the nav makes them read as one. Above
-   them, what both share: the units and the conversions between them. #}
+{# The store's tools, above its catalogue: the units, the conversions
+   between them, and the way to a new order (the orders live on their own
+   page, Bons de commande). #}
 {% if has_perm('stock.manage') %}
 <div class="stock-settings">
+    <a href="{{ url_for('purchases.new') }}" class="btn btn--sm btn--tonal">
+        <span class="material-symbols-outlined">add</span> {{ t['po.new'] }}
+    </a>
     <a href="{{ url_for('stock.units') }}" class="btn btn--sm btn--outlined"
        data-modal-url="{{ url_for('stock.units') }}" data-modal-title="{{ t['punit.title'] }}">
         <span class="material-symbols-outlined">tune</span> {{ t['punit.title'] }}
@@ -13,13 +16,3 @@
     </a>
 </div>
 {% endif %}
-<nav class="tabs" role="tablist">
-    <a href="{{ url_for('stock.index') }}" role="tab" aria-selected="{{ 'true' if stock_tab == 'stock' else 'false' }}"
-       class="tab {% if stock_tab == 'stock' %}tab--on{% endif %}">
-        {{ t['nav.stock'] }}<span class="tab__count">{{ parts_count }}</span>
-    </a>
-    <a href="{{ url_for('purchases.index') }}" role="tab" aria-selected="{{ 'true' if stock_tab == 'commandes' else 'false' }}"
-       class="tab {% if stock_tab == 'commandes' %}tab--on{% endif %}">
-        {{ t['po.title'] }}<span class="tab__count">{{ orders_count }}</span>
-    </a>
-</nav>
