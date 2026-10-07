@@ -43,7 +43,8 @@ supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
 
 # The two parts of the page, shown one at a time: the bills and the people
 # who send them. What moved on the bank accounts lives on Comptes.
-TABS = ("factures", "a_facturer", "fournisseurs")
+# The suppliers used to be a tab here; they have a page of their own now.
+TABS = ("factures", "a_facturer")
 BILLABLE = ("approved", "received_partial", "received")
 
 
@@ -489,13 +490,14 @@ def index():
     owed = {r[0]: {"count": int(r[1]), "remaining": int(r[2] or 0)} for r in owed_rows}
 
     tab = request.args.get("tab")
+    if tab == "fournisseurs":
+        # An old link to the tab that became the suppliers' own page.
+        return redirect(url_for("supplier_invoices.suppliers", kind=request.args.get("kind") or None))
     if tab == "transactions":
         # An old link to the tab that moved to Comptes.
         return redirect(url_for("accounts.index", tab="transactions"))
     if tab not in TABS:
-        # Nothing recorded yet and nobody named either: open where the work
-        # actually starts, which is saying who sends the bills.
-        tab = "fournisseurs" if (not pagination.total and not suppliers) else "factures"
+        tab = "factures"
     kept = request.args.to_dict(flat=False)
     kept.pop("tab", None)
     # Switching tab starts at the top of the list, not on page 4 of the one you
@@ -991,8 +993,6 @@ def _render_supplier_form(row, error=None):
 def _suppliers_url():
     """Back to the suppliers list the user may open: the bills page's tab, or
     the standalone page the store reaches."""
-    if has_perm("supplier_invoice.view"):
-        return url_for("supplier_invoices.index", tab="fournisseurs")
     return url_for("supplier_invoices.suppliers")
 
 
@@ -1116,7 +1116,7 @@ def supplier_opening(sid):
         elif amount < paid:
             error = t["opening.err.below_paid"] % {"paid": "{:,}".format(paid).replace(",", " ")}
         elif amount == 0 and row is None:
-            return modal_ok() if is_modal_request() else redirect(url_for("supplier_invoices.index", tab="fournisseurs"))
+            return modal_ok() if is_modal_request() else redirect(url_for("supplier_invoices.suppliers"))
         if not error:
             if amount == 0 and not row.payments:
                 db.session.delete(row)
@@ -1132,12 +1132,12 @@ def supplier_opening(sid):
                        detail="Opening balance owed to '%s': %s GNF on %s" % (sup.name, amount, day))
             db.session.commit()
             flash("success|" + t["opening.saved"])
-            return modal_ok() if is_modal_request() else redirect(url_for("supplier_invoices.index", tab="fournisseurs"))
+            return modal_ok() if is_modal_request() else redirect(url_for("supplier_invoices.suppliers"))
     tpl = "_opening_form.html" if is_modal_request() else "opening_form.html"
     status = 422 if (error and is_modal_request()) else 200
     return render_template(tpl, row=row, error=error, today=date.today().isoformat(),
                            action=url_for("supplier_invoices.supplier_opening", sid=sid),
-                           back=url_for("supplier_invoices.index", tab="fournisseurs"),
+                           back=url_for("supplier_invoices.suppliers"),
                            amount=row.amount if row else None,
                            paid=row.paid_amount if row else 0,
                            title=t["opening.supplier_title"]), status

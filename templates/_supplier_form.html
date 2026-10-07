@@ -124,7 +124,7 @@
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
         </button>
-        <a href="{{ cancel_url or (url_for('supplier_invoices.index', tab='fournisseurs') if has_perm('supplier_invoice.view') else url_for('supplier_invoices.suppliers')) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+        <a href="{{ cancel_url or (url_for('supplier_invoices.suppliers') if has_perm('supplier_invoice.view') else url_for('supplier_invoices.suppliers')) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
 

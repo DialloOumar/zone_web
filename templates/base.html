@@ -97,9 +97,13 @@
                 <span class="nav-icon material-symbols-outlined">point_of_sale</span> {{ t['nav.expenses'] }}
             </a></li>
             {% endif %}
+            {% set on_suppliers = request.blueprint == 'supplier_reports' or request.endpoint in ('supplier_invoices.suppliers', 'supplier_invoices.supplier_opening') %}
             {% if has_perm('supplier_invoice.view') %}
-            <li><a href="{{ url_for('supplier_invoices.index') }}" class="sidebar-sub {% if request.blueprint == 'supplier_invoices' %}active{% endif %}">
+            <li><a href="{{ url_for('supplier_invoices.index') }}" class="sidebar-sub {% if request.blueprint == 'supplier_invoices' and not on_suppliers %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">receipt_long</span> {{ t['nav.supplier_invoices'] }}
+            </a></li>
+            <li><a href="{{ url_for('supplier_invoices.suppliers') }}" class="sidebar-sub {% if on_suppliers %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">store</span> {{ t['invoice.tab_suppliers'] }}
             </a></li>
             {% endif %}
             {% if has_perm('invoicing.view') %}

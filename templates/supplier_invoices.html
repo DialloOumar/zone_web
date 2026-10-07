@@ -98,10 +98,6 @@
             {{ t['tobill.tab'] }}{% if to_bill %}<span class="tab__count tab__count--alert">{{ to_bill | length }}</span>{% endif %}
         </a>
         {% endif %}
-        <a href="{{ tab_urls['fournisseurs'] }}" role="tab" aria-selected="{{ 'true' if tab == 'fournisseurs' else 'false' }}"
-           class="tab {% if tab == 'fournisseurs' %}tab--on{% endif %}">
-            {{ t['invoice.tab_suppliers'] }}<span class="tab__count">{{ suppliers | length }}</span>
-        </a>
     </nav>
 
     <div class="tab-bar">
@@ -116,26 +112,16 @@
             {% else %}
             {# A bill is always from somebody: with nobody on the list there is
                nothing to file it under, so the button says where to start. #}
-            <a href="{{ tab_urls['fournisseurs'] }}" class="btn btn--sm btn--tonal">
+            <a href="{{ url_for('supplier_invoices.suppliers') }}" class="btn btn--sm btn--tonal">
                 <span class="material-symbols-outlined">store</span> {{ t['invoice.supplier_first'] }}
             </a>
             {% endif %}
-            {% else %}
-            <a href="{{ url_for('supplier_reports.aged_report') }}" class="btn btn--sm btn--tonal">
-                <span class="material-symbols-outlined">query_stats</span> {{ t['aged.title'] }}
-            </a>
-            <a href="{{ url_for('supplier_invoices.supplier_new') }}" class="fab"
-               data-modal-url="{{ url_for('supplier_invoices.supplier_new') }}" data-modal-title="{{ t['invoice.supplier_new'] }}">
-                <span class="material-symbols-outlined">add</span> {{ t['invoice.supplier_new'] }}
-            </a>
             {% endif %}
             {% endif %}
         </div>
     </div>
 
-    {% if tab == 'fournisseurs' %}
-    {% include "_suppliers_table.html" %}
-    {% elif tab == 'a_facturer' %}
+    {% if tab == 'a_facturer' %}
     {# Orders both signatures approved, with no bill tied to them yet. The
        button opens the bill already filled from the order. #}
     {% if to_bill %}

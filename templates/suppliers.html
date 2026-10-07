@@ -4,11 +4,16 @@
 {% block page_title %}{{ t['invoice.tab_suppliers'] }}{% endblock %}
 
 {% block content %}
-{# The one list of suppliers, reached from the store as well as from the
-   bills: whoever buys parts names the same suppliers accounting pays. #}
+{# The one list of suppliers, in the menu: whoever buys parts names the same
+   suppliers accounting pays. A name opens the supplier's page. #}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a data-back href="{{ url_for('stock.index') }}"
+    <a data-back href="{{ url_for('supplier_invoices.index') if has_perm('supplier_invoice.view') else url_for('stock.index') }}"
        class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    {% if has_perm('supplier_invoice.view') %}
+    <a href="{{ url_for('supplier_reports.aged_report') }}" class="btn btn--sm btn--tonal">
+        <span class="material-symbols-outlined">query_stats</span> {{ t['aged.title'] }}
+    </a>
+    {% endif %}
 </div>
 
 <section class="card">

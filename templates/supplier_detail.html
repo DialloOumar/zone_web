@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a data-back href="{{ url_for('supplier_invoices.index', tab='fournisseurs') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a data-back href="{{ url_for('supplier_invoices.suppliers') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
     <a href="{{ url_for('supplier_reports.statement_print', sid=sup.id) }}" class="btn btn--sm btn--primary" target="_blank" rel="noopener">
         <span class="material-symbols-outlined">print</span> {{ t['supplier.print_statement'] }}
     </a>

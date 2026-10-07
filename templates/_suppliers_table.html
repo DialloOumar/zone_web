@@ -1,7 +1,6 @@
-{# The suppliers list: the kind filter and the table. Included by the bills
-   page (its Fournisseurs tab) and by the standalone page the store opens. #}
+{# The suppliers list: the kind filter and the table, on the suppliers'
+   own page. #}
     <form method="get" class="filter-bar filter-bar--live" style="margin-bottom:10px;">
-        {% if request.endpoint == 'supplier_invoices.index' %}<input type="hidden" name="tab" value="fournisseurs">{% endif %}
         <label class="filter-date">
             <span>{{ t['supplier.kind'] }}</span>
             <select name="kind" onchange="this.form.submit()">
