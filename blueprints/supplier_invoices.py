@@ -43,7 +43,17 @@ supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
 
 # The two parts of the page, shown one at a time: the bills and the people
 # who send them. What moved on the bank accounts lives on Comptes.
-TABS = ("factures", "fournisseurs")
+TABS = ("factures", "a_facturer", "fournisseurs")
+BILLABLE = ("approved", "received_partial", "received")
+
+
+def orders_to_bill():
+    """Orders both signatures approved that no bill is tied to yet: the
+    accountant's to-do, oldest approval first. A bill tied to one, whatever
+    its amount, takes it off the list."""
+    return [po for po in (PurchaseOrder.query.filter(PurchaseOrder.status.in_(BILLABLE))
+                          .order_by(PurchaseOrder.finance_at, PurchaseOrder.id).all())
+            if not po.invoices]
 
 # How a charge leaves the bank with no bill behind it. Never cash: that is
 # the box's, on the Caisse page.
@@ -494,8 +504,11 @@ def index():
     tab_urls = {name: url_for("supplier_invoices.index", tab=name, **kept)
                 for name in TABS}
 
+    to_bill = orders_to_bill() if has_perm("supplier_invoice.create") else []
+    if tab == "a_facturer" and not has_perm("supplier_invoice.create"):
+        tab = "factures"
     return render_template(
-        "supplier_invoices.html",
+        "supplier_invoices.html", to_bill=to_bill,
         invoices=pagination.items, pagination=pagination,
         suppliers=suppliers, pickable=active_suppliers(), owed=owed,
         billed=billed, paid=paid, opening=opening, remaining=max(billed + opening - paid, 0),

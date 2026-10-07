@@ -67,6 +67,14 @@ def todos():
             out.append(dict(kind="todo.po_finance", url=url,
                             params=dict(number=po.number, supplier=po.supplier.name if po.supplier else "")))
 
+    # Orders approved and not billed yet: for whoever records the bills.
+    if has_perm("supplier_invoice.create"):
+        from blueprints.supplier_invoices import orders_to_bill
+        n = len(orders_to_bill())
+        if n:
+            out.append(dict(kind="todo.po_to_bill", url=url_for("supplier_invoices.index", tab="a_facturer"),
+                            params=dict(n=n)))
+
     # Changes waiting for an approver of their fleet -- never one's own.
     if current_user.is_super_admin:
         fleets = None

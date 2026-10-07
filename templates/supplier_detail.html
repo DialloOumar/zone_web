@@ -50,9 +50,22 @@
     </form>
 </section>
 
-{% if open_bills %}
+{# Three views of one supplier, one at a time: what is left to pay, the
+   whole statement, the orders. #}
 <section class="card">
-    <div class="card-header"><h2>{{ t['supplier.open_bills'] }}</h2></div>
+    <nav class="tabs" role="tablist">
+        {% for key, label, n in (('a_payer', t['supplier.open_bills'], open_bills | length),
+                                 ('releve', t['supplier.statement'], rows | length),
+                                 ('commandes', t['po.title'], orders | length)) %}
+        <a href="{{ url_for('supplier_reports.detail', sid=sup.id, tab=key, date_from=date_from, date_to=date_to) }}" role="tab"
+           aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
+            {{ label }}<span class="tab__count {% if key == 'a_payer' and n %}tab__count--alert{% endif %}">{{ n }}</span>
+        </a>
+        {% endfor %}
+    </nav>
+
+    {% if tab == 'a_payer' %}
+    {% if open_bills %}
     <div class="table-wrap"><table class="data-table">
         <thead><tr>
             <th>{{ t['invoice.number_short'] }}</th>
@@ -79,14 +92,11 @@
             {% endfor %}
         </tbody>
     </table></div>
-</section>
-{% endif %}
+    {% else %}
+    <div class="empty-state"><span class="material-symbols-outlined">task_alt</span><p>{{ t['supplier.nothing_due'] }}</p></div>
+    {% endif %}
 
-<section class="card">
-    <div class="card-header">
-        <h2>{{ t['supplier.statement'] }}</h2>
-        <span class="muted small">{{ rows | length }}</span>
-    </div>
+    {% elif tab == 'releve' %}
     {% if rows %}
     <div class="table-wrap"><table class="data-table">
         <thead><tr>
@@ -117,15 +127,14 @@
     {% else %}
     <p class="muted" style="padding:6px 0;">{{ t['supplier.statement_empty'] }}</p>
     {% endif %}
-</section>
 
-{% if orders %}
-<section class="card">
-    <div class="card-header"><h2>{{ t['po.title'] }}</h2></div>
+    {% else %}
+    {% if orders %}
     <div class="table-wrap"><table class="data-table">
         <thead><tr>
             <th>{{ t['cinv.number'] }}</th><th>{{ t['po.date'] }}</th><th>{{ t['cinv.status'] }}</th>
             <th style="text-align:right;">{{ t['cinv.total'] }}</th>
+            <th style="text-align:right;">{{ t['po.invoiced'] }}</th>
         </tr></thead>
         <tbody>
             {% for po in orders %}
@@ -134,10 +143,14 @@
                 <td style="white-space:nowrap;">{{ po.date }}</td>
                 <td>{{ t['po.status.' + po.status] }}</td>
                 <td style="text-align:right; white-space:nowrap;">{{ po.total | num }} {{ currency }}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if po.invoices %}{{ po.invoiced_total | num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table></div>
+    {% else %}
+    <p class="muted" style="padding:6px 0;">{{ t['supplier.no_orders'] }}</p>
+    {% endif %}
+    {% endif %}
 </section>
-{% endif %}
 {% endblock %}

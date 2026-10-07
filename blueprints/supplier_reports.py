@@ -117,7 +117,10 @@ def detail(sid):
                         key=lambda b: (b.due_date or b.date, b.date))
     orders = (PurchaseOrder.query.filter_by(supplier_id=sid)
               .order_by(PurchaseOrder.date.desc(), PurchaseOrder.id.desc()).limit(20).all())
-    return render_template("supplier_detail.html", sup=sup, rows=list(reversed(rows)),
+    tab = request.args.get("tab")
+    if tab not in ("a_payer", "releve", "commandes"):
+        tab = "a_payer" if open_bills else "releve"
+    return render_template("supplier_detail.html", sup=sup, rows=list(reversed(rows)), tab=tab,
                            open_bills=open_bills, orders=orders, today=today,
                            date_from=date_from, date_to=date_to,
                            f=figures(sup, date_from, date_to, today))

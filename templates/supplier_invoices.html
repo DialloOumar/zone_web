@@ -92,6 +92,12 @@
            class="tab {% if tab == 'factures' %}tab--on{% endif %}">
             {{ t['invoice.tab_invoices'] }}<span class="tab__count">{{ pagination.total }}</span>
         </a>
+        {% if has_perm('supplier_invoice.create') %}
+        <a href="{{ tab_urls['a_facturer'] }}" role="tab" aria-selected="{{ 'true' if tab == 'a_facturer' else 'false' }}"
+           class="tab {% if tab == 'a_facturer' %}tab--on{% endif %}">
+            {{ t['tobill.tab'] }}{% if to_bill %}<span class="tab__count tab__count--alert">{{ to_bill | length }}</span>{% endif %}
+        </a>
+        {% endif %}
         <a href="{{ tab_urls['fournisseurs'] }}" role="tab" aria-selected="{{ 'true' if tab == 'fournisseurs' else 'false' }}"
            class="tab {% if tab == 'fournisseurs' %}tab--on{% endif %}">
             {{ t['invoice.tab_suppliers'] }}<span class="tab__count">{{ suppliers | length }}</span>
@@ -129,6 +135,46 @@
 
     {% if tab == 'fournisseurs' %}
     {% include "_suppliers_table.html" %}
+    {% elif tab == 'a_facturer' %}
+    {# Orders both signatures approved, with no bill tied to them yet. The
+       button opens the bill already filled from the order. #}
+    {% if to_bill %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['cinv.number'] }}</th>
+            <th>{{ t['invoice.supplier'] }}</th>
+            <th>{{ t['tobill.approved_on'] }}</th>
+            <th>{{ t['tobill.reception'] }}</th>
+            <th style="text-align:right;">{{ t['cinv.total'] }}</th>
+            <th></th>
+        </tr></thead>
+        <tbody>
+            {% for po in to_bill %}
+            <tr>
+                <td style="white-space:nowrap;"><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a></td>
+                <td>{{ po.supplier.name if po.supplier else '—' }}</td>
+                <td style="white-space:nowrap;">{{ po.finance_at.strftime('%Y-%m-%d') if po.finance_at else po.date }}</td>
+                <td>{% if po.status == 'received' %}<span class="badge badge--active">{{ t['po.status.received'] }}</span>
+                    {% elif po.status == 'received_partial' %}<span class="badge badge--warning">{{ t['po.status.received_partial'] }}</span>
+                    {% else %}<span class="badge badge--inactive">{{ t['tobill.not_received'] }}</span>{% endif %}
+                    {% if po.received_value %}<div class="muted small">{{ t['po.received'] }} {{ po.received_value | num }}</div>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;"><strong>{{ po.total | num }}</strong> {{ currency }}</td>
+                <td class="row-actions">
+                    <a href="{{ url_for('supplier_invoices.new', po=po.id) }}" class="btn btn--sm btn--primary"
+                       data-modal-url="{{ url_for('supplier_invoices.new', po=po.id) }}" data-modal-title="{{ t['invoice.new'] }}">
+                        <span class="material-symbols-outlined">add</span> {{ t['tobill.create'] }}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">task_alt</span>
+        <p>{{ t['tobill.empty'] }}</p>
+    </div>
+    {% endif %}
     {% else %}
     {% if invoices %}
     <div class="table-desktop">

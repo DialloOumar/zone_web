@@ -61,9 +61,12 @@
             var op = sel.options[sel.selectedIndex];
             if (op && op.value && op.dataset.supplier !== sup.value) sel.value = '';
         });
-        // Opened with an order already chosen: the supplier follows it.
+        // Opened with an order already chosen: the supplier and the amount
+        // follow it -- the amount only on an empty field, to be corrected
+        // from the supplier's own bill.
         var op = sel.options[sel.selectedIndex];
         if (op && op.value && !sup.value) sup.value = filled.supplier = op.dataset.supplier;
+        if (op && op.value && amount && !amount.value.trim()) amount.value = filled.amount = fmt(+op.dataset.total);
     })();
     </script>
 
