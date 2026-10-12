@@ -1983,6 +1983,16 @@ class PurchaseOrder(db.Model):
                             cascade="all, delete-orphan", order_by="PurchaseOrderLine.id")
 
     @property
+    def requester_tel(self):
+        """The phone of whoever made the order, as their account has it now;
+        the copy taken at the time stands in if the account is gone (an
+        e-mail stored there by older orders is not a phone, so it is left)."""
+        if self.requester and self.requester.phone:
+            return self.requester.phone
+        p = self.requester_phone or ""
+        return p if p and "@" not in p else None
+
+    @property
     def received_value(self):
         """What has come in, priced as the lines were: received units × the
         line's unit cost, plus a non-stock line once it is ticked off."""

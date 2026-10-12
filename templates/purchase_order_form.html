@@ -50,7 +50,7 @@
             {# Fixed columns: nothing typed in a cell moves the others. #}
             <colgroup>
                 <col class="po-col-stock"><col class="po-col-part"><col class="po-col-ref"><col class="po-col-qty">
-                <col class="po-col-unit"><col class="po-col-price"><col class="po-col-amount"><col class="po-col-x">
+                <col class="po-col-unit"><col class="po-col-price"><col class="po-col-disc"><col class="po-col-amount"><col class="po-col-x">
             </colgroup>
             <thead>
                 <tr>
@@ -60,6 +60,7 @@
                     <th>{{ t['po.line_qty'] }}</th>
                     <th>{{ t['part.unit'] }}</th>
                     <th>{{ t['po.line_price'] }}</th>
+                    <th>{{ t['po.line_discount'] }}</th>
                     <th class="r">{{ t['cinv.amount'] }}</th>
                     <th></th>
                 </tr>
@@ -93,14 +94,15 @@
                         </select>
                     </td>
                     <td><input data-money type="text" name="unit_price" inputmode="numeric" class="r" value="{{ l.unit_price }}" required></td>
+                    <td><input data-money type="text" name="discount" inputmode="numeric" class="r" value="{{ l.discount if l.discount and l.discount != '0' else '' }}" placeholder="0"></td>
                     <td class="r po-amount">0</td>
                     <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon po-remove" title="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
                 </tr>
                 {% endfor %}
             </tbody>
             <tfoot>
-                <tr><td colspan="8"><button type="button" class="btn btn--sm btn--tonal" id="po-add"><span class="material-symbols-outlined">add</span> {{ t['po.add_line'] }}</button></td></tr>
-                <tr><td colspan="6" class="r"><strong>{{ t['cinv.total'] }}</strong></td><td class="r"><strong id="po-total">0</strong></td><td></td></tr>
+                <tr><td colspan="9"><button type="button" class="btn btn--sm btn--tonal" id="po-add"><span class="material-symbols-outlined">add</span> {{ t['po.add_line'] }}</button></td></tr>
+                <tr><td colspan="7" class="r"><strong>{{ t['cinv.total'] }}</strong></td><td class="r"><strong id="po-total">0</strong></td><td></td></tr>
             </tfoot>
         </table></div>
 
@@ -144,6 +146,7 @@
             </select>
         </td>
         <td><input data-money type="text" name="unit_price" inputmode="numeric" class="r" required></td>
+        <td><input data-money type="text" name="discount" inputmode="numeric" class="r" placeholder="0"></td>
         <td class="r po-amount">0</td>
         <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon po-remove" title="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
     </tr>
@@ -171,7 +174,9 @@
         body.querySelectorAll('.po-line').forEach(function (row) {
             var q = parseFloat(row.querySelector('[name=quantity]').value) || 0,
                 p = num(row.querySelector('[name=unit_price]').value),
-                g = Math.round(q * p);
+                d = num(row.querySelector('[name=discount]').value),
+                g = Math.max(0, Math.round(q * p) - d);
+            row.querySelector('[name=discount]').classList.toggle('is-unknown', d > Math.round(q * p));
             row.querySelector('.po-amount').textContent = fmt(g);
             total += g;
         });

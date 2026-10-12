@@ -472,13 +472,13 @@ a:hover { text-decoration: underline; }
 /* Every column but Article has a set width; Article takes all the rest, so
    it is the widest on any screen, and the only one that gives on a small one. */
 .po-col-stock { width: 52px; } .po-col-ref { width: 150px; } .po-col-qty { width: 90px; } .po-col-unit { width: 120px; }
-.po-col-price { width: 148px; } .po-col-amount { width: 128px; } .po-col-x { width: 42px; }
+.po-col-price { width: 140px; } .po-col-disc { width: 120px; } .po-col-amount { width: 128px; } .po-col-x { width: 42px; }
 /* Each title sits centred over its box; Article, the wide one, reads from
    the left like its box; the amount, a figure, keeps to the right. */
 .data-table.po-lines th { padding: 8px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 .data-table.po-lines th.po-th-part { text-align: left; }
 .data-table.po-lines th.r { text-align: right; }
-@media (max-width: 1080px) { .po-wrap { overflow-x: auto; } .po-lines { min-width: 820px; } }
+@media (max-width: 1080px) { .po-wrap { overflow-x: auto; } .po-lines { min-width: 940px; } }
 /* Qualified with .data-table: the generic table rules further down would
    otherwise win. Every cell is one 38px band, centred on the row. */
 .data-table.po-lines td { vertical-align: middle; padding: 6px 4px; }

@@ -53,7 +53,7 @@
     </div>
     <dl class="detail-grid">
         <div><dt>{{ t['po.date'] }}</dt><dd>{{ po.date }}</dd></div>
-        <div><dt>{{ t['po.requested_by'] }}</dt><dd>{{ po.requester_name or '—' }}{% if po.requester_phone %} · {{ po.requester_phone }}{% endif %}</dd></div>
+        <div><dt>{{ t['po.requested_by'] }}</dt><dd>{{ po.requester_name or '—' }}{% if po.requester_tel %} · {{ po.requester_tel }}{% endif %}</dd></div>
         <div><dt>{{ t['po.sign.logistics'] }}</dt>
             <dd>{% if po.logistics_at %}<span class="badge badge--active">{{ t['po.signed'] }}</span> {{ po.logistics_signer.full_name if po.logistics_signer else '' }} · {{ po.logistics_at.strftime('%Y-%m-%d %H:%M') }}
                 {% else %}<span class="muted">{{ t['po.awaiting'] }}</span>{% endif %}</dd></div>
@@ -163,6 +163,7 @@
                 <th>{{ t['po.line_reference'] }}</th>
                 <th style="text-align:right;">{{ t['po.line_qty'] }}</th>
                 <th style="text-align:right;">{{ t['po.line_price'] }}</th>
+                <th style="text-align:right;">{{ t['po.line_discount'] }}</th>
                 <th style="text-align:right;">{{ t['cinv.amount'] }}</th>
                 {% if po.status in ('approved', 'received_partial', 'received') %}<th style="text-align:right;">{{ t['po.received'] }}</th>{% endif %}
             </tr>
@@ -178,6 +179,7 @@
                     {% elif l.part %}{{ unit_label(l.part.unit) }}
                     {% elif l.new_unit %}{{ unit_label(l.new_unit) }}{% endif %}</td>
                 <td style="text-align:right;">{{ l.unit_price | num }}{% if l.buy_unit %} <span class="muted small">/ {{ unit_label(l.buy_unit) }}</span>{% endif %}</td>
+                <td style="text-align:right;">{{ l.discount | num if l.discount else '—' }}</td>
                 <td style="text-align:right;"><strong>{{ l.amount | num }}</strong></td>
                 {% if po.status in ('approved', 'received_partial', 'received') %}
                 <td style="text-align:right; white-space:nowrap;">
@@ -193,10 +195,10 @@
         <tfoot>
             {% set extra = 1 if po.status in ('approved', 'received_partial', 'received') else 0 %}
             {% if po.total_discount %}
-            <tr><td colspan="5" style="text-align:right;">{{ t['po.subtotal'] }}</td><td style="text-align:right;">{{ po.total_gross | num }} {{ currency }}</td>{% if extra %}<td></td>{% endif %}</tr>
-            <tr><td colspan="5" style="text-align:right;">{{ t['po.total_discount'] }}</td><td style="text-align:right;">− {{ po.total_discount | num }} {{ currency }}</td>{% if extra %}<td></td>{% endif %}</tr>
+            <tr><td colspan="6" style="text-align:right;">{{ t['po.subtotal'] }}</td><td style="text-align:right;">{{ po.total_gross | num }} {{ currency }}</td>{% if extra %}<td></td>{% endif %}</tr>
+            <tr><td colspan="6" style="text-align:right;">{{ t['po.total_discount'] }}</td><td style="text-align:right;">− {{ po.total_discount | num }} {{ currency }}</td>{% if extra %}<td></td>{% endif %}</tr>
             {% endif %}
-            <tr><td colspan="5" style="text-align:right;"><strong>{{ t['cinv.total'] }}</strong></td><td style="text-align:right;"><strong>{{ po.total | num }} {{ currency }}</strong></td>{% if extra %}<td></td>{% endif %}</tr>
+            <tr><td colspan="6" style="text-align:right;"><strong>{{ t['cinv.total'] }}</strong></td><td style="text-align:right;"><strong>{{ po.total | num }} {{ currency }}</strong></td>{% if extra %}<td></td>{% endif %}</tr>
         </tfoot>
     </table></div>
 

@@ -11,7 +11,7 @@ Refusing takes a reason; a refused order is corrected and resubmitted, and
 every refusal stays on it. Editing an order that already had an approval
 takes the approval back -- what was signed is not what is now written.
 
-Prices are known at order time; a discount is no longer typed (the column stays at zero), summed
+Prices are known at order time; each line may carry a discount (an amount, "Remise"), summed
 at the foot. Numbers are BC-2026-001, per year of issue, given by the app.
 Receiving: an approved order is received line by line, in the store's own
 unit (a drum ordered per pack comes in as litres), and each quantity writes
@@ -131,6 +131,7 @@ def _read_form(po):
     refs = request.form.getlist("reference")
     qtys = request.form.getlist("quantity")
     prices = request.form.getlist("unit_price")
+    discounts = request.form.getlist("discount")
     units = request.form.getlist("unit")
     modes = request.form.getlist("mode")
     new_units = request.form.getlist("new_unit")
@@ -141,6 +142,7 @@ def _read_form(po):
         ref = (refs[i] if i < len(refs) else "").strip()
         qty_raw = (qtys[i] if i < len(qtys) else "").strip().replace(",", ".")
         price_raw = (prices[i] if i < len(prices) else "").strip()
+        discount_raw = (discounts[i] if i < len(discounts) else "").strip()
         unit_choice = (units[i] if i < len(units) else "").strip()
         mode = (modes[i] if i < len(modes) else "new").strip() or "new"
         new_unit = (new_units[i] if i < len(new_units) else "piece").strip() or "piece"
@@ -171,7 +173,11 @@ def _read_form(po):
         price = parse_amount(price_raw)
         if price is None or price < 0:
             return None, None, t["po.err.price"]
-        discount = 0     # no discount is typed any more; the column stays, at zero
+        # The discount is an amount off the line, never more than the line.
+        gross = int(round(qty * price))
+        discount = parse_amount(discount_raw) if discount_raw else 0
+        if discount is None or discount < 0 or discount > gross:
+            return None, None, t["po.err.discount"]
         # What the line is bought in: the part's own unit, or a buying unit
         # that converts to it ("fût" for a part counting in litres). The
         # conversion is copied onto the line as it stands today.
@@ -185,7 +191,7 @@ def _read_form(po):
                           description=(desc or part.name)[:160], reference=ref[:60] or None,
                           quantity=qty, buy_unit=buy_unit, factor=factor, unit_price=price, discount=discount,
                           new_unit=None if part else new_unit,
-                          amount=int(round(qty * price)) - discount))
+                          amount=gross - discount))
     if not lines:
         return None, None, t["po.err.no_lines"]
     header = dict(supplier_id=supplier.id, date=date_str,
@@ -281,7 +287,7 @@ def new():
             return _render_form(None, error)
         po = PurchaseOrder(number=_next_number(header["date"]), requested_by=current_user.id,
                            requester_name=current_user.full_name,
-                           requester_phone=current_user.phone or current_user.email, **header)
+                           requester_phone=current_user.phone, **header)
         _write_lines(po, lines)
         _reset_approvals(po)
         db.session.add(po)

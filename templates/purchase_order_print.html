@@ -80,7 +80,7 @@
 <div class="meta">
     <table>
         <tr><td>{{ t['po.print_submitted_by'] }}</td><td>{{ po.requester_name or '' }}</td></tr>
-        <tr><td>{{ t['cset.company_phone'] }}</td><td>{{ po.requester_phone or '' }}</td></tr>
+        <tr><td>{{ t['po.phone'] }}</td><td>{{ po.requester_tel or '' }}</td></tr>
         <tr><td>{{ t['invoice.supplier'] }}</td><td>{{ po.supplier.name }}</td></tr>
         {% if po.supplier.contact %}<tr><td>{{ t['invoice.contact'] }}</td><td>{{ po.supplier.contact }}</td></tr>{% endif %}
         {% if po.supplier.email %}<tr><td>{{ t['supplier.email'] }}</td><td>{{ po.supplier.email }}</td></tr>{% endif %}
@@ -101,6 +101,7 @@
             <th>{{ t['po.line_reference'] }}</th>
             <th class="r">{{ t['po.line_qty'] }}</th>
             <th class="r">{{ t['po.line_price'] }} ({{ currency }})</th>
+            <th class="r">{{ t['po.line_discount'] }} ({{ currency }})</th>
             <th class="r">{{ t['cinv.amount'] }} ({{ currency }})</th>
         </tr>
     </thead>
@@ -112,16 +113,17 @@
             <td>{{ l.reference or '' }}</td>
             <td class="r">{{ l.quantity | qty }}{% if l.buy_unit %} {{ unit_label(l.buy_unit) }} ({{ l.stock_qty | qty }} {{ unit_label(l.part.unit) }}){% elif l.part %} {{ unit_label(l.part.unit) }}{% elif l.new_unit %} {{ unit_label(l.new_unit) }}{% endif %}</td>
             <td class="r">{{ l.unit_price | num }}</td>
+            <td class="r">{{ l.discount | num if l.discount else '' }}</td>
             <td class="r">{{ l.amount | num }}</td>
         </tr>
         {% endfor %}
     </tbody>
     <tfoot>
         {% if po.total_discount %}
-        <tr><td colspan="5" class="r">{{ t['po.subtotal'] }}</td><td class="r">{{ po.total_gross | num }}</td></tr>
-        <tr><td colspan="5" class="r">{{ t['po.total_discount'] }}</td><td class="r">− {{ po.total_discount | num }}</td></tr>
+        <tr><td colspan="6" class="r">{{ t['po.subtotal'] }}</td><td class="r">{{ po.total_gross | num }}</td></tr>
+        <tr><td colspan="6" class="r">{{ t['po.total_discount'] }}</td><td class="r">− {{ po.total_discount | num }}</td></tr>
         {% endif %}
-        <tr class="total"><td colspan="5" class="r">TOTAL</td><td class="r">{{ po.total | num }} {{ currency }}</td></tr>
+        <tr class="total"><td colspan="6" class="r">TOTAL</td><td class="r">{{ po.total | num }} {{ currency }}</td></tr>
     </tfoot>
 </table>
 </div>
