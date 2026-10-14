@@ -328,13 +328,14 @@ def _read_invoice_form():
     if not ok:
         return None, t["ledger.err.unknown"]
 
-    # The machine the bill is about, when it is about one.
-    vehicle_id = request.form.get("vehicle_id", type=int) or None
-    if vehicle_id and vehicle_id not in {v.id for v in _accessible_vehicles()}:
+    # The machines the bill concerns, if any: a link, not a cost.
+    allowed = {v.id: v for v in _accessible_vehicles()}
+    picked = {int(x) for x in request.form.getlist("vehicle_ids") if x.isdigit()}
+    if picked - set(allowed):
         return None, t["expense.err.vehicle_required"]
 
     return dict(
-        supplier_id=supplier_id, vehicle_id=vehicle_id,
+        supplier_id=supplier_id, vehicles=[allowed[i] for i in sorted(picked)],
         purchase_order_id=po_id,
         number=(request.form.get("number") or "").strip() or None,
         date=date_str,
@@ -565,6 +566,9 @@ def edit(iid):
         data, error = _read_invoice_form()
         if error:
             return _render_invoice_form(inv, error)
+        # Links to machines this user cannot see stay as they were.
+        seen = {v.id for v in _accessible_vehicles()}
+        data["vehicles"] += [v for v in inv.vehicles if v.id not in seen]
         for k, val in data.items():
             setattr(inv, k, val)
         perr = _apply_photo_change(inv)

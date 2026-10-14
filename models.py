@@ -998,6 +998,15 @@ def _supplier_code_on_insert(mapper, connection, target):
     target.code = "%s%03d" % (prefix, highest + 1)
 
 
+# Which machines a supplier bill concerns: none, one, or several. A link to
+# read the bill from the machine's page, not a share of its cost.
+supplier_invoice_vehicles = db.Table(
+    "supplier_invoice_vehicles",
+    db.Column("invoice_id", db.Integer, db.ForeignKey("supplier_invoices.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("vehicle_id", db.Integer, db.ForeignKey("vehicles.id", ondelete="CASCADE"), primary_key=True, index=True),
+)
+
+
 class SupplierInvoice(db.Model):
     """A bill the company has received and owes — the other direction from the
     facturation screen, which bills clients.
@@ -1036,10 +1045,8 @@ class SupplierInvoice(db.Model):
     description = db.Column(db.String(255))
     photo_key   = db.Column(db.String(200))                 # S3 photo of the paper
     ledger_code = db.Column(db.String(12), index=True)      # the account it is coded to, for the journal
-    # The machine the bill is about, when it is about one: a garage's repair
-    # of EX-01, parts for it. The cost then shows on the machine's page and
-    # in the per-machine analyses -- the bill, once, never its settlement.
-    vehicle_id  = db.Column(db.Integer, db.ForeignKey("vehicles.id"), nullable=True, index=True)
+    # The machines the bill is about, if any (see supplier_invoice_vehicles):
+    # a link only, for now -- the bill is not counted as any machine's cost.
     # The purchase order this bill settles, when it came from one: what was
     # ordered, received and billed can then be read side by side.
     purchase_order_id = db.Column(db.Integer, db.ForeignKey("purchase_orders.id"), nullable=True, index=True)
@@ -1048,7 +1055,9 @@ class SupplierInvoice(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     supplier = db.relationship("Supplier")
-    vehicle  = db.relationship("Vehicle")
+    vehicles = db.relationship("Vehicle", secondary="supplier_invoice_vehicles",
+                               order_by="Vehicle.code",
+                               backref=db.backref("supplier_invoices", lazy="dynamic"))
     purchase_order = db.relationship("PurchaseOrder", backref=db.backref("invoices", order_by="SupplierInvoice.date"))
     payments = db.relationship(
         "SupplierPayment", back_populates="invoice",

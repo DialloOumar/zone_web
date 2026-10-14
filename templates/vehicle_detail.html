@@ -136,10 +136,11 @@
     <p class="muted" style="padding: 6px 0;">{{ t['expense.empty'] }}</p>
     {% endif %}
 
-    {# The supplier bills about this machine, next to the costs the box
-       paid: a repair, parts, with whether each is settled. #}
+    {# The supplier bills linked to this machine, alone or with others. For
+       reference: they are not part of what the machine cost. #}
     {% if bills %}
-    <h3 style="font-size:0.95rem; margin:18px 0 8px;">{{ t['vehicle.bills'] }}</h3>
+    <h3 style="font-size:0.95rem; margin:18px 0 4px;">{{ t['vehicle.bills'] }}</h3>
+    <p class="muted small" style="margin:0 0 8px;">{{ t['vehicle.bills_note'] }}</p>
     <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
@@ -155,7 +156,9 @@
             <tr>
                 <td>{{ inv.date }}</td>
                 <td>{{ inv.supplier.name }}{% if inv.number %} <span class="muted small">{{ inv.number }}</span>{% endif %}</td>
-                <td>{{ inv.description or '—' }}</td>
+                <td>{{ inv.description or '—' }}
+                    {% set others = inv.vehicles | rejectattr('id', 'equalto', vehicle.id) | list %}
+                    {% if others %}<div class="muted small">{{ t['vehicle.bills_with'] }} {% for v in others %}<a href="{{ url_for('vehicles.detail', vid=v.id) }}">{{ v.code }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}</td>
                 <td><span class="badge {{ 'badge--active' if inv.status == 'paid' else ('badge--warning' if inv.status == 'partial' else 'badge--inactive') }}">{{ t['invoice.status.' + inv.status] }}</span></td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ inv.amount | num }} GNF</td>
             </tr>

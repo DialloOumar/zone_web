@@ -16,7 +16,7 @@ import s3_storage
 import vehicle_images
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
-from models import (Alert, DailyEntry, Expense, SupplierInvoice, Fleet, FuelMovement,
+from models import (supplier_invoice_vehicles, Alert, DailyEntry, Expense, SupplierInvoice, Fleet, FuelMovement,
                     MaintenanceRecord, MaintenanceRule, Operator, StockMovement,
                     Vehicle, VehicleCategory, VehicleStatusChange, db)
 
@@ -332,10 +332,9 @@ def detail(vid):
     expenses = (Expense.query.filter_by(vehicle_id=vid)
                 .order_by(Expense.date.desc(), Expense.id.desc())
                 .limit(10).all())
-    # The supplier bills about this machine: a garage's repair, parts for
-    # it. The cost is the bill's, counted once; its settlement carries no
-    # machine.
-    bills = (SupplierInvoice.query.filter_by(vehicle_id=vid)
+    # The supplier bills linked to this machine, alone or with others. Shown
+    # for reference only: they are not added to what the machine cost.
+    bills = (vehicle.supplier_invoices
              .order_by(SupplierInvoice.date.desc(), SupplierInvoice.id.desc())
              .limit(10).all())
     records = (MaintenanceRecord.query.filter_by(vehicle_id=vid)
@@ -382,7 +381,9 @@ def _vehicle_history(vid):
             + FuelMovement.query.filter_by(vehicle_id=vid).count()
             + Expense.query.filter_by(vehicle_id=vid).count()
             + MaintenanceRecord.query.filter_by(vehicle_id=vid).count()
-            + MaintenanceRule.query.filter_by(vehicle_id=vid).count())
+            + MaintenanceRule.query.filter_by(vehicle_id=vid).count()
+            + db.session.query(supplier_invoice_vehicles)
+                .filter(supplier_invoice_vehicles.c.vehicle_id == vid).count())
 
 
 def _render_vehicle_form(vehicle, error=None):
@@ -543,6 +544,8 @@ def destroy(vid):
         detail = f"Deleted vehicle '{code}' (kept for history)"
     else:
         Alert.query.filter_by(vehicle_id=vid).delete(synchronize_session=False)
+        db.session.execute(supplier_invoice_vehicles.delete()   # none left, by the check above
+                           .where(supplier_invoice_vehicles.c.vehicle_id == vid))
         db.session.delete(vehicle)
         detail = f"Deleted vehicle '{code}' (no history, row removed)"
     log_action("DELETE", "vehicle", resource_id=vid, fleet_id=fleet_id, detail=detail)

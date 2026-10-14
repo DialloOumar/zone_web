@@ -2462,3 +2462,13 @@ html.scan-open, html.scan-open body { overflow: hidden; }
 /* The reload button turns while the page comes back. */
 #reload-page.is-spinning .material-symbols-outlined { animation: reload-spin 0.8s linear infinite; }
 @keyframes reload-spin { to { transform: rotate(360deg); } }
+
+/* A supplier bill's machines: a wrap of ticks, filtered when the fleet is long. */
+.inv-machines { margin: 4px 0 16px; }
+.inv-machines__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.inv-machines__filter { width: 100%; max-width: 260px; height: 36px; margin: 6px 0 8px; padding: 0 10px;
+    border: 1px solid var(--md-outline); border-radius: 8px; background: var(--md-surface); color: var(--md-on-surface); font: inherit; }
+.inv-machines__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px;
+    max-height: 220px; overflow-y: auto; padding: 2px; }
+.inv-machines__grid .checkbox-item { padding: 8px 10px; }
+.inv-machines__grid .checkbox-item[hidden] { display: none; }
