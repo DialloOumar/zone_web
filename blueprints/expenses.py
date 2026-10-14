@@ -21,7 +21,7 @@ from app import (cashier_only, current_user_fleet_ids, get_t, has_perm, is_modal
                  submit_change, with_current_fleet)
 from blueprints.notifications import notify
 from ledger import charge_accounts, ensure_purse_account, ensure_supplier_account, read_code
-from models import (CashAccount, CashMovement, CashTransfer, Expense, Fleet, ServicePartPurchase, Site,
+from models import (CashAccount, CashMovement, CashTransfer, Expense, ExpenseShare, Fleet, ServicePartPurchase, Site,
                     Staff, SupplierInvoice, SupplierPayment, Vehicle, db)
 
 expenses_bp = Blueprint("expenses", __name__)
@@ -71,6 +71,33 @@ PER_PAGE = 50   # rows on one screen
 # the cost -- it names the instalment written beside it. Approvals pops the same
 # key when replaying an approved cost, so it is defined once and imported there.
 INVOICE_KEY = "_invoice_id"
+# The machines a cost is split over, when there are several. Not a column
+# either: the shares are written beside the cost once it exists.
+SHARES_KEY = "_vehicle_ids"
+
+
+def split_evenly(amount, n):
+    """`amount` in n whole-franc parts that add up exactly: the first few
+    take the odd francs."""
+    base, extra = divmod(int(amount), n)
+    return [base + (1 if i < extra else 0) for i in range(n)]
+
+
+def sync_vehicle_shares(expense, vehicle_ids):
+    """The cost's shares, rewritten from scratch: an even split over the
+    machines when there are two or more, nothing otherwise."""
+    expense.shares.clear()
+    ids = list(vehicle_ids or [])
+    if len(ids) < 2:
+        return
+    for vid, part in zip(ids, split_evenly(expense.amount, len(ids))):
+        expense.shares.append(ExpenseShare(vehicle_id=vid, amount=part))
+
+
+def for_vehicles(q, vehicle_ids):
+    """Costs for any of these machines: on one alone or split over several."""
+    return q.filter(db.or_(Expense.vehicle_id.in_(vehicle_ids),
+                           Expense.shares.any(ExpenseShare.vehicle_id.in_(vehicle_ids))))
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -255,12 +282,16 @@ def _read_expense_form(expense):
     # A machine belongs to a cost that happened somewhere. With no site this is
     # the office's own spending, which is for no machine -- the form hides the
     # field, and the rule is held here too so it is true either way.
-    vehicle_id = None
+    # Several machines may be ticked: the cost is then split evenly between
+    # them. One machine is the cost's own, as before.
+    vehicle_ids = []
     if site_id:
-        vehicle_id = request.form.get("vehicle_id", type=int) or None
-    if vehicle_id:
-        v = db.session.get(Vehicle, vehicle_id)
-        fids = current_user_fleet_ids()
+        for raw in request.form.getlist("vehicle_ids") + request.form.getlist("vehicle_id"):
+            if raw.isdigit() and int(raw) not in vehicle_ids:
+                vehicle_ids.append(int(raw))
+    fids = current_user_fleet_ids()
+    for vid in vehicle_ids:
+        v = db.session.get(Vehicle, vid)
         if not v or (fids is not None and v.fleet_id not in fids):
             return None, t["expense.err.vehicle_required"]
 
@@ -303,7 +334,8 @@ def _read_expense_form(expense):
     if invoice_id:
         # A settlement is money against a bill, nothing more: no site, no
         # machine, no person, and its code is the supplier's (set on sync).
-        site_id = vehicle_id = staff_id = None
+        site_id = staff_id = None
+        vehicle_ids = []
         ledger_code = None
 
     # Settling a request from a service: the cost is that purchase's, on
@@ -313,9 +345,10 @@ def _read_expense_form(expense):
         pr = db.session.get(ServicePartPurchase, purchase_id)
         if pr is None or pr.state != "pending":
             return None, t["caisse.err.request_gone"]
-        vehicle_id = pr.record.vehicle_id
+        vehicle_ids = [pr.record.vehicle_id]
         common["description"] = common.get("description") or ("%s — %s" % (pr.description, pr.supplier) if pr.supplier else pr.description)
 
+    vehicle_id = vehicle_ids[0] if len(vehicle_ids) == 1 else None
     common.update(vehicle_id=vehicle_id, fleet_id=None, label=None, operator=None,
                   supplier=None, site_id=site_id, liters=None,
                   account_id=account_id, staff_id=staff_id, ledger_code=ledger_code,
@@ -324,6 +357,7 @@ def _read_expense_form(expense):
     # and rides beside the data rather than in it.
     common[INVOICE_KEY] = invoice_id
     common[PURCHASE_KEY] = purchase_id
+    common[SHARES_KEY] = vehicle_ids
     return common, None
 
 
@@ -576,7 +610,7 @@ def index():
     if site_ids:
         q = q.filter(Expense.site_id.in_(site_ids))
     if vehicle_ids:
-        q = q.filter(Expense.vehicle_id.in_(vehicle_ids))
+        q = for_vehicles(q, vehicle_ids)
     # A cost carries an account only when that account paid it directly.
     if account_ids:
         q = q.filter(Expense.account_id.in_(account_ids))
@@ -683,8 +717,10 @@ def new():
             return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
         invoice_id = data.pop(INVOICE_KEY, None)
         purchase_id = data.pop(PURCHASE_KEY, None)
+        vehicle_ids = data.pop(SHARES_KEY, None)
         x = Expense(created_by=current_user.id, **data)
         db.session.add(x)
+        sync_vehicle_shares(x, vehicle_ids)
         db.session.flush()
         sync_account_movement(x)
         sync_invoice_payment(x, invoice_id)
@@ -849,8 +885,10 @@ def edit(xid):
             flash("success|" + t["expense.submitted"])
             return modal_ok() if is_modal_request() else redirect(url_for("expenses.index"))
         invoice_id = data.pop(INVOICE_KEY, None)
+        vehicle_ids = data.pop(SHARES_KEY, None)
         for k, val in data.items():
             setattr(expense, k, val)
+        sync_vehicle_shares(expense, vehicle_ids)
         sync_account_movement(expense)
         sync_invoice_payment(expense, invoice_id)
         log_action("UPDATE", "expense", resource_id=expense.id, fleet_id=expense.fleet_id,
@@ -902,7 +940,7 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids,
         if site_ids:
             q = q.filter(Expense.site_id.in_(site_ids))
         if vehicle_ids:
-            q = q.filter(Expense.vehicle_id.in_(vehicle_ids))
+            q = for_vehicles(q, vehicle_ids)
         if account_ids:
             q = q.filter(Expense.account_id.in_(account_ids))
         if staff_ids:

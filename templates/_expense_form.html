@@ -70,15 +70,33 @@
     {# A machine belongs to a cost that happened somewhere. Without a site this
        is the office's own spending, which is for no machine, so the field is
        not merely empty -- it is not there. #}
-    <div class="field field--select" id="field-vehicle">
-        {% set sel_v = request.form.get('vehicle_id')|int(0) or (expense.vehicle_id if is_edit else (purchase.record.vehicle_id if purchase else 0)) %}
-        <select id="vehicle_id" name="vehicle_id" {% if purchase %}disabled{% endif %}>
-            <option value="">{{ t['expense.no_vehicle'] }}</option>
+    {# One machine or several: ticking more than one splits the cost evenly
+       between them, each machine's page then showing its share. #}
+    {% if request.method == 'POST' %}{% set sel_vs = (request.form.getlist('vehicle_ids') + request.form.getlist('vehicle_id')) | select | map('int') | list %}
+    {% elif is_edit %}{% set sel_vs = expense.machines | map(attribute='id') | list %}
+    {% elif purchase %}{% set sel_vs = [purchase.record.vehicle_id] %}
+    {% else %}{% set sel_vs = [] %}{% endif %}
+    <div class="inv-machines" id="field-vehicle">
+        <div class="inv-machines__head">
+            <span class="photo-input__label">{{ t['expense.machines'] }} {{ hint(t['form.optional'], t['expense.machines_hint']) }}</span>
+            <span class="muted small" id="exp-split"></span>
+        </div>
+        {% if purchase %}
+        <input type="hidden" name="vehicle_ids" value="{{ purchase.record.vehicle_id }}">
+        <div class="muted">{{ purchase.record.vehicle.code }}</div>
+        {% else %}
+        {% if vehicles|length > 8 %}
+        <input type="search" class="inv-machines__filter" id="exp-machines-filter" placeholder="{{ t['invoice.machines_filter'] }}" autocomplete="off">
+        {% endif %}
+        <div class="inv-machines__grid">
             {% for v in vehicles %}
-            <option value="{{ v.id }}" {% if v.id == sel_v %}selected{% endif %}>{{ v.code }}</option>
+            <label class="checkbox-item" data-code="{{ v.code | lower }}">
+                <input type="checkbox" name="vehicle_ids" value="{{ v.id }}" {% if v.id in sel_vs %}checked{% endif %}>
+                <span>{{ v.code }}</span>
+            </label>
             {% endfor %}
-        </select>
-        <label for="vehicle_id">{{ t['expense.vehicle'] }}</label>
+        </div>
+        {% endif %}
     </div>
 
     {# Who the money went out for. Hidden entirely until there is somebody to
@@ -183,8 +201,27 @@
     function apply() {
         var on = !!site.value;
         box.hidden = !on;
-        if (!on) document.getElementById("vehicle_id").value = "";
+        if (!on) box.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = false; });
+        split();
     }
+    // Ticking two machines or more shows what each one will carry.
+    var out = document.getElementById("exp-split"), amount = document.getElementById("amount"),
+        fmt = {{ t['expense.split_preview'] | tojson }};
+    function split() {
+        if (!out) return;
+        var n = box.querySelectorAll('input[name=vehicle_ids]:checked').length,
+            a = parseInt(String(amount ? amount.value : '').replace(/[^0-9]/g, ''), 10) || 0;
+        out.textContent = n > 1 ? fmt.replace('%d', n).replace('%s', Math.floor(a / n).toLocaleString('fr-FR')) : '';
+    }
+    box.addEventListener("change", split);
+    if (amount) amount.addEventListener("input", split);
+    var filter = document.getElementById("exp-machines-filter");
+    if (filter) filter.addEventListener("input", function () {
+        var q = filter.value.trim().toLowerCase();
+        box.querySelectorAll('.inv-machines__grid .checkbox-item').forEach(function (l) {
+            l.hidden = q && l.dataset.code.indexOf(q) < 0 && !l.querySelector('input').checked;
+        });
+    });
     site.addEventListener("change", apply);
     apply();
 })();

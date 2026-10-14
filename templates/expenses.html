@@ -385,6 +385,8 @@
                 <td>{{ e.date }}</td>
                 <td><span class="chip">{{ e.site.name if e.site else t['expense.cat.societe'] }}</span></td>
                 <td>{% if e.vehicle %}<a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
+                    {%- elif e.shares %}{% for sh in e.shares %}<a href="{{ url_for('vehicles.detail', vid=sh.vehicle_id) }}" title="{{ sh.amount | num }} {{ currency }}"><strong>{{ sh.vehicle.code }}</strong></a>{{ ', ' if not loop.last }}{% endfor %}
+                    <div class="muted small">{{ t['expense.split_n'] % e.shares|length }}</div>
                     {%- else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 {% if show_qty %}<td style="text-align:right;">{% if e.quantity %}{{ '{:.10g}'.format(e.quantity) }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endif %}
                 {% if show_staff %}<td>{% if e.staff %}<span class="chip">{{ e.staff.name }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endif %}
@@ -429,7 +431,8 @@
             <div class="list-card__meta">
                 <span class="muted small">{{ e.date }}</span>
                 {% if e.label %}<span class="muted small">&middot; {{ e.label }}</span>{% endif %}
-                {% if e.vehicle %}<span class="muted small">&middot; {{ e.vehicle.code }}</span>{% endif %}
+                {% if e.vehicle %}<span class="muted small">&middot; {{ e.vehicle.code }}</span>
+                {% elif e.shares %}<span class="muted small">&middot; {{ e.shares | map(attribute='vehicle.code') | join(', ') }}</span>{% endif %}
                 {% if e.staff %}<span class="muted small">&middot; {{ e.staff.name }}</span>{% endif %}
                 {% if e.quantity %}<span class="muted small">&middot; &times; {{ '{:.10g}'.format(e.quantity) }} {{ t['expense.parts'] }}</span>{% endif %}
                 {% if e.description %}<span class="muted small">&middot; {{ e.description }}</span>{% endif %}

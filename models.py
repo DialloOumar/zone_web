@@ -715,6 +715,37 @@ class Expense(db.Model):
         back_populates="expense",
         cascade="all, delete-orphan",
     )
+    # A cost for several machines at once: vehicle_id stays empty and each
+    # machine carries its share here. One machine is vehicle_id, as ever.
+    shares = db.relationship("ExpenseShare", back_populates="expense",
+                             cascade="all, delete-orphan", order_by="ExpenseShare.id")
+
+    @property
+    def machines(self):
+        """The machines the cost is for: its one, or those it is split over."""
+        if self.vehicle:
+            return [self.vehicle]
+        return [s.vehicle for s in self.shares]
+
+    def share_for(self, vehicle_id):
+        """What this cost puts on one machine: all of it, or its share."""
+        if self.vehicle_id == vehicle_id:
+            return self.amount
+        return sum(s.amount for s in self.shares if s.vehicle_id == vehicle_id)
+
+
+class ExpenseShare(db.Model):
+    """One machine's part of a cost split over several. The parts add up to
+    the cost, split evenly; the cost itself stays one line in the cash box."""
+    __tablename__ = "expense_shares"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    expense_id = db.Column(db.Integer, db.ForeignKey("expenses.id", ondelete="CASCADE"), nullable=False, index=True)
+    vehicle_id = db.Column(db.Integer, db.ForeignKey("vehicles.id"), nullable=False, index=True)
+    amount     = db.Column(db.Integer, nullable=False)   # GNF
+
+    expense = db.relationship("Expense", back_populates="shares")
+    vehicle = db.relationship("Vehicle")
 
 
 class Site(db.Model):

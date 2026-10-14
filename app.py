@@ -24,7 +24,7 @@ from flask_migrate import Migrate
 
 import s3_storage
 from languages import TRANSLATIONS
-from models import (Alert, AppSetting, AuditLog, Citerne, DailyEntry, Expense,
+from models import (Alert, AppSetting, AuditLog, Citerne, DailyEntry, Expense, ExpenseShare,
                     Fleet, FleetRate, FuelMovement, MaintenanceRecord,
                     MaintenanceRule, Operator, PendingChange, Permission, Role,
                     RolePermission, User, UserFleet, Vehicle, VehicleCategory, db)
@@ -2414,6 +2414,11 @@ def wipe_all_cmd(keep_slug, users_mode, yes):
     doomed = [
         ("alerts", Alert.query.filter(or_(stray(Alert.vehicle_id, veh_ids),
                                           stray(Alert.rule_id, rule_ids)))),
+        # A split cost's shares go before the costs and the machines they cite.
+        ("expense shares", ExpenseShare.query.filter(or_(
+            points_out(ExpenseShare.vehicle_id, veh_ids),
+            ExpenseShare.expense_id.in_(db.session.query(Expense.id).filter(or_(
+                stray(Expense.fleet_id, fleet_ids), points_out(Expense.vehicle_id, veh_ids))))))),
         ("expenses", Expense.query.filter(or_(stray(Expense.fleet_id, fleet_ids),
                                               points_out(Expense.vehicle_id, veh_ids)))),
         ("daily entries", DailyEntry.query.filter(stray(DailyEntry.vehicle_id, veh_ids))),

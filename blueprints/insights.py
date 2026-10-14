@@ -19,7 +19,7 @@ from flask import Blueprint, render_template, request
 from flask_login import login_required
 
 from app import current_user_fleet_ids, require_perm
-from models import DailyEntry, Expense, Fleet, FuelMovement, Vehicle, db
+from models import DailyEntry, Expense, ExpenseShare, Fleet, FuelMovement, Vehicle, db
 
 insights_bp = Blueprint("insights", __name__)
 
@@ -99,6 +99,16 @@ def _aggregate(vehicle_ids, month):
         .group_by(Expense.vehicle_id).all()
     ):
         other[vid] = int(amount or 0)
+    # ...plus each machine's share of the costs split over several.
+    for vid, amount in (
+        db.session.query(ExpenseShare.vehicle_id, co(db.func.sum(ExpenseShare.amount), 0))
+        .join(Expense, Expense.id == ExpenseShare.expense_id)
+        .filter(ExpenseShare.vehicle_id.in_(vehicle_ids))
+        .filter(Expense.category.notin_(["fuel", "entretien"]))
+        .filter(Expense.date.like(like))
+        .group_by(ExpenseShare.vehicle_id).all()
+    ):
+        other[vid] = other.get(vid, 0) + int(amount or 0)
     # Supplier bills linked to a machine are not counted here: the link says
     # which machines a bill concerns, it is not a share of their cost.
 

@@ -16,7 +16,7 @@ import s3_storage
 import vehicle_images
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
-from models import (supplier_invoice_vehicles, Alert, DailyEntry, Expense, SupplierInvoice, Fleet, FuelMovement,
+from models import (supplier_invoice_vehicles, Alert, DailyEntry, Expense, ExpenseShare, SupplierInvoice, Fleet, FuelMovement,
                     MaintenanceRecord, MaintenanceRule, Operator, StockMovement,
                     Vehicle, VehicleCategory, VehicleStatusChange, db)
 
@@ -329,7 +329,10 @@ def detail(vid):
     entries = (DailyEntry.query.filter_by(vehicle_id=vid)
                .order_by(DailyEntry.date.desc(), DailyEntry.id.desc())
                .limit(10).all())
-    expenses = (Expense.query.filter_by(vehicle_id=vid)
+    # Its own costs and those split over it with other machines.
+    mine = db.or_(Expense.vehicle_id == vid,
+                  Expense.shares.any(ExpenseShare.vehicle_id == vid))
+    expenses = (Expense.query.filter(mine)
                 .order_by(Expense.date.desc(), Expense.id.desc())
                 .limit(10).all())
     # The supplier bills linked to this machine, alone or with others. Shown
@@ -360,8 +363,7 @@ def detail(vid):
                                   StockMovement.id.desc()).limit(10).all())
     # What the machine has cost so far: its own ledger rows plus its share of
     # the store. The two never overlap, so this can be added up safely.
-    direct_total = sum(e.amount for e in
-                       Expense.query.filter_by(vehicle_id=vid).all())
+    direct_total = sum(e.share_for(vid) for e in Expense.query.filter(mine).all())
 
     return render_template("vehicle_detail.html", vehicle=vehicle,
                            entries=entries, expenses=expenses, bills=bills,
@@ -380,6 +382,7 @@ def _vehicle_history(vid):
     return (DailyEntry.query.filter_by(vehicle_id=vid).count()
             + FuelMovement.query.filter_by(vehicle_id=vid).count()
             + Expense.query.filter_by(vehicle_id=vid).count()
+            + ExpenseShare.query.filter_by(vehicle_id=vid).count()
             + MaintenanceRecord.query.filter_by(vehicle_id=vid).count()
             + MaintenanceRule.query.filter_by(vehicle_id=vid).count()
             + db.session.query(supplier_invoice_vehicles)

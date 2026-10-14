@@ -127,7 +127,8 @@
                 <td>{{ e.date }}</td>
                 <td><span class="chip">{{ category_label(e.category) }}</span>{% if e.description %} <span class="muted small">{{ e.description }}</span>{% endif %}</td>
                 <td>{{ e.supplier or '—' }}</td>
-                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ e.amount | num }} GNF</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ e.share_for(vehicle.id) | num }} GNF
+                    {% if e.shares %}<div class="muted small" style="font-weight:400;">{{ t['expense.share_of'] % ((e.amount | num), e.shares|length) }}</div>{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>

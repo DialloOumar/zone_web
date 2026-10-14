@@ -16,7 +16,7 @@ import maintenance_engine
 from app import current_user_fleet_ids, get_t, log_action
 from blueprints.entries import _recompute_cumulatives
 from blueprints.notifications import notify
-from blueprints.expenses import (INVOICE_KEY, PURCHASE_KEY, settle_purchase,
+from blueprints.expenses import (INVOICE_KEY, PURCHASE_KEY, SHARES_KEY, settle_purchase, sync_vehicle_shares,
                                  sync_account_movement, sync_invoice_payment)
 from blueprints.maintenance import (MONEY_KEYS, PARTS_KEY, _close_alert_for_record, sync_bought_parts,
                                     sync_record_parts, sync_service_expense)
@@ -115,6 +115,13 @@ def _describe(pc):
             o = db.session.get(Vehicle, v)
             val = o.code if o else v
             label = "véhicule"
+        elif k == SHARES_KEY:
+            # The machines a cost is split over; one machine is vehicle_id.
+            if len(v) < 2:
+                continue
+            val = ", ".join((o.code if o else str(i)) for i, o in
+                            ((i, db.session.get(Vehicle, i)) for i in v))
+            label = "véhicules (répartie)"
         elif k == "fleet_id":
             o = db.session.get(Fleet, v)
             val = o.name if o else v
@@ -147,6 +154,9 @@ def _apply(pc):
     # ...or settle a service's purchase request, likewise.
     purchase_id = (payload.pop(PURCHASE_KEY, None)
                    if pc.resource_type == "expense" else None)
+    # ...and the machines a cost is split over.
+    shares = (payload.pop(SHARES_KEY, None)
+              if pc.resource_type == "expense" else None)
     parts = (payload.pop(PARTS_KEY, None) or []) if is_service else []
     # ...and the parts bought outside, requests to the cash box.
     bought = (payload.pop("bought", None) or []) if is_service else []
@@ -182,6 +192,8 @@ def _apply(pc):
         # A cost an account paid carries a money-in beside it, written here too
         # so an approved cost lands the same way one entered directly does --
         # and so does the instalment, when the cost settles a bill.
+        if shares is not None:
+            sync_vehicle_shares(obj, shares)
         db.session.flush()
         sync_account_movement(obj)
         sync_invoice_payment(obj, invoice_id)
