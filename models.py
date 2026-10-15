@@ -2023,6 +2023,22 @@ class PurchaseOrder(db.Model):
                             cascade="all, delete-orphan", order_by="PurchaseOrderLine.id")
 
     @property
+    def machines(self):
+        """Every machine any of the lines is for, once each, by code."""
+        seen = {}
+        for l in self.lines:
+            for v in l.vehicles:
+                seen[v.id] = v
+        return sorted(seen.values(), key=lambda v: v.code)
+
+    @property
+    def same_machines(self):
+        """The machines when every line names the same ones (and some), so a
+        sheet can say them once; None otherwise."""
+        sets = {tuple(v.id for v in l.vehicles) for l in self.lines}
+        return self.lines[0].vehicles if len(sets) == 1 and self.lines and self.lines[0].vehicles else None
+
+    @property
     def requester_tel(self):
         """The phone of whoever made the order, as their account has it now;
         the copy taken at the time stands in if the account is gone (an
@@ -2047,6 +2063,14 @@ class PurchaseOrder(db.Model):
     @property
     def invoiced_total(self):
         return sum(i.amount or 0 for i in self.invoices)
+
+
+# Which machines an order line is for: none, one or several.
+purchase_order_line_vehicles = db.Table(
+    "purchase_order_line_vehicles",
+    db.Column("line_id", db.Integer, db.ForeignKey("purchase_order_lines.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("vehicle_id", db.Integer, db.ForeignKey("vehicles.id", ondelete="CASCADE"), primary_key=True, index=True),
+)
 
 
 class PurchaseOrderLine(db.Model):
@@ -2077,6 +2101,10 @@ class PurchaseOrderLine(db.Model):
     order = db.relationship("PurchaseOrder", back_populates="lines")
     part  = db.relationship("Part")
     receipts = db.relationship("StockMovement", backref="purchase_line")
+    # The machines the line is for, if any. A link only: the cost reaches a
+    # machine when the part leaves the store for it, never from the order.
+    vehicles = db.relationship("Vehicle", secondary="purchase_order_line_vehicles",
+                               order_by="Vehicle.code")
 
     @property
     def stock_qty(self):

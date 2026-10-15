@@ -81,6 +81,8 @@
     <table>
         <tr><td>{{ t['po.print_submitted_by'] }}</td><td>{{ po.requester_name or '' }}</td></tr>
         <tr><td>{{ t['po.phone'] }}</td><td>{{ po.requester_tel or '' }}</td></tr>
+        {% set same = po.same_machines %}
+        {% if same %}<tr><td>{{ t['po.machines'] }}</td><td>{{ same | map(attribute='code') | join(', ') }}</td></tr>{% endif %}
         <tr><td>{{ t['invoice.supplier'] }}</td><td>{{ po.supplier.name }}</td></tr>
         {% if po.supplier.contact %}<tr><td>{{ t['invoice.contact'] }}</td><td>{{ po.supplier.contact }}</td></tr>{% endif %}
         {% if po.supplier.email %}<tr><td>{{ t['supplier.email'] }}</td><td>{{ po.supplier.email }}</td></tr>{% endif %}
@@ -109,7 +111,7 @@
         {% for l in po.lines %}
         <tr>
             <td class="num">{{ loop.index }}</td>
-            <td>{{ l.description }}</td>
+            <td>{{ l.description }}{% if l.vehicles and not same %}<div style="font-size:9.5px; color:#555;">{{ t['po.for'] }} : {{ l.vehicles | map(attribute='code') | join(', ') }}</div>{% endif %}</td>
             <td>{{ l.reference or '' }}</td>
             <td class="r">{{ l.quantity | qty }}{% if l.buy_unit %} {{ unit_label(l.buy_unit) }} ({{ l.stock_qty | qty }} {{ unit_label(l.part.unit) }}){% elif l.part %} {{ unit_label(l.part.unit) }}{% elif l.new_unit %} {{ unit_label(l.new_unit) }}{% endif %}</td>
             <td class="r">{{ l.unit_price | num }}</td>

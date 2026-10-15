@@ -2472,3 +2472,25 @@ html.scan-open, html.scan-open body { overflow: hidden; }
     max-height: 220px; overflow-y: auto; padding: 2px; }
 .inv-machines__grid .checkbox-item { padding: 8px 10px; }
 .inv-machines__grid .checkbox-item[hidden] { display: none; }
+
+/* An order line's machines: a thin bar right under the line, folded; opened,
+   the same tick grid as on bills and costs. The line above loses its rule so
+   the two read as one. */
+.data-table.po-lines tr.po-line td { border-bottom: none; padding-bottom: 2px; }
+.data-table.po-lines tr.po-mach td { padding: 0 4px 8px; }
+.data-table.po-lines tr.po-mach:hover, .data-table.po-lines tr.po-line:hover { background: transparent; }
+.po-mach__bar { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 10px 4px 6px;
+    border: 0; border-radius: 999px; background: transparent; color: var(--md-on-surface-variant);
+    font: inherit; font-size: 0.8rem; cursor: pointer; text-align: left; }
+.po-mach__bar:hover, .po-mach.is-open .po-mach__bar { background: var(--md-surface-container); }
+.po-mach__label { font-weight: 500; }
+.po-mach__sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.po-mach.has-machines .po-mach__sum { color: var(--md-primary); font-weight: 600; }
+.po-mach__caret { width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg); transition: transform 0.15s; margin: 0 3px; flex: none; }
+.po-mach.is-open .po-mach__caret { transform: rotate(45deg); }
+.po-mach__panel { margin: 6px 0 2px 8px; padding: 10px; border: 1px solid var(--md-outline-variant);
+    border-radius: var(--shape-sm); background: var(--md-surface); }
+.po-mach__panel .inv-machines__filter { margin-top: 0; }
+.po-mach__copy { margin: 0 0 8px 8px; }
+.po-for { color: var(--md-on-surface-variant); }

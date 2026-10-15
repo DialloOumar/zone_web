@@ -404,7 +404,8 @@ def _render_invoice_form(inv, error=None):
                              PurchaseOrder.id == (inv.purchase_order_id if inv else 0)))
               .order_by(PurchaseOrder.date.desc(), PurchaseOrder.id.desc()).all())
     orders_json = [dict(id=o.id, supplier_id=o.supplier_id, supplier=o.supplier.name,
-                        number=o.number, total=o.total, date=o.date)
+                        number=o.number, total=o.total, date=o.date,
+                        machines=",".join(str(v.id) for v in o.machines))
                    for o in orders]
     # Opened from an order's page: that order and its supplier are set.
     preset = db.session.get(PurchaseOrder, request.args.get("po", type=int) or 0) if inv is None else None

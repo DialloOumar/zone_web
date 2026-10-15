@@ -18,7 +18,7 @@
         <select id="purchase_order_id" name="purchase_order_id">
             <option value="" {% if not sel_po %}selected{% endif %}>{{ t['invoice.no_order'] }}</option>
             {% for o in orders_json %}
-            <option value="{{ o.id }}" data-supplier="{{ o.supplier_id }}" data-total="{{ o.total }}" {% if o.id == sel_po %}selected{% endif %}>{{ o.number }} — {{ o.supplier }} — {{ o.total | num }} {{ currency }}</option>
+            <option value="{{ o.id }}" data-supplier="{{ o.supplier_id }}" data-total="{{ o.total }}" data-machines="{{ o.machines }}" {% if o.id == sel_po %}selected{% endif %}>{{ o.number }} — {{ o.supplier }} — {{ o.total | num }} {{ currency }}</option>
             {% endfor %}
         </select>
         <label for="purchase_order_id">{{ t['invoice.order'] }} {{ hint('', t['invoice.order_hint']) }}</label>
@@ -112,6 +112,7 @@
     {% if vehicles %}
     {% if request.method == 'POST' %}{% set sel_vs = request.form.getlist('vehicle_ids') | map('int') | list %}
     {% elif is_edit %}{% set sel_vs = invoice.vehicles | map(attribute='id') | list %}
+    {% elif preset_po %}{% set sel_vs = preset_po.machines | map(attribute='id') | list %}
     {% else %}{% set sel_vs = [] %}{% endif %}
     <div class="inv-machines" id="inv-machines">
         <div class="inv-machines__head">
@@ -137,6 +138,17 @@
         var fmt = {{ t['invoice.machines_count'] | tojson }};
         function upd() { var n = box.querySelectorAll('input[name=vehicle_ids]:checked').length; count.textContent = n ? fmt.replace('%d', n) : ''; }
         box.addEventListener('change', upd); upd();
+        // Picking an order ticks the machines its lines are for. Switching to
+        // another order unticks what the last one ticked, nothing ticked by hand.
+        var po = document.getElementById('purchase_order_id'), auto = [];
+        if (po) po.addEventListener('change', function () {
+            var op = po.options[po.selectedIndex], ids = (op && op.dataset.machines || '').split(',').filter(Boolean);
+            box.querySelectorAll('input[name=vehicle_ids]').forEach(function (c) {
+                if (auto.indexOf(c.value) >= 0 && ids.indexOf(c.value) < 0) c.checked = false;
+                if (ids.indexOf(c.value) >= 0 && !c.checked) { c.checked = true; }
+            });
+            auto = ids; upd();
+        });
         if (filter) filter.addEventListener('input', function () {
             var q = filter.value.trim().toLowerCase();
             box.querySelectorAll('.inv-machines__grid .checkbox-item').forEach(function (l) {

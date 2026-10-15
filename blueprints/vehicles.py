@@ -16,7 +16,7 @@ import s3_storage
 import vehicle_images
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
-from models import (supplier_invoice_vehicles, Alert, DailyEntry, Expense, ExpenseShare, SupplierInvoice, Fleet, FuelMovement,
+from models import (purchase_order_line_vehicles, PurchaseOrder, PurchaseOrderLine, supplier_invoice_vehicles, Alert, DailyEntry, Expense, ExpenseShare, SupplierInvoice, Fleet, FuelMovement,
                     MaintenanceRecord, MaintenanceRule, Operator, StockMovement,
                     Vehicle, VehicleCategory, VehicleStatusChange, db)
 
@@ -340,6 +340,14 @@ def detail(vid):
     bills = (vehicle.supplier_invoices
              .order_by(SupplierInvoice.date.desc(), SupplierInvoice.id.desc())
              .limit(10).all())
+    # Orders still on their way with a line for this machine: what has been
+    # asked for it and not all come in yet. A link, no cost.
+    open_orders = (PurchaseOrder.query
+                   .filter(PurchaseOrder.status.in_(("pending_logistics", "pending_finance",
+                                                     "approved", "received_partial")))
+                   .filter(PurchaseOrder.lines.any(PurchaseOrderLine.vehicles.any(id=vid)))
+                   .order_by(PurchaseOrder.date.desc(), PurchaseOrder.id.desc())
+                   .limit(10).all())
     records = (MaintenanceRecord.query.filter_by(vehicle_id=vid)
                .order_by(MaintenanceRecord.date.desc(), MaintenanceRecord.id.desc())
                .limit(10).all())
@@ -366,7 +374,7 @@ def detail(vid):
     direct_total = sum(e.share_for(vid) for e in Expense.query.filter(mine).all())
 
     return render_template("vehicle_detail.html", vehicle=vehicle,
-                           entries=entries, expenses=expenses, bills=bills,
+                           entries=entries, expenses=expenses, bills=bills, open_orders=open_orders,
                            status_changes=vehicle.status_changes[:10], statuses=STATUSES,
                            records=records, alerts=alerts,
                            parts_used=parts_used, parts_total=parts_total,
@@ -386,7 +394,9 @@ def _vehicle_history(vid):
             + MaintenanceRecord.query.filter_by(vehicle_id=vid).count()
             + MaintenanceRule.query.filter_by(vehicle_id=vid).count()
             + db.session.query(supplier_invoice_vehicles)
-                .filter(supplier_invoice_vehicles.c.vehicle_id == vid).count())
+                .filter(supplier_invoice_vehicles.c.vehicle_id == vid).count()
+            + db.session.query(purchase_order_line_vehicles)
+                .filter(purchase_order_line_vehicles.c.vehicle_id == vid).count())
 
 
 def _render_vehicle_form(vehicle, error=None):

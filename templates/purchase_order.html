@@ -172,7 +172,8 @@
             {% for l in po.lines %}
             <tr>
                 <td class="muted">{{ loop.index }}</td>
-                <td><strong>{{ l.description }}</strong><div class="muted small">{{ t['po.from_catalogue'] if l.part else t['po.new_article'] }}</div></td>
+                <td><strong>{{ l.description }}</strong><div class="muted small">{{ t['po.from_catalogue'] if l.part else t['po.new_article'] }}</div>
+                    {% if l.vehicles %}<div class="small po-for">{{ t['po.for'] }} : {% for v in l.vehicles %}<a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="chip">{{ v.code }}</a> {% endfor %}</div>{% endif %}</td>
                 <td>{{ l.reference or '—' }}</td>
                 <td style="text-align:right; white-space:nowrap;">{{ l.quantity | qty }}
                     {% if l.buy_unit %}{{ unit_label(l.buy_unit) }} <span class="muted small">({{ l.stock_qty | qty }} {{ unit_label(l.part.unit) }})</span>

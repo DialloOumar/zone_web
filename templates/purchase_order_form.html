@@ -98,6 +98,15 @@
                     <td class="r po-amount">0</td>
                     <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon po-remove" title="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
                 </tr>
+                {# The machines the line is for: a thin bar under it, folded,
+                   that opens on the machines to tick. A link only. #}
+                <tr class="po-mach">
+                    <td colspan="9">
+                        <input type="hidden" name="line_vehicles" value="{{ l.machines or '' }}">
+                        <button type="button" class="po-mach__bar" aria-expanded="false"><span class="po-mach__caret" aria-hidden="true"></span><span class="po-mach__label">{{ t['po.machines'] }} :</span> <span class="po-mach__sum"></span></button>
+                        <div class="po-mach__panel" hidden></div>
+                    </td>
+                </tr>
                 {% endfor %}
             </tbody>
             <tfoot>
@@ -150,9 +159,17 @@
         <td class="r po-amount">0</td>
         <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon po-remove" title="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
     </tr>
+    <tr class="po-mach">
+        <td colspan="9">
+            <input type="hidden" name="line_vehicles" value="">
+            <button type="button" class="po-mach__bar" aria-expanded="false"><span class="po-mach__caret" aria-hidden="true"></span><span class="po-mach__label">{{ t['po.machines'] }} :</span> <span class="po-mach__sum"></span></button>
+            <div class="po-mach__panel" hidden></div>
+        </td>
+    </tr>
 </template>
 
 <script id="po-parts-data" type="application/json">{{ parts_json | tojson }}</script>
+<script id="po-machines-data" type="application/json">{{ machines | tojson }}</script>
 {% endblock %}
 
 {% block scripts %}
@@ -232,20 +249,90 @@
         list.hidden = false;
     }
     function closeLists() { body.querySelectorAll('.po-combo__list').forEach(function (l) { l.hidden = true; }); }
-    function addRow() {
-        body.appendChild(tpl.content.cloneNode(true));
-        var row = body.lastElementChild; syncRow(row); row.querySelector('[name=description]').focus(); recompute();
+    // ── The machines of a line: a folded bar, opened on a grid to tick ──
+    var MACHINES = JSON.parse(document.getElementById('po-machines-data').textContent),
+        M_NONE = {{ t['po.machines_none'] | tojson }}, M_FIND = {{ t['invoice.machines_filter'] | tojson }},
+        M_SAME = {{ t['po.machines_copy'] | tojson }};
+    var byId = {}; MACHINES.forEach(function (m) { byId[m.id] = m; });
+    function machIds(mrow) { return (mrow.querySelector('[name=line_vehicles]').value || '').split(',').filter(function (x) { return byId[x]; }); }
+    function machSum(mrow) {
+        var codes = machIds(mrow).map(function (id) { return byId[id].code; }), sum = mrow.querySelector('.po-mach__sum');
+        sum.textContent = codes.length ? (codes.length > 4 ? codes.slice(0, 3).join(', ') + ' +' + (codes.length - 3) : codes.join(', ')) : M_NONE;
+        mrow.classList.toggle('has-machines', codes.length > 0);
     }
+    function machClose(mrow) {
+        mrow.querySelector('.po-mach__panel').hidden = true;
+        mrow.querySelector('.po-mach__bar').setAttribute('aria-expanded', 'false');
+        mrow.classList.remove('is-open');
+    }
+    function machOpen(mrow) {
+        body.querySelectorAll('.po-mach.is-open').forEach(function (r) { if (r !== mrow) machClose(r); });
+        var panel = mrow.querySelector('.po-mach__panel'), chosen = machIds(mrow);
+        panel.innerHTML = '';
+        if (MACHINES.length > 8) {
+            var f = document.createElement('input'); f.type = 'search'; f.className = 'inv-machines__filter po-mach__find'; f.placeholder = M_FIND; f.autocomplete = 'off';
+            panel.appendChild(f);
+        }
+        var prev = machPrev(mrow);
+        if (prev && machIds(prev).length) {
+            var cp = document.createElement('button'); cp.type = 'button'; cp.className = 'btn btn--sm btn--text po-mach__copy'; cp.textContent = M_SAME;
+            panel.appendChild(cp);
+        }
+        var grid = document.createElement('div'); grid.className = 'inv-machines__grid';
+        // Ticked machines first, so what the line names is always in sight.
+        MACHINES.slice().sort(function (a, b) { return (chosen.indexOf(String(b.id)) >= 0) - (chosen.indexOf(String(a.id)) >= 0); })
+            .forEach(function (m) {
+                var l = document.createElement('label'); l.className = 'checkbox-item'; l.dataset.code = m.code.toLowerCase();
+                l.innerHTML = '<input type="checkbox"><span></span>';
+                l.firstChild.value = m.id; l.firstChild.checked = chosen.indexOf(String(m.id)) >= 0; l.lastChild.textContent = m.code;
+                grid.appendChild(l);
+            });
+        panel.appendChild(grid);
+        panel.hidden = false; mrow.classList.add('is-open');
+        mrow.querySelector('.po-mach__bar').setAttribute('aria-expanded', 'true');
+        var find = panel.querySelector('.po-mach__find'); if (find) find.focus();
+    }
+    function machPrev(mrow) {
+        var r = mrow.previousElementSibling; // its line
+        r = r && r.previousElementSibling;   // the line before's machine row
+        return r && r.classList.contains('po-mach') ? r : null;
+    }
+    function machSet(mrow, ids) { mrow.querySelector('[name=line_vehicles]').value = ids.join(','); machSum(mrow); }
+    function addRow() {
+        var lastMach = null; body.querySelectorAll('.po-mach').forEach(function (r) { lastMach = r; });
+        body.appendChild(tpl.content.cloneNode(true));
+        var mrow = body.lastElementChild, row = mrow.previousElementSibling;
+        // A new line is for the same machines as the one above it, to start.
+        if (lastMach) machSet(mrow, machIds(lastMach)); else machSum(mrow);
+        if (!MACHINES.length) mrow.hidden = true;
+        syncRow(row); row.querySelector('[name=description]').focus(); recompute();
+    }
+    body.querySelectorAll('.po-mach').forEach(function (r) { machSum(r); if (!MACHINES.length) r.hidden = true; });
     document.getElementById('po-add').addEventListener('click', addRow);
     table.addEventListener('click', function (e) {
         var b = e.target.closest('.po-remove');
-        if (b) { b.closest('.po-line').remove(); if (!body.children.length) addRow(); recompute(); return; }
+        if (b) {
+            var line = b.closest('.po-line'), m = line.nextElementSibling;
+            if (m && m.classList.contains('po-mach')) m.remove();
+            line.remove(); if (!body.querySelector('.po-line')) addRow(); recompute(); return;
+        }
+        var bar = e.target.closest('.po-mach__bar');
+        if (bar) { var mr = bar.closest('.po-mach'); if (mr.classList.contains('is-open')) machClose(mr); else machOpen(mr); return; }
+        var cpy = e.target.closest('.po-mach__copy');
+        if (cpy) { var mr2 = cpy.closest('.po-mach'); machSet(mr2, machIds(machPrev(mr2))); machOpen(mr2); return; }
         var tg = e.target.closest('.po-combo__toggle');
         if (tg) { var row = tg.closest('.po-line'); if (row.querySelector('.po-stock-box').checked) { closeLists(); openList(row, ''); } return; }
         var it = e.target.closest('.po-combo__item');
         if (it) { var r2 = it.closest('.po-line'); r2.querySelector('[name=description]').value = it.dataset.name; closeLists(); syncRow(r2); return; }
     });
     table.addEventListener('input', function (e) {
+        if (e.target.classList.contains('po-mach__find')) {
+            var q = e.target.value.trim().toLowerCase();
+            e.target.closest('.po-mach__panel').querySelectorAll('.checkbox-item').forEach(function (l) {
+                l.hidden = q && l.dataset.code.indexOf(q) < 0 && !l.querySelector('input').checked;
+            });
+            return;
+        }
         var row = e.target.closest('.po-line'); if (!row) return;
         if (e.target.name === 'description') {
             if (row.querySelector('.po-stock-box').checked) openList(row, e.target.value);
@@ -254,6 +341,11 @@
         recompute();
     });
     table.addEventListener('change', function (e) {
+        if (e.target.closest('.po-mach__panel') && e.target.type === 'checkbox') {
+            var mr = e.target.closest('.po-mach'), ids = [];
+            mr.querySelectorAll('.po-mach__panel input[type=checkbox]:checked').forEach(function (c) { ids.push(c.value); });
+            machSet(mr, ids); return;
+        }
         if (e.target.classList.contains('po-stock-box')) { var row = e.target.closest('.po-line'); closeLists(); syncRow(row); }
         if (e.target.name === 'unit') { e.target.dataset.chosen = e.target.value; e.target.title = e.target.options[e.target.selectedIndex].textContent; }
     });
@@ -261,7 +353,10 @@
         if (e.target.name === 'description') { var row = e.target.closest('.po-line'); if (row.querySelector('.po-stock-box').checked) openList(row, e.target.value); }
     });
     document.addEventListener('click', function (e) { if (!e.target.closest('.po-combo')) closeLists(); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeLists(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { closeLists(); body.querySelectorAll('.po-mach.is-open').forEach(machClose); }
+        if (e.key === 'Enter' && e.target.classList.contains('po-mach__find')) { e.preventDefault(); machClose(e.target.closest('.po-mach')); }
+    });
     body.querySelectorAll('.po-line').forEach(syncRow);
     if (!body.children.length) addRow();
     recompute();

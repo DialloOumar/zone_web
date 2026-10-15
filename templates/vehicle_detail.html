@@ -137,6 +137,34 @@
     <p class="muted" style="padding: 6px 0;">{{ t['expense.empty'] }}</p>
     {% endif %}
 
+    {# Orders on their way with a line for this machine: "have the parts
+       for the breakdown been ordered?" answered on the machine's own page. #}
+    {% if open_orders %}
+    <h3 style="font-size:0.95rem; margin:18px 0 8px;">{{ t['vehicle.open_orders'] }}</h3>
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['po.date'] }}</th>
+                <th>N°</th>
+                <th>{{ t['invoice.supplier'] }}</th>
+                <th>{{ t['po.line_part'] }}</th>
+                <th>{{ t['invoice.status'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for po in open_orders %}
+            <tr>
+                <td>{{ po.date }}</td>
+                <td><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a></td>
+                <td>{{ po.supplier.name }}</td>
+                <td>{% for l in po.lines if l.vehicles | selectattr('id', 'equalto', vehicle.id) | list %}{{ l.description }} <span class="muted small">× {{ l.quantity | qty }}</span>{{ ', ' if not loop.last }}{% endfor %}</td>
+                <td><span class="badge {{ 'badge--active' if po.status == 'approved' else 'badge--warning' }}">{{ t['po.status.' + po.status] }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% endif %}
+
     {# The supplier bills linked to this machine, alone or with others. For
        reference: they are not part of what the machine cost. #}
     {% if bills %}

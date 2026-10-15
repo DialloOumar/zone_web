@@ -30,6 +30,7 @@ from app import (_get_setting, current_lang, get_t, has_perm, log_action,
                  parse_amount, require_perm)
 from blueprints.notifications import notify
 from blueprints.stock import active_units, buying_units_for, unit_codes
+from blueprints.expenses import _accessible_vehicles
 from blueprints.supplier_invoices import _save_supplier, parts_suppliers
 from models import Part, PurchaseOrder, PurchaseOrderLine, StockMovement, Supplier, db
 
@@ -135,6 +136,8 @@ def _read_form(po):
     units = request.form.getlist("unit")
     modes = request.form.getlist("mode")
     new_units = request.form.getlist("new_unit")
+    line_machines = request.form.getlist("line_vehicles")
+    machines = {v.id: v for v in _accessible_vehicles()}
     lines = []
     for i in range(max(len(descs), len(qtys), len(prices))):
         pid = (part_ids[i] if i < len(part_ids) else "").strip()
@@ -146,6 +149,14 @@ def _read_form(po):
         unit_choice = (units[i] if i < len(units) else "").strip()
         mode = (modes[i] if i < len(modes) else "new").strip() or "new"
         new_unit = (new_units[i] if i < len(new_units) else "piece").strip() or "piece"
+        # The machines the line is for, as "3,7,12" kept by the form.
+        vids = []
+        for raw in (line_machines[i] if i < len(line_machines) else "").split(","):
+            raw = raw.strip()
+            if raw.isdigit() and int(raw) not in vids:
+                vids.append(int(raw))
+        if any(v not in machines for v in vids):
+            return None, None, t["expense.err.vehicle_required"]
         if not (pid or desc or qty_raw or price_raw):
             continue
         part = None
@@ -191,6 +202,7 @@ def _read_form(po):
                           description=(desc or part.name)[:160], reference=ref[:60] or None,
                           quantity=qty, buy_unit=buy_unit, factor=factor, unit_price=price, discount=discount,
                           new_unit=None if part else new_unit,
+                          vehicles=[machines[v] for v in vids],
                           amount=gross - discount))
     if not lines:
         return None, None, t["po.err.no_lines"]
@@ -205,6 +217,7 @@ def _render_form(po, error=None, lines=None):
         lines = [dict(part_id=l.part_id, description=l.description, reference=l.reference or "",
                       quantity=l.quantity, unit_price=l.unit_price, discount=l.discount,
                       unit=l.buy_unit or "stock", new_unit=l.new_unit,
+                      machines=",".join(str(v.id) for v in l.vehicles),
                       mode="stock" if l.part_id else "new")
                  for l in (po.lines if po else [])]
     if request.method == "POST":
@@ -213,7 +226,8 @@ def _render_form(po, error=None, lines=None):
             g = lambda k: (request.form.getlist(k)[i] if i < len(request.form.getlist(k)) else "")
             lines.append(dict(part_id=g("part_id"), description=g("description"), reference=g("reference"),
                               quantity=g("quantity"), unit_price=g("unit_price"), discount=g("discount"),
-                              unit=g("unit"), new_unit=g("new_unit"), mode=g("mode") or "new"))
+                              unit=g("unit"), new_unit=g("new_unit"), mode=g("mode") or "new",
+                              machines=g("line_vehicles")))
     t = get_t()
     parts = Part.query.filter(Part.is_active.is_(True)).order_by(Part.name).all()
     from app import _unit_label
@@ -226,6 +240,7 @@ def _render_form(po, error=None, lines=None):
     return render_template("purchase_order_form.html", po=po, error=error, lines=lines,
                            suppliers=parts_suppliers(), parts_json=parts_json,
                            units=active_units(),
+                           machines=[dict(id=v.id, code=v.code) for v in _accessible_vehicles()],
                            today=date.today().isoformat())
 
 
