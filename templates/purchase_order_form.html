@@ -33,6 +33,16 @@
                        value="{{ request.form.get('date') or (po.date if is_edit else today) }}">
                 <label for="date">{{ t['po.date'] }}</label>
             </div>
+            {# The store it is delivered to; only its people receive it. #}
+            {% if stores|length > 1 %}
+            <div class="field field--select">
+                {% set sel_st = request.form.get('store_id')|int(0) or default_store %}
+                <select id="store_id" name="store_id" required>
+                    {% for st in stores %}<option value="{{ st.id }}" {% if st.id == sel_st %}selected{% endif %}>{{ st.name }}</option>{% endfor %}
+                </select>
+                <label for="store_id">{{ t['po.deliver_to'] }}</label>
+            </div>
+            {% elif stores %}<input type="hidden" name="store_id" value="{{ stores[0].id }}">{% endif %}
         </div>
         {# A supplier not in the list yet is written down on the store's own
            page and the order comes back with it chosen. #}

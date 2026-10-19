@@ -2,7 +2,9 @@
    a movement is undone from the order or the service that wrote it. #}
 {% set kind_chip = {'initial': 'mv-chip--gauge', 'entree': 'mv-chip--in',
                     'sortie': 'mv-chip--out', 'retour': 'mv-chip--conso',
-                    'inventaire': 'mv-chip--gauge'} %}
+                    'inventaire': 'mv-chip--gauge', 'transfert_out': 'mv-chip--out',
+                    'transfert_in': 'mv-chip--in'} %}
+{% set show_store = (movements | map(attribute='store_id') | unique | list | length) > 1 or show_store_col %}
 <div class="table-desktop">
 <table class="data-table">
     <thead>
@@ -10,6 +12,7 @@
             <th>{{ t['mv.date'] }}</th>
             <th>{{ t['mv.kind'] }}</th>
             <th>{{ t['part.name'] }}</th>
+            {% if show_store %}<th>{{ t['store.one'] }}</th>{% endif %}
             <th style="text-align:right;">{{ t['mv.quantity'] }}</th>
             <th class="col-secondary" style="text-align:right;">{{ t['mv.value'] }}</th>
             <th class="col-secondary">{{ t['mv.detail'] }}</th>
@@ -21,8 +24,9 @@
             <td style="white-space:nowrap;">{{ m.date }}</td>
             <td><span class="mv-chip {{ kind_chip.get(m.kind, 'mv-chip--gauge') }}">{{ t['mv.kind.' + m.kind] }}</span></td>
             <td>{{ m.part.name }}</td>
+            {% if show_store %}<td>{{ m.store.name if m.store else '—' }}</td>{% endif %}
             <td style="text-align:right; font-weight:700; white-space:nowrap;">
-                {% if m.kind == 'sortie' %}−{% elif m.kind != 'inventaire' %}+{% endif %}{{ m.quantity | qty }}
+                {% if m.kind in ('sortie', 'transfert_out') %}−{% elif m.kind != 'inventaire' %}+{% endif %}{{ m.quantity | qty }}
                 <span class="muted small">{{ unit_label(m.part.unit) }}</span>
             </td>
             <td class="col-secondary" style="text-align:right; white-space:nowrap;">
@@ -33,6 +37,8 @@
                     {% set gap = m.ecart %}
                     {% if gap %}<span class="muted">{{ gap|abs | qty }} {{ t['mv.gap_short'] if gap > 0 else t['mv.gap_over'] }}</span>
                     {% else %}<span class="muted">{{ t['mv.counted_match'] }}</span>{% endif %}
+                {% elif m.kind == 'transfert_out' %}→ {{ m.note or '' }}
+                {% elif m.kind == 'transfert_in' %}← {{ m.note or '' }}
                 {% elif m.record and m.record.vehicle %}
                     {{ m.record.vehicle.code }}
                 {% elif m.purchase_line %}
@@ -53,12 +59,12 @@
         <div class="list-card__top">
             <span class="mv-chip {{ kind_chip.get(m.kind, 'mv-chip--gauge') }}">{{ t['mv.kind.' + m.kind] }}</span>
             <span class="list-card__amount">
-                {% if m.kind == 'sortie' %}−{% elif m.kind != 'inventaire' %}+{% endif %}{{ m.quantity | qty }}
+                {% if m.kind in ('sortie', 'transfert_out') %}−{% elif m.kind != 'inventaire' %}+{% endif %}{{ m.quantity | qty }}
                 <span class="muted small">{{ unit_label(m.part.unit) }}</span>
             </span>
         </div>
         <div class="list-card__meta">
-            <span class="muted small">{{ m.date }} · {{ m.part.name }}</span>
+            <span class="muted small">{{ m.date }} · {{ m.part.name }}{% if show_store and m.store %} · {{ m.store.name }}{% endif %}</span>
             {% if m.value is not none %}<span class="muted small">{{ m.value | num }} GNF</span>{% endif %}
         </div>
     </div>

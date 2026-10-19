@@ -90,6 +90,7 @@
     </table>
     <table class="right">
         <tr><td>N°</td><td>{{ po.number }}</td></tr>
+        {% if po.store %}<tr><td>{{ t['po.deliver_to'] }}</td><td>{{ po.store.name }}</td></tr>{% endif %}
         <tr><td>{{ t['po.date'] }}</td><td>{{ po.date }}</td></tr>
     </table>
 </div>

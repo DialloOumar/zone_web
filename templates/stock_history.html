@@ -10,6 +10,15 @@
     </div>
 
     <form method="get" class="filter-bar">
+        {% if stores|length > 1 %}
+        <div class="field field--select" style="min-width:160px;">
+            <select name="store_id">
+                <option value="">{{ t['store.all'] }}</option>
+                {% for st in stores %}<option value="{{ st.id }}" {% if filters.store_id == st.id %}selected{% endif %}>{{ st.name }}</option>{% endfor %}
+            </select>
+            <label>{{ t['store.one'] }}</label>
+        </div>
+        {% endif %}
         <div class="field field--select" style="min-width:180px;">
             <select name="part_id">
                 <option value="">{{ t['mv.all_parts'] }}</option>

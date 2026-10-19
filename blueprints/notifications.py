@@ -89,6 +89,14 @@ def todos():
         if n:
             out.append(dict(kind="todo.approvals", url=url_for("approvals.index"), params=dict(n=n)))
 
+    # Parts sent from another store, waiting for this store to say what came.
+    if has_perm("stock.manage"):
+        from blueprints.stores import transfers_to_receive
+        waiting = transfers_to_receive()
+        if waiting:
+            out.append(dict(kind="todo.stock_transfers", url=url_for("stores.transfers"),
+                            params=dict(n=len(waiting))))
+
     # Money Facturation sent, and parts bought outside for a service: for
     # whoever keeps the box.
     if has_perm("expense.create"):

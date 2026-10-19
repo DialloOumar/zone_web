@@ -1,0 +1,40 @@
+{% set is_edit = store is not none %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('stores.store_edit', sid=store.id) if is_edit else url_for('stores.store_new') }}">
+    <div class="field">
+        <input type="text" id="name" name="name" placeholder=" " required maxlength="80"
+               value="{{ request.form.get('name') or (store.name if is_edit else '') }}">
+        <label for="name">{{ t['store.name'] }}</label>
+    </div>
+    {% if sites %}
+    <div class="field field--select">
+        {% set sel_site = request.form.get('site_id')|int(0) or (store.site_id if is_edit and store.site_id else 0) %}
+        <select id="site_id" name="site_id">
+            <option value="">{{ t['expense.no_site'] }}</option>
+            {% for s in sites %}<option value="{{ s.id }}" {% if s.id == sel_site %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+        </select>
+        <label for="site_id">{{ t['expense.site'] }}</label>
+    </div>
+    {% endif %}
+    {# Who runs it: they work in this store alone and see the others. #}
+    {% if request.method == 'POST' %}{% set sel_m = request.form.getlist('manager_ids') | map('int') | list %}
+    {% elif is_edit %}{% set sel_m = store.managers | map(attribute='id') | list %}
+    {% else %}{% set sel_m = [] %}{% endif %}
+    <div class="inv-machines">
+        <span class="photo-input__label">{{ t['store.managers'] }}</span>
+        <p class="muted small" style="margin:2px 0 8px;">{{ t['store.managers_hint'] }}</p>
+        <div class="inv-machines__grid" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));">
+            {% for u in users %}
+            <label class="checkbox-item">
+                <input type="checkbox" name="manager_ids" value="{{ u.id }}" {% if u.id in sel_m %}checked{% endif %}>
+                <span>{{ u.full_name }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('stores.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

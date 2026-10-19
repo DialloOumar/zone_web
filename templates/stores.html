@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ t['store.title'] }}{% endblock %}
+{% block page_title %}{{ t['store.title'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    {% with stock_tab = 'stores' %}{% include "_stock_tabs.html" %}{% endwith %}
+    <div class="card-header">
+        <p class="muted small" style="margin:0; max-width:640px;">{{ t['store.intro'] }}</p>
+        {% if can_edit %}
+        <a href="{{ url_for('stores.store_new') }}" class="fab"
+           data-modal-url="{{ url_for('stores.store_new') }}" data-modal-title="{{ t['store.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['store.new'] }}
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['store.name'] }}</th>
+                <th>{{ t['expense.site'] }}</th>
+                <th>{{ t['store.managers'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for st in stores %}
+            <tr {% if not st.is_active %}class="muted"{% endif %}>
+                <td><a href="{{ url_for('stock.index', store=st.id) }}"><strong>{{ st.name }}</strong></a>
+                    {% if not st.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}</td>
+                <td>{{ st.site.name if st.site else '—' }}</td>
+                <td>{% for u in st.managers %}<span class="chip">{{ u.full_name }}</span> {% else %}<span class="muted small">{{ t['store.no_managers'] }}</span>{% endfor %}</td>
+                <td class="row-actions">
+                    {% if can_edit %}
+                    <a href="{{ url_for('stores.store_edit', sid=st.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('stores.store_edit', sid=st.id) }}" data-modal-title="{{ t['store.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% if st.is_active %}
+                    <form method="post" action="{{ url_for('stores.store_action', sid=st.id, what='archive') }}" style="display:inline"
+                          data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('stores.store_action', sid=st.id, what='reactivate') }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+</section>
+{% endblock %}

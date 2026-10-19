@@ -150,6 +150,9 @@
 
     function runScripts(container) {
         container.querySelectorAll("script").forEach(function (old) {
+            // A data block (type="application/json") is read by the page's
+            // own code, not run: it stays as it is.
+            if (old.type && old.type !== "text/javascript" && old.type !== "module") return;
             var s = document.createElement("script");
             s.textContent = old.textContent;
             old.replaceWith(s);

@@ -377,7 +377,7 @@ def _read_record_form(record):
     if not date_str or not _valid_date(date_str):
         return None, t["maint.err.date_required"]
 
-    parts, e4 = _read_part_lines()
+    parts, e4 = _read_part_lines(record)
     if e4:
         return None, e4
     bought, e5 = _read_bought_lines()
@@ -460,7 +460,14 @@ def sync_bought_parts(record, lines):
             db.session.delete(row)
 
 
-def _read_part_lines():
+def _record_store_id(record):
+    """The store a service's parts came out of, as recorded."""
+    if record is None:
+        return None
+    return next((m.store_id for m in record.part_movements if m.kind == "sortie" and m.store_id), None)
+
+
+def _read_part_lines(record=None):
     """Read the "parts used" rows off the form: two parallel lists, one blank
     row being the norm rather than the exception. Quantities for the same part
     are added up, so the service ends with one movement per part.
@@ -490,7 +497,22 @@ def _read_part_lines():
         if pid not in merged:
             order.append(pid)
         merged[pid] = merged.get(pid, 0.0) + qty
-    return [{"part_id": pid, "quantity": merged[pid]} for pid in order], None
+    # The store the parts come out of: one the user works in, or the one the
+    # service already took them from.
+    store_id = None
+    if order:
+        from blueprints.stores import default_store_id, store_or_default
+        raw = request.form.get("parts_store_id", type=int)
+        st = store_or_default(raw)
+        if st is None and raw and raw == _record_store_id(record):
+            store_id = raw
+        elif st is not None:
+            store_id = st.id
+        elif raw:
+            return None, t["maint.err.store"]
+        else:
+            store_id = _record_store_id(record) or default_store_id()
+    return [{"part_id": pid, "quantity": merged[pid], "store_id": store_id} for pid in order], None
 
 
 # Keys in the form payload that belong to the ledger row, not the service record.
@@ -577,12 +599,14 @@ def sync_record_parts(record, lines):
         if mv:
             mv.quantity = line["quantity"]
             mv.date = record.date
+            if line.get("store_id"):
+                mv.store_id = line["store_id"]
             continue
         part = db.session.get(Part, pid)
         if not part:
             continue
         db.session.add(StockMovement(
-            part_id=pid, kind="sortie", date=record.date,
+            part_id=pid, kind="sortie", date=record.date, store_id=line.get("store_id"),
             quantity=line["quantity"],
             unit_value=part.average_cost_as_of(record.date),
             maintenance_record_id=record.id,
@@ -598,16 +622,18 @@ def short_parts(record, lines):
 
     Returns [(part, remaining)] — remaining is negative.
     """
-    already = {m.part_id: m.quantity
+    already = {(m.part_id, m.store_id): m.quantity
                for m in record.part_movements if m.kind == "sortie"} if record else {}
     out = []
     for line in lines:
         part = db.session.get(Part, line["part_id"])
         if not part:
             continue
-        # Add back what this service already took, so an edit compares against
-        # the shelf as it stands without it.
-        available = part.quantity + already.get(part.id, 0.0)
+        sid = line.get("store_id")
+        # Add back what this service already took from that store, so an edit
+        # compares against the shelf as it stands without it.
+        here = part.quantity_in(sid) if sid else part.quantity
+        available = here + already.get((part.id, sid), 0.0)
         remaining = available - line["quantity"]
         if remaining < 0:
             out.append((part, remaining))
@@ -626,6 +652,19 @@ def _flash_short_parts(short):
         "Stock insuffisant, la saisie est conservée : %(names)s. "
         "Enregistrez la réception pour remettre le compte à jour.")
         % {"names": names})
+
+
+def _parts_store_ctx(record):
+    """The stores a service may take parts from, the one it starts on, and
+    what each part holds in each, for the list to show as the store changes."""
+    from blueprints.stores import acting_store_ids, active_stores, default_store_id
+    ids = acting_store_ids()
+    current = _record_store_id(record)
+    stores = [st for st in active_stores() if ids is None or st.id in ids or st.id == current]
+    sel = request.form.get("parts_store_id", type=int) or current or default_store_id()
+    parts = Part.query.filter(Part.is_active.is_(True)).all()
+    held = {p.id: {str(k): v for k, v in p.quantities.items()} for p in parts}
+    return dict(parts_stores=stores, parts_store=sel, parts_held=held)
 
 
 def _record_form_ctx(record):
@@ -675,6 +714,7 @@ def _record_form_ctx(record):
         "stock_parts": Part.query.filter(Part.is_active.is_(True))
                                  .order_by(Part.name).all(),
         "part_rows": part_rows,
+        **_parts_store_ctx(record),
         "preset_vehicle": request.args.get("vehicle_id", type=int),
         "preset_rule": preset_rule,
         "preset_type": preset_type,

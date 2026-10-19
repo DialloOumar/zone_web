@@ -1,0 +1,71 @@
+{# Parts sent to another store: they leave this one now and count over
+   there once someone there confirms what arrived. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form action="{{ url_for('stores.transfer_new') }}" id="transfer-form">
+    <div class="form-row">
+        <div class="field field--select">
+            {% set sel_from = request.form.get('from_store_id')|int(0) or default_from %}
+            <select id="from_store_id" name="from_store_id" required {% if from_stores|length == 1 %}data-single{% endif %}>
+                {% for st in from_stores %}<option value="{{ st.id }}" {% if st.id == sel_from %}selected{% endif %}>{{ st.name }}</option>{% endfor %}
+            </select>
+            <label for="from_store_id">{{ t['stransfer.from'] }}</label>
+        </div>
+        <div class="field field--select">
+            {% set sel_to = request.form.get('to_store_id')|int(0) %}
+            <select id="to_store_id" name="to_store_id" required>
+                <option value="" hidden></option>
+                {% for st in stores %}<option value="{{ st.id }}" {% if st.id == sel_to %}selected{% endif %}>{{ st.name }}</option>{% endfor %}
+            </select>
+            <label for="to_store_id">{{ t['stransfer.to'] }}</label>
+        </div>
+    </div>
+    <div class="field field--select">
+        {% set sel_p = request.form.get('part_id')|int(0) or preset_part or 0 %}
+        <select id="part_id" name="part_id" required>
+            <option value="" hidden></option>
+            {% for p in parts %}<option value="{{ p.id }}" data-unit="{{ unit_label(p.unit) }}" {% if p.id == sel_p %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+        </select>
+        <label for="part_id">{{ t['part.name'] }}</label>
+    </div>
+    <p class="muted small" id="transfer-held" style="margin:-6px 0 10px;"></p>
+    <div class="form-row">
+        <div class="field">
+            <input type="number" id="quantity" name="quantity" placeholder=" " min="0" step="any" required value="{{ request.form.get('quantity', '') }}">
+            <label for="quantity">{{ t['mv.quantity'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="date" name="date" placeholder=" " required value="{{ request.form.get('date') or today }}">
+            <label for="date">{{ t['mv.date'] }}</label>
+        </div>
+    </div>
+    <div class="field">
+        <input type="text" id="note" name="note" placeholder=" " maxlength="255" value="{{ request.form.get('note', '') }}">
+        <label for="note">{{ t['entry.note'] }}</label>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['stransfer.send'] }}</button>
+        <a href="{{ url_for('stores.transfers') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
+<script id="transfer-held-data" type="application/json">{{ held | tojson }}</script>
+<script>
+(function () {
+    var HELD = JSON.parse(document.getElementById('transfer-held-data').textContent),
+        FMT = {{ t['stransfer.held'] | tojson }};
+    var from = document.getElementById('from_store_id'), to = document.getElementById('to_store_id'),
+        part = document.getElementById('part_id'), out = document.getElementById('transfer-held'),
+        qty = document.getElementById('quantity');
+    function upd() {
+        // The destination cannot be the store the parts leave.
+        Array.prototype.forEach.call(to.options, function (o) { if (o.value) o.disabled = o.value === from.value; });
+        if (to.value === from.value) to.value = '';
+        var op = part.options[part.selectedIndex];
+        if (!part.value || !op) { out.textContent = ''; return; }
+        var n = ((HELD[part.value] || {})[from.value]) || 0;
+        out.textContent = FMT.replace('%s', n.toLocaleString('fr-FR')).replace('%u', op.dataset.unit || '');
+        qty.max = n;
+    }
+    [from, to, part].forEach(function (el) { el.addEventListener('change', upd); });
+    upd();
+})();
+</script>

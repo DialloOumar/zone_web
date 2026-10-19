@@ -2509,6 +2509,7 @@ from blueprints.approvals import approvals_bp  # noqa: E402  (imports entries/ma
 from blueprints.insights import insights_bp  # noqa: E402
 from blueprints.invoicing import invoicing_bp  # noqa: E402
 from blueprints.stock import stock_bp  # noqa: E402
+from blueprints.stores import stores_bp  # noqa: E402
 from blueprints.supplier_invoices import supplier_invoices_bp  # noqa: E402
 from blueprints.staff import staff_bp  # noqa: E402
 from blueprints.accounts import accounts_bp  # noqa: E402  (imports expenses)
@@ -2529,6 +2530,7 @@ app.register_blueprint(approvals_bp)
 app.register_blueprint(insights_bp)
 app.register_blueprint(invoicing_bp)
 app.register_blueprint(stock_bp)
+app.register_blueprint(stores_bp)
 app.register_blueprint(supplier_invoices_bp)
 app.register_blueprint(staff_bp)
 app.register_blueprint(accounts_bp)

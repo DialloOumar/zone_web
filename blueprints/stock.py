@@ -55,7 +55,8 @@ def unit_codes():
 # Kinds the store screen writes directly. "sortie" and "retour" are written by
 # a service record, so they are read-only here — they show in the history but
 # have no button of their own.
-MOVEMENT_KINDS = ("initial", "entree", "sortie", "retour", "inventaire")
+MOVEMENT_KINDS = ("initial", "entree", "sortie", "retour", "inventaire",
+                  "transfert_out", "transfert_in")
 
 HISTORY_LIMIT = 300
 
@@ -82,6 +83,11 @@ def _valid_date(s):
         return False
 
 
+def active_stores_list():
+    from blueprints.stores import active_stores
+    return active_stores()
+
+
 def _active_parts():
     return Part.query.filter(Part.is_active.is_(True)).order_by(Part.name).all()
 
@@ -95,10 +101,14 @@ def _part_usage(part):
     receipt owns a row in the money ledger, and an issue belongs to a service.
     """
     counts = {}
-    for kind in ("entree", "sortie", "retour", "inventaire"):
+    for kind in ("entree", "sortie", "retour", "inventaire", "transfert_out", "transfert_in"):
         n = sum(1 for m in part.movements if m.kind == kind)
         if n:
             counts[kind] = n
+    # Its opening stock sitting in a store the user does not run keeps it.
+    from blueprints.stores import can_act_in
+    if any(m.kind == "initial" and m.store_id and not can_act_in(m.store_id) for m in part.movements):
+        counts["initial"] = 1
     return {"counts": counts, "deletable": not counts}
 
 
@@ -118,13 +128,44 @@ def index():
     parts = q.order_by(Part.name).all()
 
     archived_count = Part.query.filter(Part.is_active.is_(False)).count()
+
+    # Which store is shown: one asked for, else the user's own when they run
+    # exactly one, else all of them side by side.
+    from blueprints.stores import acting_store_ids, active_stores, can_act_in
+    stores = active_stores()
+    raw = request.args.get("store") or ""
+    mine = acting_store_ids()
+    if raw == "all":
+        store = None
+    elif raw.isdigit():
+        store = next((st for st in stores if st.id == int(raw)), None)
+    else:
+        store = (next((st for st in stores if st.id == mine[0]), None)
+                 if mine and len(mine) == 1 else None)
+    if len(stores) == 1:
+        store = stores[0]
+    qmap = {p.id: p.quantities for p in parts}
+
     # Totals over what is shown, so a search narrows them too. A part with no
     # price known contributes nothing rather than breaking the sum.
-    total_value = sum(p.stock_value or 0 for p in parts)
-    low_count = sum(1 for p in parts if p.below_reorder)
+    def value(p):
+        avg = p.average_cost_as_of()
+        if avg is None:
+            return 0
+        q = qmap[p.id].get(store.id, 0.0) if store else sum(qmap[p.id].values())
+        return int(round(q * avg))
+    total_value = sum(value(p) for p in parts)
+    low_count = sum(1 for p in parts
+                    if (p.below_reorder_in(store.id) if store else p.below_reorder))
+    transit = {}
+    from models import StockTransfer
+    for tr in StockTransfer.query.filter_by(status="transit").all():
+        transit[tr.part_id] = transit.get(tr.part_id, 0.0) + tr.quantity
 
-    recent = (StockMovement.query
-              .order_by(StockMovement.date.desc(), StockMovement.id.desc())
+    recent_q = StockMovement.query
+    if store:
+        recent_q = recent_q.filter(StockMovement.store_id == store.id)
+    recent = (recent_q.order_by(StockMovement.date.desc(), StockMovement.id.desc())
               .limit(15).all())
 
     from models import PurchaseOrder
@@ -135,6 +176,8 @@ def index():
         archived_count=archived_count, total_value=total_value,
         low_count=low_count, recent=recent, active_parts=_active_parts(),
         usage={p.id: _part_usage(p) for p in parts},
+        stores=stores, store=store, qmap=qmap, transit=transit,
+        can_send=bool(store and can_act_in(store.id) and len(stores) > 1),
         today=date.today().isoformat())
 
 
@@ -187,18 +230,24 @@ def _read_part_form(part):
                 opening=opening or 0, opening_price=opening_price), None
 
 
-def _set_opening_stock(part, quantity, price, today):
+def _set_opening_stock(part, quantity, price, today, store_id=None):
     """The opening stock is a single 'initial' movement, so editing it just
     adjusts (or removes) that one row. Deliberately NOT an expense: those
     parts were paid for before the store existed."""
     mv = next((m for m in part.movements if m.kind == "initial"), None)
+    # Another store's opening stock is that store's people's to change.
+    from blueprints.stores import can_act_in
+    if mv and mv.store_id and not can_act_in(mv.store_id):
+        return
     if quantity > 0:
         if mv:
             mv.quantity = quantity
             mv.unit_price = price
+            if store_id:
+                mv.store_id = store_id
         else:
             db.session.add(StockMovement(
-                part_id=part.id, kind="initial", date=today,
+                part_id=part.id, kind="initial", date=today, store_id=store_id,
                 quantity=quantity, unit_price=price,
                 created_by=current_user.id))
     elif mv:
@@ -235,10 +284,22 @@ def _apply_part_photo_change(part):
     return None
 
 
+def _opening_store():
+    """The store the opening stock sits in: the one picked, if the user
+    works there, else the user's own."""
+    from blueprints.stores import default_store_id, store_or_default
+    st = store_or_default(request.form.get("opening_store_id", type=int))
+    return st.id if st else default_store_id()
+
+
 def _render_part_form(part, error=None):
     tpl = "_part_form.html" if is_modal_request() else "part_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, part=part, error=error, units=active_units()), status
+    from blueprints.stores import acting_store_ids, active_stores, default_store_id
+    ids = acting_store_ids()
+    stores = [st for st in active_stores() if ids is None or st.id in ids]
+    return render_template(tpl, part=part, error=error, units=active_units(),
+                           opening_stores=stores, default_store=default_store_id()), status
 
 
 @stock_bp.route("/parts/new", methods=["GET", "POST"])
@@ -261,7 +322,7 @@ def part_new():
         if perr:
             db.session.rollback()
             return _render_part_form(None, perr)
-        _set_opening_stock(p, opening, opening_price, date.today().isoformat())
+        _set_opening_stock(p, opening, opening_price, date.today().isoformat(), _opening_store())
         log_action("CREATE", "part", resource_id=p.id,
                    detail=f"Created part '{p.name}'")
         db.session.commit()
@@ -288,7 +349,7 @@ def part_edit(pid):
         if perr:
             db.session.rollback()
             return _render_part_form(part, perr)
-        _set_opening_stock(part, opening, opening_price, date.today().isoformat())
+        _set_opening_stock(part, opening, opening_price, date.today().isoformat(), _opening_store())
         log_action("UPDATE", "part", resource_id=part.id,
                    detail=f"Edited part '{part.name}'")
         db.session.commit()
@@ -371,6 +432,7 @@ def part_reactivate(pid):
 def history():
     filters = {
         "part_id":   request.args.get("part_id", type=int),
+        "store_id":  request.args.get("store_id", type=int),
         "kind":      request.args.get("kind") or "",
         "date_from": (request.args.get("date_from") or "").strip(),
         "date_to":   (request.args.get("date_to") or "").strip(),
@@ -378,6 +440,8 @@ def history():
     q = StockMovement.query
     if filters["part_id"]:
         q = q.filter(StockMovement.part_id == filters["part_id"])
+    if filters["store_id"]:
+        q = q.filter(StockMovement.store_id == filters["store_id"])
     if filters["kind"] in MOVEMENT_KINDS:
         q = q.filter(StockMovement.kind == filters["kind"])
     if _valid_date(filters["date_from"]):
@@ -390,7 +454,8 @@ def history():
     return render_template(
         "stock_history.html", movements=movements, filters=filters,
         kinds=MOVEMENT_KINDS, parts=Part.query.order_by(Part.name).all(),
-        has_filters=any(filters.values()), limit=HISTORY_LIMIT)
+        has_filters=any(filters.values()), limit=HISTORY_LIMIT,
+        stores=active_stores_list())
 
 
 # ── The units the store counts in ────────────────────────────────────────────

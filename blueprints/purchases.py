@@ -206,7 +206,12 @@ def _read_form(po):
                           amount=gross - discount))
     if not lines:
         return None, None, t["po.err.no_lines"]
-    header = dict(supplier_id=supplier.id, date=date_str,
+    # The store it is delivered to: any active store may be ordered for.
+    from blueprints.stores import store_or_default
+    store = store_or_default(request.form.get("store_id", type=int), need_act=False)
+    if store is None:
+        return None, None, t["po.err.store"]
+    header = dict(supplier_id=supplier.id, date=date_str, store_id=store.id,
                   note=(request.form.get("note") or "").strip()[:255] or None)
     return header, lines, None
 
@@ -241,7 +246,23 @@ def _render_form(po, error=None, lines=None):
                            suppliers=parts_suppliers(), parts_json=parts_json,
                            units=active_units(),
                            machines=[dict(id=v.id, code=v.code) for v in _accessible_vehicles()],
+                           stores=_stores(), default_store=_default_store(po),
                            today=date.today().isoformat())
+
+
+def _can_act(store_id):
+    from blueprints.stores import can_act_in
+    return store_id is None or can_act_in(store_id)
+
+
+def _stores():
+    from blueprints.stores import active_stores
+    return active_stores()
+
+
+def _default_store(po):
+    from blueprints.stores import default_store_id
+    return po.store_id if po and po.store_id else default_store_id()
 
 
 def _write_lines(po, lines):
@@ -285,6 +306,7 @@ def index():
     return render_template("purchase_orders.html", orders=pagination.items, pagination=pagination,
                            status=status, search=search, counts=counts, mine=mine,
                            statuses=STATUSES, can_create=has_perm("stock.manage"),
+                           stores_count=len(_stores()),
                            parts_count=Part.query.filter(Part.is_active.is_(True)).count(),
                            orders_count=PurchaseOrder.query.count())
 
@@ -394,7 +416,8 @@ def detail(oid):
                            can_sign_finance=po.status == "pending_finance" and user_approves("finance"),
                            can_reject=po.status in PENDING and (user_approves("logistics") or user_approves("finance")),
                            can_edit=has_perm("stock.manage") and _editable(po),
-                           can_receive=has_perm("stock.manage") and po.status in RECEIVABLE,
+                           can_receive=has_perm("stock.manage") and po.status in RECEIVABLE
+                                       and _can_act(po.store_id),
                            can_delete=(current_user.is_super_admin or has_perm("stock.manage")) and _editable(po))
 
 
@@ -497,6 +520,13 @@ def receive(oid):
     if po.status not in RECEIVABLE:
         flash("error|" + t["po.err.not_receivable"])
         return redirect(url_for("purchases.detail", oid=po.id))
+    # Only the people of the store it is delivered to receive it.
+    from blueprints.stores import can_act_in, default_store_id
+    if po.store_id is None:
+        po.store_id = default_store_id()
+    if not can_act_in(po.store_id):
+        flash("error|" + t["po.err.other_store"] % (po.store.name if po.store else ""))
+        return redirect(url_for("purchases.detail", oid=po.id))
     if request.method == "POST":
         date_str = (request.form.get("date") or "").strip() or date.today().isoformat()
         if not _valid_date(date_str):
@@ -530,6 +560,7 @@ def receive(oid):
             if line.part_id:
                 db.session.add(StockMovement(
                     part_id=line.part_id, kind="entree", date=date_str, quantity=qty,
+                    store_id=po.store_id,
                     unit_price=line.stock_unit_price, supplier=po.supplier.name,
                     note=po.number, purchase_line_id=line.id, created_by=current_user.id))
             line.received_qty = (line.received_qty or 0) + qty

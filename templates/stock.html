@@ -6,6 +6,18 @@
 {% block content %}
 <section class="card">
     {% with stock_tab = 'stock' %}{% include "_stock_tabs.html" %}{% endwith %}
+    {# One store at a time, or all side by side. A magasinier lands on his own. #}
+    {% if stores|length > 1 %}
+    <nav class="tabs" role="tablist">
+        <a href="{{ url_for('stock.index', store='all', q=search or None, archived=1 if show_archived else None) }}" role="tab"
+           aria-selected="{{ 'false' if store else 'true' }}" class="tab {% if not store %}tab--on{% endif %}">{{ t['store.all'] }}</a>
+        {% for st in stores %}
+        <a href="{{ url_for('stock.index', store=st.id, q=search or None, archived=1 if show_archived else None) }}" role="tab"
+           aria-selected="{{ 'true' if store and store.id == st.id else 'false' }}" class="tab {% if store and store.id == st.id %}tab--on{% endif %}">
+            {{ st.name }}{% if not can_act_in_store(st.id) %} <span class="material-symbols-outlined" style="font-size:15px; vertical-align:-2px;" title="{{ t['store.read_only'] }}">visibility</span>{% endif %}</a>
+        {% endfor %}
+    </nav>
+    {% endif %}
     <div class="card-header">
         <div style="display:flex; gap:14px; align-items:baseline; flex-wrap:wrap;">
             <span class="muted small">{{ t['stock.total_value'] }} <strong>{{ total_value | num }}</strong> GNF</span>
@@ -22,6 +34,12 @@
             {# Kept for now: an article, with what is already on the shelf,
                written straight into the store. The usual way in stays the
                purchase order. #}
+            {% if can_send %}
+            <a href="{{ url_for('stores.transfer_new') }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('stores.transfer_new') }}" data-modal-title="{{ t['stransfer.new'] }}">
+                <span class="material-symbols-outlined">swap_horiz</span> {{ t['stransfer.new'] }}
+            </a>
+            {% endif %}
             {% if has_perm('stock.manage') %}
             <a href="{{ url_for('stock.part_new') }}" class="fab"
                data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
@@ -33,6 +51,7 @@
 
     <form method="get" class="filter-bar">
         {% if show_archived %}<input type="hidden" name="archived" value="1">{% endif %}
+        <input type="hidden" name="store" value="{{ store.id if store else 'all' }}">
         <div class="field" style="min-width:220px;">
             <input type="text" name="q" value="{{ search }}" placeholder=" ">
             <label>{{ t['stock.search'] }}</label>
@@ -49,7 +68,12 @@
         <thead>
             <tr>
                 <th>{{ t['part.name'] }}</th>
+                {% if store or stores|length < 2 %}
                 <th style="text-align:right;">{{ t['part.quantity'] }}</th>
+                {% else %}
+                {% for st in stores %}<th style="text-align:right;">{{ st.name }}</th>{% endfor %}
+                <th style="text-align:right;">{{ t['store.total'] }}</th>
+                {% endif %}
                 <th class="col-secondary" style="text-align:right;">{{ t['part.avg_cost'] }}</th>
                 <th class="col-secondary" style="text-align:right;">{{ t['part.stock_value'] }}</th>
                 <th></th>
@@ -69,21 +93,45 @@
                             <div class="muted small">{{ unit_label(p.unit) }}</div></span>
                     </span>
                 </td>
+                {% set qs = qmap[p.id] %}
+                {% if store or stores|length < 2 %}
+                {% set here = qs.get(store.id, 0) if store else (qs.values()|sum) %}
                 <td style="text-align:right; white-space:nowrap;">
-                    <strong>{{ p.quantity | qty }}</strong>
-                    {% if p.below_reorder %}
+                    <strong>{{ here | qty }}</strong>
+                    {% if (p.below_reorder_in(store.id) if store else p.below_reorder) %}
                     <span class="badge badge--warning" title="{{ t['part.reorder_at'] }} {{ p.reorder_level | qty }}">{{ t['stock.reorder'] }}</span>
                     {% endif %}
+                    {# What the other stores hold, so a magasinier knows where to ask. #}
+                    {% if store %}{% set elsewhere = [] %}{% for st in stores if st.id != store.id and qs.get(st.id, 0) > 0 %}{% set _ = elsewhere.append(st.name ~ ' ' ~ (qs.get(st.id) | qty)) %}{% endfor %}
+                    {% if elsewhere %}<div class="muted small">{{ t['store.elsewhere'] }} {{ elsewhere | join(', ') }}</div>{% endif %}{% endif %}
+                    {% if transit.get(p.id) %}<div class="muted small">+ {{ transit[p.id] | qty }} {{ t['stransfer.in_transit'] }}</div>{% endif %}
                 </td>
+                {% else %}
+                {% for st in stores %}
+                <td style="text-align:right; white-space:nowrap;">
+                    {% set q = qs.get(st.id, 0) %}
+                    {% if q %}{{ q | qty }}{% else %}<span class="muted">0</span>{% endif %}
+                    {% if p.below_reorder_in(st.id) %}<span class="badge badge--warning" title="{{ t['part.reorder_at'] }} {{ p.reorder_level | qty }}">{{ t['stock.reorder'] }}</span>{% endif %}
+                </td>
+                {% endfor %}
+                <td style="text-align:right; white-space:nowrap;"><strong>{{ qs.values()|sum | qty }}</strong>
+                    {% if transit.get(p.id) %}<div class="muted small">+ {{ transit[p.id] | qty }} {{ t['stransfer.in_transit'] }}</div>{% endif %}</td>
+                {% endif %}
                 <td class="col-secondary" style="text-align:right; white-space:nowrap;">
                     {% if p.average_cost_as_of() is not none %}{{ p.average_cost_as_of() | num }}
                     {% else %}<span class="muted">—</span>{% endif %}
                 </td>
                 <td class="col-secondary" style="text-align:right; white-space:nowrap;">
-                    {% if p.stock_value is not none %}{{ p.stock_value | num }}
+                    {% set avg = p.average_cost_as_of() %}
+                    {% if avg is not none %}{{ ((qs.get(store.id, 0) if store else qs.values()|sum) * avg) | round | int | num }}
                     {% else %}<span class="muted">—</span>{% endif %}
                 </td>
                 <td class="row-actions">
+                    {% if can_send and qs.get(store.id, 0) > 0 %}
+                    <a href="{{ url_for('stores.transfer_new', part_id=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('stores.transfer_new', part_id=p.id) }}" data-modal-title="{{ t['stransfer.new'] }}"
+                       title="{{ t['stransfer.send_part'] }}" aria-label="{{ t['stransfer.send_part'] }}"><span class="material-symbols-outlined">swap_horiz</span></a>
+                    {% endif %}
                     {% if has_perm('stock.manage') %}
                     <a href="{{ url_for('stock.part_edit', pid=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('stock.part_edit', pid=p.id) }}" data-modal-title="{{ t['part.edit'] }}"
@@ -118,13 +166,14 @@
         <div class="list-card">
             <div class="list-card__top">
                 <strong>{{ p.name }}</strong>
-                <span class="list-card__amount">{{ p.quantity | qty }} <span class="muted small">{{ unit_label(p.unit) }}</span></span>
+                <span class="list-card__amount">{{ (qmap[p.id].get(store.id, 0) if store else qmap[p.id].values()|sum) | qty }} <span class="muted small">{{ unit_label(p.unit) }}</span></span>
             </div>
             <div class="list-card__meta">
                 <span class="muted small">
                     {% if p.stock_value is not none %}{{ p.stock_value | num }} GNF{% else %}—{% endif %}
                 </span>
-                {% if p.below_reorder %}<span class="badge badge--warning">{{ t['stock.reorder'] }}</span>{% endif %}
+                {% if (p.below_reorder_in(store.id) if store else p.below_reorder) %}<span class="badge badge--warning">{{ t['stock.reorder'] }}</span>{% endif %}
+                {% if not store and stores|length > 1 %}{% for st in stores %}<span class="muted small">{{ st.name }} {{ qmap[p.id].get(st.id, 0) | qty }}</span>{% endfor %}{% endif %}
             </div>
             {% if has_perm('stock.manage') %}
             <div class="list-card__actions">
@@ -169,7 +218,7 @@
 <section class="card">
     <div class="card-header">
         <h2>{{ t['mv.recent'] }}</h2>
-        <a class="link-more" href="{{ url_for('stock.history') }}">{{ t['mv.history'] }}</a>
+        <a class="link-more" href="{{ url_for('stock.history', store_id=store.id if store else None) }}">{{ t['mv.history'] }}</a>
     </div>
     {% set movements = recent %}
     {% include "_stock_movement_table.html" %}

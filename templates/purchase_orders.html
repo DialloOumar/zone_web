@@ -85,7 +85,8 @@
             <tr>
                 <td style="white-space:nowrap;"><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a>
                     <div class="muted small">{{ po.lines | length }} {{ t['po.lines_count'] }}</div></td>
-                <td><span class="muted small">{{ po.supplier.code }}</span> {{ po.supplier.name }}</td>
+                <td><span class="muted small">{{ po.supplier.code }}</span> {{ po.supplier.name }}
+                    {% if po.store and stores_count > 1 %}<div class="muted small">→ {{ po.store.name }}</div>{% endif %}</td>
                 <td style="white-space:nowrap;">{{ po.date }}</td>
                 <td>{{ po.requester_name or '—' }}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ po.total | num }} {{ currency }}</td>

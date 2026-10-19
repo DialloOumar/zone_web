@@ -17,6 +17,7 @@
     {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 
     <form method="post" class="entry-form">
+        {% if po.store %}<p class="muted" style="margin:0 0 10px;">{{ t['po.receive_into'] }} <strong>{{ po.store.name }}</strong></p>{% endif %}
         <div class="field" style="max-width:220px;">
             <input type="date" id="date" name="date" placeholder=" " required value="{{ request.form.get('date') or today }}">
             <label for="date">{{ t['po.receive_date'] }}</label>

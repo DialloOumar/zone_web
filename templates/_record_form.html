@@ -84,6 +84,14 @@
        they were paid for when they were received. #}
     <div class="form-section">
         <div class="form-section__title">{{ t['maint.parts_from_store'] }}</div>
+        {% if parts_stores|length > 1 %}
+        <div class="field field--select" style="max-width:280px;">
+            <select id="parts_store_id" name="parts_store_id">
+                {% for st in parts_stores %}<option value="{{ st.id }}" {% if st.id == parts_store %}selected{% endif %}>{{ st.name }}</option>{% endfor %}
+            </select>
+            <label for="parts_store_id">{{ t['maint.parts_store'] }}</label>
+        </div>
+        {% elif parts_stores %}<input type="hidden" id="parts_store_id" name="parts_store_id" value="{{ parts_stores[0].id }}">{% endif %}
         <div id="parts-lines">
             {% for pid, qty in part_rows %}
             <div class="form-row parts-line">
@@ -91,7 +99,7 @@
                     <select name="part_id">
                         <option value="">{{ t['form.select'] }}</option>
                         {% for p in stock_parts %}
-                        <option value="{{ p.id }}" {% if pid == p.id|string %}selected{% endif %}>{{ p.name }} — {{ p.quantity | qty }} {{ unit_label(p.unit) }}</option>
+                        <option value="{{ p.id }}" data-name="{{ p.name }}" data-unit="{{ unit_label(p.unit) }}" {% if pid == p.id|string %}selected{% endif %}>{{ p.name }} — {{ (parts_held.get(p.id, {}).get(parts_store|string, 0)) | qty }} {{ unit_label(p.unit) }}</option>
                         {% endfor %}
                     </select>
                     <label>{{ t['mv.part'] }}</label>
@@ -118,7 +126,7 @@
                 <select name="part_id">
                     <option value="">{{ t['form.select'] }}</option>
                     {% for p in stock_parts %}
-                    <option value="{{ p.id }}">{{ p.name }} — {{ p.quantity | qty }} {{ unit_label(p.unit) }}</option>
+                    <option value="{{ p.id }}" data-name="{{ p.name }}" data-unit="{{ unit_label(p.unit) }}">{{ p.name }} — {{ (parts_held.get(p.id, {}).get(parts_store|string, 0)) | qty }} {{ unit_label(p.unit) }}</option>
                     {% endfor %}
                 </select>
                 <label>{{ t['mv.part'] }}</label>
@@ -226,8 +234,19 @@
     if (!box || !tpl) return;
     var add = document.querySelector('[data-parts-add]');
 
+    // What each part holds in the store picked, shown beside its name.
+    var HELD = {{ parts_held | tojson }}, storeSel = document.getElementById('parts_store_id');
+    function relabel(root) {
+        var sid = storeSel ? storeSel.value : '';
+        (root || document).querySelectorAll('.parts-line select[name=part_id] option[data-name]').forEach(function (o) {
+            var n = ((HELD[o.value] || {})[sid]) || 0;
+            o.textContent = o.dataset.name + ' — ' + n.toLocaleString('fr-FR') + ' ' + o.dataset.unit;
+        });
+    }
+    if (storeSel) storeSel.addEventListener('change', function () { relabel(); });
     function addLine() {
         box.appendChild(tpl.content.cloneNode(true));
+        relabel(box.lastElementChild);
     }
     add.addEventListener('click', addLine);
     box.addEventListener('click', function (e) {

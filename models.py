@@ -1718,6 +1718,75 @@ class FuelMovement(db.Model):
 # ── Parts store ───────────────────────────────────────────────────────────────
 
 
+# Movements that take parts out of a store; every other kind brings them in
+# (a count resets).
+OUT_KINDS = ("sortie", "transfert_out")
+
+# Who runs which store. A user named on a store works in it alone; a user
+# with the stock permission and no store works in all of them.
+store_managers = db.Table(
+    "store_managers",
+    db.Column("store_id", db.Integer, db.ForeignKey("stores.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("user_id", db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True),
+)
+
+
+class Store(db.Model):
+    """A store of parts: the yard's, Siguiri's. The catalogue is shared,
+    the quantities are each store's own, counted from its movements."""
+    __tablename__ = "stores"
+
+    id         = db.Column(db.Integer,    primary_key=True)
+    name       = db.Column(db.String(80), nullable=False, unique=True)
+    site_id    = db.Column(db.Integer,    db.ForeignKey("sites.id"), nullable=True)
+    is_active  = db.Column(db.Boolean,    nullable=False, default=True)
+    created_at = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+
+    site     = db.relationship("Site")
+    managers = db.relationship("User", secondary="store_managers", order_by="User.full_name",
+                               backref=db.backref("stores", order_by="Store.name"))
+
+
+class StockTransfer(db.Model):
+    """Parts sent from one store to another. They leave the first at once
+    (a transfert_out) and only count in the second once someone there says
+    what actually arrived (a transfert_in of that quantity). What went
+    missing on the way stays readable: sent minus received."""
+    __tablename__ = "stock_transfers"
+
+    id             = db.Column(db.Integer,    primary_key=True)
+    part_id        = db.Column(db.Integer,    db.ForeignKey("parts.id"), nullable=False, index=True)
+    from_store_id  = db.Column(db.Integer,    db.ForeignKey("stores.id"), nullable=False)
+    to_store_id    = db.Column(db.Integer,    db.ForeignKey("stores.id"), nullable=False)
+    quantity       = db.Column(db.Float,      nullable=False)            # sent
+    status         = db.Column(db.String(12), nullable=False, default="transit")  # transit | received
+    sent_date      = db.Column(db.String(10), nullable=False)
+    sent_by        = db.Column(db.Integer,    db.ForeignKey("users.id"), nullable=True)
+    note           = db.Column(db.String(255))
+    received_quantity = db.Column(db.Float,   nullable=True)
+    received_date  = db.Column(db.String(10), nullable=True)
+    received_by    = db.Column(db.Integer,    db.ForeignKey("users.id"), nullable=True)
+    received_note  = db.Column(db.String(255))
+    out_movement_id = db.Column(db.Integer,   db.ForeignKey("stock_movements.id"), nullable=True)
+    in_movement_id  = db.Column(db.Integer,   db.ForeignKey("stock_movements.id"), nullable=True)
+    created_at     = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+
+    part       = db.relationship("Part", backref=db.backref("transfers", lazy="select"))
+    from_store = db.relationship("Store", foreign_keys=[from_store_id])
+    to_store   = db.relationship("Store", foreign_keys=[to_store_id])
+    sender     = db.relationship("User", foreign_keys=[sent_by])
+    receiver   = db.relationship("User", foreign_keys=[received_by])
+    out_movement = db.relationship("StockMovement", foreign_keys=[out_movement_id])
+    in_movement  = db.relationship("StockMovement", foreign_keys=[in_movement_id])
+
+    @property
+    def gap(self):
+        """Sent minus received, once received: positive = some went missing."""
+        if self.received_quantity is None:
+            return None
+        return self.quantity - self.received_quantity
+
+
 class PartUnit(db.Model):
     """A unit, kept by the store itself: pièce, litre, kg, jeu, fût,
     carton... A part stores the code of the one it counts in; every screen
@@ -1780,26 +1849,52 @@ class Part(db.Model):
 
     @property
     def quantity(self):
-        """What is on hand right now."""
+        """What is on hand right now, every store together."""
         return self.quantity_as_of(None)
 
-    def quantity_as_of(self, date_str):
+    def quantity_as_of(self, date_str, store_id=None):
         """Quantity counting only movements dated on/before `date_str`
-        (None = all). A physical count is a reset point: whatever was counted
-        replaces the running figure, and later movements build on it. That is
-        how a wrong figure — including a negative one — gets put right.
+        (None = all), in one store or (store_id None) in all of them. A
+        physical count is a reset point for its own store: whatever was
+        counted there replaces that store's running figure.
         """
-        total = 0.0
+        per = self.quantities_as_of(date_str)
+        if store_id is not None:
+            return per.get(store_id, 0.0)
+        return sum(per.values())
+
+    def quantities_as_of(self, date_str=None):
+        """{store_id: quantity} on/before `date_str`. Parts in transit
+        between stores are in neither: they left one and have not reached
+        the other yet."""
+        per = {}
         for m in self._ordered_movements():
             if date_str is not None and m.date > date_str:
                 continue
+            sid = m.store_id
             if m.kind == "inventaire":
-                total = m.quantity
-            elif m.kind == "sortie":
-                total -= m.quantity
-            else:                      # initial | entree | retour
-                total += m.quantity
-        return total
+                per[sid] = m.quantity
+            elif m.kind in OUT_KINDS:
+                per[sid] = per.get(sid, 0.0) - m.quantity
+            else:                      # initial | entree | retour | transfert_in
+                per[sid] = per.get(sid, 0.0) + m.quantity
+        return per
+
+    @property
+    def quantities(self):
+        return self.quantities_as_of(None)
+
+    def quantity_in(self, store_id):
+        return self.quantities.get(store_id, 0.0)
+
+    @property
+    def in_transit(self):
+        """What has left one store for another and is not confirmed yet."""
+        return sum(t.quantity for t in self.transfers if t.status == "transit")
+
+    def below_reorder_in(self, store_id):
+        """Time to re-order in this store: the threshold holds per store."""
+        return self.reorder_level is not None and self.quantity_in(store_id) <= self.reorder_level
 
     @property
     def opening_quantity(self):
@@ -1860,8 +1955,12 @@ class Part(db.Model):
 
     @property
     def below_reorder(self):
-        """True when it is time to re-order. No threshold set = never flagged."""
-        return self.reorder_level is not None and self.quantity <= self.reorder_level
+        """True when some store has reached the re-order threshold. No
+        threshold set = never flagged."""
+        if self.reorder_level is None:
+            return False
+        stores = [st.id for st in Store.query.filter_by(is_active=True).all()] or [None]
+        return any(self.quantity_in(sid) <= self.reorder_level for sid in stores)
 
 
 class StockMovement(db.Model):
@@ -1874,6 +1973,8 @@ class StockMovement(db.Model):
         retour      — parts brought back unused (+)
         inventaire  — a physical count; resets the running quantity to what was
                       counted (see Part.quantity_as_of)
+        transfert_out — sent to another store (−), see StockTransfer
+        transfert_in  — received from another store (+), once confirmed there
 
     Two price columns, and they mean different things: `unit_price` is what was
     actually paid on an entrée, `unit_value` is the weighted average frozen on a
@@ -1884,7 +1985,9 @@ class StockMovement(db.Model):
 
     id          = db.Column(db.Integer,     primary_key=True)
     part_id     = db.Column(db.Integer,     db.ForeignKey("parts.id"), nullable=False)
-    kind        = db.Column(db.String(20),  nullable=False)   # initial|entree|sortie|retour|inventaire
+    # The store the parts came into or left. Every movement has one.
+    store_id    = db.Column(db.Integer,     db.ForeignKey("stores.id"), nullable=True, index=True)
+    kind        = db.Column(db.String(20),  nullable=False)   # initial|entree|sortie|retour|inventaire|transfert_out|transfert_in
     date        = db.Column(db.String(10),  nullable=False)   # YYYY-MM-DD
     quantity    = db.Column(db.Float,       nullable=False)   # positive; sign from kind
     unit_price  = db.Column(db.Integer,     nullable=True)    # GNF paid — entrée / initial
@@ -1901,6 +2004,7 @@ class StockMovement(db.Model):
 
     part   = db.relationship("Part", back_populates="movements",
                              foreign_keys=[part_id])
+    store  = db.relationship("Store")
     record = db.relationship("MaintenanceRecord", back_populates="part_movements",
                              foreign_keys=[maintenance_record_id])
     # An entrée's cost lives in the money ledger, not here — same arrangement as
@@ -1926,11 +2030,11 @@ class StockMovement(db.Model):
             return None
         expected = 0.0
         for m in self.part._ordered_movements():
-            if (m.date, m.id or 0) >= (self.date, self.id or 0):
+            if (m.date, m.id or 0) >= (self.date, self.id or 0) or m.store_id != self.store_id:
                 continue
             if m.kind == "inventaire":
                 expected = m.quantity
-            elif m.kind == "sortie":
+            elif m.kind in OUT_KINDS:
                 expected -= m.quantity
             else:
                 expected += m.quantity
@@ -1998,6 +2102,8 @@ class PurchaseOrder(db.Model):
     date           = db.Column(db.String(10),  nullable=False)
     status         = db.Column(db.String(20),  nullable=False, default="pending_logistics")
     requested_by   = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    # The store the order is delivered to; only its people receive it.
+    store_id       = db.Column(db.Integer,     db.ForeignKey("stores.id"), nullable=True)
     requester_name = db.Column(db.String(120), nullable=True)    # copied in, for the sheet
     requester_phone = db.Column(db.String(60), nullable=True)
     logistics_by   = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
@@ -2015,6 +2121,7 @@ class PurchaseOrder(db.Model):
     created_at     = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
     supplier         = db.relationship("Supplier")
+    store            = db.relationship("Store")
     requester        = db.relationship("User", foreign_keys=[requested_by])
     logistics_signer = db.relationship("User", foreign_keys=[logistics_by])
     finance_signer   = db.relationship("User", foreign_keys=[finance_by])
