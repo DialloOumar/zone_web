@@ -23,9 +23,6 @@ CLIENT_PARENT = "4111"
 
 # Where suppliers live on the plan: each permanent one under 4011 with his FP
 # number, the occasional ones together on one sub-account.
-SUPPLIER_PARENT = "4011"
-SUNDRY_SUPPLIERS_CODE = "4011900"
-SUNDRY_SUPPLIERS_LABEL = {"fr": "Fournisseurs divers", "en": "Sundry suppliers"}
 
 
 def used_accounts():
@@ -95,36 +92,6 @@ def _add_account(code, label, parent_code, user_id=None):
     db.session.add(row)
     db.session.flush()
     return row
-
-
-def ensure_supplier_account(supplier, user_id=None):
-    """The supplier's account on the plan, made on first need.
-
-    A permanent supplier (FP-003) gets 4011003, labelled with his name; the
-    occasional ones (FD) share 4011900 Fournisseurs divers. Set by hand on
-    the supplier's form, it is left alone. Returns the code, or None when
-    the plan is not loaded (no 4011 to hang it on)."""
-    if supplier.ledger_code:
-        return supplier.ledger_code
-    parent = LedgerAccount.query.filter_by(code=SUPPLIER_PARENT).first()
-    if not parent:
-        return None
-    if supplier.kind == "permanent" and supplier.code and "-" in supplier.code:
-        number = supplier.code.split("-", 1)[1]
-        code = SUPPLIER_PARENT + number.zfill(3)
-        label = supplier.name
-    else:
-        code, label = SUNDRY_SUPPLIERS_CODE, SUNDRY_SUPPLIERS_LABEL["fr"]
-    row = LedgerAccount.query.filter_by(code=code).first()
-    if row:
-        if not row.is_used:
-            row.is_used = True
-        if not row.is_active:
-            row.is_active = True
-    else:
-        _add_account(code, label, parent.code, user_id)
-    supplier.ledger_code = code
-    return code
 
 
 def _mark_used(row):
@@ -237,34 +204,39 @@ def attach_existing_clients():
 
 
 def attach_existing_suppliers():
-    """One-time catch-up, safe to run again: every supplier from before the
-    plan gets his account (a permanent one his own after his FP code, an
-    occasional one the shared 4011900), and every settlement already
-    recorded on his bills is coded to it. Set by hand since, a supplier's
-    account is left alone; a settlement already coded is left alone.
-    Returns (suppliers attached, settlements coded)."""
+    """Catch-up, safe to run again. The app never creates a supplier's
+    account: the comptable associates one on the supplier's form. This only
+    codes the settlements recorded before that association was made, onto
+    the account the supplier carries now. A settlement already coded is
+    left alone. Returns (0, settlements coded), the first number kept for
+    the seed's report."""
+    return 0, code_supplier_settlements()
+
+
+def code_supplier_settlements(supplier_id=None):
+    """Code the uncoded settlements of suppliers that have an account --
+    all of them, or one supplier's when the comptable has just associated
+    his account on his form. The cash box's instalment mirrors a cost: the
+    same code lands on the cost. Returns how many were coded; the caller
+    commits (the catch-up aside, which runs at boot and commits itself)."""
     from models import Supplier, SupplierInvoice, SupplierPayment, Expense
-    if not LedgerAccount.query.filter_by(code=SUPPLIER_PARENT).first():
-        return 0, 0
-    attached = 0
-    for s in Supplier.query.all():
-        if not s.ledger_code and ensure_supplier_account(s):
-            attached += 1
+    q = (db.session.query(SupplierPayment, Supplier.ledger_code)
+         .join(SupplierInvoice, SupplierPayment.invoice_id == SupplierInvoice.id)
+         .join(Supplier, SupplierInvoice.supplier_id == Supplier.id)
+         .filter(SupplierPayment.ledger_code.is_(None), Supplier.ledger_code.isnot(None)))
+    if supplier_id:
+        q = q.filter(Supplier.id == supplier_id)
     coded = 0
-    rows = (db.session.query(SupplierPayment, Supplier.ledger_code)
-            .join(SupplierInvoice, SupplierPayment.invoice_id == SupplierInvoice.id)
-            .join(Supplier, SupplierInvoice.supplier_id == Supplier.id)
-            .filter(SupplierPayment.ledger_code.is_(None), Supplier.ledger_code.isnot(None)).all())
-    for pay, code in rows:
+    for pay, code in q.all():
         pay.ledger_code = code
-        # The cash box's instalment mirrors a cost: same code on the cost.
         if pay.expense_id:
             x = db.session.get(Expense, pay.expense_id)
             if x is not None and not x.ledger_code:
                 x.ledger_code = code
         coded += 1
-    db.session.commit()
-    return attached, coded
+    if supplier_id is None and coded:
+        db.session.commit()
+    return coded
 
 
 def labels_for(codes):

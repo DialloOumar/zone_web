@@ -110,10 +110,10 @@
     </div>
     {% endif %}
 
-    {# His account on the plan, under 4011. Left empty, it is made the first
-       time a bill or a payment names him: his own for a permanent supplier,
-       the shared one for an occasional one. Set here to match numbering the
-       comptable already has. Not on the store's short form. #}
+    {# His account on the plan, associated here by whoever keeps the
+       accounting -- the app never creates one. Left empty, his bills and
+       settlements wait uncoded on the journal; associating an account also
+       codes the settlements already recorded. Not on the store's short form. #}
     {% if not parts_only and has_perm('accounting.manage') %}
     {{ ledger_picker(ledger_accounts, request.form.get('ledger_code') or (row.ledger_code or '' if is_edit else ''), t['ledger.account'], t['supplier.ledger_hint']) }}
     {% elif is_edit and row.ledger_code %}

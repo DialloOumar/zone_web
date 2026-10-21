@@ -35,7 +35,7 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
 # other screen that records a payment, so a method added there shows up here.
 from blueprints.expenses import (PAYMENT_METHODS, _accessible_vehicles, company_accounts, method_error,
                                  methods_of)
-from ledger import charge_accounts, ensure_supplier_account, labels_for, read_code, used_accounts_in
+from ledger import charge_accounts, code_supplier_settlements, labels_for, read_code, used_accounts_in
 from models import (AccountTransfer, BankCharge, CashAccount, CashTransfer, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
                     Vehicle, db)
 
@@ -537,9 +537,7 @@ def new():
             return _render_invoice_form(None, error)
         inv = SupplierInvoice(created_by=current_user.id, **data)
         db.session.add(inv)
-        db.session.flush()
-        # The first bill from a supplier gives him his account on the plan.
-        ensure_supplier_account(inv.supplier, current_user.id)   # the photo's name is built from the row's own id
+        db.session.flush()   # the photo's name is built from the row's own id
         perr = _apply_photo_change(inv)
         if perr:
             db.session.rollback()
@@ -824,8 +822,8 @@ def payment_new(iid):
             return _render_payment_form(inv, None, error)
         pay = SupplierPayment(invoice_id=inv.id, created_by=current_user.id, **data)
         # The settlement clears the debt: coded to the supplier's account,
-        # never to the bill's charge.
-        pay.ledger_code = ensure_supplier_account(inv.supplier, current_user.id)
+        # never to the bill's charge. None until the comptable associates one.
+        pay.ledger_code = inv.supplier.ledger_code if inv.supplier else None
         db.session.add(pay)
         log_action("CREATE", "supplier_payment", resource_id=inv.id,
                    detail="Paid %s GNF on invoice #%s" % (data["amount"], inv.id))
@@ -856,7 +854,7 @@ def payment_edit(iid, pid):
         for k, val in data.items():
             setattr(pay, k, val)
         if not pay.ledger_code:
-            pay.ledger_code = ensure_supplier_account(inv.supplier, current_user.id)
+            pay.ledger_code = inv.supplier.ledger_code if inv.supplier else None
         log_action("UPDATE", "supplier_payment", resource_id=pay.id,
                    detail="Edited payment #%s on invoice #%s" % (pay.id, inv.id))
         db.session.commit()
@@ -942,8 +940,9 @@ def _save_supplier(row, parts_only=False):
         row.provides_machines = False
     row.provides_parts = parts_only or request.form.get("provides_parts") is not None
     if not parts_only and has_perm("accounting.manage"):
-        # His account on the plan, set by hand; left empty, it is made under
-        # 4011 the first time a bill or a payment names him.
+        # His account on the plan, associated by the comptable -- the app
+        # never creates one. Associating it also codes the settlements
+        # already recorded on his bills (below, once the row is flushed).
         code, ok = read_code(request.form, allowed=used_accounts_in((4,)))
         if not ok:
             return t["supplier.err.class"]
@@ -956,6 +955,8 @@ def _save_supplier(row, parts_only=False):
         row.code = _next_code(kind)
     row.kind = kind
     db.session.flush()
+    if row.ledger_code:
+        code_supplier_settlements(row.id)
     # A lessor's machines follow the boxes ticked; one that stops being a
     # lessor lets its machines go.
     if not parts_only:
@@ -1216,7 +1217,7 @@ def account_payment(aid):
                 db.session.rollback()
                 return _render_account_payment_form(acc, error)
             pay = SupplierPayment(invoice_id=b.id, created_by=current_user.id, batch=batch, **data)
-            pay.ledger_code = ensure_supplier_account(b.supplier, current_user.id)
+            pay.ledger_code = b.supplier.ledger_code if b.supplier else None
             db.session.add(pay)
             made.append((b.id, part))
         log_action("CREATE", "supplier_payment", resource_id=bills[0].supplier_id,

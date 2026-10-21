@@ -20,7 +20,7 @@ from app import (cashier_only, current_user_fleet_ids, get_t, has_perm, is_modal
                  modal_ok, needs_approval, parse_amount, require_perm,
                  submit_change, with_current_fleet)
 from blueprints.notifications import notify
-from ledger import charge_accounts, ensure_purse_account, ensure_supplier_account, read_code
+from ledger import charge_accounts, ensure_purse_account, read_code
 from models import (CashAccount, CashMovement, CashTransfer, Expense, ExpenseShare, Fleet, ServicePartPurchase, Site,
                     Staff, SupplierInvoice, SupplierPayment, Vehicle, db)
 
@@ -405,10 +405,11 @@ def sync_invoice_payment(expense, invoice_id):
     pay.account_id = expense.account_id
     # Settling a bill clears the supplier's debt: the cost and its mirror
     # are coded to his account, whatever the picker said. The bill keeps
-    # the charge.
+    # the charge. No account yet -- the comptable has not associated one on
+    # his form -- leaves them uncoded; they are coded when he does.
     inv = db.session.get(SupplierInvoice, invoice_id)
     if inv and inv.supplier:
-        code = ensure_supplier_account(inv.supplier, expense.created_by)
+        code = inv.supplier.ledger_code
         pay.ledger_code = code
         if code:
             expense.ledger_code = code
