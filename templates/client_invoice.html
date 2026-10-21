@@ -38,7 +38,7 @@
         </div>
     </div>
     <dl class="detail-grid">
-        <div><dt>{{ t['cinv.period'] }}</dt><dd>{% if inv.period_start %}{{ inv.period_start }} → {{ inv.period_end }}{% else %}{{ inv.period }}{% endif %}</dd></div>
+        <div><dt>{{ t['cinv.period'] }}</dt><dd>{% if period_days %}{{ period_days[0] }} → {{ period_days[1] }}{% else %}{{ inv.period }}{% endif %}</dd></div>
         <div><dt>{{ t['cinv.date'] }}</dt><dd>{{ inv.date }}</dd></div>
         <div><dt>{{ t['cinv.due_date'] }}</dt><dd>{{ inv.due_date or '—' }}</dd></div>
         <div><dt>{{ t['cinv.subject'] }}</dt><dd>{{ inv.subject or '—' }}</dd></div>

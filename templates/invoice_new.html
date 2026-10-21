@@ -17,8 +17,7 @@
         </div>
     </div>
 
-    {# The client and the days the bill covers: a month by default, or any
-       span, such as the 20th to the 20th. #}
+    {# The client and the month billed: changing either works it out again. #}
     <form method="get" class="filter-bar">
         <div class="field field--select" style="min-width:180px;">
             <select name="client_id" onchange="this.form.submit()">
@@ -29,12 +28,8 @@
             <label>{{ t['invoicing.client'] }}</label>
         </div>
         <div class="field" style="min-width:150px;">
-            <input type="date" name="period_start" value="{{ period_start }}" placeholder=" " required>
-            <label>{{ t['cinv.period_start'] }}</label>
-        </div>
-        <div class="field" style="min-width:150px;">
-            <input type="date" name="period_end" value="{{ period_end }}" placeholder=" " required>
-            <label>{{ t['cinv.period_end'] }}</label>
+            <input type="month" name="month" value="{{ month }}" onchange="this.form.submit()" placeholder=" " required>
+            <label>{{ t['entry.month'] }}</label>
         </div>
         <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
     </form>
@@ -53,8 +48,7 @@
     <form method="post" class="entry-form" style="margin-top:8px;" id="inv-form"
           data-confirm="{{ t['cinv.issue_confirm'] }}" data-confirm-title="{{ t['cinv.issue'] }}" data-confirm-ok="{{ t['cinv.issue'] }}">
         <input type="hidden" name="client_id" value="{{ client.id }}">
-        <input type="hidden" name="period_start" value="{{ period_start }}">
-        <input type="hidden" name="period_end" value="{{ period_end }}">
+        <input type="hidden" name="month" value="{{ month }}">
     {% endif %}
 
     {# The machines' work over the period, from the daily entries. #}
@@ -105,14 +99,19 @@
     {# Lines typed as the client's paperwork wants them: a heading, a text, a
        quantity, a unit price with its cents, and a discount. #}
     <span class="photo-input__label" style="margin-top:16px;">{{ t['cinv.free_lines'] }}</span>
-    <div class="table-wrap"><table class="data-table inv-free" id="inv-free">
+    <div class="inv-free-wrap"><table class="data-table inv-free" id="inv-free">
+        {# Fixed columns: each box fills its column, each title sits over its box. #}
+        <colgroup>
+            <col class="inv-col-desc"><col class="inv-col-qty"><col class="inv-col-price">
+            <col class="inv-col-disc"><col class="inv-col-amount"><col class="inv-col-x">
+        </colgroup>
         <thead>
             <tr>
-                <th style="width:34%;">{{ t['cinv.free_title'] }} / {{ t['cinv.free_description'] }}</th>
-                <th style="text-align:right; width:10%;">{{ t['cprint.qty'] }}</th>
-                <th style="text-align:right; width:20%;">{{ t['cprint.unit_price'] }}</th>
-                <th style="text-align:right; width:16%;">{{ t['po.line_discount'] }}</th>
-                <th style="text-align:right; width:16%;">{{ t['cinv.amount'] }}</th>
+                <th class="inv-th-desc">{{ t['cinv.free_title'] }} / {{ t['cinv.free_description'] }}</th>
+                <th>{{ t['cprint.qty'] }}</th>
+                <th>{{ t['cprint.unit_price'] }}</th>
+                <th>{{ t['po.line_discount'] }}</th>
+                <th class="r">{{ t['cinv.amount'] }}</th>
                 <th></th>
             </tr>
         </thead>

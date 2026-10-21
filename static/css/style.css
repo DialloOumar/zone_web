@@ -464,8 +464,20 @@ a:hover { text-decoration: underline; }
 .list-filter:focus { border-color: var(--md-primary); outline: none; }
 [hidden] { display: none !important; }
 
-/* A bill's free lines: a heading over its text, then the figures. */
-.inv-free td { vertical-align: top; padding: 6px 4px; }
+/* A bill's free lines: a heading over its text, then the figures. The
+   columns are fixed and each box fills its own, so every title sits right
+   over its box; the figures line up with the heading's box, at the top.
+   Qualified with .data-table, or the generic table rules below win. */
+.inv-free-wrap { overflow-x: auto; }
+.data-table.inv-free { table-layout: fixed; width: 100%; min-width: 760px; }
+.inv-col-qty { width: 90px; } .inv-col-price { width: 180px; } .inv-col-disc { width: 150px; }
+.inv-col-amount { width: 170px; } .inv-col-x { width: 48px; }
+.data-table.inv-free th { padding: 8px 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.data-table.inv-free th.inv-th-desc { text-align: left; }
+.data-table.inv-free th.r { text-align: right; }
+.data-table.inv-free td { vertical-align: top; padding: 6px 4px; }
+.data-table.inv-free td.row-actions { padding-top: 8px; }
+.data-table.inv-free td.r { text-align: right; padding-right: 10px; }
 .inv-free input[type="text"], .inv-free textarea {
     width: 100%; min-width: 0; padding: 0 8px; border: 1px solid var(--md-outline); border-radius: 8px;
     background: var(--md-surface); color: var(--md-on-surface); font: inherit; font-size: 0.875rem;

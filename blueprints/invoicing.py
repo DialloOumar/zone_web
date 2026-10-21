@@ -379,7 +379,7 @@ def invoice_new():
     if request.method == "POST":
         if not has_perm("invoicing.manage"):
             abort(403)
-        back = url_for("invoicing.invoice_new", client_id=client.id, period_start=start, period_end=end)
+        back = url_for("invoicing.invoice_new", client_id=client.id, month=month)
         # Machine lines are billed unless the form says otherwise; a form
         # from before free lines came says nothing, and billed them.
         flags = request.form.getlist("use_machines")
@@ -472,7 +472,11 @@ def invoice_detail(iid):
         abort(404)
     # The lines are all coded alike; the page shows the one code they share.
     code = next((l.ledger_code for l in inv.lines if l.ledger_code), None)
+    # A month billed reads as the month, as it always did; only a bill that
+    # names other days shows them.
+    full_month = not inv.period_start or (inv.period_start, inv.period_end) == month_bounds(inv.period)
     return render_template("client_invoice.html", inv=inv, today=date.today().isoformat(),
+                           period_days=None if full_month else (inv.period_start, inv.period_end),
                            ledger_code=code, ledger_label=labels_for([code]).get(code))
 
 
