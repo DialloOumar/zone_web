@@ -4,9 +4,9 @@ The catalogue of parts is shared; what is on hand is each store's own,
 counted from movements that name their store (see Part.quantities_as_of).
 
 Who works where: a user named on a store (Store.managers) receives, issues
-and sends from that store alone, and sees the others read-only. A user with
-the stock permission who is named on no store works in all of them -- the
-logistics office, the admins.
+and sends from that store alone, and sees the others read-only. A user named
+on no store sees every store and works in none. Only the super admin works in
+all of them, and only he creates the stores and names who runs them.
 
 Parts move between stores by transfer: they leave the sending store at once
 and count in the other only when someone there says what actually arrived.
@@ -39,10 +39,7 @@ def acting_store_ids():
         return []
     if current_user.is_super_admin:
         return None
-    mine = [s.id for s in current_user.stores if s.is_active]
-    if mine:
-        return mine
-    return None if has_perm("stock.manage") else []
+    return [s.id for s in current_user.stores if s.is_active]
 
 
 def can_act_in(store_id):
@@ -51,18 +48,28 @@ def can_act_in(store_id):
 
 
 def runs_every_store():
-    """Named on no store and holding the stock permission: the office that
-    keeps the stores' list and sees them all alike."""
-    return acting_store_ids() is None and has_perm("stock.manage")
+    """The super admin: he works in every store, keeps the stores' list and
+    names who runs each one. Nobody else does, whatever their role."""
+    return bool(current_user.is_authenticated and current_user.is_super_admin)
+
+
+def works_in_a_store():
+    """Whether the user may change anything in the store at all: the super
+    admin, or someone named on at least one store. Everyone else reads."""
+    ids = acting_store_ids()
+    return ids is None or bool(ids)
 
 
 def default_store_id():
-    """The store a form starts on: the user's own, else the first one."""
+    """The store a form starts on: the user's own; for the super admin, the
+    first one; for someone who works in none, none."""
     ids = acting_store_ids()
     if ids:
         return ids[0]
-    stores = active_stores()
-    return stores[0].id if stores else None
+    if ids is None:
+        stores = active_stores()
+        return stores[0].id if stores else None
+    return None
 
 
 def store_or_default(raw_id, need_act=True):
@@ -395,4 +402,4 @@ def _store_helpers():
         except Exception:
             return 0
     return dict(can_act_in_store=can_act_in, runs_every_store=runs_every_store,
-                transfers_waiting=waiting)
+                works_in_a_store=works_in_a_store, transfers_waiting=waiting)

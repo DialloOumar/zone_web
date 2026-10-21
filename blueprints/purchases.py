@@ -206,9 +206,11 @@ def _read_form(po):
                           amount=gross - discount))
     if not lines:
         return None, None, t["po.err.no_lines"]
-    # The store it is delivered to: any active store may be ordered for.
+    # The store it is delivered to: only one the user works in. An order is
+    # started for one's own store, never for another's.
     from blueprints.stores import store_or_default
-    store = store_or_default(request.form.get("store_id", type=int), need_act=False)
+    store = store_or_default(request.form.get("store_id", type=int),
+                             need_act=not user_approves("logistics"))
     if store is None:
         return None, None, t["po.err.store"]
     header = dict(supplier_id=supplier.id, date=date_str, store_id=store.id,
@@ -246,7 +248,7 @@ def _render_form(po, error=None, lines=None):
                            suppliers=parts_suppliers(), parts_json=parts_json,
                            units=active_units(),
                            machines=[dict(id=v.id, code=v.code) for v in _accessible_vehicles()],
-                           stores=_stores(), default_store=_default_store(po),
+                           stores=_order_stores(), default_store=_default_store(po),
                            today=date.today().isoformat())
 
 
@@ -258,6 +260,29 @@ def _can_act(store_id):
 def _stores():
     from blueprints.stores import active_stores
     return active_stores()
+
+
+def _order_stores():
+    """The stores the user may start an order for: every store for the head
+    of logistics, else the ones he works in."""
+    from blueprints.stores import acting_store_ids, active_stores
+    if user_approves("logistics"):
+        return active_stores()
+    ids = acting_store_ids()
+    return [st for st in active_stores() if ids is None or st.id in ids]
+
+
+def _may_order():
+    """Starting or changing an order: the head of logistics (the logistics
+    signer), who orders for every store without touching their stock, or
+    someone who works in a store, for his own."""
+    from blueprints.stores import works_in_a_store
+    return user_approves("logistics") or (has_perm("stock.manage") and works_in_a_store())
+
+
+def _may_order_for(store_id):
+    """Whether the user may start or change an order delivered to this store."""
+    return user_approves("logistics") or (_may_order() and _can_act(store_id))
 
 
 def _default_store(po):
@@ -305,7 +330,7 @@ def index():
         mine += counts.get("pending_finance", 0)
     return render_template("purchase_orders.html", orders=pagination.items, pagination=pagination,
                            status=status, search=search, counts=counts, mine=mine,
-                           statuses=STATUSES, can_create=has_perm("stock.manage"),
+                           statuses=STATUSES, can_create=_may_order(),
                            stores_count=len(_stores()),
                            parts_count=Part.query.filter(Part.is_active.is_(True)).count(),
                            orders_count=PurchaseOrder.query.count())
@@ -315,9 +340,10 @@ def index():
 
 @purchases_bp.route("/nouveau", methods=["GET", "POST"])
 @login_required
-@require_perm("stock.manage")
 def new():
     t = get_t()
+    if not _may_order():
+        abort(403)
     if request.method == "POST":
         header, lines, error = _read_form(None)
         if error:
@@ -373,10 +399,11 @@ def _editable(po):
 
 @purchases_bp.route("/<int:oid>/modifier", methods=["GET", "POST"])
 @login_required
-@require_perm("stock.manage")
 def edit(oid):
     po = _get_or_404(oid)
     t = get_t()
+    if not _may_order_for(po.store_id):
+        abort(403)
     if not _editable(po):
         flash("error|" + t["po.err.locked"])
         return redirect(url_for("purchases.detail", oid=po.id))
@@ -415,10 +442,11 @@ def detail(oid):
                            can_sign_logistics=po.status == "pending_logistics" and user_approves("logistics"),
                            can_sign_finance=po.status == "pending_finance" and user_approves("finance"),
                            can_reject=po.status in PENDING and (user_approves("logistics") or user_approves("finance")),
-                           can_edit=has_perm("stock.manage") and _editable(po),
+                           can_edit=_may_order_for(po.store_id) and _editable(po),
                            can_receive=has_perm("stock.manage") and po.status in RECEIVABLE
                                        and _can_act(po.store_id),
-                           can_delete=(current_user.is_super_admin or has_perm("stock.manage")) and _editable(po))
+                           can_delete=(current_user.is_super_admin
+                                       or _may_order_for(po.store_id)) and _editable(po))
 
 
 @purchases_bp.route("/<int:oid>/approuver/<any(logistics,finance):kind>", methods=["POST"])
@@ -474,10 +502,11 @@ def reject(oid):
 
 @purchases_bp.route("/<int:oid>/supprimer", methods=["POST"])
 @login_required
-@require_perm("stock.manage")
 def delete(oid):
     po = _get_or_404(oid)
     t = get_t()
+    if not current_user.is_super_admin and not _may_order_for(po.store_id):
+        abort(403)
     if not _editable(po):
         flash("error|" + t["po.err.locked"])
         return redirect(url_for("purchases.detail", oid=po.id))

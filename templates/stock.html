@@ -40,7 +40,7 @@
                 <span class="material-symbols-outlined">swap_horiz</span> {{ t['stransfer.new'] }}
             </a>
             {% endif %}
-            {% if has_perm('stock.manage') %}
+            {% if has_perm('stock.manage') and works_in_a_store() %}
             <a href="{{ url_for('stock.part_new') }}" class="fab"
                data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['part.new'] }}
@@ -132,7 +132,7 @@
                        data-modal-url="{{ url_for('stores.transfer_new', part_id=p.id) }}" data-modal-title="{{ t['stransfer.new'] }}"
                        title="{{ t['stransfer.send_part'] }}" aria-label="{{ t['stransfer.send_part'] }}"><span class="material-symbols-outlined">swap_horiz</span></a>
                     {% endif %}
-                    {% if has_perm('stock.manage') %}
+                    {% if has_perm('stock.manage') and works_in_a_store() %}
                     <a href="{{ url_for('stock.part_edit', pid=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('stock.part_edit', pid=p.id) }}" data-modal-title="{{ t['part.edit'] }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
@@ -175,7 +175,7 @@
                 {% if (p.below_reorder_in(store.id) if store else p.below_reorder) %}<span class="badge badge--warning">{{ t['stock.reorder'] }}</span>{% endif %}
                 {% if not store and stores|length > 1 %}{% for st in stores %}<span class="muted small">{{ st.name }} {{ qmap[p.id].get(st.id, 0) | qty }}</span>{% endfor %}{% endif %}
             </div>
-            {% if has_perm('stock.manage') %}
+            {% if has_perm('stock.manage') and works_in_a_store() %}
             <div class="list-card__actions">
                 <a href="{{ url_for('stock.part_edit', pid=p.id) }}" class="btn btn--sm btn--tonal"
                    data-modal-url="{{ url_for('stock.part_edit', pid=p.id) }}" data-modal-title="{{ t['part.edit'] }}">{{ t['btn.edit'] }}</a>
@@ -204,7 +204,7 @@
     <div class="empty-state">
         <span class="material-symbols-outlined">shelves</span>
         <p>{{ t['stock.no_match'] if search else t['stock.empty'] }}</p>
-        {% if has_perm('stock.manage') and not search %}
+        {% if has_perm('stock.manage') and works_in_a_store() and not search %}
         <a href="{{ url_for('stock.part_new') }}" class="fab"
            data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['part.new'] }}

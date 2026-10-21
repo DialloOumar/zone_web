@@ -512,6 +512,8 @@ def _read_part_lines(record=None):
             return None, t["maint.err.store"]
         else:
             store_id = _record_store_id(record) or default_store_id()
+            if store_id is None:
+                return None, t["maint.err.store"]
     return [{"part_id": pid, "quantity": merged[pid], "store_id": store_id} for pid in order], None
 
 

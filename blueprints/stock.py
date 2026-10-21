@@ -292,6 +292,14 @@ def _opening_store():
     return st.id if st else default_store_id()
 
 
+def _require_store_worker():
+    """Seeing the store is open to every stock role; changing it is for the
+    super admin and the people named on a store."""
+    from blueprints.stores import works_in_a_store
+    if not works_in_a_store():
+        abort(403)
+
+
 def _render_part_form(part, error=None):
     tpl = "_part_form.html" if is_modal_request() else "part_form.html"
     status = 422 if (error and is_modal_request()) else 200
@@ -308,6 +316,7 @@ def _render_part_form(part, error=None):
 def part_new():
     """Kept for now: an article written straight into the store, with what
     is on the shelf. The usual way in is a received purchase order."""
+    _require_store_worker()
     t = get_t()
     if request.method == "POST":
         data, error = _read_part_form(None)
@@ -335,6 +344,7 @@ def part_new():
 @login_required
 @require_perm("stock.manage")
 def part_edit(pid):
+    _require_store_worker()
     part = _get_part_or_404(pid)
     t = get_t()
     if request.method == "POST":
@@ -365,6 +375,7 @@ def part_edit(pid):
 @login_required
 @require_perm("stock.manage")
 def part_archive(pid):
+    _require_store_worker()
     part = _get_part_or_404(pid)
     part.is_active = False
     log_action("ARCHIVE", "part", resource_id=pid,
@@ -384,6 +395,7 @@ def part_destroy(pid):
     rendered before someone logged a receipt against this part. Its opening
     stock goes with it, which is right — that row is the part.
     """
+    _require_store_worker()
     part = _get_part_or_404(pid)
     t = get_t()
     usage = _part_usage(part)
@@ -412,6 +424,7 @@ def part_destroy(pid):
 @login_required
 @require_perm("stock.manage")
 def part_reactivate(pid):
+    _require_store_worker()
     part = _get_part_or_404(pid)
     part.is_active = True
     log_action("REACTIVATE", "part", resource_id=pid,
