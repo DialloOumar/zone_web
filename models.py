@@ -1231,6 +1231,9 @@ class Client(db.Model):
     ledger_code = db.Column(db.String(12), index=True)
     contact    = db.Column(db.String(80))
     address    = db.Column(db.String(200))
+    email      = db.Column(db.String(120))
+    po_box     = db.Column(db.String(60))                   # B.P. 1006
+    attention  = db.Column(db.String(120))                  # whom its bills are addressed to, by default
     tax_id     = db.Column(db.String(40))                   # NIF
     rccm       = db.Column(db.String(40))
     note       = db.Column(db.String(255))
@@ -1285,7 +1288,12 @@ class ClientInvoice(db.Model):
     kept in the register, struck through, and frees its month.
 
     Numbers are FAC-2026-001, FAC-2026-002... per year of issue, given by the
-    app when the bill is issued. Amounts are GNF, no decimals.
+    app when the bill is issued. Amounts are GNF with two decimals: a client
+    may be billed 2 306 273 785,20.
+
+    The period is a month (`period`, YYYY-MM, what the reports group by) and,
+    for a bill written since free periods came, the exact days it covers
+    (20 June to 20 July). A bill from before has only the month.
     """
     __tablename__ = "client_invoices"
 
@@ -1299,12 +1307,23 @@ class ClientInvoice(db.Model):
     is_opening = db.Column(db.Boolean,     nullable=False, default=False)
     date       = db.Column(db.String(10),  nullable=False)               # issue date
     due_date   = db.Column(db.String(10),  nullable=True)
-    total      = db.Column(db.Integer,     nullable=False)
+    period_start = db.Column(db.String(10), nullable=True)               # YYYY-MM-DD, first day covered
+    period_end   = db.Column(db.String(10), nullable=True)               # YYYY-MM-DD, last day covered
+    total      = db.Column(db.Numeric(18, 2), nullable=False)
     status     = db.Column(db.String(12),  nullable=False, default="issued")  # issued | cancelled
     # What the bill is for, in the client's words ("Location juillet 2026"),
     # and the reference the client gave, a purchase order for instance.
     subject    = db.Column(db.String(120), nullable=True)
-    client_ref = db.Column(db.String(60),  nullable=True)
+    client_ref = db.Column(db.String(60),  nullable=True)               # the client's purchase order
+    # What the client's own paperwork asks to see on the bill: the contract
+    # it falls under, whom it is for, and the hire it describes.
+    contract_no    = db.Column(db.String(60),  nullable=True)
+    attention      = db.Column(db.String(120), nullable=True)           # "Directeur Financier"
+    equipments     = db.Column(db.String(120), nullable=True)           # "MACHINES/TRUCKS"
+    work_purpose   = db.Column(db.String(80),  nullable=True)           # "Monthly hire"
+    equipment_type = db.Column(db.String(80),  nullable=True)           # "MACHINES ET CAMIONS"
+    availability   = db.Column(db.String(40),  nullable=True)
+    intro          = db.Column(db.String(255), nullable=True)           # the line above the lines
     # Whom the client should call about this bill: the person who issued it,
     # by default, copied in so the bill still says so after they leave.
     contact_name  = db.Column(db.String(120), nullable=True)
@@ -1356,7 +1375,7 @@ class ClientPayment(db.Model):
     id         = db.Column(db.Integer,     primary_key=True)
     invoice_id = db.Column(db.Integer,     db.ForeignKey("client_invoices.id"), nullable=False, index=True)
     date       = db.Column(db.String(10),  nullable=False)   # YYYY-MM-DD
-    amount     = db.Column(db.Integer,     nullable=False)   # GNF
+    amount     = db.Column(db.Numeric(18, 2), nullable=False)   # GNF, with cents
     method     = db.Column(db.String(20))                    # cash | mobile_money | transfer | cheque
     reference  = db.Column(db.String(60))                    # the client's transfer or cheque number
     account_id = db.Column(db.Integer,     db.ForeignKey("cash_accounts.id"), nullable=True)
@@ -1373,21 +1392,32 @@ class ClientPayment(db.Model):
 
 
 class ClientInvoiceLine(db.Model):
-    """One line of a client's bill: a machine, at one rate, for the units it
-    worked at that rate. A machine whose price changed mid-month has two
+    """One line of a client's bill, of two kinds.
+
+    A machine line: a machine, at one rate, for the units it worked at that
+    rate over the period. A machine whose price changed mid-period has two
     lines. The code and category are copied in, so the line still reads if
-    the machine is later renamed or removed."""
+    the machine is later renamed or removed.
+
+    A free line: a heading, a description, a quantity, a unit price and a
+    discount, typed as the client's paperwork wants it ("SAG Hard Rock
+    Loading..., 1 × 2 306 273 785,20"). `units` is its quantity and `rate`
+    its unit price."""
     __tablename__ = "client_invoice_lines"
 
     id             = db.Column(db.Integer,    primary_key=True)
     invoice_id     = db.Column(db.Integer,    db.ForeignKey("client_invoices.id"), nullable=False, index=True)
+    kind           = db.Column(db.String(10), nullable=False, default="machine", server_default="machine")  # machine | free
     vehicle_id     = db.Column(db.Integer,    db.ForeignKey("vehicles.id"), nullable=True)
-    vehicle_code   = db.Column(db.String(30), nullable=False)
-    category_label = db.Column(db.String(80), nullable=False)
-    unit_type      = db.Column(db.String(10), nullable=False)             # trips | hours
+    vehicle_code   = db.Column(db.String(30), nullable=True)
+    category_label = db.Column(db.String(80), nullable=True)
+    unit_type      = db.Column(db.String(10), nullable=True)              # trips | hours
+    title          = db.Column(db.String(160), nullable=True)            # a free line's heading
+    description    = db.Column(db.Text,       nullable=True)             # a free line's text
     units          = db.Column(db.Float,      nullable=False)
-    rate           = db.Column(db.Integer,    nullable=False)             # GNF per unit
-    amount         = db.Column(db.Integer,    nullable=False)
+    rate           = db.Column(db.Numeric(18, 2), nullable=False)        # GNF per unit
+    discount       = db.Column(db.Numeric(18, 2), nullable=False, default=0, server_default="0")
+    amount         = db.Column(db.Numeric(18, 2), nullable=False)
     ledger_code    = db.Column(db.String(12), nullable=True, index=True)  # the revenue account, for the journal
 
     invoice = db.relationship("ClientInvoice", back_populates="lines")
@@ -2104,6 +2134,8 @@ class PurchaseOrder(db.Model):
     requested_by   = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     # The store the order is delivered to; only its people receive it.
     store_id       = db.Column(db.Integer,     db.ForeignKey("stores.id"), nullable=True)
+    # The store's request it was drawn from, if any (see PurchaseRequest).
+    request_id     = db.Column(db.Integer,     db.ForeignKey("purchase_requests.id"), nullable=True, index=True)
     requester_name = db.Column(db.String(120), nullable=True)    # copied in, for the sheet
     requester_phone = db.Column(db.String(60), nullable=True)
     logistics_by   = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
@@ -2122,6 +2154,7 @@ class PurchaseOrder(db.Model):
 
     supplier         = db.relationship("Supplier")
     store            = db.relationship("Store")
+    request          = db.relationship("PurchaseRequest", back_populates="orders")
     requester        = db.relationship("User", foreign_keys=[requested_by])
     logistics_signer = db.relationship("User", foreign_keys=[logistics_by])
     finance_signer   = db.relationship("User", foreign_keys=[finance_by])
@@ -2204,9 +2237,12 @@ class PurchaseOrderLine(db.Model):
     # For a line that is a new article, not yet in the catalogue: the unit it
     # will be counted in once it is created at receipt.
     new_unit    = db.Column(db.String(20),  nullable=True)
+    # The line of the store's request it answers, if any.
+    request_line_id = db.Column(db.Integer, db.ForeignKey("purchase_request_lines.id"), nullable=True, index=True)
 
     order = db.relationship("PurchaseOrder", back_populates="lines")
     part  = db.relationship("Part")
+    request_line = db.relationship("PurchaseRequestLine", back_populates="order_lines")
     receipts = db.relationship("StockMovement", backref="purchase_line")
     # The machines the line is for, if any. A link only: the cost reaches a
     # machine when the part leaves the store for it, never from the order.
@@ -2227,6 +2263,89 @@ class PurchaseOrderLine(db.Model):
     def stock_unit_price(self):
         """What one unit of stock cost on this line, discount included."""
         return int(round(self.amount / self.stock_qty)) if self.stock_qty else self.unit_price
+
+
+class PurchaseRequest(db.Model):
+    """A store's request for articles: what it needs and how many, nothing
+    about suppliers or prices. The head of logistics turns it into one or
+    more purchase orders, a supplier each, and may close what is left or
+    refuse the whole of it. What has been ordered is read off the order
+    lines that answer it, so deleting an order gives the quantity back."""
+    __tablename__ = "purchase_requests"
+
+    id            = db.Column(db.Integer,     primary_key=True)
+    number        = db.Column(db.String(20),  nullable=False, unique=True)   # DA-2026-001
+    store_id      = db.Column(db.Integer,     db.ForeignKey("stores.id"), nullable=False, index=True)
+    date          = db.Column(db.String(10),  nullable=False)
+    note          = db.Column(db.String(255), nullable=True)
+    # open while orders are being drawn from it; closed or rejected by logistics.
+    status        = db.Column(db.String(12),  nullable=False, default="open")
+    requested_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    requester_name = db.Column(db.String(120), nullable=True)
+    decided_by    = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    decided_at    = db.Column(db.DateTime,    nullable=True)
+    reason        = db.Column(db.String(255), nullable=True)     # why it was refused or closed
+    created_at    = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+    store     = db.relationship("Store")
+    requester = db.relationship("User", foreign_keys=[requested_by])
+    decider   = db.relationship("User", foreign_keys=[decided_by])
+    lines     = db.relationship("PurchaseRequestLine", back_populates="request",
+                                cascade="all, delete-orphan", order_by="PurchaseRequestLine.id")
+    orders    = db.relationship("PurchaseOrder", back_populates="request",
+                                order_by="PurchaseOrder.id")
+
+    @property
+    def ordered_any(self):
+        return any(l.ordered_qty > 1e-9 for l in self.lines)
+
+    @property
+    def fully_ordered(self):
+        return bool(self.lines) and all(l.remaining_qty <= 1e-9 for l in self.lines)
+
+    @property
+    def state(self):
+        """What the list shows: rejected, closed, ordered, partial or waiting."""
+        if self.status in ("rejected", "closed"):
+            return self.status
+        if self.fully_ordered:
+            return "ordered"
+        return "partial" if self.ordered_any else "waiting"
+
+
+class PurchaseRequestLine(db.Model):
+    """One article asked for: from the catalogue or a new name with its
+    unit, how many, in which unit, and the machines it is for."""
+    __tablename__ = "purchase_request_lines"
+
+    id          = db.Column(db.Integer,     primary_key=True)
+    request_id  = db.Column(db.Integer,     db.ForeignKey("purchase_requests.id", ondelete="CASCADE"),
+                            nullable=False, index=True)
+    part_id     = db.Column(db.Integer,     db.ForeignKey("parts.id"), nullable=True)
+    description = db.Column(db.String(160), nullable=False)
+    reference   = db.Column(db.String(60),  nullable=True)
+    quantity    = db.Column(db.Float,       nullable=False)     # in the unit asked in
+    buy_unit    = db.Column(db.String(20),  nullable=True)      # a buying unit's code, or empty
+    factor      = db.Column(db.Float,       nullable=False, default=1)
+    new_unit    = db.Column(db.String(20),  nullable=True)      # for a new article
+    vehicle_ids = db.Column(db.String(255), nullable=True)      # "3,7,12", the machines it is for
+
+    request     = db.relationship("PurchaseRequest", back_populates="lines")
+    part        = db.relationship("Part")
+    order_lines = db.relationship("PurchaseOrderLine", back_populates="request_line")
+
+    @property
+    def stock_qty(self):
+        return self.quantity * (self.factor or 1)
+
+    @property
+    def ordered_qty(self):
+        """What the orders drawn from it carry, in the store's unit."""
+        return sum(ol.stock_qty for ol in self.order_lines)
+
+    @property
+    def remaining_qty(self):
+        return max(self.stock_qty - self.ordered_qty, 0)
 
 
 # ── Config & system ───────────────────────────────────────────────────────────

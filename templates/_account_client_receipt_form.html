@@ -35,7 +35,7 @@
             {% for b in g.bills %}
             {% set late = b.due_date and b.due_date < today %}
             <label class="bill-pick__row {% if late %}bill-pick__row--late{% endif %}">
-                <input type="checkbox" name="invoice_ids" value="{{ b.id }}" data-left="{{ b.remaining }}" {% if b.id in ticked %}checked{% endif %}>
+                <input type="checkbox" name="invoice_ids" value="{{ b.id }}" data-left="{{ b.remaining | money_field | replace(',', '.') }}" {% if b.id in ticked %}checked{% endif %}>
                 <span class="bill-pick__what">
                     {{ b.number }}{% if b.is_opening %} <span class="muted small">{{ t['opening.title'] }}</span>{% elif b.subject %} <span class="muted small">{{ b.subject }}</span>{% endif %}
                     <span class="muted small">{{ b.date }}{% if b.due_date %} &middot; {{ t['invoice.due_short'] }} {{ b.due_date }}{% endif %}
@@ -55,7 +55,7 @@
             <label for="date">{{ t['cpay.date'] }}</label>
         </div>
         <div class="field">
-            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['bill_pay.all_left'] }}"
+            <input data-money="cents" type="text" inputmode="decimal" id="amount" name="amount" placeholder="{{ t['bill_pay.all_left'] }}"
                    value="{{ request.form.get('amount') or '' }}">
             <label for="amount">{{ t['invoice.amount'] }} {{ hint('', t['bill_pay.amount_hint']) }}</label>
         </div>
@@ -92,12 +92,12 @@
         var pick = form.querySelector('[data-bill-supplier]');
         var groups = form.querySelectorAll('.bill-pick__group');
         var sum = form.querySelector('[data-bill-sum]');
-        function money(n) { return n.toLocaleString('fr-FR'); }
+        function money(n) { return n.toLocaleString('fr-FR', { maximumFractionDigits: 2 }); }
         function boxes(g) { return g.querySelectorAll('input[name="invoice_ids"]'); }
         function refresh() {
             var n = 0, total = 0;
             form.querySelectorAll('input[name="invoice_ids"]:checked').forEach(function (b) {
-                n += 1; total += parseInt(b.dataset.left, 10) || 0;
+                n += 1; total = Math.round((total + (parseFloat(b.dataset.left) || 0)) * 100) / 100;
             });
             groups.forEach(function (g) {
                 var all = g.querySelector('[data-bill-all]'), bs = boxes(g), on = 0;

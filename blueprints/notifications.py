@@ -58,6 +58,13 @@ def todos():
                    .order_by(PurchaseOrder.date, PurchaseOrder.id).all()):
             out.append(dict(kind="todo.po_logistics", url=url_for("purchases.detail", oid=po.id),
                             params=dict(number=po.number, supplier=po.supplier.name if po.supplier else "")))
+    # The stores' requests nobody has ordered in full yet: for logistics.
+    if _holds("approves_logistics"):
+        from models import PurchaseRequest
+        n = sum(1 for r in PurchaseRequest.query.filter_by(status="open").all() if not r.fully_ordered)
+        if n:
+            out.append(dict(kind="todo.requests", url=url_for("purchases.requests", state="todo"),
+                            params=dict(n=n)))
     if _holds("approves_finance"):
         on_billing = has_perm("invoicing.view")
         for po in (PurchaseOrder.query.filter_by(status="pending_finance")

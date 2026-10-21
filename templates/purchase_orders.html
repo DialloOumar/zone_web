@@ -28,6 +28,15 @@
     <div class="tab-bar">
         <div class="tab-bar__filters"></div>
         <div class="tab-bar__actions">
+            {# The stores' requests: what they ask for, before any supplier or price. #}
+            <a href="{{ url_for('purchases.requests', state='todo' if requests_todo else None) }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">pending_actions</span> {{ t['preq.title'] }}{% if requests_todo %} <span class="tab__count">{{ requests_todo }}</span>{% endif %}
+            </a>
+            {% if can_request %}
+            <a href="{{ url_for('purchases.request_new') }}" class="btn btn--sm btn--tonal">
+                <span class="material-symbols-outlined">add</span> {{ t['preq.new'] }}
+            </a>
+            {% endif %}
             {# The suppliers the store orders from: the same list accounting pays. #}
             <a href="{{ url_for('supplier_invoices.suppliers') }}" class="btn btn--sm btn--outlined">
                 <span class="material-symbols-outlined">store</span> {{ t['invoice.tab_suppliers'] }}

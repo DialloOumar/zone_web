@@ -24,8 +24,8 @@
             {# The whole of what is still owed, because that is what usually
                arrives; type less for a part payment. #}
             {% set default_amount = payment.amount if is_edit else invoice.remaining %}
-            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
-                   value="{{ request.form.get('amount') or default_amount }}">
+            <input data-money="cents" type="text" inputmode="decimal" id="amount" name="amount" placeholder="{{ t['ph.expense.amount'] }}" required
+                   value="{{ request.form.get('amount') or (default_amount | money_field) }}">
             <label for="amount">{{ t['cpay.amount'] }}</label>
         </div>
         <div class="field">

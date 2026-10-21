@@ -22,6 +22,7 @@ crédit.
 import csv
 import io
 
+from decimal import Decimal
 from ledger import labels_for, till_code
 from models import (AccountDeposit, AccountTransfer, BankCharge, CashMovement, ClientInvoice, ClientInvoiceLine, ClientPayment,
                     Expense, SupplierInvoice, SupplierPayment, db)
@@ -33,10 +34,17 @@ JOURNALS = ("caisse", "banque", "achats", "ventes")
 CODABLE = {"expense", "supplier_invoice", "bank_charge", "client_invoice_line"}
 
 
+def _amount(x):
+    """Whole francs as before; a client's amount with cents keeps them."""
+    if isinstance(x, Decimal) and x != x.to_integral_value():
+        return x
+    return int(x or 0)
+
+
 def _line(journal, kind, row, date, label, amount, debit, credit, piece=None,
           who=None, codable=False, code_side=None, method=None, reference=None):
     return dict(journal=journal, kind=kind, id=row.id, date=date, label=label or "",
-                amount=int(amount or 0), debit=debit, credit=credit, piece=piece or "",
+                amount=_amount(amount), debit=debit, credit=credit, piece=piece or "",
                 who=who or "", codable=codable, code_side=code_side,
                 method=method or "", reference=reference or "",
                 complete=bool(debit and credit))
@@ -133,8 +141,9 @@ def lines(date_from=None, date_to=None, journal=None):
         for inv in q.all():
             client_code = inv.client.ledger_code if inv.client else None
             for l in inv.lines:
-                out.append(_line("ventes", "client_invoice_line", l, inv.date,
-                                 "%s %s" % (l.vehicle_code or "", l.category_label or ""),
+                label = ("%s %s" % (l.vehicle_code or "", l.category_label or "")
+                         if (l.kind or "machine") == "machine" else (l.title or (l.description or "")[:80]))
+                out.append(_line("ventes", "client_invoice_line", l, inv.date, label,
                                  l.amount, debit=client_code, credit=l.ledger_code,
                                  piece=inv.number, who=inv.client.name if inv.client else None,
                                  codable=True, code_side="credit"))

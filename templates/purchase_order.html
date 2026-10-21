@@ -53,6 +53,7 @@
     </div>
     <dl class="detail-grid">
         <div><dt>{{ t['po.date'] }}</dt><dd>{{ po.date }}</dd></div>
+        {% if po.request %}<div><dt>{{ t['preq.one'] }}</dt><dd><a href="{{ url_for('purchases.request_detail', rid=po.request_id) }}">{{ po.request.number }}</a></dd></div>{% endif %}
         {% if po.store %}<div><dt>{{ t['po.deliver_to'] }}</dt><dd><a href="{{ url_for('stock.index', store=po.store_id) }}">{{ po.store.name }}</a></dd></div>{% endif %}
         <div><dt>{{ t['po.requested_by'] }}</dt><dd>{{ po.requester_name or '—' }}{% if po.requester_tel %} · {{ po.requester_tel }}{% endif %}</dd></div>
         <div><dt>{{ t['po.sign.logistics'] }}</dt>

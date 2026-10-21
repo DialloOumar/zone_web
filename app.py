@@ -9,6 +9,7 @@ Domain routes (vehicles, daily entries, maintenance, expenses, alerts,
 admin pages) come in subsequent sprints.
 """
 import logging
+from decimal import Decimal, InvalidOperation
 import os
 import re
 from datetime import date, datetime, timedelta
@@ -334,12 +335,37 @@ THIN_SPACE = "\u00a0"
 @app.template_filter("num")
 def _num(value):
     """An integer grouped for reading: 1 500 000. Anything that is not a number
-    is handed back untouched, so a filter can never blank a field."""
+    is handed back untouched, so a filter can never blank a field.
+
+    A Decimal -- the client's bills, which carry cents -- keeps its cents when
+    it has any: 2 306 273 785,20. A whole one prints exactly as before."""
+    if isinstance(value, Decimal):
+        cents = value.quantize(Decimal("0.01"))
+        if cents != cents.to_integral_value():
+            whole, frac = "{:.2f}".format(abs(cents)).split(".")
+            sign = "-" if cents < 0 else ""
+            return sign + "{:,}".format(int(whole)).replace(",", THIN_SPACE) + "," + frac
     try:
         n = int(round(float(value)))
     except (TypeError, ValueError):
         return value
     return "{:,}".format(n).replace(",", THIN_SPACE)
+
+
+@app.template_filter("money_field")
+def _money_field(value):
+    """A money amount as a form field holds it: digits, and a comma before
+    the cents only when there are cents ("1500000", "2306273785,20"). The
+    page groups it as it is shown."""
+    if value is None or value == "":
+        return ""
+    try:
+        d = Decimal(str(value)).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        return value
+    if d == d.to_integral_value():
+        return str(int(d))
+    return "{:.2f}".format(d).replace(".", ",")
 
 
 @app.template_filter("qty")
@@ -367,6 +393,34 @@ def _qty(value):
 # spaces, the no-break spaces the page inserts, an apostrophe, a comma out of
 # habit. In a currency without decimals they all mean the same thing -- nothing.
 _AMOUNT_JUNK = str.maketrans("", "", " \u00a0\u202f\u2009,'")
+
+
+def parse_money(raw):
+    """A money field that may carry cents, back to a Decimal with two places.
+
+    "2 306 273 785,20" and "2306273785.20" both read as 2306273785.20. A
+    comma or a point counts as the decimal mark only when it is the last one
+    and one or two digits follow it; any other is a grouping mark, as typed
+    in "1.500.000". Returns None when it is not a number at all."""
+    s = (raw or "").strip()
+    for ch in (" ", " ", " ", " ", "'"):
+        s = s.replace(ch, "")
+    if not s:
+        return None
+    m = re.search(r"[.,](\d{1,2})$", s)
+    if m:
+        whole, frac = s[:m.start()], m.group(1)
+    else:
+        whole, frac = s, ""
+    whole = whole.replace(",", "").replace(".", "")
+    if not whole:
+        whole = "0"
+    if not whole.lstrip("-").isdigit():
+        return None
+    try:
+        return Decimal(whole + ("." + frac if frac else "")).quantize(Decimal("0.01"))
+    except InvalidOperation:
+        return None
 
 
 def parse_amount(raw):

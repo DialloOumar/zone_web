@@ -32,7 +32,8 @@ from blueprints.notifications import notify
 from blueprints.stock import active_units, buying_units_for, unit_codes
 from blueprints.expenses import _accessible_vehicles
 from blueprints.supplier_invoices import _save_supplier, parts_suppliers
-from models import Part, PurchaseOrder, PurchaseOrderLine, StockMovement, Supplier, db
+from models import (Part, PurchaseOrder, PurchaseOrderLine, PurchaseRequest, PurchaseRequestLine,
+                    StockMovement, Supplier, db)
 
 purchases_bp = Blueprint("purchases", __name__, url_prefix="/stock/commandes")
 
@@ -116,17 +117,19 @@ def _reset_approvals(po):
 
 # ── The form ─────────────────────────────────────────────────────────────────
 
-def _read_form(po):
-    """Read the header and the lines. Returns (header, lines, None) or
-    (None, None, error). Lines with nothing typed on them are skipped."""
-    t = get_t()
-    supplier = db.session.get(Supplier, request.form.get("supplier_id", type=int) or 0)
-    if not supplier or not supplier.is_active or not supplier.provides_parts:
-        return None, None, t["po.err.supplier"]
-    date_str = (request.form.get("date") or "").strip() or date.today().isoformat()
-    if not _valid_date(date_str):
-        return None, None, t.get("client.err.date", "Date invalide.")
+def _request_line_id(raw):
+    """The request line an order line answers, when the form says so and
+    it exists."""
+    raw = (raw or "").strip()
+    if not raw.isdigit():
+        return None
+    return int(raw) if db.session.get(PurchaseRequestLine, int(raw)) else None
 
+
+def _read_lines(with_money=True):
+    """The lines typed on an order (with prices) or a request (without).
+    Returns (lines, None) or (None, error). Empty lines are skipped."""
+    t = get_t()
     part_ids = request.form.getlist("part_id")
     descs = request.form.getlist("description")
     refs = request.form.getlist("reference")
@@ -137,6 +140,7 @@ def _read_form(po):
     modes = request.form.getlist("mode")
     new_units = request.form.getlist("new_unit")
     line_machines = request.form.getlist("line_vehicles")
+    rl_ids = request.form.getlist("request_line_id")
     machines = {v.id: v for v in _accessible_vehicles()}
     lines = []
     for i in range(max(len(descs), len(qtys), len(prices))):
@@ -156,7 +160,7 @@ def _read_form(po):
             if raw.isdigit() and int(raw) not in vids:
                 vids.append(int(raw))
         if any(v not in machines for v in vids):
-            return None, None, t["expense.err.vehicle_required"]
+            return None, t["expense.err.vehicle_required"]
         if not (pid or desc or qty_raw or price_raw):
             continue
         part = None
@@ -167,12 +171,12 @@ def _read_form(po):
             if not part and desc:
                 part = Part.query.filter(db.func.lower(Part.name) == desc.lower()).first()
             if not part:
-                return None, None, t["po.err.pick_part"] % (desc or "?")
+                return None, t["po.err.pick_part"] % (desc or "?")
         else:
             if not desc:
-                return None, None, t["po.err.description"]
+                return None, t["po.err.description"]
             if new_unit not in unit_codes():
-                return None, None, t.get("part.err.unit", "Choisissez une unité.")
+                return None, t.get("part.err.unit", "Choisissez une unité.")
             # A name the catalogue already has is that article, not a second one.
             part = Part.query.filter(db.func.lower(Part.name) == desc.lower()).first()
         try:
@@ -180,15 +184,18 @@ def _read_form(po):
         except ValueError:
             qty = 0
         if qty <= 0:
-            return None, None, t["po.err.quantity"]
-        price = parse_amount(price_raw)
-        if price is None or price < 0:
-            return None, None, t["po.err.price"]
-        # The discount is an amount off the line, never more than the line.
-        gross = int(round(qty * price))
-        discount = parse_amount(discount_raw) if discount_raw else 0
-        if discount is None or discount < 0 or discount > gross:
-            return None, None, t["po.err.discount"]
+            return None, t["po.err.quantity"]
+        if with_money:
+            price = parse_amount(price_raw)
+            if price is None or price < 0:
+                return None, t["po.err.price"]
+            # The discount is an amount off the line, never more than the line.
+            gross = int(round(qty * price))
+            discount = parse_amount(discount_raw) if discount_raw else 0
+            if discount is None or discount < 0 or discount > gross:
+                return None, t["po.err.discount"]
+        else:
+            price = gross = discount = 0
         # What the line is bought in: the part's own unit, or a buying unit
         # that converts to it ("fût" for a part counting in litres). The
         # conversion is copied onto the line as it stands today.
@@ -196,35 +203,58 @@ def _read_form(po):
         if part and unit_choice and unit_choice != "stock":
             bu = next(((u, f) for u, f in buying_units_for(part.unit) if u.code == unit_choice), None)
             if not bu:
-                return None, None, t["po.err.buy_unit"]
+                return None, t["po.err.buy_unit"]
             buy_unit, factor = bu[0].code, float(bu[1])
         lines.append(dict(part_id=part.id if part else None,
                           description=(desc or part.name)[:160], reference=ref[:60] or None,
                           quantity=qty, buy_unit=buy_unit, factor=factor, unit_price=price, discount=discount,
                           new_unit=None if part else new_unit,
                           vehicles=[machines[v] for v in vids],
+                          request_line_id=_request_line_id(rl_ids[i] if i < len(rl_ids) else ""),
                           amount=gross - discount))
     if not lines:
-        return None, None, t["po.err.no_lines"]
+        return None, t["po.err.no_lines"]
+    return lines, None
+
+
+def _read_form(po):
+    """Read the header and the lines. Returns (header, lines, None) or
+    (None, None, error). Lines with nothing typed on them are skipped."""
+    t = get_t()
+    supplier = db.session.get(Supplier, request.form.get("supplier_id", type=int) or 0)
+    if not supplier or not supplier.is_active or not supplier.provides_parts:
+        return None, None, t["po.err.supplier"]
+    date_str = (request.form.get("date") or "").strip() or date.today().isoformat()
+    if not _valid_date(date_str):
+        return None, None, t.get("client.err.date", "Date invalide.")
+
+    lines, error = _read_lines()
+    if error:
+        return None, None, error
     # The store it is delivered to: only one the user works in. An order is
     # started for one's own store, never for another's.
     from blueprints.stores import store_or_default
-    store = store_or_default(request.form.get("store_id", type=int),
-                             need_act=not user_approves("logistics"))
+    store = store_or_default(request.form.get("store_id", type=int), need_act=False)
     if store is None:
         return None, None, t["po.err.store"]
     header = dict(supplier_id=supplier.id, date=date_str, store_id=store.id,
                   note=(request.form.get("note") or "").strip()[:255] or None)
+    req = db.session.get(PurchaseRequest, request.form.get("request_id", type=int) or 0)
+    if req and req.status == "open":
+        header["request_id"] = req.id
+    elif po is None:
+        header["request_id"] = None
     return header, lines, None
 
 
-def _render_form(po, error=None, lines=None):
+def _render_form(po, error=None, lines=None, from_request=None):
     """`lines` is what to show: the order's own, or what was just typed."""
     if lines is None:
         lines = [dict(part_id=l.part_id, description=l.description, reference=l.reference or "",
                       quantity=l.quantity, unit_price=l.unit_price, discount=l.discount,
                       unit=l.buy_unit or "stock", new_unit=l.new_unit,
                       machines=",".join(str(v.id) for v in l.vehicles),
+                      request_line_id=l.request_line_id or "",
                       mode="stock" if l.part_id else "new")
                  for l in (po.lines if po else [])]
     if request.method == "POST":
@@ -234,8 +264,24 @@ def _render_form(po, error=None, lines=None):
             lines.append(dict(part_id=g("part_id"), description=g("description"), reference=g("reference"),
                               quantity=g("quantity"), unit_price=g("unit_price"), discount=g("discount"),
                               unit=g("unit"), new_unit=g("new_unit"), mode=g("mode") or "new",
-                              machines=g("line_vehicles")))
+                              machines=g("line_vehicles"), request_line_id=g("request_line_id")))
     t = get_t()
+    req = from_request or (po.request if po else None)
+    if req is None and request.method == "POST":
+        req = db.session.get(PurchaseRequest, request.form.get("request_id", type=int) or 0)
+    parts_json = _parts_json()
+    return render_template("purchase_order_form.html", mode="order", po=po, req=req, error=error, lines=lines,
+                           suppliers=parts_suppliers(), parts_json=parts_json,
+                           units=active_units(),
+                           machines=[dict(id=v.id, code=v.code) for v in _accessible_vehicles()],
+                           stores=_order_stores(),
+                           default_store=req.store_id if req and not po else _default_store(po),
+                           today=date.today().isoformat())
+
+
+def _parts_json():
+    """The active catalogue, with each part's unit and the buying units that
+    convert to it, for the line editor."""
     parts = Part.query.filter(Part.is_active.is_(True)).order_by(Part.name).all()
     from app import _unit_label
     # For each part: its own unit and the buying units that convert to it,
@@ -244,12 +290,7 @@ def _render_form(po, error=None, lines=None):
                        buy=[dict(code=u.code, name=u.name, factor=f)
                             for u, f in buying_units_for(p.unit)])
                   for p in parts]
-    return render_template("purchase_order_form.html", po=po, error=error, lines=lines,
-                           suppliers=parts_suppliers(), parts_json=parts_json,
-                           units=active_units(),
-                           machines=[dict(id=v.id, code=v.code) for v in _accessible_vehicles()],
-                           stores=_order_stores(), default_store=_default_store(po),
-                           today=date.today().isoformat())
+    return parts_json
 
 
 def _can_act(store_id):
@@ -263,26 +304,33 @@ def _stores():
 
 
 def _order_stores():
-    """The stores the user may start an order for: every store for the head
-    of logistics, else the ones he works in."""
-    from blueprints.stores import acting_store_ids, active_stores
-    if user_approves("logistics"):
-        return active_stores()
-    ids = acting_store_ids()
-    return [st for st in active_stores() if ids is None or st.id in ids]
+    """Every store: the head of logistics orders for all of them."""
+    from blueprints.stores import active_stores
+    return active_stores()
 
 
 def _may_order():
-    """Starting or changing an order: the head of logistics (the logistics
-    signer), who orders for every store without touching their stock, or
-    someone who works in a store, for his own."""
-    from blueprints.stores import works_in_a_store
-    return user_approves("logistics") or (has_perm("stock.manage") and works_in_a_store())
+    """Writing an order -- supplier, prices -- is the head of logistics' job
+    (the logistics signer). A store asks through a request instead."""
+    return user_approves("logistics")
 
 
 def _may_order_for(store_id):
     """Whether the user may start or change an order delivered to this store."""
-    return user_approves("logistics") or (_may_order() and _can_act(store_id))
+    return _may_order()
+
+
+def _request_stores():
+    """The stores the user may ask for: the ones he works in."""
+    from blueprints.stores import acting_store_ids, active_stores
+    ids = acting_store_ids()
+    return [st for st in active_stores() if ids is None or st.id in ids]
+
+
+def _may_request():
+    """A store's people ask for articles, each for his own store."""
+    from blueprints.stores import works_in_a_store
+    return has_perm("stock.manage") and works_in_a_store()
 
 
 def _default_store(po):
@@ -328,7 +376,9 @@ def index():
         mine += counts.get("pending_logistics", 0)
     if user_approves("finance"):
         mine += counts.get("pending_finance", 0)
+    open_requests = [r for r in PurchaseRequest.query.filter_by(status="open").all() if not r.fully_ordered]
     return render_template("purchase_orders.html", orders=pagination.items, pagination=pagination,
+                           requests_todo=len(open_requests), can_request=_may_request(),
                            status=status, search=search, counts=counts, mine=mine,
                            statuses=STATUSES, can_create=_may_order(),
                            stores_count=len(_stores()),
@@ -366,10 +416,35 @@ def new():
                 po = db.session.merge(po)
         log_action("CREATE", "purchase_order", resource_id=po.id,
                    detail="Order %s to %s: %d GNF" % (po.number, po.supplier.name, po.total))
+        if po.request:
+            notify(po.request.requested_by, "info.request_ordered",
+                   url_for("purchases.request_detail", rid=po.request.id),
+                   number=po.request.number, order=po.number)
         db.session.commit()
         flash("success|" + t["po.created"])
         return redirect(url_for("purchases.detail", oid=po.id))
+    req = db.session.get(PurchaseRequest, request.args.get("demande", type=int) or 0)
+    if req and req.status == "open":
+        return _render_form(None, lines=_lines_from_request(req), from_request=req)
     return _render_form(None)
+
+
+def _lines_from_request(req):
+    """What is left to order on a request, as lines of a new order: the
+    head of logistics adds supplier and prices, and drops what goes to
+    another supplier."""
+    out = []
+    for l in req.lines:
+        left = l.remaining_qty
+        if left <= 1e-9:
+            continue
+        qty = left / (l.factor or 1)
+        out.append(dict(part_id=l.part_id, description=l.description, reference=l.reference or "",
+                        quantity="{:.10g}".format(qty), unit_price="", discount="",
+                        unit=l.buy_unit or "stock", new_unit=l.new_unit,
+                        machines=l.vehicle_ids or "", request_line_id=l.id,
+                        mode="stock" if l.part_id else "new"))
+    return out
 
 
 @purchases_bp.route("/fournisseur/nouveau", methods=["GET", "POST"])
@@ -424,6 +499,226 @@ def edit(oid):
         flash("success|" + t["po.updated"])
         return redirect(url_for("purchases.detail", oid=po.id))
     return _render_form(po)
+
+
+# ── Requests from the stores ─────────────────────────────────────────────────
+#
+# A store asks for articles and quantities; it names no supplier and no
+# price. The head of logistics draws one or more orders from the request,
+# a supplier each, and may close what is left or refuse it outright.
+
+REQUEST_STATES = ("waiting", "partial", "ordered", "closed", "rejected")
+
+
+def _next_request_number(day):
+    """DA-2026-004 after DA-2026-003, per year."""
+    prefix = "DA-%s-" % day[:4]
+    with db.session.no_autoflush:
+        taken = [n[0] for n in db.session.query(PurchaseRequest.number)
+                 .filter(PurchaseRequest.number.like(prefix + "%")).all()]
+    highest = 0
+    for n in taken:
+        try:
+            highest = max(highest, int(n[len(prefix):]))
+        except ValueError:
+            pass
+    return "%s%03d" % (prefix, highest + 1)
+
+
+def _get_request_or_404(rid):
+    req = db.session.get(PurchaseRequest, rid)
+    if not req:
+        abort(404)
+    return req
+
+
+def _may_change_request(req):
+    """The store's people change or withdraw their request until logistics
+    has ordered anything from it."""
+    if req.status != "open" or req.ordered_any:
+        return False
+    return current_user.is_super_admin or (_may_request() and _can_act(req.store_id))
+
+
+@purchases_bp.route("/demandes")
+@login_required
+def requests():
+    if not _may_read():
+        abort(403)
+    state = request.args.get("state") or ""
+    rows = PurchaseRequest.query.order_by(PurchaseRequest.date.desc(), PurchaseRequest.id.desc()).limit(300).all()
+    counts = {}
+    for r in rows:
+        counts[r.state] = counts.get(r.state, 0) + 1
+    todo = counts.get("waiting", 0) + counts.get("partial", 0)
+    if state == "todo":
+        rows = [r for r in rows if r.state in ("waiting", "partial")]
+    elif state in REQUEST_STATES:
+        rows = [r for r in rows if r.state == state]
+    else:
+        state = ""
+    return render_template("purchase_requests.html", rows=rows, state=state, counts=counts, todo=todo,
+                           states=REQUEST_STATES, can_request=_may_request(), can_order=_may_order(),
+                           orders_count=PurchaseOrder.query.count())
+
+
+def _render_request_form(req, error=None):
+    if request.method == "POST":
+        lines = []
+        for i in range(len(request.form.getlist("description"))):
+            g = lambda k: (request.form.getlist(k)[i] if i < len(request.form.getlist(k)) else "")
+            lines.append(dict(part_id=g("part_id"), description=g("description"), reference=g("reference"),
+                              quantity=g("quantity"), unit=g("unit"), new_unit=g("new_unit"),
+                              mode=g("mode") or "new", machines=g("line_vehicles")))
+    else:
+        lines = [dict(part_id=l.part_id, description=l.description, reference=l.reference or "",
+                      quantity="{:.10g}".format(l.quantity), unit=l.buy_unit or "stock", new_unit=l.new_unit,
+                      machines=l.vehicle_ids or "", mode="stock" if l.part_id else "new")
+                 for l in (req.lines if req else [])]
+    from blueprints.stores import default_store_id
+    return render_template("purchase_order_form.html", mode="request", po=None, req=req, error=error,
+                           lines=lines, suppliers=[], parts_json=_parts_json(), units=active_units(),
+                           machines=[dict(id=v.id, code=v.code) for v in _accessible_vehicles()],
+                           stores=_request_stores(),
+                           default_store=req.store_id if req else default_store_id(),
+                           today=date.today().isoformat())
+
+
+def _read_request():
+    """Returns (header, lines, None) or (None, None, error)."""
+    t = get_t()
+    from blueprints.stores import store_or_default
+    store = store_or_default(request.form.get("store_id", type=int))
+    if store is None:
+        return None, None, t["preq.err.store"]
+    day = (request.form.get("date") or "").strip() or date.today().isoformat()
+    if not _valid_date(day):
+        return None, None, t.get("client.err.date", "Date invalide.")
+    lines, error = _read_lines(with_money=False)
+    if error:
+        return None, None, error
+    header = dict(store_id=store.id, date=day,
+                  note=(request.form.get("note") or "").strip()[:255] or None)
+    return header, lines, None
+
+
+def _write_request_lines(req, lines):
+    req.lines.clear()
+    for l in lines:
+        req.lines.append(PurchaseRequestLine(
+            part_id=l["part_id"], description=l["description"], reference=l["reference"],
+            quantity=l["quantity"], buy_unit=l["buy_unit"], factor=l["factor"], new_unit=l["new_unit"],
+            vehicle_ids=",".join(str(v.id) for v in l["vehicles"]) or None))
+
+
+@purchases_bp.route("/demandes/nouvelle", methods=["GET", "POST"])
+@login_required
+def request_new():
+    if not _may_request():
+        abort(403)
+    t = get_t()
+    if request.method == "POST":
+        header, lines, error = _read_request()
+        if error:
+            return _render_request_form(None, error)
+        req = PurchaseRequest(number=_next_request_number(header["date"]), requested_by=current_user.id,
+                              requester_name=current_user.full_name, **header)
+        _write_request_lines(req, lines)
+        db.session.add(req)
+        for attempt in range(3):
+            try:
+                db.session.commit()
+                break
+            except IntegrityError:
+                db.session.rollback()
+                if attempt == 2:
+                    abort(500)
+                req.number = _next_request_number(header["date"])
+                req = db.session.merge(req)
+        log_action("CREATE", "purchase_request", resource_id=req.id,
+                   detail="Request %s for %s: %d line(s)" % (req.number, req.store.name, len(req.lines)))
+        db.session.commit()
+        flash("success|" + t["preq.created"])
+        return redirect(url_for("purchases.request_detail", rid=req.id))
+    return _render_request_form(None)
+
+
+@purchases_bp.route("/demandes/<int:rid>")
+@login_required
+def request_detail(rid):
+    if not _may_read():
+        abort(403)
+    req = _get_request_or_404(rid)
+    from models import Vehicle
+    ids = {int(x) for l in req.lines for x in (l.vehicle_ids or "").split(",") if x.isdigit()}
+    vcodes = {v.id: v.code for v in Vehicle.query.filter(Vehicle.id.in_(ids)).all()} if ids else {}
+    return render_template("purchase_request.html", req=req, vcodes=vcodes,
+                           can_order=_may_order() and req.status == "open" and not req.fully_ordered,
+                           can_decide=_may_order() and req.status == "open" and not req.fully_ordered,
+                           can_change=_may_change_request(req))
+
+
+@purchases_bp.route("/demandes/<int:rid>/modifier", methods=["GET", "POST"])
+@login_required
+def request_edit(rid):
+    req = _get_request_or_404(rid)
+    if not _may_change_request(req):
+        abort(403)
+    t = get_t()
+    if request.method == "POST":
+        header, lines, error = _read_request()
+        if error:
+            return _render_request_form(req, error)
+        for k, v in header.items():
+            setattr(req, k, v)
+        _write_request_lines(req, lines)
+        log_action("UPDATE", "purchase_request", resource_id=req.id, detail="Request %s rewritten" % req.number)
+        db.session.commit()
+        flash("success|" + t["preq.updated"])
+        return redirect(url_for("purchases.request_detail", rid=req.id))
+    return _render_request_form(req)
+
+
+@purchases_bp.route("/demandes/<int:rid>/supprimer", methods=["POST"])
+@login_required
+def request_delete(rid):
+    req = _get_request_or_404(rid)
+    if not _may_change_request(req):
+        abort(403)
+    number = req.number
+    db.session.delete(req)
+    log_action("DELETE", "purchase_request", resource_id=rid, detail="Deleted request %s" % number)
+    db.session.commit()
+    flash("success|" + get_t()["preq.deleted"])
+    return redirect(url_for("purchases.requests"))
+
+
+@purchases_bp.route("/demandes/<int:rid>/<any(refuser,cloturer):what>", methods=["POST"])
+@login_required
+def request_decide(rid, what):
+    """Refuse a request nothing was ordered from, or close what is left of
+    one partly ordered. Either way the store is told why."""
+    req = _get_request_or_404(rid)
+    t = get_t()
+    if not _may_order() or req.status != "open":
+        abort(403)
+    reason = (request.form.get("reason") or "").strip()[:255]
+    if what == "refuser":
+        if req.ordered_any:
+            flash("error|" + t["preq.err.already_ordered"])
+            return redirect(url_for("purchases.request_detail", rid=rid))
+        if not reason:
+            flash("error|" + t["preq.err.reason"])
+            return redirect(url_for("purchases.request_detail", rid=rid))
+    req.status = "rejected" if what == "refuser" else "closed"
+    req.decided_by, req.decided_at, req.reason = current_user.id, datetime.utcnow(), reason or None
+    notify(req.requested_by, "info.request_" + req.status,
+           url_for("purchases.request_detail", rid=req.id), number=req.number)
+    log_action("REJECT" if what == "refuser" else "UPDATE", "purchase_request", resource_id=req.id,
+               detail="Request %s %s" % (req.number, req.status))
+    db.session.commit()
+    flash("success|" + t["preq." + req.status])
+    return redirect(url_for("purchases.request_detail", rid=req.id))
 
 
 # ── One order ────────────────────────────────────────────────────────────────

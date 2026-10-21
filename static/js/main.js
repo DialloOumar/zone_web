@@ -471,7 +471,22 @@ document.addEventListener("click", function (e) {
         return out;
     }
 
+    // A field marked data-money="cents" also takes cents after a comma
+    // (2 306 273 785,20): the client's bills carry them. A point typed there
+    // is read the same way, but only as the last mark with at most two
+    // digits after it, so "1.500.000" still means one and a half million.
+    function formatCents(el) {
+        var before = el.value;
+        var m = before.match(/^(.*?)[,.](\d{0,2})$/);
+        var whole = (m ? m[1] : before).replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+        var after = group(whole) + (m ? "," + m[2] : "");
+        if (after === before) return;
+        el.value = after;
+        try { el.setSelectionRange(after.length, after.length); } catch (err) { /* not a text field */ }
+    }
+
     function format(el) {
+        if (el.dataset.money === "cents") return formatCents(el);
         var before = el.value;
         // Where the caret sits, counted in digits rather than characters: the
         // separators move about, the digits do not.

@@ -17,6 +17,8 @@
         </div>
     </div>
 
+    {# The client and the days the bill covers: a month by default, or any
+       span, such as the 20th to the 20th. #}
     <form method="get" class="filter-bar">
         <div class="field field--select" style="min-width:180px;">
             <select name="client_id" onchange="this.form.submit()">
@@ -26,9 +28,13 @@
             </select>
             <label>{{ t['invoicing.client'] }}</label>
         </div>
-        <div class="field" style="min-width:135px;">
-            <input type="month" name="month" value="{{ month }}" onchange="this.form.submit()" placeholder=" ">
-            <label>{{ t['entry.month'] }}</label>
+        <div class="field" style="min-width:150px;">
+            <input type="date" name="period_start" value="{{ period_start }}" placeholder=" " required>
+            <label>{{ t['cinv.period_start'] }}</label>
+        </div>
+        <div class="field" style="min-width:150px;">
+            <input type="date" name="period_end" value="{{ period_end }}" placeholder=" " required>
+            <label>{{ t['cinv.period_end'] }}</label>
         </div>
         <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
     </form>
@@ -43,7 +49,25 @@
     <div class="alert alert--error">{{ t['cinv.cannot_missing'] }}</div>
     {% endif %}
 
+    {% if has_perm('invoicing.manage') %}
+    <form method="post" class="entry-form" style="margin-top:8px;" id="inv-form"
+          data-confirm="{{ t['cinv.issue_confirm'] }}" data-confirm-title="{{ t['cinv.issue'] }}" data-confirm-ok="{{ t['cinv.issue'] }}">
+        <input type="hidden" name="client_id" value="{{ client.id }}">
+        <input type="hidden" name="period_start" value="{{ period_start }}">
+        <input type="hidden" name="period_end" value="{{ period_end }}">
+    {% endif %}
+
+    {# The machines' work over the period, from the daily entries. #}
+    <span class="photo-input__label" style="margin-top:12px;">{{ t['cinv.machine_lines'] }}</span>
     {% if lines %}
+    {% if has_perm('invoicing.manage') %}
+    <label class="checkbox-item" style="max-width:420px; margin:4px 0 8px;">
+        <input type="hidden" name="use_machines" value="0">
+        <input type="checkbox" name="use_machines" value="1" id="use_machines" data-total="{{ total | money_field | replace(',', '.') }}"
+               {% if not existing %}checked{% endif %}>
+        <span>{{ t['cinv.use_machines'] }}</span>
+    </label>
+    {% endif %}
     <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
@@ -72,12 +96,51 @@
             </tr>
         </tfoot>
     </table></div>
+    {% else %}
+    <p class="muted small" style="margin:4px 0 8px;">{{ t['cinv.no_machine_lines'] }}
+        {% if client and not client.live_machines %}{{ t['client.no_machines_yet'] }}{% endif %}</p>
+    {% endif %}
 
     {% if has_perm('invoicing.manage') %}
-    <form method="post" class="entry-form" style="margin-top:16px;"
-          data-confirm="{{ t['cinv.issue_confirm'] }}" data-confirm-title="{{ t['cinv.issue'] }}" data-confirm-ok="{{ t['cinv.issue'] }}">
-        <input type="hidden" name="client_id" value="{{ client.id }}">
-        <input type="hidden" name="month" value="{{ month }}">
+    {# Lines typed as the client's paperwork wants them: a heading, a text, a
+       quantity, a unit price with its cents, and a discount. #}
+    <span class="photo-input__label" style="margin-top:16px;">{{ t['cinv.free_lines'] }}</span>
+    <div class="table-wrap"><table class="data-table inv-free" id="inv-free">
+        <thead>
+            <tr>
+                <th style="width:34%;">{{ t['cinv.free_title'] }} / {{ t['cinv.free_description'] }}</th>
+                <th style="text-align:right; width:10%;">{{ t['cprint.qty'] }}</th>
+                <th style="text-align:right; width:20%;">{{ t['cprint.unit_price'] }}</th>
+                <th style="text-align:right; width:16%;">{{ t['po.line_discount'] }}</th>
+                <th style="text-align:right; width:16%;">{{ t['cinv.amount'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+            <tr><td colspan="6"><button type="button" class="btn btn--sm btn--tonal" id="inv-free-add"><span class="material-symbols-outlined">add</span> {{ t['cinv.free_add'] }}</button></td></tr>
+        </tfoot>
+    </table></div>
+    <template id="inv-free-row">
+        <tr class="inv-free__row">
+            <td>
+                <input type="text" name="free_title" maxlength="160" placeholder="{{ t['cinv.free_title_ph'] }}" class="inv-free__title">
+                <textarea name="free_description" rows="2" placeholder="{{ t['cinv.free_description_ph'] }}" class="inv-free__desc"></textarea>
+            </td>
+            <td><input type="text" name="free_qty" inputmode="decimal" value="1" class="r"></td>
+            <td><input data-money="cents" type="text" name="free_price" inputmode="decimal" class="r"></td>
+            <td><input data-money="cents" type="text" name="free_discount" inputmode="decimal" class="r" placeholder="0"></td>
+            <td class="r inv-free__amount">0</td>
+            <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon inv-free__remove" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
+        </tr>
+    </template>
+
+    <div class="invoice-total" style="margin:12px 0 4px; align-items:flex-end;">
+        <span class="invoice-total__label">{{ t['cinv.total'] }}</span>
+        <span class="invoice-total__value"><span id="inv-grand">0</span> <span class="stat-unit">{{ currency }}</span></span>
+    </div>
+
+    <span class="photo-input__label" style="margin-top:16px;">{{ t['cinv.header'] }}</span>
         <div class="form-row">
             <div class="field">
                 <input type="date" id="date" name="date" placeholder=" " value="{{ today }}" required>
@@ -90,13 +153,47 @@
         </div>
         <div class="form-row">
             <div class="field">
-                <input type="text" id="subject" name="subject" placeholder=" " maxlength="120" value="{{ default_subject }}">
-                <label for="subject">{{ t['cinv.subject'] }}</label>
+                <input type="text" id="contract_no" name="contract_no" placeholder=" " maxlength="60">
+                <label for="contract_no">{{ t['cinv.contract_no'] }}</label>
             </div>
             <div class="field">
                 <input type="text" id="client_ref" name="client_ref" placeholder=" " maxlength="60">
                 <label for="client_ref">{{ t['cinv.client_ref'] }}</label>
             </div>
+        </div>
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="subject" name="subject" placeholder=" " maxlength="120" value="{{ default_subject }}">
+                <label for="subject">{{ t['cinv.subject'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="attention" name="attention" placeholder=" " maxlength="120" value="{{ client.attention or '' }}">
+                <label for="attention">{{ t['cinv.attention'] }}</label>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="equipments" name="equipments" placeholder=" " maxlength="120">
+                <label for="equipments">{{ t['cinv.equipments'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="work_purpose" name="work_purpose" placeholder=" " maxlength="80">
+                <label for="work_purpose">{{ t['cinv.work_purpose'] }}</label>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="equipment_type" name="equipment_type" placeholder=" " maxlength="80">
+                <label for="equipment_type">{{ t['cinv.equipment_type'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="availability" name="availability" placeholder=" " maxlength="40">
+                <label for="availability">{{ t['cinv.availability'] }}</label>
+            </div>
+        </div>
+        <div class="field">
+            <input type="text" id="intro" name="intro" placeholder=" " maxlength="255">
+            <label for="intro">{{ t['cinv.intro'] }}</label>
         </div>
         <div class="form-row">
             <div class="field">
@@ -115,19 +212,59 @@
         {# Bookkeeping only: written on the lines, never printed. #}
         {{ ledger_picker(ledger_accounts, '', t['ledger.revenue_account'], t['ledger.revenue_hint']) }}
         <div class="form-actions">
-            <button type="submit" class="btn btn--primary" {% if existing or any_missing %}disabled{% endif %}>
+            <button type="submit" class="btn btn--primary">
                 <span class="material-symbols-outlined">request_quote</span> {{ t['cinv.issue'] }}
             </button>
         </div>
     </form>
     {% endif %}
-
-    {% else %}
-    <div class="empty-state empty-state--soft">
-        <span class="material-symbols-outlined">request_quote</span>
-        <p>{{ t['cinv.cannot_empty'] }}</p>
-        {% if client and not client.live_machines %}<p class="muted small">{{ t['client.no_machines_yet'] }}</p>{% endif %}
-    </div>
-    {% endif %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var table = document.getElementById('inv-free');
+    if (!table) return;
+    var body = table.querySelector('tbody'), tpl = document.getElementById('inv-free-row'),
+        use = document.getElementById('use_machines'), grand = document.getElementById('inv-grand');
+    // Amounts in cents, as integers, so 0,1 + 0,2 is 0,30 and never 0,30000000000000004.
+    function cents(s) {
+        s = String(s || '').replace(/[\s   ]/g, '');
+        var m = s.match(/^(.*?)[,.](\d{1,2})$/), whole = (m ? m[1] : s).replace(/[^\d]/g, ''), frac = m ? m[2] : '';
+        if (!whole && !frac) return 0;
+        return parseInt(whole || '0', 10) * 100 + (frac ? parseInt((frac + '0').slice(0, 2), 10) : 0);
+    }
+    function show(c) {
+        var neg = c < 0; c = Math.abs(c);
+        var whole = Math.floor(c / 100).toLocaleString('fr-FR'), frac = c % 100;
+        return (neg ? '-' : '') + whole + (frac ? ',' + (frac < 10 ? '0' : '') + frac : '');
+    }
+    function recompute() {
+        var total = use && use.checked ? cents(use.dataset.total) : 0;
+        body.querySelectorAll('.inv-free__row').forEach(function (row) {
+            var q = parseFloat((row.querySelector('[name=free_qty]').value || '0').replace(',', '.')) || 0,
+                p = cents(row.querySelector('[name=free_price]').value),
+                d = cents(row.querySelector('[name=free_discount]').value),
+                a = Math.max(0, Math.round(q * p) - d);
+            row.querySelector('.inv-free__amount').textContent = show(a);
+            total += a;
+        });
+        grand.textContent = show(total);
+    }
+    function addRow() { body.appendChild(tpl.content.cloneNode(true)); recompute(); }
+    document.getElementById('inv-free-add').addEventListener('click', function () {
+        addRow(); body.lastElementChild.querySelector('[name=free_title]').focus();
+    });
+    table.addEventListener('click', function (e) {
+        var b = e.target.closest('.inv-free__remove');
+        if (b) { b.closest('.inv-free__row').remove(); recompute(); }
+    });
+    table.addEventListener('input', recompute);
+    if (use) use.addEventListener('change', recompute);
+    // A month with no machine work starts with one free line to fill.
+    if (!use) addRow();
+    recompute();
+})();
+</script>
 {% endblock %}

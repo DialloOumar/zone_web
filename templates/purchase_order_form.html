@@ -1,23 +1,34 @@
 {% extends "base.html" %}
 
-{% set is_edit = po is not none %}
-{% block title %}{{ t['po.edit'] if is_edit else t['po.new'] }}{% endblock %}
-{% block page_title %}{{ t['po.edit'] if is_edit else t['po.new'] }}{% endblock %}
+{% set is_req = mode == 'request' %}
+{% set is_edit = (req is not none) if is_req else (po is not none) %}
+{% set ncols = 6 if is_req else 9 %}
+{% set form_title = (t['preq.edit'] if is_edit else t['preq.new']) if is_req else (t['po.edit'] if is_edit else t['po.new']) %}
+{% block title %}{{ form_title }}{% endblock %}
+{% block page_title %}{{ form_title }}{% endblock %}
 
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a data-back href="{{ url_for('purchases.detail', oid=po.id) if is_edit else url_for('purchases.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    {% set back_url = (url_for('purchases.request_detail', rid=req.id) if is_edit else url_for('purchases.requests')) if is_req
+                      else (url_for('purchases.detail', oid=po.id) if is_edit else (url_for('purchases.request_detail', rid=req.id) if req else url_for('purchases.index'))) %}
+    <a data-back href="{{ back_url }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
 </div>
 
 <section class="card">
     {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
-    {% if is_edit and (po.logistics_at or po.status == 'rejected') %}
+    {% if not is_req and req %}
+    <div class="alert alert--info">{{ t['po.from_request'] % req.number }}</div>
+    {% endif %}
+    {% if not is_req and is_edit and (po.logistics_at or po.status == 'rejected') %}
     <div class="alert alert--warning">{{ t['po.edit_resets'] }}</div>
     {% endif %}
 
     <form method="post" class="entry-form" id="po-form"
-          action="{{ url_for('purchases.edit', oid=po.id) if is_edit else url_for('purchases.new') }}">
+          action="{{ (url_for('purchases.request_edit', rid=req.id) if is_edit else url_for('purchases.request_new')) if is_req
+                     else (url_for('purchases.edit', oid=po.id) if is_edit else url_for('purchases.new')) }}">
+        {% if not is_req and req %}<input type="hidden" name="request_id" value="{{ req.id }}">{% endif %}
         <div class="form-row">
+            {% if not is_req %}
             <div class="field field--select">
                 {% set sel_s = request.form.get('supplier_id')|int(0) or request.args.get('supplier')|int(0) or (po.supplier_id if is_edit else 0) %}
                 <select id="supplier_id" name="supplier_id" required>
@@ -28,9 +39,10 @@
                 </select>
                 <label for="supplier_id">{{ t['invoice.supplier'] }}</label>
             </div>
+            {% endif %}
             <div class="field">
                 <input type="date" id="date" name="date" placeholder=" " required
-                       value="{{ request.form.get('date') or (po.date if is_edit else today) }}">
+                       value="{{ request.form.get('date') or ((req.date if is_req else po.date) if is_edit else today) }}">
                 <label for="date">{{ t['po.date'] }}</label>
             </div>
             {# The store it is delivered to; only its people receive it. #}
@@ -40,14 +52,16 @@
                 <select id="store_id" name="store_id" required>
                     {% for st in stores %}<option value="{{ st.id }}" {% if st.id == sel_st %}selected{% endif %}>{{ st.name }}</option>{% endfor %}
                 </select>
-                <label for="store_id">{{ t['po.deliver_to'] }}</label>
+                <label for="store_id">{{ t['preq.store'] if is_req else t['po.deliver_to'] }}</label>
             </div>
             {% elif stores %}<input type="hidden" name="store_id" value="{{ stores[0].id }}">{% endif %}
         </div>
         {# A supplier not in the list yet is written down on the store's own
            page and the order comes back with it chosen. #}
+        {% if not is_req %}
         <div class="field-hint">{{ t['invoice.supplier_first'] if not suppliers else t['po.supplier_missing'] }} :
             <a href="{{ url_for('purchases.supplier_new') }}">{{ t['invoice.supplier_new'] }}</a></div>
+        {% endif %}
 
         {# The lines. "Stock" ticked: the article is one the store already
            knows, picked from the catalogue by browsing or typing. Unticked: a
@@ -60,7 +74,7 @@
             {# Fixed columns: nothing typed in a cell moves the others. #}
             <colgroup>
                 <col class="po-col-stock"><col class="po-col-part"><col class="po-col-ref"><col class="po-col-qty">
-                <col class="po-col-unit"><col class="po-col-price"><col class="po-col-disc"><col class="po-col-amount"><col class="po-col-x">
+                <col class="po-col-unit">{% if not is_req %}<col class="po-col-price"><col class="po-col-disc"><col class="po-col-amount">{% endif %}<col class="po-col-x">
             </colgroup>
             <thead>
                 <tr>
@@ -69,9 +83,11 @@
                     <th>{{ t['po.line_reference'] }}</th>
                     <th>{{ t['po.line_qty'] }}</th>
                     <th>{{ t['part.unit'] }}</th>
+                    {% if not is_req %}
                     <th>{{ t['po.line_price'] }}</th>
                     <th>{{ t['po.line_discount'] }}</th>
                     <th class="r">{{ t['cinv.amount'] }}</th>
+                    {% endif %}
                     <th></th>
                 </tr>
             </thead>
@@ -85,6 +101,7 @@
                     </td>
                     <td>
                         <input type="hidden" name="part_id" value="{{ l.part_id or '' }}">
+                        <input type="hidden" name="request_line_id" value="{{ l.request_line_id or '' }}">
                         <div class="po-combo">
                             <input type="text" name="description" placeholder="{{ t['po.line_part_ph'] }}" value="{{ l.description }}" autocomplete="off" required>
                             <button type="button" class="po-combo__toggle" tabindex="-1" aria-label="{{ t['po.browse'] }}"><span class="material-symbols-outlined">unfold_more</span></button>
@@ -103,15 +120,17 @@
                             {% for u in units %}<option value="{{ u.code }}" {% if (l.new_unit or units[0].code) == u.code %}selected{% endif %}>{{ u.name }}</option>{% endfor %}
                         </select>
                     </td>
+                    {% if not is_req %}
                     <td><input data-money type="text" name="unit_price" inputmode="numeric" class="r" value="{{ l.unit_price }}" required></td>
                     <td><input data-money type="text" name="discount" inputmode="numeric" class="r" value="{{ l.discount if l.discount and l.discount != '0' else '' }}" placeholder="0"></td>
                     <td class="r po-amount">0</td>
+                    {% endif %}
                     <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon po-remove" title="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
                 </tr>
                 {# The machines the line is for: a thin bar under it, folded,
                    that opens on the machines to tick. A link only. #}
                 <tr class="po-mach">
-                    <td colspan="9">
+                    <td colspan="{{ ncols }}">
                         <input type="hidden" name="line_vehicles" value="{{ l.machines or '' }}">
                         <button type="button" class="po-mach__bar" aria-expanded="false"><span class="po-mach__caret" aria-hidden="true"></span><span class="po-mach__label">{{ t['po.machines'] }} :</span> <span class="po-mach__sum"></span></button>
                         <div class="po-mach__panel" hidden></div>
@@ -120,22 +139,22 @@
                 {% endfor %}
             </tbody>
             <tfoot>
-                <tr><td colspan="9"><button type="button" class="btn btn--sm btn--tonal" id="po-add"><span class="material-symbols-outlined">add</span> {{ t['po.add_line'] }}</button></td></tr>
-                <tr><td colspan="7" class="r"><strong>{{ t['cinv.total'] }}</strong></td><td class="r"><strong id="po-total">0</strong></td><td></td></tr>
+                <tr><td colspan="{{ ncols }}"><button type="button" class="btn btn--sm btn--tonal" id="po-add"><span class="material-symbols-outlined">add</span> {{ t['po.add_line'] }}</button></td></tr>
+                {% if not is_req %}<tr><td colspan="7" class="r"><strong>{{ t['cinv.total'] }}</strong></td><td class="r"><strong id="po-total">0</strong></td><td></td></tr>{% endif %}
             </tfoot>
         </table></div>
 
         <div class="field" style="margin-top:12px;">
             <input type="text" id="note" name="note" placeholder=" " maxlength="255"
-                   value="{{ request.form.get('note') or (po.note or '' if is_edit else '') }}">
+                   value="{{ request.form.get('note') or (((req.note if is_req else po.note) or '') if is_edit else '') }}">
             <label for="note">{{ t['entry.note'] }}</label>
         </div>
 
         <div class="form-actions">
             <button type="submit" class="btn btn--primary">
-                <span class="material-symbols-outlined">save</span> {{ t['po.submit'] if not is_edit else t['btn.save'] }}
+                <span class="material-symbols-outlined">save</span> {{ t['btn.save'] if is_edit else (t['preq.submit'] if is_req else t['po.submit']) }}
             </button>
-            <a href="{{ url_for('purchases.detail', oid=po.id) if is_edit else url_for('purchases.index') }}" class="btn btn--outlined">{{ t['btn.cancel'] }}</a>
+            <a href="{{ back_url }}" class="btn btn--outlined">{{ t['btn.cancel'] }}</a>
         </div>
     </form>
 </section>
@@ -150,6 +169,7 @@
         </td>
         <td>
             <input type="hidden" name="part_id" value="">
+            <input type="hidden" name="request_line_id" value="">
             <div class="po-combo">
                 <input type="text" name="description" placeholder="{{ t['po.line_part_ph'] }}" autocomplete="off" required>
                 <button type="button" class="po-combo__toggle" tabindex="-1" aria-label="{{ t['po.browse'] }}"><span class="material-symbols-outlined">unfold_more</span></button>
@@ -164,13 +184,15 @@
                 {% for u in units %}<option value="{{ u.code }}">{{ u.name }}</option>{% endfor %}
             </select>
         </td>
+        {% if not is_req %}
         <td><input data-money type="text" name="unit_price" inputmode="numeric" class="r" required></td>
         <td><input data-money type="text" name="discount" inputmode="numeric" class="r" placeholder="0"></td>
         <td class="r po-amount">0</td>
+        {% endif %}
         <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon po-remove" title="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">close</span></button></td>
     </tr>
     <tr class="po-mach">
-        <td colspan="9">
+        <td colspan="{{ ncols }}">
             <input type="hidden" name="line_vehicles" value="">
             <button type="button" class="po-mach__bar" aria-expanded="false"><span class="po-mach__caret" aria-hidden="true"></span><span class="po-mach__label">{{ t['po.machines'] }} :</span> <span class="po-mach__sum"></span></button>
             <div class="po-mach__panel" hidden></div>
@@ -197,6 +219,7 @@
         return null;
     }
     function recompute() {
+        if (!document.getElementById('po-total')) return;
         var total = 0;
         body.querySelectorAll('.po-line').forEach(function (row) {
             var q = parseFloat(row.querySelector('[name=quantity]').value) || 0,

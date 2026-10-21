@@ -464,6 +464,18 @@ a:hover { text-decoration: underline; }
 .list-filter:focus { border-color: var(--md-primary); outline: none; }
 [hidden] { display: none !important; }
 
+/* A bill's free lines: a heading over its text, then the figures. */
+.inv-free td { vertical-align: top; padding: 6px 4px; }
+.inv-free input[type="text"], .inv-free textarea {
+    width: 100%; min-width: 0; padding: 0 8px; border: 1px solid var(--md-outline); border-radius: 8px;
+    background: var(--md-surface); color: var(--md-on-surface); font: inherit; font-size: 0.875rem;
+}
+.inv-free input[type="text"] { height: 38px; }
+.inv-free textarea { margin-top: 4px; padding: 6px 8px; resize: vertical; }
+.inv-free input.r { text-align: right; }
+.inv-free input:focus, .inv-free textarea:focus { border-color: var(--md-primary); outline: none; }
+.inv-free .inv-free__amount { font-weight: 600; white-space: nowrap; line-height: 38px; }
+
 /* Purchase order lines editor. The columns are fixed: typing a name, the
    hint that appears under it, the unit beside the quantity and a growing
    amount none of them move the others, so the row stays where the eye left it. */

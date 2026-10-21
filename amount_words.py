@@ -104,8 +104,19 @@ def amount_in_words(amount, lang="fr", currency="GNF"):
     """"cinquante-six millions huit cent douze mille cinq cents francs guinéens"
     for 56 812 500 GNF. Negative or non-integer amounts are rounded to whole
     units and the sign dropped: a bill is never negative."""
-    n = abs(int(round(amount or 0)))
+    from decimal import Decimal
+    cents = 0
+    if isinstance(amount, Decimal):
+        # A client's bill may carry cents: "... cinq et vingt francs guinéens",
+        # the way the company's own bills write 2 306 273 785,20.
+        exact = abs(amount).quantize(Decimal("0.01"))
+        n = int(exact)
+        cents = int((exact - n) * 100)
+    else:
+        n = abs(int(round(amount or 0)))
     words = _fr(n) if lang == "fr" else _en(n)
+    if cents:
+        words += (" et " if lang == "fr" else " and ") + (_fr(cents) if lang == "fr" else _en(cents))
     if currency == "GNF":
         unit = "francs guinéens" if lang == "fr" else "Guinean francs"
         if n == 1:

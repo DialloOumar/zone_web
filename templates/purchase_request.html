@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}{{ req.number }}{% endblock %}
+{% block page_title %}{{ t['preq.one'] }} {{ req.number }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a data-back href="{{ url_for('purchases.requests') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    {% if can_change %}
+    <a href="{{ url_for('purchases.request_edit', rid=req.id) }}" class="btn btn--sm btn--tonal">
+        <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}
+    </a>
+    <form method="post" action="{{ url_for('purchases.request_delete', rid=req.id) }}" style="display:inline"
+          data-confirm="{{ t['preq.delete_confirm'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger>
+        <button type="submit" class="btn btn--sm btn--outlined btn--danger-text">
+            <span class="material-symbols-outlined">delete</span> {{ t['btn.delete'] }}
+        </button>
+    </form>
+    {% endif %}
+    {% if can_order %}
+    <a href="{{ url_for('purchases.new', demande=req.id) }}" class="btn btn--sm btn--primary">
+        <span class="material-symbols-outlined">request_quote</span> {{ t['preq.make_order'] }}
+    </a>
+    {% endif %}
+</div>
+
+{% if req.status in ('rejected', 'closed') %}
+<div class="alert {{ 'alert--error' if req.status == 'rejected' else 'alert--info' }}">
+    <strong>{{ t['preq.state.' + req.status] }}</strong>
+    {% if req.decider %}: {{ req.decider.full_name }}, {{ req.decided_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+    {% if req.reason %}<br>{{ req.reason }}{% endif %}
+</div>
+{% endif %}
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ req.number }}
+                {% set st = req.state %}
+                {% if st == 'ordered' %}<span class="badge badge--active">{{ t['preq.state.ordered'] }}</span>
+                {% elif st == 'partial' %}<span class="badge badge--warning">{{ t['preq.state.partial'] }}</span>
+                {% elif st == 'rejected' %}<span class="badge badge--critical">{{ t['preq.state.rejected'] }}</span>
+                {% elif st == 'closed' %}<span class="badge badge--inactive">{{ t['preq.state.closed'] }}</span>
+                {% else %}<span class="badge badge--warning">{{ t['preq.state.waiting'] }}</span>{% endif %}
+            </h2>
+        </div>
+    </div>
+    <dl class="detail-grid">
+        <div><dt>{{ t['po.date'] }}</dt><dd>{{ req.date }}</dd></div>
+        <div><dt>{{ t['preq.store'] }}</dt><dd><a href="{{ url_for('stock.index', store=req.store_id) }}">{{ req.store.name }}</a></dd></div>
+        <div><dt>{{ t['po.requested_by'] }}</dt><dd>{{ req.requester_name or '—' }}</dd></div>
+        {% if req.note %}<div><dt>{{ t['entry.note'] }}</dt><dd>{{ req.note }}</dd></div>{% endif %}
+    </dl>
+
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['po.line_part'] }}</th>
+                <th>{{ t['po.line_reference'] }}</th>
+                <th style="text-align:right;">{{ t['preq.asked'] }}</th>
+                <th style="text-align:right;">{{ t['preq.ordered'] }}</th>
+                <th style="text-align:right;">{{ t['preq.left'] }}</th>
+                <th>{{ t['po.machines'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in req.lines %}
+            {% set stock_unit = unit_label(l.part.unit) if l.part else unit_label(l.new_unit) %}
+            <tr>
+                <td><strong>{{ l.description }}</strong>
+                    <div class="muted small">{{ t['po.from_catalogue'] if l.part else t['po.new_article'] }}</div></td>
+                <td>{{ l.reference or '—' }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ l.quantity | qty }}
+                    {% if l.buy_unit %}{{ unit_label(l.buy_unit) }} <span class="muted small">({{ l.stock_qty | qty }} {{ stock_unit }})</span>
+                    {% else %}{{ stock_unit }}{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if l.ordered_qty %}{{ l.ordered_qty | qty }} {{ stock_unit }}{% else %}<span class="muted">0</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if l.remaining_qty > 0.000000001 %}<span class="badge badge--warning">{{ l.remaining_qty | qty }} {{ stock_unit }}</span>
+                    {% else %}<span class="badge badge--active">{{ t['preq.done'] }}</span>{% endif %}</td>
+                <td>{% for vid in (l.vehicle_ids or '').split(',') if vid and vcodes.get(vid|int) %}<span class="chip">{{ vcodes[vid|int] }}</span> {% else %}<span class="muted">—</span>{% endfor %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+
+    {% if req.orders %}
+    <span class="photo-input__label" style="margin-top:14px;">{{ t['preq.orders'] }}</span>
+    <div class="table-wrap"><table class="data-table">
+        <tbody>
+            {% for po in req.orders %}
+            <tr>
+                <td style="white-space:nowrap;"><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a></td>
+                <td>{{ po.supplier.name }}</td>
+                <td>{{ t['po.status.' + po.status] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% endif %}
+
+    {% if can_decide %}
+    <div class="form-actions" style="flex-wrap:wrap;">
+        {% if not req.ordered_any %}
+        <details class="po-reject">
+            <summary class="btn btn--outlined btn--danger-text"><span class="material-symbols-outlined">close</span> {{ t['preq.reject'] }}</summary>
+            <form method="post" action="{{ url_for('purchases.request_decide', rid=req.id, what='refuser') }}" class="entry-form" style="margin-top:10px; max-width:520px;">
+                <div class="field">
+                    <input type="text" id="reason" name="reason" placeholder=" " required maxlength="255">
+                    <label for="reason">{{ t['po.reject_reason'] }}</label>
+                </div>
+                <button type="submit" class="btn btn--danger"><span class="material-symbols-outlined">close</span> {{ t['preq.reject'] }}</button>
+            </form>
+        </details>
+        {% else %}
+        <details class="po-reject">
+            <summary class="btn btn--outlined"><span class="material-symbols-outlined">archive</span> {{ t['preq.close'] }}</summary>
+            <form method="post" action="{{ url_for('purchases.request_decide', rid=req.id, what='cloturer') }}" class="entry-form" style="margin-top:10px; max-width:520px;">
+                <div class="field">
+                    <input type="text" id="close_reason" name="reason" placeholder=" " maxlength="255">
+                    <label for="close_reason">{{ t['preq.close_reason'] }}</label>
+                </div>
+                <button type="submit" class="btn btn--tonal"><span class="material-symbols-outlined">archive</span> {{ t['preq.close'] }}</button>
+            </form>
+        </details>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

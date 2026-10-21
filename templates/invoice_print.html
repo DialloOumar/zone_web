@@ -1,107 +1,101 @@
 <!DOCTYPE html>
-{# The bill as a sheet (invoicing.invoice_print). Standalone, like the
-   pointage print: nothing to load but this HTML and the logo. Opens the
-   print dialog on load; "Save as PDF" in the dialog makes the file to send.
+{# The bill as a sheet (invoicing.invoice_print). Standalone: nothing to load
+   but this HTML and the logo. Opens the print dialog on load; "Save as PDF"
+   in the dialog makes the file to send.
 
-   Laid out after the bills the company already sends: header with the
-   company and the title, who it is billed to and the details of the hire,
-   the lines, the amount in figures and in words, where to pay, a place for
-   the stamp. Every box that has nothing to say stays off the paper. #}
-{% set has_details = inv.subject or inv.client_ref or inv.contact_name or co.payment_terms or inv.due_date %}
+   Laid out after the company's own Tax Invoice, as its clients' accounts
+   payable expect it: the company and the document at the top, whom it is
+   addressed to, the band of hire details, the lines, the totals beside the
+   bank and the company's numbers, the amount in words, the stamp. The
+   headings are the document's own words, not the app's. #}
+{% set months_en = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] %}
+{% macro dmy(d) -%}{% if d %}{{ d[8:10] }}/{{ months_en[d[5:7]|int - 1] }}/{{ d[0:4] }}{% else %}NA{% endif %}{%- endmacro %}
 <html lang="{{ lang }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ t['cprint.title'] }} {{ inv.number }} — {{ co.company_name or t['app.title'] }}</title>
+<title>{{ co.invoice_title or t['cprint.title'] }} {{ inv.number }} — {{ co.company_name or t['app.title'] }}</title>
 <style>
-    @page { size: A4 portrait; margin: 1.4cm 1.6cm 1.6cm; }
+    @page { size: A4 portrait; margin: 1.2cm 1.3cm 1.4cm; }
     * { box-sizing: border-box; }
-    /* The browser drops background colours on paper unless the sheet insists:
-       the dark header row, the "net à payer" band and the tinted rows are
-       part of the document, not decoration to save ink on. */
-    .lines thead th, .totals tr.due td, .lines .subject-row td, .lines tbody tr:nth-child(even) td,
-    .in-words, .rule { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; margin: 0; line-height: 1.4; }
-    .muted { color: #666; }
+    .band th, .lines thead th, .lines .intro td, .sheet-head .co, .po-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: Calibri, Carlito, Arial, Helvetica, sans-serif; font-size: 11px; color: #111; margin: 0; line-height: 1.35; }
     .r { text-align: right; font-variant-numeric: tabular-nums; }
+    .c { text-align: center; }
     .pre { white-space: pre-line; }
+    .red { color: #c0392b; }
+    .sheet { border: 1.5px solid #333; }
 
-    /* ── Header: the company on the left, the document on the right ── */
-    .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
-    .brand-logo { height: 44px; width: auto; display: block; margin-bottom: 6px; }
-    .co-name { font-size: 15px; font-weight: 800; color: #0F2B4C; letter-spacing: 0.01em; }
-    .co-lines { font-size: 9.5px; line-height: 1.5; color: #444; margin-top: 2px; }
-    .doc { text-align: right; min-width: 210px; }
-    .doc-title { font-size: 26px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; color: #0F2B4C; line-height: 1; }
-    .doc-number { font-size: 13px; font-weight: 700; margin-top: 6px; }
-    .doc-meta { margin-top: 8px; border-collapse: collapse; margin-left: auto; }
-    .doc-meta td { padding: 2px 0 2px 14px; font-size: 10px; }
-    .doc-meta td:first-child { color: #666; text-transform: uppercase; font-size: 8px; letter-spacing: 0.06em; padding-left: 0; }
-    .doc-meta td:last-child { font-weight: 700; text-align: right; }
-    .rule { height: 3px; background: #0F2B4C; margin: 12px 0 16px; }
+    /* ── Head: the company on the left, the document on the right ── */
+    .sheet-head { display: flex; justify-content: space-between; gap: 18px; padding: 10px 12px 6px; }
+    .brand-logo { height: 52px; width: auto; display: block; margin-bottom: 6px; }
+    .co { background: #e8f1fb; padding: 4px 8px; font-style: italic; font-size: 10.5px; line-height: 1.45; max-width: 330px; }
+    .doc { text-align: left; min-width: 250px; }
+    .doc-title { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 30px; color: #5b7fa6; text-align: right; line-height: 1; margin-bottom: 14px; }
+    .doc-meta { border-collapse: collapse; }
+    .doc-meta td { padding: 3px 0; font-size: 11.5px; vertical-align: top; }
+    .doc-meta td:first-child { padding-right: 18px; }
+    .doc-meta td:last-child { font-weight: 700; }
 
-    /* ── Parties and details ── */
-    .boxes { display: flex; gap: 14px; margin-bottom: 16px; align-items: stretch; }
-    .box { flex: 1; border: 1px solid #cfd6df; border-radius: 6px; padding: 9px 12px; }
-    .box-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #0F2B4C; margin-bottom: 5px; }
-    .party-name { font-size: 13px; font-weight: 800; }
-    .party-lines { font-size: 10px; line-height: 1.5; color: #333; }
-    .details { border-collapse: collapse; width: 100%; }
-    .details td { padding: 2px 0; font-size: 10px; vertical-align: top; }
-    .details td:first-child { color: #666; width: 38%; padding-right: 8px; }
-    .details td:last-child { font-weight: 600; }
+    /* ── Whom it is for ── */
+    .to { display: flex; justify-content: space-between; gap: 18px; padding: 8px 12px 10px; }
+    .to-left { display: flex; gap: 22px; }
+    .to-label { font-size: 13px; }
+    .to-lines { font-size: 10.5px; line-height: 1.5; }
+    .to-lines .attn { font-size: 13px; font-weight: 700; }
+    .to-lines .name { font-size: 12.5px; font-weight: 700; }
+    .to-lines .mail { color: #2a6db0; }
+    .to-right { text-align: right; font-size: 10.5px; min-width: 230px; }
+    .to-right b { font-weight: 700; }
+    .po-box { display: inline-block; margin-top: 30px; border: 1.5px solid #333; padding: 2px 26px; font-weight: 700; background: #fff; }
+
+    /* ── The band of hire details ── */
+    .band { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    .band th { background: #d9d9d9; font-weight: 700; border: 1px solid #555; padding: 2px 6px; }
+    .band td { border: 1px solid #555; padding: 3px 6px; vertical-align: middle; }
 
     /* ── Lines ── */
-    .lines { width: 100%; border-collapse: collapse; font-size: 10.5px; }
-    .lines thead th { background: #0F2B4C; color: #fff; padding: 7px 8px; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; }
-    .lines thead th.r { text-align: right; }
-    .lines td { padding: 7px 8px; border-bottom: 1px solid #e3e7ec; vertical-align: top; }
-    .lines tbody tr:nth-child(even) td { background: #f6f8fa; }
-    .lines .num { color: #888; width: 28px; }
-    .lines .desig { font-weight: 700; }
-    .lines .desig small { display: block; font-weight: 400; color: #555; font-size: 9.5px; margin-top: 1px; }
-    .lines .subject-row td { background: #fff8e6; color: #7a4d00; font-weight: 600; border-bottom: 1px solid #f0dca8; }
+    .lines { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+    .lines thead th { background: #d9d9d9; font-weight: 700; border: 1px solid #555; padding: 4px 6px; }
+    .lines td { border-left: 1px solid #555; border-right: 1px solid #555; padding: 6px; vertical-align: top; }
+    .lines tbody tr:last-child td { border-bottom: 1px solid #555; }
+    .lines .intro td { background: #fdf6dc; font-weight: 700; text-align: center; border: 1px solid #555; font-size: 12px; }
+    .lines .title { color: #c0392b; font-style: italic; font-size: 13px; text-transform: uppercase; background: #eee; display: inline-block; padding: 0 4px; margin-top: 10px; }
+    .lines .span { font-style: italic; font-size: 10px; margin: 2px 0 10px; }
+    .lines .desc { text-transform: uppercase; }
+    .lines .spacer td { height: 70px; }
 
-    /* ── Totals ── */
-    .totals-wrap { display: flex; justify-content: flex-end; margin-top: 4px; }
-    .totals { border-collapse: collapse; min-width: 300px; }
-    .totals td { padding: 5px 10px; font-size: 10.5px; }
-    .totals td:first-child { color: #555; text-align: right; }
-    .totals td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-    .totals tr.due td { background: #0F2B4C; color: #fff; font-size: 13px; font-weight: 800; padding: 9px 10px; }
-    .totals tr.due td:first-child { color: #dbe6f3; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 9.5px; }
-    .in-words { margin-top: 12px; padding: 8px 12px; background: #f6f8fa; border-left: 3px solid #0F2B4C; font-size: 10.5px; }
-    .in-words b { text-transform: none; }
-    .in-words .amount { font-style: italic; }
+    /* ── Totals beside the bank and the company's numbers ── */
+    .foot { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .foot td { border: 1px solid #555; padding: 3px 6px; }
+    .foot .lbl { text-align: right; width: 14%; }
+    .foot .val { text-align: right; width: 22%; font-weight: 700; white-space: nowrap; }
+    .foot .rib { font-size: 15px; font-weight: 700; color: #333; }
+    .words { margin-top: 6px; font-style: italic; font-size: 11px; }
+    .note { margin-top: 6px; font-size: 10px; }
 
-    /* ── Payment, signature, footer ── */
-    .bottom { display: flex; gap: 14px; margin-top: 18px; align-items: stretch; }
-    .pay { flex: 1.3; }
-    .stamp { flex: 1; border: 1px dashed #b9c2cc; border-radius: 6px; min-height: 96px; display: flex; flex-direction: column; justify-content: space-between; padding: 8px 12px; }
-    .stamp .box-label { color: #666; }
-    .stamp .who { font-size: 9.5px; font-weight: 700; text-align: right; }
-    .note { margin-top: 10px; font-size: 10px; }
-    .thanks { margin-top: 12px; font-size: 9.5px; color: #555; }
-    .footer { margin-top: 22px; padding-top: 8px; border-top: 1px solid #cfd6df; font-size: 8.5px; color: #666; text-align: center; line-height: 1.5; }
+    .bottom { display: flex; justify-content: flex-end; margin-top: 10px; }
+    .stamp { text-align: center; min-width: 200px; }
+    .footer { margin-top: 18px; font-size: 8.5px; color: #666; text-align: center; }
     .cancelled-stamp { display: inline-block; margin-top: 8px; padding: 4px 12px; border: 2.5px solid #c62828; color: #c62828; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; font-size: 13px; transform: rotate(-4deg); }
 
     @media screen {
         html { background: #eef1f6; }
-        body { max-width: 21cm; margin: 16px auto 40px; padding: 1.4cm 1.6cm 1.6cm; background: #fff; border-radius: 12px;
+        body { max-width: 21cm; margin: 16px auto 40px; padding: 1.2cm 1.3cm 1.4cm; background: #fff; border-radius: 12px;
                box-shadow: 0 1px 2px rgba(0,0,0,.28), 0 1px 3px 1px rgba(0,0,0,.10); }
         .print-toolbar { position: sticky; top: 0; z-index: 10; display: flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap;
-                         margin: -1.4cm -1.6cm 20px; padding: 12px 1.6cm; border-radius: 12px 12px 0 0;
+                         margin: -1.2cm -1.3cm 20px; padding: 12px 1.3cm; border-radius: 12px 12px 0 0;
                          background: #0F74BC; color: #fff; font-size: 13px; font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; }
         .print-toolbar__hint { margin-right: auto; font-size: 12px; color: #d4e9fb; }
         .print-toolbar a, .print-toolbar button { font: inherit; font-weight: 500; cursor: pointer; border-radius: 999px; padding: 7px 16px;
                                                   border: 1px solid rgba(255,255,255,.55); background: transparent; color: #fff; text-decoration: none; }
         .print-toolbar button { background: #fff; border-color: #fff; color: #0F74BC; font-weight: 700; }
         @media (max-width: 700px) {
-            body { margin: 0; padding: 12px 14px 32px; border-radius: 0; box-shadow: none; }
-            .print-toolbar { margin: -12px -14px 16px; padding: 10px 14px; border-radius: 0; }
-            .head, .boxes, .bottom { flex-direction: column; }
-            .doc { text-align: left; } .doc-meta { margin-left: 0; }
-            .totals { width: 100%; }
+            body { margin: 0; padding: 12px 10px 32px; border-radius: 0; box-shadow: none; }
+            .print-toolbar { margin: -12px -10px 16px; padding: 10px 14px; border-radius: 0; }
+            .sheet-head, .to, .to-left { flex-direction: column; }
+            .to-right { text-align: left; }
+            .band, .lines, .foot { font-size: 9.5px; }
         }
     }
     @media print { .print-toolbar { display: none !important; } }
@@ -115,111 +109,127 @@
     <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
 </div>
 
-<div class="head">
+<div class="sheet">
+<div class="sheet-head">
     <div>
         <img class="brand-logo" src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ co.company_name or t['app.title'] }}">
-        {% if co.company_name %}<div class="co-name">{{ co.company_name }}</div>{% endif %}
-        <div class="co-lines pre">{{ co.company_address }}{% if co.company_phone %}
-{{ t['cset.company_phone'] }} : {{ co.company_phone }}{% endif %}{% if co.company_email %}
-{{ co.company_email }}{% endif %}{% if co.company_website %}
-{{ co.company_website }}{% endif %}</div>
+        <div class="co pre">{{ co.company_address }}{% if co.company_email %}
+email: {{ co.company_email }}{% endif %}{% if co.company_phone %}
+Phone: {{ co.company_phone }}{% endif %}</div>
     </div>
     <div class="doc">
-        <div class="doc-title">{{ t['cprint.title'] }}</div>
-        <div class="doc-number">{{ inv.number }}</div>
+        <div class="doc-title">{{ co.invoice_title or t['cprint.title'] }}</div>
         <table class="doc-meta">
-            <tr><td>{{ t['cinv.date'] }}</td><td>{{ inv.date }}</td></tr>
-            <tr><td>{{ t['cinv.period'] }}</td><td>{{ month_words }}</td></tr>
-            {% if inv.due_date %}<tr><td>{{ t['cinv.due_date'] }}</td><td>{{ inv.due_date }}</td></tr>{% endif %}
+            <tr><td>Date:</td><td>{{ dmy(inv.date) }}</td></tr>
+            <tr><td><b>Invoice #:</b></td><td>{{ inv.number }}</td></tr>
+            {% if inv.contract_no %}<tr><td><b>Contract No #</b></td><td>{{ inv.contract_no }}</td></tr>{% endif %}
         </table>
         {% if inv.is_cancelled %}<div><span class="cancelled-stamp">{{ t['cinv.status.cancelled'] }}</span></div>{% endif %}
     </div>
 </div>
-<div class="rule"></div>
 
-<div class="boxes">
-    <div class="box">
-        <div class="box-label">{{ t['cprint.billed_to'] }}</div>
-        <div class="party-name">{{ inv.client.name }}</div>
-        <div class="party-lines pre">{{ inv.client.address or '' }}{% if inv.client.contact %}
-{{ inv.client.contact }}{% endif %}{% if inv.client.tax_id %}
-NIF : {{ inv.client.tax_id }}{% endif %}{% if inv.client.rccm %}
-RCCM : {{ inv.client.rccm }}{% endif %}</div>
+<div class="to">
+    <div class="to-left">
+        <div class="to-label">To:</div>
+        <div class="to-lines">
+            {% if inv.attention %}<div class="attn">À l'attention du : {{ inv.attention }}</div>{% endif %}
+            <div class="name">{{ inv.client.name }}</div>
+            {% if inv.client.email %}<div>E-mail : <span class="mail">{{ inv.client.email }}</span></div>{% endif %}
+            {% if inv.client.address %}<div class="pre">{{ inv.client.address }}</div>{% endif %}
+            {% if inv.client.po_box %}<div>{{ inv.client.po_box }}</div>{% endif %}
+            {% if inv.client.tax_id %}<div>NIF : {{ inv.client.tax_id }}</div>{% endif %}
+            {% if inv.client.rccm %}<div>RCCM : {{ inv.client.rccm }}</div>{% endif %}
+        </div>
     </div>
-    {% if has_details %}
-    <div class="box">
-        <div class="box-label">{{ t['cprint.details'] }}</div>
-        <table class="details">
-            {% if inv.subject %}<tr><td>{{ t['cinv.subject'] }}</td><td>{{ inv.subject }}</td></tr>{% endif %}
-            {% if inv.client_ref %}<tr><td>{{ t['cinv.client_ref'] }}</td><td>{{ inv.client_ref }}</td></tr>{% endif %}
-            {% if inv.contact_name %}<tr><td>{{ t['cprint.contact'] }}</td><td>{{ inv.contact_name }}{% if inv.contact_phone %} · {{ inv.contact_phone }}{% endif %}</td></tr>{% endif %}
-            {% if co.payment_terms %}<tr><td>{{ t['cset.payment_terms'] }}</td><td>{{ co.payment_terms }}</td></tr>{% endif %}
-            {% if inv.due_date %}<tr><td>{{ t['cinv.due_date'] }}</td><td>{{ inv.due_date }}</td></tr>{% endif %}
-        </table>
+    <div class="to-right">
+        {% if inv.subject %}<div>Subject # <b class="red">{{ inv.subject | upper }}</b></div>{% endif %}
+        {% if inv.equipments %}<div style="margin-top:4px;"><b>Equipments #</b> <b class="red">{{ inv.equipments | upper }}</b></div>{% endif %}
+        {% if inv.client_ref %}<div class="po-box">P.O {{ inv.client_ref }}</div>{% endif %}
     </div>
-    {% endif %}
 </div>
+
+<table class="band">
+    <thead>
+        <tr><th>Your contact</th><th>Work Purpose</th><th>Eqpmt Type</th><th>Availability</th><th>Payment Term</th><th>Du Date</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>{{ inv.contact_name or '' }}{% if inv.contact_phone %}<br>Tel: {{ inv.contact_phone }}{% endif %}</td>
+            <td class="c">{{ inv.work_purpose or '' }}</td>
+            <td class="c">{{ inv.equipment_type or '' }}</td>
+            <td class="c">{{ inv.availability or 'NA' }}</td>
+            <td class="c">{{ co.payment_terms or '' }}</td>
+            <td class="c">{{ dmy(inv.due_date) }}</td>
+        </tr>
+    </tbody>
+</table>
 
 <table class="lines">
     <thead>
         <tr>
-            <th class="num">N°</th>
-            <th>{{ t['cprint.designation'] }}</th>
-            <th class="r">{{ t['cprint.qty'] }}</th>
-            <th class="r">{{ t['cprint.unit_price'] }} ({{ currency }})</th>
-            <th class="r">{{ t['cinv.amount'] }} ({{ currency }})</th>
+            <th style="width:6%;"></th>
+            <th style="width:8%;">Unit/Qty</th>
+            <th>Description</th>
+            <th style="width:16%;">Unit Price in {{ currency }}</th>
+            <th style="width:12%;">Discount</th>
+            <th style="width:20%;">Total {{ currency }}</th>
         </tr>
     </thead>
     <tbody>
-        {% if inv.subject %}
-        <tr class="subject-row"><td colspan="5">{{ inv.subject }}</td></tr>
-        {% endif %}
+        {% if inv.intro %}<tr class="intro"><td></td><td colspan="4">{{ inv.intro }}</td><td></td></tr>{% endif %}
         {% for l in inv.lines %}
         <tr>
-            <td class="num">{{ loop.index }}</td>
-            <td class="desig">{{ l.vehicle_code }} — {{ l.category_label }}
-                <small>{{ (t['cprint.detail_trips'] if l.unit_type == 'trips' else t['cprint.detail_hours']) | format(month_words) }}</small></td>
-            <td class="r">{{ '%.0f'|format(l.units) }} {{ t['unit.' + l.unit_type] }}{% if l.units != 1 %}s{% endif %}</td>
+            <td class="c">{{ loop.index }}</td>
+            <td class="c">{{ l.units | qty }}{% if (l.kind or 'machine') == 'machine' %} {{ t['unit.' + l.unit_type] }}{% endif %}</td>
+            <td>
+                {% if (l.kind or 'machine') == 'free' %}
+                {% if l.title %}<div class="title">{{ l.title }}</div><div class="span">{{ month_words | capitalize }}</div>{% endif %}
+                {% if l.description %}<div class="desc pre">{{ l.description }}</div>{% endif %}
+                {% else %}
+                <div class="desc">{{ l.vehicle_code }} — {{ l.category_label }}</div>
+                <div class="span">{{ (t['cprint.detail_trips'] if l.unit_type == 'trips' else t['cprint.detail_hours']) | format(month_words) }}</div>
+                {% endif %}
+            </td>
             <td class="r">{{ l.rate | num }}</td>
-            <td class="r"><b>{{ l.amount | num }}</b></td>
+            <td class="r">{% if l.discount %}{{ l.discount | num }}{% endif %}</td>
+            <td class="r">{{ l.amount | num }}</td>
         </tr>
         {% endfor %}
+        <tr class="spacer"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
     </tbody>
 </table>
 
-<div class="totals-wrap">
-    <table class="totals">
-        <tr><td>{{ t['cprint.subtotal'] }}</td><td>{{ inv.total | num }} {{ currency }}</td></tr>
-        {% if co.tax_mention %}<tr><td>{{ co.tax_mention }}</td><td>—</td></tr>{% endif %}
-        <tr class="due"><td>{{ t['cprint.total_due'] }}</td><td>{{ inv.total | num }} {{ currency }}</td></tr>
-    </table>
+<table class="foot">
+    <tr>
+        <td class="rib">{{ (co.bank_details or '') | replace('\n', '  ') }}</td>
+        <td class="lbl">Sous /Total</td>
+        <td class="val">{{ inv.total | num }}</td>
+    </tr>
+    <tr>
+        <td>{% if co.company_rccm %}RCCM/{{ co.company_rccm }}{% endif %}{% if co.company_nif %} <span class="red">NIF: {{ co.company_nif }}</span>{% endif %}{% if co.tax_mention %} <span class="red">{{ co.tax_mention }}</span>{% endif %}</td>
+        <td class="lbl">VAT</td>
+        <td class="val">-</td>
+    </tr>
+    <tr>
+        <td>Amount to pay</td>
+        <td class="lbl">Total</td>
+        <td class="val">{{ inv.total | num }} {{ currency }}</td>
+    </tr>
+</table>
 </div>
 
-<div class="in-words">{{ t['cprint.in_words'] }} : <span class="amount">{{ amount_words }}</span>.</div>
-
+<div class="words">Pay: {{ amount_words }}</div>
 {% if inv.note %}<div class="note"><b>{{ t['cinv.note'] }} :</b> {{ inv.note }}</div>{% endif %}
 
 <div class="bottom">
-    <div class="pay">
-        {% if co.bank_details %}
-        <div class="box">
-            <div class="box-label">{{ t['cset.bank_details'] }}</div>
-            <div class="party-lines pre">{{ co.bank_details }}</div>
-        </div>
-        {% endif %}
-        <div class="thanks">{{ t['cprint.thanks'] }}</div>
-    </div>
     <div class="stamp">
-        <div class="box-label">{{ t['cprint.stamp'] }}</div>
         {% if inv.issuer and user_has_stamp(inv.issuer) %}
-        <img src="{{ url_for('stamp_svg', user_id=inv.created_by) }}" alt="" style="height:154px; width:154px; align-self:center; margin:-14px 0;">
+        <img src="{{ url_for('stamp_svg', user_id=inv.created_by) }}" alt="" style="height:150px; width:150px;">
         {% endif %}
-        <div class="who">{{ co.company_name or '' }}</div>
     </div>
 </div>
 
-<div class="footer pre">{% if co.company_name %}{{ co.company_name }}{% endif %}{% if co.company_nif %} · NIF {{ co.company_nif }}{% endif %}{% if co.company_rccm %} · RCCM {{ co.company_rccm }}{% endif %}{% if co.invoice_footer %}
-{{ co.invoice_footer }}{% endif %}</div>
+{% if co.invoice_footer %}<div class="footer pre">{{ co.invoice_footer }}</div>{% endif %}
 
 <script>
 (function () {

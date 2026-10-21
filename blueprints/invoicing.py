@@ -21,8 +21,10 @@ Règlements: what the client paid against a bill, in one or several
 payments; the bill's state (à régler, partielle, réglée, en retard) is read
 off them, never stored.
 """
+import calendar
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
@@ -31,8 +33,8 @@ from sqlalchemy.exc import IntegrityError
 
 import billing
 from amount_words import amount_in_words
-from app import (_get_setting, current_lang, current_user_fleet_ids, get_t, has_perm,
-                 is_modal_request, log_action, modal_ok, parse_amount, require_perm)
+from app import (_get_setting, _num, current_lang, current_user_fleet_ids, get_t, has_perm,
+                 is_modal_request, log_action, modal_ok, parse_amount, parse_money, require_perm)
 from blueprints.expenses import PAYMENT_METHODS, active_accounts, method_error, methods_of
 from ledger import ensure_client_account, labels_for, read_code, revenue_accounts
 from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine, PurchaseOrder,
@@ -86,13 +88,43 @@ def _clients(include_archived=False):
     return q.all()
 
 
+def month_bounds(month):
+    """("2026-07-01", "2026-07-31") for "2026-07"."""
+    y, m = (int(x) for x in month.split("-"))
+    return "%04d-%02d-01" % (y, m), "%04d-%02d-%02d" % (y, m, calendar.monthrange(y, m)[1])
+
+
+def period_label(inv, lang="fr"):
+    """What a bill covers, in words: "du 20 juin au 20 juillet 2026" when it
+    names its days, else the month, as bills from before did."""
+    if inv.period_start and inv.period_end:
+        return days_label(inv.period_start, inv.period_end, lang)
+    return month_label(inv.period, lang)
+
+
+def days_label(start, end, lang="fr"):
+    names = MONTHS.get(lang, MONTHS["fr"])
+    a, b = date.fromisoformat(start), date.fromisoformat(end)
+    first, last = month_bounds(start[:7])
+    if start == first and end == last:
+        return month_label(start[:7], lang)
+    left = "%d %s" % (a.day, names[a.month - 1]) + ("" if a.year == b.year else " %d" % a.year)
+    right = "%d %s %d" % (b.day, names[b.month - 1], b.year)
+    return ("du %s au %s" if lang == "fr" else "from %s to %s") % (left, right)
+
+
 def _month_lines(client, month):
-    """The month worked out: one line per machine and rate in force, since a
-    price that changed mid-month gives the same machine two lines. Returns
-    (lines, total, any_missing); a line with rate None is one an entry had
-    no price for, and blocks issuing."""
+    """The month worked out, see _period_lines."""
+    start, end = month_bounds(month)
+    return _period_lines(client, start, end)
+
+
+def _period_lines(client, start, end):
+    """The days from `start` to `end` worked out: one line per machine and
+    rate in force, since a price that changed within the span gives the same
+    machine two lines. Returns (lines, total, any_missing); a line with rate
+    None is one an entry had no price for, and blocks issuing."""
     book = billing.rate_book(client.id)
-    like = month + "%"
     fids = current_user_fleet_ids()
     groups = {}
     for v in client.live_machines:
@@ -100,7 +132,8 @@ def _month_lines(client, month):
             continue
         unit_type = v.category.unit_type
         entries = (DailyEntry.query.filter_by(vehicle_id=v.id)
-                   .filter(DailyEntry.date.like(like)).order_by(DailyEntry.date).all())
+                   .filter(DailyEntry.date >= start, DailyEntry.date <= end)
+                   .order_by(DailyEntry.date).all())
         for e in entries:
             u = billing.entry_units(e, unit_type)
             if u <= 0:
@@ -113,7 +146,8 @@ def _month_lines(client, month):
             g["units"] += u
     lines = []
     for g in groups.values():
-        g["amount"] = int(round(g["units"] * g["rate"])) if g["rate"] is not None else 0
+        # Whole francs, as machine lines always were.
+        g["amount"] = Decimal(int(round(g["units"] * g["rate"]))) if g["rate"] is not None else Decimal(0)
         lines.append(g)
     lines.sort(key=lambda g: (g["vehicle_code"], g["rate"] or 0))
     total = sum(g["amount"] for g in lines)
@@ -125,6 +159,52 @@ def _open_invoice(client_id, period):
     """The bill already issued for that client and month, if one stands."""
     return (ClientInvoice.query.filter_by(client_id=client_id, period=period, is_opening=False)
             .filter(ClientInvoice.status != "cancelled").first())
+
+
+def _machine_overlap(client_id, start, end):
+    """A standing bill of this client that already bills machines over any
+    of these days: the same work must not be billed twice. A bill of free
+    lines only bills no machine, and never stands in the way."""
+    for inv in (ClientInvoice.query.filter_by(client_id=client_id, is_opening=False)
+                .filter(ClientInvoice.status != "cancelled").all()):
+        if not any((l.kind or "machine") == "machine" for l in inv.lines):
+            continue
+        a, b = (inv.period_start, inv.period_end) if inv.period_start else month_bounds(inv.period)
+        if a <= end and start <= b:
+            return inv
+    return None
+
+
+def _read_free_lines(form):
+    """The typed lines of a bill. Returns (lines, None) or (None, error).
+    A row with nothing in it is skipped."""
+    t = get_t()
+    titles, descs = form.getlist("free_title"), form.getlist("free_description")
+    qtys, prices, discounts = form.getlist("free_qty"), form.getlist("free_price"), form.getlist("free_discount")
+    out = []
+    for i in range(max(len(titles), len(descs), len(qtys), len(prices))):
+        g = lambda lst: (lst[i] if i < len(lst) else "").strip()
+        title, desc, qty_raw, price_raw, disc_raw = g(titles), g(descs), g(qtys), g(prices), g(discounts)
+        if not (title or desc or price_raw):
+            continue
+        if not (title or desc):
+            return None, t["cinv.err.free_desc"]
+        try:
+            qty = float((qty_raw or "1").replace(",", "."))
+        except ValueError:
+            qty = 0
+        if qty <= 0:
+            return None, t["cinv.err.free_qty"]
+        price = parse_money(price_raw)
+        if price is None or price < 0:
+            return None, t["cinv.err.free_price"]
+        gross = (Decimal(str(qty)) * price).quantize(Decimal("0.01"))
+        discount = parse_money(disc_raw) if disc_raw else Decimal(0)
+        if discount is None or discount < 0 or discount > gross:
+            return None, t["po.err.discount"]
+        out.append(dict(title=title[:160] or None, description=desc or None, units=qty,
+                        rate=price, discount=discount, amount=gross - discount))
+    return out, None
 
 
 def _next_number(issue_date):
@@ -225,7 +305,7 @@ def index():
             db.func.coalesce(db.func.sum(is_new), 0),
             db.func.coalesce(db.func.sum(capped), 0),
             db.func.coalesce(db.func.sum(is_old), 0)).one()
-        billed, received, opening = int(sums[0] or 0), int(sums[1] or 0), int(sums[2] or 0)
+        billed, received, opening = (sums[0] or 0), (sums[1] or 0), (sums[2] or 0)
         remaining = max(billed + opening - received, 0)
         overdue_count = live.filter(paid < ClientInvoice.total, ClientInvoice.due_date.isnot(None),
                                     ClientInvoice.due_date < today).count()
@@ -246,7 +326,7 @@ def index():
                                  db.func.coalesce(db.func.sum(ClientInvoice.total - capped), 0))
                 .filter(ClientInvoice.status != "cancelled")
                 .group_by(ClientInvoice.client_id).all())
-        owed = {r[0]: {"count": int(r[1]), "remaining": int(r[2] or 0)} for r in rows}
+        owed = {r[0]: {"count": int(r[1]), "remaining": (r[2] or 0)} for r in rows}
 
     orders = []
     if signs_orders:
@@ -275,6 +355,10 @@ def index():
 @login_required
 @require_perm("invoicing.view")
 def invoice_new():
+    """Work a period out for a client and issue the bill. The period is a
+    span of days (20 June to 20 July), or a month as before. The bill holds
+    the machines' lines worked out from the daily entries, typed free lines,
+    or both."""
     clients = _clients()
     if not clients:
         return redirect(url_for("client_reports.clients"))
@@ -283,44 +367,69 @@ def invoice_new():
     month = request.values.get("month", "")
     if not _valid_month(month):
         month = datetime.utcnow().strftime("%Y-%m")
-    lines, total, any_missing = _month_lines(client, month)
-    existing = _open_invoice(client.id, month)
+    start = (request.values.get("period_start") or "").strip()
+    end = (request.values.get("period_end") or "").strip()
+    if not (_valid_date(start) and _valid_date(end) and start <= end):
+        start, end = month_bounds(month)
+    month = end[:7]
+    lines, total, any_missing = _period_lines(client, start, end)
+    existing = _machine_overlap(client.id, start, end)
     t = get_t()
 
     if request.method == "POST":
         if not has_perm("invoicing.manage"):
             abort(403)
-        if existing:
+        back = url_for("invoicing.invoice_new", client_id=client.id, period_start=start, period_end=end)
+        # Machine lines are billed unless the form says otherwise; a form
+        # from before free lines came says nothing, and billed them.
+        flags = request.form.getlist("use_machines")
+        use_machines = ("1" in flags if flags else True) and bool(lines)
+        free, error = _read_free_lines(request.form)
+        if error:
+            flash("error|" + error)
+            return redirect(back)
+        if use_machines and existing:
             flash("error|" + t["cinv.already"] + " " + existing.number)
             return redirect(url_for("invoicing.invoice_detail", iid=existing.id))
-        if not lines or any_missing:
-            flash("error|" + (t["cinv.cannot_missing"] if any_missing else t["cinv.cannot_empty"]))
-            return redirect(url_for("invoicing.invoice_new", client_id=client.id, month=month))
+        if use_machines and any_missing:
+            flash("error|" + t["cinv.cannot_missing"])
+            return redirect(back)
+        if not use_machines and not free:
+            flash("error|" + t["cinv.cannot_empty"])
+            return redirect(back)
         issue_date = (request.form.get("date") or "").strip() or date.today().isoformat()
         due = (request.form.get("due_date") or "").strip() or None
         if not _valid_date(issue_date) or (due and not _valid_date(due)):
             flash("error|" + t.get("client.err.date", "Date invalide."))
-            return redirect(url_for("invoicing.invoice_new", client_id=client.id, month=month))
+            return redirect(back)
         # The revenue account, for the journal: one pick, written on every
-        # line, since a month's lines are all the same kind of sale.
+        # line, since a bill's lines are all the same kind of sale.
         ledger_code, ok = read_code(request.form, allowed=revenue_accounts())
         if not ok:
             flash("error|" + t["ledger.err.unknown"])
-            return redirect(url_for("invoicing.invoice_new", client_id=client.id, month=month))
+            return redirect(back)
+        text = lambda k, n: (request.form.get(k) or "").strip()[:n] or None
+        grand = (total if use_machines else Decimal(0)) + sum((f["amount"] for f in free), Decimal(0))
         inv = ClientInvoice(client_id=client.id, number=_next_number(issue_date), period=month,
-                            date=issue_date, due_date=due, total=total,
-                            subject=(request.form.get("subject") or "").strip()[:120] or None,
-                            client_ref=(request.form.get("client_ref") or "").strip()[:60] or None,
-                            contact_name=(request.form.get("contact_name") or "").strip()[:120] or None,
-                            contact_phone=(request.form.get("contact_phone") or "").strip()[:60] or None,
+                            period_start=start, period_end=end,
+                            date=issue_date, due_date=due, total=grand,
+                            subject=text("subject", 120), client_ref=text("client_ref", 60),
+                            contract_no=text("contract_no", 60), attention=text("attention", 120),
+                            equipments=text("equipments", 120), work_purpose=text("work_purpose", 80),
+                            equipment_type=text("equipment_type", 80), availability=text("availability", 40),
+                            intro=text("intro", 255),
+                            contact_name=text("contact_name", 120), contact_phone=text("contact_phone", 60),
                             note=(request.form.get("note") or "").strip() or None,
                             created_by=current_user.id)
-        for g in lines:
-            inv.lines.append(ClientInvoiceLine(
-                vehicle_id=g["vehicle_id"], vehicle_code=g["vehicle_code"],
-                category_label=g["category_label"], unit_type=g["unit_type"],
-                units=g["units"], rate=g["rate"], amount=g["amount"],
-                ledger_code=ledger_code))
+        if use_machines:
+            for g in lines:
+                inv.lines.append(ClientInvoiceLine(
+                    kind="machine", vehicle_id=g["vehicle_id"], vehicle_code=g["vehicle_code"],
+                    category_label=g["category_label"], unit_type=g["unit_type"],
+                    units=g["units"], rate=g["rate"], amount=g["amount"], discount=0,
+                    ledger_code=ledger_code))
+        for f in free:
+            inv.lines.append(ClientInvoiceLine(kind="free", ledger_code=ledger_code, **f))
         db.session.add(inv)
         for attempt in range(3):
             try:
@@ -336,14 +445,15 @@ def invoice_new():
         if ensure_client_account(client, current_user.id):
             db.session.commit()
         log_action("CREATE", "client_invoice", resource_id=inv.id,
-                   detail="Issued %s to %s for %s: %d GNF" % (inv.number, client.name, month, inv.total))
+                   detail="Issued %s to %s for %s to %s: %s GNF" % (inv.number, client.name, start, end, inv.total))
         db.session.commit()
         flash("success|" + t["cinv.issued"])
         return redirect(url_for("invoicing.invoice_detail", iid=inv.id))
 
     lang = current_lang()
-    default_subject = (t["cinv.subject_default"] % month_label(month, lang))
+    default_subject = (t["cinv.subject_default"] % days_label(start, end, lang))
     return render_template("invoice_new.html", clients=clients, client=client, month=month,
+                           period_start=start, period_end=end,
                            lines=lines, total=total, any_missing=any_missing,
                            existing=existing, default_subject=default_subject,
                            # whoever issues the bill is its contact, unless they say otherwise
@@ -508,7 +618,7 @@ def _save_client(row):
         row = Client(sort_order=nxt, code=_next_code())
         db.session.add(row)
     row.name = name
-    for field in ("contact", "address", "tax_id", "rccm", "note"):
+    for field in ("contact", "address", "email", "po_box", "attention", "tax_id", "rccm", "note"):
         setattr(row, field, (request.form.get(field) or "").strip() or None)
     db.session.flush()
     _assign_machines(row, chosen)
@@ -621,7 +731,7 @@ SETTINGS_GROUPS = [
                  ("company_email", False), ("company_website", False),
                  ("company_nif", False), ("company_rccm", False)]),
     ("payment", [("bank_details", True), ("payment_terms", True), ("tax_mention", False)]),
-    ("footer",  [("invoice_footer", True)]),
+    ("footer",  [("invoice_title", False), ("invoice_footer", True)]),
 ]
 SETTING_KEYS = [k for _, keys in SETTINGS_GROUPS for k, _ in keys]
 
@@ -670,7 +780,7 @@ def invoice_print(iid):
     lang = current_lang()
     currency = _get_setting("currency", "GNF")
     return render_template("invoice_print.html", inv=inv, co=invoice_settings(),
-                           month_words=month_label(inv.period, lang),
+                           month_words=period_label(inv, lang),
                            amount_words=amount_in_words(inv.total, lang, currency))
 
 
@@ -704,7 +814,7 @@ def _read_payment_form(inv, pay, form=None):
     but this one, so correcting one downwards is never blocked by itself."""
     t = get_t()
     form = request.form if form is None else form
-    amount = parse_amount(form.get("amount"))
+    amount = parse_money(form.get("amount"))
     if amount is None or amount <= 0:
         return None, t["invoice.err.amount"]
     others = sum(p.amount or 0 for p in inv.payments if pay is None or p.id != pay.id)
@@ -819,6 +929,13 @@ def invoice_delete(iid):
 
 # ── What a client owed before the app ───────────────────────────────────────
 
+def _field_amount(value):
+    """A stored amount as a whole-franc form field takes it: no ".00"."""
+    if value is None:
+        return None
+    return int(value) if value == int(value) else value
+
+
 def _client_opening(client_id):
     return ClientInvoice.query.filter_by(client_id=client_id, is_opening=True).first()
 
@@ -847,7 +964,7 @@ def client_opening(cid):
         elif not _valid_date(day):
             error = t["opening.err.date"]
         elif amount < paid:
-            error = t["opening.err.below_paid"] % {"paid": "{:,}".format(paid).replace(",", " ")}
+            error = t["opening.err.below_paid"] % {"paid": _num(paid)}
         elif amount == 0 and row is None:
             return modal_ok() if is_modal_request() else redirect(url_for("invoicing.client_detail", cid=cid))
         if not error:
@@ -872,7 +989,7 @@ def client_opening(cid):
     return render_template(tpl, row=row, error=error, today=date.today().isoformat(),
                            action=url_for("invoicing.client_opening", cid=cid),
                            back=url_for("invoicing.client_detail", cid=cid),
-                           amount=row.total if row else None,
+                           amount=_field_amount(row.total) if row else None,
                            paid=row.paid_amount if row else 0,
                            title=t["opening.client_title"]), status
 
@@ -924,17 +1041,18 @@ def account_receipt(aid):
         owed = sum(b.remaining for b in bills)
         raw = (request.form.get("amount") or "").strip()
         if raw:
-            total = parse_amount(raw)
+            total = parse_money(raw)
             if total is None or total <= 0:
                 return _render_account_receipt_form(acc, t["invoice.err.amount"])
             if total > owed:
-                return _render_account_receipt_form(acc, t["receipt.err.over"] % {
-                    "owed": "{:,}".format(owed).replace(",", " ")})
+                return _render_account_receipt_form(acc, t["receipt.err.over"] % {"owed": _num(owed)})
         else:
             total = owed
         batch = uuid.uuid4().hex if len(bills) > 1 else None
         made = []
-        for b, part in zip(bills, spread(total, [b.remaining for b in bills])):
+        # Shared out in cents, so a bill with cents is settled to the cent.
+        in_cents = spread(int(round(Decimal(total) * 100)), [int(round(Decimal(b.remaining) * 100)) for b in bills])
+        for b, part in zip(bills, (Decimal(c) / 100 for c in in_cents)):
             if part <= 0:
                 continue
             form = request.form.copy()

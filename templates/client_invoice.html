@@ -38,11 +38,18 @@
         </div>
     </div>
     <dl class="detail-grid">
-        <div><dt>{{ t['cinv.period'] }}</dt><dd>{{ inv.period }}</dd></div>
+        <div><dt>{{ t['cinv.period'] }}</dt><dd>{% if inv.period_start %}{{ inv.period_start }} → {{ inv.period_end }}{% else %}{{ inv.period }}{% endif %}</dd></div>
         <div><dt>{{ t['cinv.date'] }}</dt><dd>{{ inv.date }}</dd></div>
         <div><dt>{{ t['cinv.due_date'] }}</dt><dd>{{ inv.due_date or '—' }}</dd></div>
         <div><dt>{{ t['cinv.subject'] }}</dt><dd>{{ inv.subject or '—' }}</dd></div>
         <div><dt>{{ t['cinv.client_ref'] }}</dt><dd>{{ inv.client_ref or '—' }}</dd></div>
+        {% if inv.contract_no %}<div><dt>{{ t['cinv.contract_no'] }}</dt><dd>{{ inv.contract_no }}</dd></div>{% endif %}
+        {% if inv.attention %}<div><dt>{{ t['cinv.attention'] }}</dt><dd>{{ inv.attention }}</dd></div>{% endif %}
+        {% if inv.equipments %}<div><dt>{{ t['cinv.equipments'] }}</dt><dd>{{ inv.equipments }}</dd></div>{% endif %}
+        {% if inv.work_purpose %}<div><dt>{{ t['cinv.work_purpose'] }}</dt><dd>{{ inv.work_purpose }}</dd></div>{% endif %}
+        {% if inv.equipment_type %}<div><dt>{{ t['cinv.equipment_type'] }}</dt><dd>{{ inv.equipment_type }}</dd></div>{% endif %}
+        {% if inv.availability %}<div><dt>{{ t['cinv.availability'] }}</dt><dd>{{ inv.availability }}</dd></div>{% endif %}
+        {% if inv.intro %}<div style="grid-column: 1 / -1;"><dt>{{ t['cinv.intro'] }}</dt><dd>{{ inv.intro }}</dd></div>{% endif %}
         <div><dt>{{ t['cprint.contact'] }}</dt><dd>{{ inv.contact_name or '—' }}{% if inv.contact_phone %} · {{ inv.contact_phone }}{% endif %}</dd></div>
         {% if inv.note %}<div style="grid-column: 1 / -1;"><dt>{{ t['cinv.note'] }}</dt><dd>{{ inv.note }}</dd></div>{% endif %}
         {% if ledger_code %}<div><dt>{{ t['ledger.revenue_account'] }}</dt><dd><code>{{ ledger_code }}</code>{% if ledger_label %} — {{ ledger_label }}{% endif %}</dd></div>{% endif %}
@@ -129,6 +136,16 @@
         </thead>
         <tbody>
             {% for l in inv.lines %}
+            {% if (l.kind or 'machine') == 'free' %}
+            <tr>
+                <td colspan="2">{% if l.title %}<strong>{{ l.title }}</strong>{% endif %}
+                    {% if l.description %}<div class="small" style="white-space:pre-line;">{{ l.description }}</div>{% endif %}
+                    {% if l.discount %}<div class="muted small">{{ t['po.line_discount'] }} : {{ l.discount | num }}</div>{% endif %}</td>
+                <td style="text-align:right;">{{ l.units | qty }}</td>
+                <td style="text-align:right;">{{ l.rate | num }}</td>
+                <td style="text-align:right;"><strong>{{ l.amount | num }}</strong></td>
+            </tr>
+            {% else %}
             <tr>
                 <td>{% if l.vehicle %}<a href="{{ url_for('vehicles.detail', vid=l.vehicle.id) }}"><strong>{{ l.vehicle_code }}</strong></a>{% else %}<strong>{{ l.vehicle_code }}</strong>{% endif %}</td>
                 <td><span class="muted small">{{ l.category_label }}</span></td>
@@ -136,6 +153,7 @@
                 <td style="text-align:right;">{{ l.rate | num }}</td>
                 <td style="text-align:right;"><strong>{{ l.amount | num }}</strong></td>
             </tr>
+            {% endif %}
             {% endfor %}
         </tbody>
         <tfoot>

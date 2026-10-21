@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['preq.title'] }}{% endblock %}
+{% block page_title %}{{ t['preq.title'] }}{% endblock %}
+
+{% macro state_chip(r) -%}
+    {% set st = r.state %}
+    {% if st == 'ordered' %}<span class="badge badge--active">{{ t['preq.state.ordered'] }}</span>
+    {% elif st == 'partial' %}<span class="badge badge--warning">{{ t['preq.state.partial'] }}</span>
+    {% elif st == 'rejected' %}<span class="badge badge--critical">{{ t['preq.state.rejected'] }}</span>
+    {% elif st == 'closed' %}<span class="badge badge--inactive">{{ t['preq.state.closed'] }}</span>
+    {% else %}<span class="badge badge--warning">{{ t['preq.state.waiting'] }}</span>{% endif %}
+{%- endmacro %}
+
+{% block content %}
+<section class="card">
+    {# A store asks for articles here; the head of logistics turns each
+       request into orders, a supplier each. #}
+    <div class="tab-bar">
+        <div class="tab-bar__filters">
+            <a href="{{ url_for('purchases.index') }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">receipt_long</span> {{ t['po.title'] }}
+            </a>
+        </div>
+        <div class="tab-bar__actions">
+            {% if can_request %}
+            <a href="{{ url_for('purchases.request_new') }}" class="fab">
+                <span class="material-symbols-outlined">add</span> {{ t['preq.new'] }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if can_order and todo %}
+    <div class="alert alert--warning">
+        {{ t['preq.todo'] % todo }}
+        <a href="{{ url_for('purchases.requests', state='todo') }}">{{ t['preq.todo_link'] }}</a>
+    </div>
+    {% endif %}
+
+    <form method="get" class="filter-bar filter-bar--live">
+        <label class="filter-date">
+            <span>{{ t['cinv.status'] }}</span>
+            <select name="state" onchange="this.form.submit()">
+                <option value="">{{ t['cpay.filter.all'] }}</option>
+                <option value="todo" {% if state == 'todo' %}selected{% endif %}>{{ t['preq.filter.todo'] }}</option>
+                {% for s in states %}
+                <option value="{{ s }}" {% if state == s %}selected{% endif %}>{{ t['preq.state.' + s] }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </form>
+
+    {% if rows %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['cinv.number'] }}</th>
+                <th>{{ t['po.date'] }}</th>
+                <th>{{ t['preq.store'] }}</th>
+                <th>{{ t['po.requested_by'] }}</th>
+                <th>{{ t['cinv.status'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td style="white-space:nowrap;"><a href="{{ url_for('purchases.request_detail', rid=r.id) }}"><strong>{{ r.number }}</strong></a>
+                    <div class="muted small">{{ r.lines | length }} {{ t['po.lines_count'] }}</div></td>
+                <td style="white-space:nowrap;">{{ r.date }}</td>
+                <td>{{ r.store.name }}</td>
+                <td>{{ r.requester_name or '—' }}</td>
+                <td>{{ state_chip(r) }}</td>
+                <td class="row-actions">
+                    <a href="{{ url_for('purchases.request_detail', rid=r.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       title="{{ t['cinv.view'] }}" aria-label="{{ t['cinv.view'] }}"><span class="material-symbols-outlined">list_alt</span></a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">pending_actions</span>
+        <p>{{ t['preq.empty'] if not state else t['preq.none_match'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
