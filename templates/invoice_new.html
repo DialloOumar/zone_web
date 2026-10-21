@@ -152,60 +152,60 @@
         </div>
         <div class="form-row">
             <div class="field">
-                <input type="text" id="contract_no" name="contract_no" placeholder=" " maxlength="60">
+                <input type="text" id="contract_no" name="contract_no" placeholder="{{ t['ph.cinv.contract_no'] }}" maxlength="60">
                 <label for="contract_no">{{ t['cinv.contract_no'] }}</label>
             </div>
             <div class="field">
-                <input type="text" id="client_ref" name="client_ref" placeholder=" " maxlength="60">
+                <input type="text" id="client_ref" name="client_ref" placeholder="{{ t['ph.cinv.client_ref'] }}" maxlength="60">
                 <label for="client_ref">{{ t['cinv.client_ref'] }}</label>
             </div>
         </div>
         <div class="form-row">
             <div class="field">
-                <input type="text" id="subject" name="subject" placeholder=" " maxlength="120" value="{{ default_subject }}">
+                <input type="text" id="subject" name="subject" placeholder="{{ t['ph.cinv.subject'] }}" maxlength="120" value="{{ default_subject }}">
                 <label for="subject">{{ t['cinv.subject'] }}</label>
             </div>
             <div class="field">
-                <input type="text" id="attention" name="attention" placeholder=" " maxlength="120" value="{{ client.attention or '' }}">
+                <input type="text" id="attention" name="attention" placeholder="{{ t['ph.cinv.attention'] }}" maxlength="120" value="{{ client.attention or '' }}">
                 <label for="attention">{{ t['cinv.attention'] }}</label>
             </div>
         </div>
         <div class="form-row">
             <div class="field">
-                <input type="text" id="equipments" name="equipments" placeholder=" " maxlength="120">
+                <input type="text" id="equipments" name="equipments" placeholder="{{ t['ph.cinv.equipments'] }}" maxlength="120">
                 <label for="equipments">{{ t['cinv.equipments'] }}</label>
             </div>
             <div class="field">
-                <input type="text" id="work_purpose" name="work_purpose" placeholder=" " maxlength="80">
+                <input type="text" id="work_purpose" name="work_purpose" placeholder="{{ t['ph.cinv.work_purpose'] }}" maxlength="80">
                 <label for="work_purpose">{{ t['cinv.work_purpose'] }}</label>
             </div>
         </div>
         <div class="form-row">
             <div class="field">
-                <input type="text" id="equipment_type" name="equipment_type" placeholder=" " maxlength="80">
+                <input type="text" id="equipment_type" name="equipment_type" placeholder="{{ t['ph.cinv.equipment_type'] }}" maxlength="80">
                 <label for="equipment_type">{{ t['cinv.equipment_type'] }}</label>
             </div>
             <div class="field">
-                <input type="text" id="availability" name="availability" placeholder=" " maxlength="40">
+                <input type="text" id="availability" name="availability" placeholder="{{ t['ph.cinv.availability'] }}" maxlength="40">
                 <label for="availability">{{ t['cinv.availability'] }}</label>
             </div>
         </div>
         <div class="field">
-            <input type="text" id="intro" name="intro" placeholder=" " maxlength="255">
+            <input type="text" id="intro" name="intro" placeholder="{{ t['ph.cinv.intro'] }}" maxlength="255">
             <label for="intro">{{ t['cinv.intro'] }}</label>
         </div>
         <div class="form-row">
             <div class="field">
-                <input type="text" id="contact_name" name="contact_name" placeholder=" " maxlength="120" value="{{ default_contact_name }}">
+                <input type="text" id="contact_name" name="contact_name" placeholder="{{ t['ph.cinv.contact_name'] }}" maxlength="120" value="{{ default_contact_name }}">
                 <label for="contact_name">{{ t['cinv.contact_name'] }}</label>
             </div>
             <div class="field">
-                <input type="text" id="contact_phone" name="contact_phone" placeholder=" " maxlength="60" value="{{ default_contact_phone }}">
+                <input type="text" id="contact_phone" name="contact_phone" placeholder="{{ t['ph.cinv.contact_phone'] }}" maxlength="60" value="{{ default_contact_phone }}">
                 <label for="contact_phone">{{ t['cinv.contact_phone'] }}</label>
             </div>
         </div>
         <div class="field">
-            <input type="text" id="note" name="note" placeholder=" " maxlength="255">
+            <input type="text" id="note" name="note" placeholder="{{ t['ph.cinv.note'] }}" maxlength="255">
             <label for="note">{{ t['cinv.note'] }} {{ hint('', t['cinv.note_hint']) }}</label>
         </div>
         {# Bookkeeping only: written on the lines, never printed. #}

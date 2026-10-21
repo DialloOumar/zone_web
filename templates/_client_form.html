@@ -32,18 +32,18 @@
     </div>
     <div class="form-row">
         <div class="field">
-            <input type="email" id="email" name="email" placeholder=" " maxlength="120"
+            <input type="email" id="email" name="email" placeholder="{{ t['ph.client.email'] }}" maxlength="120"
                    value="{{ request.form.get('email') or (row.email or '' if is_edit else '') }}">
             <label for="email">{{ t['client.email'] }}</label>
         </div>
         <div class="field">
-            <input type="text" id="po_box" name="po_box" placeholder=" " maxlength="60"
+            <input type="text" id="po_box" name="po_box" placeholder="{{ t['ph.client.po_box'] }}" maxlength="60"
                    value="{{ request.form.get('po_box') or (row.po_box or '' if is_edit else '') }}">
             <label for="po_box">{{ t['client.po_box'] }}</label>
         </div>
     </div>
     <div class="field">
-        <input type="text" id="attention" name="attention" placeholder=" " maxlength="120"
+        <input type="text" id="attention" name="attention" placeholder="{{ t['ph.client.attention'] }}" maxlength="120"
                value="{{ request.form.get('attention') or (row.attention or '' if is_edit else '') }}">
         <label for="attention">{{ t['client.attention'] }}</label>
     </div>
