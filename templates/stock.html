@@ -36,8 +36,8 @@
                written straight into the store. The usual way in stays the
                purchase order. #}
             {% if has_perm('stock.manage') and works_in_a_store() %}
-            <a href="{{ url_for('stock.part_new') }}" class="fab"
-               data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
+            <a href="{{ url_for('stock.part_new', store=store.id if store else None) }}" class="fab"
+               data-modal-url="{{ url_for('stock.part_new', store=store.id if store else None) }}" data-modal-title="{{ t['part.new'] }}">
                 <span class="material-symbols-outlined">add</span> {{ t['part.new'] }}
             </a>
             {% endif %}
@@ -196,8 +196,8 @@
         <span class="material-symbols-outlined">shelves</span>
         <p>{{ t['stock.no_match'] if search else t['stock.empty'] }}</p>
         {% if has_perm('stock.manage') and works_in_a_store() and not search %}
-        <a href="{{ url_for('stock.part_new') }}" class="fab"
-           data-modal-url="{{ url_for('stock.part_new') }}" data-modal-title="{{ t['part.new'] }}">
+        <a href="{{ url_for('stock.part_new', store=store.id if store else None) }}" class="fab"
+           data-modal-url="{{ url_for('stock.part_new', store=store.id if store else None) }}" data-modal-title="{{ t['part.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['part.new'] }}
         </a>
         {% endif %}

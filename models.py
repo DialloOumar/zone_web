@@ -1958,7 +1958,7 @@ class Part(db.Model):
         return self.quantities.get(store_id, 0.0)
 
     def store_ids(self):
-        """The stores that have had this part: moved it, or set a level for it."""
+        """The stores that have had this part: moved it, or put it in their list."""
         return {m.store_id for m in self.movements if m.store_id} | {lv.store_id for lv in self.levels}
 
     def reorder_level_in(self, store_id):
@@ -2043,15 +2043,17 @@ class Part(db.Model):
 
 
 class PartStoreLevel(db.Model):
-    """The level one store re-orders a part at. Each store sets its own: what
-    one store keeps on its shelf says nothing about another's."""
+    """A part in one store's list, and the level that store re-orders it at
+    (none: never flagged). Each store sets its own: what one store keeps on
+    its shelf says nothing about another's. A store also lists the parts it
+    has moved, row or not."""
     __tablename__ = "part_store_levels"
     __table_args__ = (db.UniqueConstraint("part_id", "store_id"),)
 
     id            = db.Column(db.Integer, primary_key=True)
     part_id       = db.Column(db.Integer, db.ForeignKey("parts.id"), nullable=False, index=True)
     store_id      = db.Column(db.Integer, db.ForeignKey("stores.id"), nullable=False, index=True)
-    reorder_level = db.Column(db.Float,   nullable=False)
+    reorder_level = db.Column(db.Float,   nullable=True)
 
     part  = db.relationship("Part", back_populates="levels")
     store = db.relationship("Store")

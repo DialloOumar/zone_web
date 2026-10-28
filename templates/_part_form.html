@@ -41,17 +41,13 @@
     </div>
     {% endif %}
 
-    {# What is on the shelf already, and what a unit of it is worth. Kept for
-       now, so a store can be loaded before its first order. Not an expense:
-       those parts were paid before. #}
-    {% set opening_mv = part.movements|selectattr('kind', 'equalto', 'initial')|first if is_edit else None %}
-    {# Another store's opening stock is shown, not changed. #}
-    {% set opening_locked = opening_mv and opening_mv.store_id and not can_act_in_store(opening_mv.store_id) %}
-    {% if opening_locked %}<p class="muted small" style="margin:0 0 8px;">{{ t['part.opening'] }} : {{ opening_mv.quantity | qty }} — {{ opening_mv.store.name }} ({{ t['store.read_only'] }})</p>{% endif %}
-    <div class="form-row" {% if opening_locked %}hidden{% endif %}>
+    {# What is on the shelf already in the store the form is for, and what a
+       unit of it is worth. Kept for now, so a store can be loaded before its
+       first order. Not an expense: those parts were paid before. #}
+    <div class="form-row">
         <div class="field">
             <input type="number" id="opening_quantity" name="opening_quantity" placeholder=" " min="0" step="any"
-                   value="{{ request.form.get('opening_quantity') or (part.opening_quantity if is_edit else '') }}">
+                   value="{{ request.form.get('opening_quantity') or ('%g' | format(opening_mv.quantity) if opening_mv else '') }}">
             <label for="opening_quantity">{{ t['part.opening'] }} {{ hint('', t['part.opening_hint']) }}</label>
         </div>
         <div class="field">
@@ -60,9 +56,10 @@
             <label for="opening_price">{{ t['part.opening_price'] }}</label>
         </div>
     </div>
-    {% if opening_stores|length > 1 and not opening_locked %}
+    {# The store the article goes to, and its opening stock. #}
+    {% if opening_stores|length > 1 %}
     <div class="field field--select">
-        {% set sel_os = request.form.get('opening_store_id')|int(0) or (opening_mv.store_id if opening_mv and opening_mv.store_id else default_store) %}
+        {% set sel_os = request.form.get('opening_store_id')|int(0) or default_store %}
         <select id="opening_store_id" name="opening_store_id">
             {% for st in opening_stores %}<option value="{{ st.id }}" {% if st.id == sel_os %}selected{% endif %}>{{ st.name }}</option>{% endfor %}
         </select>

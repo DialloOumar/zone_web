@@ -170,7 +170,11 @@ def index():
 
 def _read_part_form(part):
     """Validate the part form. Returns (data, error). No quantity is typed
-    here: what is on the shelf only comes from receiving an order."""
+    here: what is on the shelf only comes from receiving an order.
+
+    A new part whose name another store already has is that part, added to
+    this store -- as a received order does -- and comes back as `existing`.
+    Only this store having it already is refused."""
     t = get_t()
     name = (request.form.get("name") or "").strip()
     unit = (request.form.get("unit") or "").strip()
@@ -183,8 +187,14 @@ def _read_part_form(part):
     clash = Part.query.filter(db.func.lower(Part.name) == name.lower())
     if part:
         clash = clash.filter(Part.id != part.id)
-    if clash.first():
+    clash = clash.first()
+    existing = None
+    if clash and part:
         return None, t.get("part.err.name_taken", "Cette désignation existe déjà.")
+    if clash:
+        if _opening_store() in clash.store_ids():
+            return None, t["part.err.in_store"]
+        existing = clash
 
     def _num(raw, cast):
         raw = (raw or "").replace(" ", "").strip()
@@ -217,40 +227,38 @@ def _read_part_form(part):
     if bad or (opening_price is not None and opening_price < 0):
         return None, t.get("part.err.price", "Prix invalide.")
 
-    return dict(name=name, unit=unit, levels=levels,
+    return dict(name=name, unit=unit, levels=levels, existing=existing,
                 opening=opening or 0, opening_price=opening_price), None
 
 
-def _set_levels(part, levels):
+def _set_levels(part, levels, store_id=None):
     """Each store's re-order level, for the stores the form showed; another
-    store's level is that store's to set."""
+    store's level is that store's to set. Clearing one leaves the part in
+    that store's list. `store_id`, the store the form is for, gets the part
+    in its list even with no level."""
     have = {lv.store_id: lv for lv in part.levels}
     for sid, level in levels.items():
         lv = have.get(sid)
-        if level is None:
-            if lv:
-                part.levels.remove(lv)
-        elif lv:
+        if lv:
             lv.reorder_level = level
-        else:
+        elif level is not None or sid == store_id:
             part.levels.append(PartStoreLevel(store_id=sid, reorder_level=level))
 
 
+def _opening_movement(part, store_id):
+    """A store's opening stock of the part: its 'initial' movement there."""
+    return next((m for m in part.movements if m.kind == "initial" and m.store_id == store_id), None)
+
+
 def _set_opening_stock(part, quantity, price, today, store_id=None):
-    """The opening stock is a single 'initial' movement, so editing it just
-    adjusts (or removes) that one row. Deliberately NOT an expense: those
+    """The opening stock is one 'initial' movement per store, so editing it
+    just adjusts (or removes) that row. Deliberately NOT an expense: those
     parts were paid for before the store existed."""
-    mv = next((m for m in part.movements if m.kind == "initial"), None)
-    # Another store's opening stock is that store's people's to change.
-    from blueprints.stores import can_act_in
-    if mv and mv.store_id and not can_act_in(mv.store_id):
-        return
+    mv = _opening_movement(part, store_id)
     if quantity > 0:
         if mv:
             mv.quantity = quantity
             mv.unit_price = price
-            if store_id:
-                mv.store_id = store_id
         else:
             db.session.add(StockMovement(
                 part_id=part.id, kind="initial", date=today, store_id=store_id,
@@ -312,9 +320,13 @@ def _render_part_form(part, error=None):
     from blueprints.stores import acting_store_ids, active_stores, default_store_id
     ids = acting_store_ids()
     stores = [st for st in active_stores() if ids is None or st.id in ids]
+    # The store the form is for: the tab it was opened from, if the user
+    # works there, else their own.
+    asked = request.args.get("store", type=int)
+    store_id = asked if asked in {st.id for st in stores} else default_store_id()
     return render_template(tpl, part=part, error=error, units=active_units(),
-                           opening_stores=stores, level_stores=stores,
-                           default_store=default_store_id()), status
+                           opening_stores=stores, level_stores=stores, default_store=store_id,
+                           opening_mv=_opening_movement(part, store_id) if part else None), status
 
 
 @stock_bp.route("/parts/new", methods=["GET", "POST"])
@@ -332,15 +344,27 @@ def part_new():
         opening = data.pop("opening")
         opening_price = data.pop("opening_price")
         levels = data.pop("levels")
+        store_id = _opening_store()
+        existing = data.pop("existing")
+        if existing:
+            # Another store has it: the same part, now in this store too.
+            existing.is_active = True
+            _set_levels(existing, levels, store_id)
+            _set_opening_stock(existing, opening, opening_price, date.today().isoformat(), store_id)
+            log_action("UPDATE", "part", resource_id=existing.id,
+                       detail=f"Added part '{existing.name}' to store #{store_id}")
+            db.session.commit()
+            flash("success|" + t["part.added"] % existing.name)
+            return modal_ok() if is_modal_request() else redirect(url_for("stock.index"))
         p = Part(created_by=current_user.id, **data)
         db.session.add(p)
-        _set_levels(p, levels)
+        _set_levels(p, levels, store_id)
         db.session.flush()
         perr = _apply_part_photo_change(p)
         if perr:
             db.session.rollback()
             return _render_part_form(None, perr)
-        _set_opening_stock(p, opening, opening_price, date.today().isoformat(), _opening_store())
+        _set_opening_stock(p, opening, opening_price, date.today().isoformat(), store_id)
         log_action("CREATE", "part", resource_id=p.id,
                    detail=f"Created part '{p.name}'")
         db.session.commit()
@@ -362,6 +386,7 @@ def part_edit(pid):
             return _render_part_form(part, error)
         opening = data.pop("opening")
         opening_price = data.pop("opening_price")
+        data.pop("existing")
         _set_levels(part, data.pop("levels"))
         for k, v in data.items():
             setattr(part, k, v)
