@@ -1,11 +1,12 @@
+{% from "_hint.html" import hint with context %}
 {% set is_edit = record is not none %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
-<form method="post" class="entry-form" data-modal-form
+<form method="post" class="entry-form" id="record-form" data-modal-form
       action="{{ url_for('maintenance.record_edit', mid=record.id) if is_edit else url_for('maintenance.record_new') }}">
     {% if is_edit and record.rule_id %}<input type="hidden" name="rule_id" value="{{ record.rule_id }}">
     {% elif preset_rule %}<input type="hidden" name="rule_id" value="{{ preset_rule }}">{% endif %}
 
-    {# When, first; then which machine and what kind of service. #}
+    {# When, first; then which machine. #}
     <div class="field">
         <input type="date" id="date" name="date" placeholder=" " required
                value="{{ request.form.get('date') or (record.date if is_edit else today) }}">
@@ -35,16 +36,7 @@
             sel.addEventListener('change', refresh); refresh();
         })();
         </script>
-        <div class="field field--select">
-            <select id="type" name="type" required>
-                <option value="" hidden></option>
-                {% set sel_t = request.form.get('type') or (record.type if is_edit else (preset_type or '')) %}
-                {% for rt in record_types %}<option value="{{ rt }}" {% if rt == sel_t %}selected{% endif %}>{{ service_type_label(rt) }}</option>{% endfor %}
-            </select>
-            <label for="type">{{ t['maint.record_type'] }}</label>
-        </div>
     </div>
-
 
     {# Who did the work -- the in-house workshop or an outside garage -- and
        which operator was on the machine. No money here: an outside garage's
@@ -79,22 +71,44 @@
         </div>
     </div>
 
-    {% if stock_parts %}
-    {# Parts come out of the store, so they are not typed into the cost above:
-       they were paid for when they were received. #}
-    <div class="form-section">
-        <div class="form-section__title">{{ t['maint.parts_from_store'] }}</div>
-        {% if parts_stores|length > 1 %}
-        <div class="field field--select" style="max-width:280px;">
-            <select id="parts_store_id" name="parts_store_id">
-                {% for st in parts_stores %}<option value="{{ st.id }}" {% if st.id == parts_store %}selected{% endif %}>{{ st.name }}</option>{% endfor %}
-            </select>
-            <label for="parts_store_id">{{ t['maint.parts_store'] }}</label>
+    {# The services done in this visit. Each one ticked opens its own block
+       below, for the parts that went to it. #}
+    <div>
+        <span class="field-label">{{ t['maint.record_types'] }}</span>
+        <div class="checkbox-grid">
+            {% for rt in record_types %}
+            <label class="checkbox-item">
+                <input type="checkbox" name="types" value="{{ rt }}" data-service-tick {% if rt in ticked_types %}checked{% endif %}>
+                <span>{{ service_type_label(rt) }}</span>
+            </label>
+            {% endfor %}
         </div>
-        {% elif parts_stores %}<input type="hidden" id="parts_store_id" name="parts_store_id" value="{{ parts_stores[0].id }}">{% endif %}
-        <div id="parts-lines">
-            {% for pid, qty in part_rows %}
+    </div>
+
+    {# The parts of every service come out of one store. #}
+    {% if stock_parts %}
+    {% if parts_stores|length > 1 %}
+    <div class="field field--select" id="parts-store-field" style="max-width:280px;" {% if not ticked_types %}hidden{% endif %}>
+        <select id="parts_store_id" name="parts_store_id">
+            {% for st in parts_stores %}<option value="{{ st.id }}" {% if st.id == parts_store %}selected{% endif %}>{{ st.name }}</option>{% endfor %}
+        </select>
+        <label for="parts_store_id">{{ t['maint.parts_store'] }}</label>
+    </div>
+    {% elif parts_stores %}<input type="hidden" id="parts_store_id" name="parts_store_id" value="{{ parts_stores[0].id }}">{% endif %}
+    {% endif %}
+
+    {% for rt in record_types %}
+    <div class="form-section service-block" data-service="{{ rt }}" {% if rt not in ticked_types %}hidden{% endif %}>
+        <div class="service-block__title">{{ service_type_label(rt) }}</div>
+
+        {% if stock_parts %}
+        {# Parts come out of the store, so they cost nothing here: they were
+           paid for when they were received. #}
+        <div class="form-section__title">{{ t['maint.parts_from_store'] }}</div>
+        <div class="parts-lines">
+            {% for kind, pid, qty in part_rows if kind == rt %}
             <div class="form-row parts-line">
+                <input type="hidden" name="part_type" value="{{ rt }}">
                 <div class="field field--select">
                     <select name="part_id">
                         <option value="">{{ t['form.select'] }}</option>
@@ -118,43 +132,19 @@
         <button type="button" class="btn btn--sm btn--outlined" data-parts-add>
             <span class="material-symbols-outlined">add</span> {{ t['maint.parts_add'] }}
         </button>
-    </div>
+        {% endif %}
 
-    <template id="parts-line-tpl">
-        <div class="form-row parts-line">
-            <div class="field field--select">
-                <select name="part_id">
-                    <option value="">{{ t['form.select'] }}</option>
-                    {% for p in stock_parts %}
-                    <option value="{{ p.id }}" data-name="{{ p.name }}" data-unit="{{ unit_label(p.unit) }}">{{ p.name }} — {{ (parts_held.get(p.id, {}).get(parts_store|string, 0)) | qty }} {{ unit_label(p.unit) }}</option>
-                    {% endfor %}
-                </select>
-                <label>{{ t['mv.part'] }}</label>
-            </div>
-            <div class="field">
-                <input type="number" name="part_qty" placeholder=" " min="0" step="any">
-                <label>{{ t['mv.quantity'] }}</label>
-            </div>
-            <button type="button" class="btn btn--sm btn--tonal btn--icon" data-parts-remove
-                    title="{{ t['maint.parts_remove'] }}" aria-label="{{ t['maint.parts_remove'] }}">
-                <span class="material-symbols-outlined">close</span>
-            </button>
-        </div>
-    </template>
-    {% endif %}
-
-    {# Parts the store did not have, bought outside: what, how many, from
-       whom, how much. Each is a request to the cash box; the cashier settles
-       it from Caisse and the expense lands on the machine. A line already
-       settled or refused is shown as recorded and cannot be changed here. #}
-    <div class="form-section">
+        {# Parts the store did not have, bought outside: what, how many, from
+           whom, how much. Each is a request to the cash box; the cashier
+           settles it from Caisse and the expense lands on the machine. A line
+           already settled or refused is shown as recorded and cannot be
+           changed here. #}
         <div class="form-section__title">{{ t['maint.parts_bought'] }}</div>
-        <p class="muted small" style="margin:-4px 0 8px;">{{ t['maint.parts_bought_hint'] }}</p>
-        <div id="bought-lines">
-            {% for b in bought_rows %}
+        <div class="bought-lines">
+            {% for b in bought_rows if b.service_type == rt %}
             {% if b.state != 'pending' %}
             <div class="form-row bought-line bought-line--fixed">
-                <input type="hidden" name="buy_id" value="{{ b.id }}"><input type="hidden" name="buy_desc" value="{{ b.description }}"><input type="hidden" name="buy_qty" value="{{ b.quantity }}"><input type="hidden" name="buy_supplier" value="{{ b.supplier }}"><input type="hidden" name="buy_amount" value="{{ b.amount }}">
+                <input type="hidden" name="buy_type" value="{{ rt }}"><input type="hidden" name="buy_id" value="{{ b.id }}"><input type="hidden" name="buy_desc" value="{{ b.description }}"><input type="hidden" name="buy_qty" value="{{ b.quantity }}"><input type="hidden" name="buy_supplier" value="{{ b.supplier }}"><input type="hidden" name="buy_amount" value="{{ b.amount }}">
                 <div class="field-hint" style="flex:1;">
                     <span class="badge {{ 'badge--active' if b.state == 'settled' else 'badge--inactive' }}">{{ t['maint.bought.' + b.state] }}</span>
                     {{ b.quantity | qty }} × {{ b.description }}{% if b.supplier %} — {{ b.supplier }}{% endif %} · <strong>{{ b.amount | num }} GNF</strong>
@@ -162,10 +152,11 @@
             </div>
             {% else %}
             <div class="form-row bought-line">
+                <input type="hidden" name="buy_type" value="{{ rt }}">
                 <input type="hidden" name="buy_id" value="{{ b.id or '' }}">
                 <div class="field" style="flex:2;">
                     <input type="text" name="buy_desc" placeholder="{{ t['ph.bought.desc'] }}" maxlength="160" value="{{ b.description }}">
-                    <label>{{ t['maint.bought_what'] }}</label>
+                    <label>{{ t['maint.bought_what'] }} {{ hint('', t['maint.parts_bought_hint']) }}</label>
                 </div>
                 <div class="field" style="flex:0 0 80px;">
                     <input type="number" name="buy_qty" placeholder=" " min="0" step="any" value="{{ b.quantity }}">
@@ -190,14 +181,41 @@
         <button type="button" class="btn btn--sm btn--outlined" data-bought-add>
             <span class="material-symbols-outlined">add</span> {{ t['maint.bought_add'] }}
         </button>
-        <datalist id="bought-suppliers">{% for n in supplier_names %}<option value="{{ n }}">{% endfor %}</datalist>
     </div>
+    {% endfor %}
+    <datalist id="bought-suppliers">{% for n in supplier_names %}<option value="{{ n }}">{% endfor %}</datalist>
+
+    {% if stock_parts %}
+    <template id="parts-line-tpl">
+        <div class="form-row parts-line">
+            <input type="hidden" name="part_type" value="">
+            <div class="field field--select">
+                <select name="part_id">
+                    <option value="">{{ t['form.select'] }}</option>
+                    {% for p in stock_parts %}
+                    <option value="{{ p.id }}" data-name="{{ p.name }}" data-unit="{{ unit_label(p.unit) }}">{{ p.name }} — {{ (parts_held.get(p.id, {}).get(parts_store|string, 0)) | qty }} {{ unit_label(p.unit) }}</option>
+                    {% endfor %}
+                </select>
+                <label>{{ t['mv.part'] }}</label>
+            </div>
+            <div class="field">
+                <input type="number" name="part_qty" placeholder=" " min="0" step="any">
+                <label>{{ t['mv.quantity'] }}</label>
+            </div>
+            <button type="button" class="btn btn--sm btn--tonal btn--icon" data-parts-remove
+                    title="{{ t['maint.parts_remove'] }}" aria-label="{{ t['maint.parts_remove'] }}">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+    </template>
+    {% endif %}
     <template id="bought-line-tpl">
         <div class="form-row bought-line">
+            <input type="hidden" name="buy_type" value="">
             <input type="hidden" name="buy_id" value="">
             <div class="field" style="flex:2;">
                 <input type="text" name="buy_desc" placeholder="{{ t['ph.bought.desc'] }}" maxlength="160">
-                <label>{{ t['maint.bought_what'] }}</label>
+                <label>{{ t['maint.bought_what'] }} {{ hint('', t['maint.parts_bought_hint']) }}</label>
             </div>
             <div class="field" style="flex:0 0 80px;">
                 <input type="number" name="buy_qty" placeholder=" " min="0" step="any" value="1">
@@ -226,50 +244,57 @@
     </div>
 </form>
 
-{% if stock_parts %}
 <script>
 (function () {
-    var box = document.getElementById('parts-lines');
-    var tpl = document.getElementById('parts-line-tpl');
-    if (!box || !tpl) return;
-    var add = document.querySelector('[data-parts-add]');
+    var form = document.getElementById('record-form');
+    var partTpl = document.getElementById('parts-line-tpl');
+    var boughtTpl = document.getElementById('bought-line-tpl');
+    var storeSel = document.getElementById('parts_store_id');
+    var storeField = document.getElementById('parts-store-field');
+    var HELD = {{ parts_held | tojson }};
 
     // What each part holds in the store picked, shown beside its name.
-    var HELD = {{ parts_held | tojson }}, storeSel = document.getElementById('parts_store_id');
     function relabel(root) {
         var sid = storeSel ? storeSel.value : '';
-        (root || document).querySelectorAll('.parts-line select[name=part_id] option[data-name]').forEach(function (o) {
+        (root || form).querySelectorAll('.parts-line select[name=part_id] option[data-name]').forEach(function (o) {
             var n = ((HELD[o.value] || {})[sid]) || 0;
             o.textContent = o.dataset.name + ' — ' + n.toLocaleString('fr-FR') + ' ' + o.dataset.unit;
         });
     }
     if (storeSel) storeSel.addEventListener('change', function () { relabel(); });
-    function addLine() {
-        box.appendChild(tpl.content.cloneNode(true));
-        relabel(box.lastElementChild);
+
+    // A new row carries the service of the block it is added to.
+    function addLine(block, tpl, list, typeName) {
+        var row = tpl.content.firstElementChild.cloneNode(true);
+        row.querySelector('input[name=' + typeName + ']').value = block.dataset.service;
+        block.querySelector(list).appendChild(row);
+        relabel(row);
     }
-    add.addEventListener('click', addLine);
-    box.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-parts-remove]');
-        if (btn) btn.closest('.parts-line').remove();
+    function blockOf(code) { return form.querySelector('.service-block[data-service="' + code + '"]'); }
+
+    // Ticking a service opens its block, with one empty store row ready;
+    // unticking hides it, and the server drops what was under it.
+    function show(tick) {
+        var block = blockOf(tick.value);
+        if (!block) return;
+        block.hidden = !tick.checked;
+        if (tick.checked && partTpl && !block.querySelector('.parts-line')) {
+            addLine(block, partTpl, '.parts-lines', 'part_type');
+        }
+        if (storeField) storeField.hidden = !form.querySelector('[data-service-tick]:checked');
+    }
+    form.querySelectorAll('[data-service-tick]').forEach(function (tick) {
+        tick.addEventListener('change', function () { show(tick); });
+        if (tick.checked) show(tick);
     });
-    // Start with one empty row so the block is usable without a click.
-    if (!box.querySelector('.parts-line')) addLine();
-})();
-</script>
-{% endif %}
-<script>
-(function () {
-    // The parts bought outside: same rows-with-a-template pattern; no row
-    // to start with, since most services need none.
-    var box = document.getElementById('bought-lines'), tpl = document.getElementById('bought-line-tpl');
-    if (!box || !tpl) return;
-    document.querySelector('[data-bought-add]').addEventListener('click', function () {
-        box.appendChild(tpl.content.cloneNode(true));
-    });
-    box.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-bought-remove]');
-        if (btn) btn.closest('.bought-line').remove();
+
+    form.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-parts-add], [data-bought-add], [data-parts-remove], [data-bought-remove]');
+        if (!btn) return;
+        var block = btn.closest('.service-block');
+        if (btn.matches('[data-parts-add]')) addLine(block, partTpl, '.parts-lines', 'part_type');
+        else if (btn.matches('[data-bought-add]')) addLine(block, boughtTpl, '.bought-lines', 'buy_type');
+        else btn.closest('.parts-line, .bought-line').remove();
     });
 })();
 </script>

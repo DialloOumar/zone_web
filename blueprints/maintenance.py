@@ -20,7 +20,7 @@ from app import (current_user_categories, current_user_fleet_ids, get_t,
                  is_modal_request, log_action, modal_ok, needs_approval, parse_amount,
                  require_perm, scoped, slugify, submit_change, with_current_fleet)
 from blueprints.expenses import MAINTENANCE_CATEGORY
-from models import (Alert, Expense, Fleet, MaintenanceRecord, MaintenanceRule,
+from models import (Alert, Expense, Fleet, MaintenanceRecord, MaintenanceRecordType, MaintenanceRule,
                     Operator, Part, ServicePartPurchase, ServiceType, StockMovement,
                     Supplier, Vehicle, VehicleCategory, db)
 
@@ -358,10 +358,21 @@ def _get_record_or_404(mid):
     return r
 
 
+def _ticked_types():
+    """The kinds of service ticked on the form, known ones only, in order."""
+    codes = service_type_codes()
+    out = []
+    for c in request.form.getlist("types"):
+        c = (c or "").strip()
+        if c in codes and c not in out:
+            out.append(c)
+    return out
+
+
 def _read_record_form(record):
     t = get_t()
     vehicle_id = request.form.get("vehicle_id", type=int)
-    rtype = (request.form.get("type") or "").strip()
+    types = _ticked_types()
     date_str = (request.form.get("date") or "").strip()
 
     if not vehicle_id:
@@ -372,21 +383,26 @@ def _read_record_form(record):
     fids = current_user_fleet_ids()
     if fids is not None and vehicle.fleet_id not in fids:
         return None, t["error.forbidden"]
-    if rtype not in service_type_codes():
+    if not types:
         return None, t["maint.err.rtype_required"]
     if not date_str or not _valid_date(date_str):
         return None, t["maint.err.date_required"]
+    # A part the cashier has already paid or refused stays on the service, so
+    # the service it went to cannot be unticked.
+    for p in (record.purchases if record else []):
+        if p.state != "pending" and (p.service_type or record.type) not in types:
+            return None, t["maint.err.type_has_paid_part"] % service_type_label_of(p.service_type or record.type)
 
-    parts, e4 = _read_part_lines(record)
+    parts, e4 = _read_part_lines(record, types)
     if e4:
         return None, e4
-    bought, e5 = _read_bought_lines()
+    bought, e5 = _read_bought_lines(types)
     if e5:
         return None, e5
 
     rule_id = request.form.get("rule_id", type=int) or None
     data = dict(
-        vehicle_id=vehicle_id, rule_id=rule_id, type=rtype, date=date_str,
+        vehicle_id=vehicle_id, rule_id=rule_id, type=types[0], types=types, date=date_str,
         operator=(request.form.get("operator") or "").strip() or None,
         supplier=(request.form.get("supplier") or "").strip() or None,
         description=(request.form.get("description") or "").strip() or None,
@@ -398,13 +414,15 @@ def _read_record_form(record):
     return data, None
 
 
-def _read_bought_lines():
+def _read_bought_lines(types):
     """The parts the store did not have, bought outside: what, how many,
-    from whom, how much. Parallel lists; a blank row is the norm. Each
-    line comes back with the id it already has on the record, if any, so
-    a pending request edited keeps its place and a settled one is left
-    alone."""
+    from whom, how much, and for which of the services ticked. Parallel
+    lists; a blank row is the norm, and a row under a service unticked is
+    dropped with it. Each line comes back with the id it already has on the
+    record, if any, so a pending request edited keeps its place and a
+    settled one is left alone."""
     t = get_t()
+    kinds = request.form.getlist("buy_type")
     ids = request.form.getlist("buy_id")
     descs = request.form.getlist("buy_desc")
     qtys = request.form.getlist("buy_qty")
@@ -414,7 +432,8 @@ def _read_bought_lines():
     for i, desc in enumerate(descs):
         desc = (desc or "").strip()[:160]
         raw_amt = (amts[i] if i < len(amts) else "").strip()
-        if not desc and not raw_amt:
+        kind = (kinds[i] if i < len(kinds) else "").strip() or types[0]
+        if (not desc and not raw_amt) or kind not in types:
             continue
         if not desc:
             return None, t["maint.err.bought_desc"]
@@ -431,7 +450,7 @@ def _read_bought_lines():
         if qty <= 0:
             return None, t["maint.err.bought_qty"]
         rid = (ids[i] if i < len(ids) else "").strip()
-        out.append(dict(id=int(rid) if rid.isdigit() else None, description=desc, quantity=qty,
+        out.append(dict(id=int(rid) if rid.isdigit() else None, service_type=kind, description=desc, quantity=qty,
                         supplier=((sups[i] if i < len(sups) else "").strip()[:120] or None), amount=amount))
     return out, None
 
@@ -451,6 +470,8 @@ def sync_bought_parts(record, lines):
         if row is None:
             row = ServicePartPurchase(record_id=record.id, requested_by=getattr(current_user, "id", None))
             db.session.add(row)
+        # A request parked before a service could have several has no type: the record's.
+        row.service_type = line.get("service_type") or record.type
         for k in ("description", "quantity", "supplier", "amount"):
             setattr(row, k, line[k])
         db.session.flush()
@@ -467,19 +488,24 @@ def _record_store_id(record):
     return next((m.store_id for m in record.part_movements if m.kind == "sortie" and m.store_id), None)
 
 
-def _read_part_lines(record=None):
-    """Read the "parts used" rows off the form: two parallel lists, one blank
-    row being the norm rather than the exception. Quantities for the same part
-    are added up, so the service ends with one movement per part.
-    Returns (lines, error) where lines is [{"part_id": int, "quantity": float}].
+def _read_part_lines(record, types):
+    """Read the "parts used" rows off the form: three parallel lists (the
+    service the row sits under, the part, the quantity), one blank row being
+    the norm rather than the exception. A row under a service unticked goes
+    with it. Quantities for the same part under the same service are added
+    up, so each service ends with one movement per part.
+    Returns (lines, error) where lines is
+    [{"service_type": str, "part_id": int, "quantity": float, "store_id": int}].
     """
     t = get_t()
+    kinds = request.form.getlist("part_type")
     ids = request.form.getlist("part_id")
     qtys = request.form.getlist("part_qty")
     merged = {}
     order = []
-    for raw_id, raw_qty in zip(ids, qtys):
-        if not (raw_id or "").strip():
+    for i, (raw_id, raw_qty) in enumerate(zip(ids, qtys)):
+        kind = (kinds[i] if i < len(kinds) else "").strip() or types[0]
+        if not (raw_id or "").strip() or kind not in types:
             continue
         try:
             pid = int(raw_id)
@@ -494,9 +520,10 @@ def _read_part_lines(record=None):
             return None, t.get("mv.err.quantity", "Quantité invalide.")
         if qty <= 0:
             return None, t.get("mv.err.quantity", "Quantité invalide.")
-        if pid not in merged:
-            order.append(pid)
-        merged[pid] = merged.get(pid, 0.0) + qty
+        key = (kind, pid)
+        if key not in merged:
+            order.append(key)
+        merged[key] = merged.get(key, 0.0) + qty
     # The store the parts come out of: one the user works in, or the one the
     # service already took them from.
     store_id = None
@@ -514,7 +541,8 @@ def _read_part_lines(record=None):
             store_id = _record_store_id(record) or default_store_id()
             if store_id is None:
                 return None, t["maint.err.store"]
-    return [{"part_id": pid, "quantity": merged[pid], "store_id": store_id} for pid in order], None
+    return [{"service_type": kind, "part_id": pid, "quantity": merged[(kind, pid)], "store_id": store_id}
+            for kind, pid in order], None
 
 
 # Keys in the form payload that belong to the ledger row, not the service record.
@@ -538,7 +566,8 @@ def _maybe_back_in_service(vehicle, rec):
     the service's date, when the form said so (its default)."""
     if vehicle.status != "active" and request.form.get("back_in_service"):
         from blueprints.vehicles import set_status
-        set_status(vehicle, "active", rec.date, get_t()["maint.back_note"] % service_type_label_of(rec.type),
+        set_status(vehicle, "active", rec.date,
+                   get_t()["maint.back_note"] % ", ".join(service_type_label_of(c) for c in rec.types),
                    current_user.id)
 
 
@@ -550,6 +579,16 @@ def service_type_label_of(code):
 def split_bought(data):
     """Pop the bought-outside lines out of a record payload."""
     return data, data.pop("bought", None) or []
+
+
+TYPES_KEY = "types"
+
+
+def split_types(data):
+    """Pop the services ticked out of a record payload; one parked before a
+    visit could have several carries only its `type`."""
+    types = data.pop(TYPES_KEY, None)
+    return data, types or [data["type"]]
 
 
 def sync_service_expense(record, money):
@@ -592,13 +631,18 @@ def sync_record_parts(record, lines):
     on the shelf and drops that much off the vehicle's cost.
 
     These movements carry no money of their own: the parts were paid for when
-    they were received. They only say which machine the cost was for.
+    they were received. They only say which machine, and which of its
+    services, the cost was for.
     """
-    existing = {m.part_id: m for m in record.part_movements if m.kind == "sortie"}
+    existing = {(m.service_type or record.type, m.part_id): m
+                for m in record.part_movements if m.kind == "sortie"}
     for line in lines:
         pid = line["part_id"]
-        mv = existing.pop(pid, None)
+        # A line parked before a service could have several has no type: the record's.
+        kind = line.get("service_type") or record.type
+        mv = existing.pop((kind, pid), None)
         if mv:
+            mv.service_type = kind
             mv.quantity = line["quantity"]
             mv.date = record.date
             if line.get("store_id"):
@@ -609,7 +653,7 @@ def sync_record_parts(record, lines):
             continue
         db.session.add(StockMovement(
             part_id=pid, kind="sortie", date=record.date, store_id=line.get("store_id"),
-            quantity=line["quantity"],
+            service_type=kind, quantity=line["quantity"],
             unit_value=part.average_cost_as_of(record.date),
             maintenance_record_id=record.id,
             created_by=getattr(current_user, "id", None)))
@@ -624,19 +668,25 @@ def short_parts(record, lines):
 
     Returns [(part, remaining)] — remaining is negative.
     """
-    already = {(m.part_id, m.store_id): m.quantity
-               for m in record.part_movements if m.kind == "sortie"} if record else {}
-    out = []
+    already = {}
+    for m in (record.part_movements if record else []):
+        if m.kind == "sortie":
+            already[(m.part_id, m.store_id)] = already.get((m.part_id, m.store_id), 0.0) + m.quantity
+    # The same part may go to two of the services: the shelf gives both.
+    wanted = {}
     for line in lines:
-        part = db.session.get(Part, line["part_id"])
+        key = (line["part_id"], line.get("store_id"))
+        wanted[key] = wanted.get(key, 0.0) + line["quantity"]
+    out = []
+    for (pid, sid), qty in wanted.items():
+        part = db.session.get(Part, pid)
         if not part:
             continue
-        sid = line.get("store_id")
         # Add back what this service already took from that store, so an edit
         # compares against the shelf as it stands without it.
         here = part.quantity_in(sid) if sid else part.quantity
         available = here + already.get((part.id, sid), 0.0)
-        remaining = available - line["quantity"]
+        remaining = available - qty
         if remaining < 0:
             out.append((part, remaining))
     return out
@@ -676,14 +726,26 @@ def _record_form_ctx(record):
         r = db.session.get(MaintenanceRule, preset_rule)
         if r and r.service_type:
             preset_type = r.service_type
-    # Re-render the parts rows the user submitted, so a rejected form doesn't
-    # lose them; otherwise the ones already on the record.
+    # The services ticked: the ones submitted on a rejected form, else the
+    # record's, else the one the rule being serviced schedules.
     if request.method == "POST":
-        submitted = list(zip(request.form.getlist("part_id"),
-                             request.form.getlist("part_qty")))
-        part_rows = [(pid, qty) for pid, qty in submitted if (pid or "").strip()]
+        ticked = _ticked_types()
     elif record:
-        part_rows = [(str(m.part_id), f"{m.quantity:.10g}")
+        ticked = record.types
+    else:
+        ticked = [preset_type] if preset_type else []
+    first = record.type if record else None
+    # Re-render the parts rows the user submitted, so a rejected form doesn't
+    # lose them; otherwise the ones already on the record. Each row says the
+    # service it sits under.
+    if request.method == "POST":
+        kinds = request.form.getlist("part_type")
+        part_rows = [((kinds[n] if n < len(kinds) else ""), pid, qty)
+                     for n, (pid, qty) in enumerate(zip(request.form.getlist("part_id"),
+                                                        request.form.getlist("part_qty")))
+                     if (pid or "").strip()]
+    elif record:
+        part_rows = [(m.service_type or first, str(m.part_id), f"{m.quantity:.10g}")
                      for m in record.part_movements if m.kind == "sortie"]
     else:
         part_rows = []
@@ -691,26 +753,31 @@ def _record_form_ctx(record):
     # form, else the record's; a settled or refused one always as recorded.
     fixed = {p.id: p for p in (record.purchases if record else []) if p.state != "pending"}
     def _row(p):
-        return dict(id=p.id, description=p.description, quantity=p.quantity,
-                    supplier=p.supplier or "", amount=p.amount, state=p.state)
+        return dict(id=p.id, service_type=p.service_type or first, description=p.description,
+                    quantity=p.quantity, supplier=p.supplier or "", amount=p.amount, state=p.state)
     if request.method == "POST":
         bought_rows = []
-        for i, d, q, s, a in zip(request.form.getlist("buy_id"), request.form.getlist("buy_desc"),
-                                 request.form.getlist("buy_qty"), request.form.getlist("buy_supplier"),
-                                 request.form.getlist("buy_amount")):
+        for k, i, d, q, s, a in zip(request.form.getlist("buy_type"), request.form.getlist("buy_id"),
+                                    request.form.getlist("buy_desc"), request.form.getlist("buy_qty"),
+                                    request.form.getlist("buy_supplier"), request.form.getlist("buy_amount")):
             if (i or "").isdigit() and int(i) in fixed:
                 bought_rows.append(_row(fixed[int(i)]))
             elif (d or "").strip() or (a or "").strip():
-                bought_rows.append(dict(id=i, description=d, quantity=q, supplier=s, amount=a, state="pending"))
+                bought_rows.append(dict(id=i, service_type=k, description=d, quantity=q,
+                                        supplier=s, amount=a, state="pending"))
     elif record:
         bought_rows = [_row(p) for p in record.purchases]
     else:
         bought_rows = []
 
+    keep = set(record.types if record else [])
+    kinds = [s.code for s in active_service_types()]
+    kinds += [c for c in keep if c not in kinds]   # an archived one the record already has
     return {
         "bought_rows": bought_rows,
         "supplier_names": [s.name for s in Supplier.query.filter(Supplier.is_active.is_(True)).order_by(Supplier.name).all()],
-        "record_types": [s.code for s in active_service_types(record.type if record else None)],
+        "record_types": kinds,
+        "ticked_types": ticked,
         "vehicles": _accessible_vehicles(),
         "operators": _accessible_operators(),
         "stock_parts": Part.query.filter(Part.is_active.is_(True))
@@ -751,7 +818,12 @@ def records():
             MaintenanceRecord.supplier.ilike(like),
             MaintenanceRecord.operator.ilike(like),
             MaintenanceRecord.vehicle_id.in_(
-                db.session.query(Vehicle.id).filter(Vehicle.code.ilike(like)))))
+                db.session.query(Vehicle.id).filter(Vehicle.code.ilike(like))),
+            # ...or one of the services done, by its name.
+            MaintenanceRecord.id.in_(
+                db.session.query(MaintenanceRecordType.record_id)
+                .filter(MaintenanceRecordType.type.in_(
+                    db.session.query(ServiceType.code).filter(ServiceType.name.ilike(like)))))))
     pagination = (q.order_by(MaintenanceRecord.date.desc(),
                              MaintenanceRecord.id.desc())
                   .paginate(page=request.args.get("page", 1, type=int),
@@ -762,13 +834,15 @@ def records():
 
 
 def _close_alert_for_record(record):
-    """When a service is logged against a rule, resolve that rule's open alert."""
-    if not record.rule_id:
-        return
-    al = (Alert.query.filter_by(rule_id=record.rule_id, vehicle_id=record.vehicle_id)
-          .filter(Alert.status.in_(("open", "snoozed")))
-          .order_by(Alert.id.desc()).first())
-    if al:
+    """When a service is logged, resolve the open alert of the rule it was
+    logged against and of every rule scheduling one of the services done."""
+    rules = (db.session.query(MaintenanceRule.id)
+             .filter(MaintenanceRule.service_type.in_(record.types)))
+    cond = Alert.rule_id.in_(rules)
+    if record.rule_id:
+        cond = db.or_(cond, Alert.rule_id == record.rule_id)
+    for al in (Alert.query.filter(Alert.vehicle_id == record.vehicle_id, cond,
+                                  Alert.status.in_(("open", "snoozed"))).all()):
         al.status = "resolved"
         al.resolved_at = datetime.utcnow()
         al.resolved_by = current_user.id
@@ -794,8 +868,10 @@ def record_new():
         data, money = split_money(data)
         data, lines = split_parts(data)
         data, bought = split_bought(data)
+        data, types = split_types(data)
         short = short_parts(None, lines)
         rec = MaintenanceRecord(recorded_by=current_user.id, **data)
+        rec.set_types(types)
         db.session.add(rec)
         db.session.flush()
         sync_service_expense(rec, money)
@@ -805,7 +881,7 @@ def record_new():
         _maybe_back_in_service(vehicle, rec)
         maintenance_engine.evaluate_vehicle(vehicle)
         log_action("CREATE", "maintenance_record", resource_id=rec.id,
-                   fleet_id=vehicle.fleet_id, detail=f"Logged {rec.type} on {vehicle.code}")
+                   fleet_id=vehicle.fleet_id, detail=f"Logged {', '.join(rec.types)} on {vehicle.code}")
         db.session.commit()
         flash("success|" + t["maint.record_created"])
         _flash_short_parts(short)
@@ -832,9 +908,11 @@ def record_edit(mid):
         data, money = split_money(data)
         data, lines = split_parts(data)
         data, bought = split_bought(data)
+        data, types = split_types(data)
         short = short_parts(record, lines)
         for k, v in data.items():
             setattr(record, k, v)
+        record.set_types(types)
         db.session.flush()
         sync_service_expense(record, money)
         sync_record_parts(record, lines)
@@ -959,8 +1037,8 @@ def _service_type_code(name):
 
 def _render_service_types(error=None):
     rows = ServiceType.query.order_by(ServiceType.sort_order, ServiceType.name).all()
-    used = dict(db.session.query(MaintenanceRecord.type, db.func.count(MaintenanceRecord.id))
-                .group_by(MaintenanceRecord.type).all())
+    used = dict(db.session.query(MaintenanceRecordType.type, db.func.count(MaintenanceRecordType.id))
+                .group_by(MaintenanceRecordType.type).all())
     for code, n in (db.session.query(MaintenanceRule.service_type, db.func.count(MaintenanceRule.id))
                     .filter(MaintenanceRule.service_type.isnot(None)).group_by(MaintenanceRule.service_type).all()):
         used[code] = used.get(code, 0) + n
@@ -1033,7 +1111,7 @@ def service_type_action(sid, what):
     if not row:
         abort(404)
     if what == "delete":
-        if (MaintenanceRecord.query.filter_by(type=row.code).count()
+        if (MaintenanceRecordType.query.filter_by(type=row.code).count()
                 or MaintenanceRule.query.filter_by(service_type=row.code).count()):
             blocked = t.get("list.err.delete_blocked", "Impossible de supprimer : cet élément est utilisé.")
             if is_modal_request():

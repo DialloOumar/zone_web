@@ -1545,6 +1545,7 @@ TRANSLATIONS = {
         "maint.record_edit":     "Modifier l'entretien",
         "maint.vehicle":         "Véhicule",
         "maint.record_type":     "Type d'entretien",
+        "maint.record_types":    "Types d'entretien",
         "maint.date":            "Date",
         "maint.cost":            "Coût (GNF)",
         "maint.operator":        "Conducteur",
@@ -1604,6 +1605,7 @@ TRANSLATIONS = {
         "maint.err.tracking_mismatch": "Ce type de règle ne correspond pas au mode de suivi de la cible (voyages, heures…).",
         "maint.err.vehicle_required":  "Veuillez choisir un véhicule.",
         "maint.err.rtype_required":    "Veuillez choisir un type d'entretien.",
+        "maint.err.type_has_paid_part": "« %s » a une pièce déjà réglée ou refusée par la caisse : ce type ne peut pas être décoché.",
         "maint.err.date_required":     "Date invalide.",
 
         # Units & common
@@ -3719,6 +3721,7 @@ TRANSLATIONS = {
         "maint.record_edit":     "Edit service",
         "maint.vehicle":         "Vehicle",
         "maint.record_type":     "Service type",
+        "maint.record_types":    "Services done",
         "maint.date":            "Date",
         "maint.cost":            "Cost (GNF)",
         "maint.operator":        "Driver",
@@ -3778,6 +3781,7 @@ TRANSLATIONS = {
         "maint.err.tracking_mismatch": "This rule type doesn't match the target's tracking mode (trips, hours…).",
         "maint.err.vehicle_required":  "Please choose a vehicle.",
         "maint.err.rtype_required":    "Please choose a service type.",
+        "maint.err.type_has_paid_part": "“%s” has a part the cash box already settled or refused: it cannot be unticked.",
         "maint.err.date_required":     "Invalid date.",
 
         # Units & common

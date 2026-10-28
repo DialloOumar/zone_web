@@ -1151,11 +1151,16 @@ a:hover { text-decoration: underline; }
     font-weight: 600;
     color: var(--md-on-surface-variant);
 }
-#parts-lines { display: flex; flex-direction: column; gap: 12px; }
+.parts-lines, .bought-lines { display: flex; flex-direction: column; gap: 12px; }
+.parts-lines:empty, .bought-lines:empty { display: none; }
 /* Part, quantity, and the button that drops the line — the button keeps its
    own width and sits on the fields' baseline. */
 .parts-line { grid-template-columns: 1fr 1fr auto; align-items: center; }
-.form-section > [data-parts-add] { align-self: flex-start; }
+.form-section > [data-parts-add],
+.form-section > [data-bought-add] { align-self: flex-start; }
+/* One block per service ticked on a maintenance visit, its parts under it. */
+.service-block[hidden] { display: none; }
+.service-block__title { font-size: 0.95rem; font-weight: 600; color: var(--md-on-surface); }
 
 /* ── Selectable checkbox chips (multi-select) ── */
 .checkbox-grid {

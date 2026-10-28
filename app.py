@@ -2260,6 +2260,7 @@ def seed_demo_cmd(days, force):
             description=desc, supplier="Garage Central",
             kilometers_at=round(cum_km.get(code, 0), 0),
         )
+        rec.set_types([rtype])
         db.session.add(rec)
         db.session.flush()
         db.session.add(Expense(

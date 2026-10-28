@@ -18,8 +18,8 @@ from blueprints.entries import _recompute_cumulatives
 from blueprints.notifications import notify
 from blueprints.expenses import (INVOICE_KEY, PURCHASE_KEY, SHARES_KEY, settle_purchase, sync_vehicle_shares,
                                  sync_account_movement, sync_invoice_payment)
-from blueprints.maintenance import (MONEY_KEYS, PARTS_KEY, _close_alert_for_record, sync_bought_parts,
-                                    sync_record_parts, sync_service_expense)
+from blueprints.maintenance import (MONEY_KEYS, PARTS_KEY, _close_alert_for_record, split_types,
+                                    sync_bought_parts, sync_record_parts, sync_service_expense)
 from models import (DailyEntry, Expense, Fleet, MaintenanceRecord, Operator,
                     Part, PendingChange, User, Vehicle, VehicleCategory, db)
 
@@ -86,7 +86,7 @@ _FIELD_LABELS = {
     "operator": "conducteur", "note": "note", "index_start": "index début",
     "index_end": "index fin", "cost": "coût", "supplier": "fournisseur",
     "description": "description", "amount": "montant", "liters": "litres",
-    "type": "type", "name": "nom", "code": "code", "parts": "pièces",
+    "type": "type", "types": "types", "name": "nom", "code": "code", "parts": "pièces",
     "account": "payé par", "site": "site",
 }
 
@@ -102,7 +102,13 @@ def _describe(pc):
             continue
         label = _FIELD_LABELS.get(k, k.replace("_id", "").replace("_", " "))
         val = v
-        if k == "parts":
+        if k == "types":
+            # The services done in the visit, by name; `type` is the first.
+            from app import _service_type_label
+            val = ", ".join(_service_type_label(c) for c in v)
+        elif k == "type" and pc.resource_type == "maintenance_record" and (pc.payload or {}).get("types"):
+            continue
+        elif k == "parts":
             # A list of {part_id, quantity} — name the parts instead of dumping
             # the raw payload at the approver.
             names = []
@@ -160,9 +166,15 @@ def _apply(pc):
     parts = (payload.pop(PARTS_KEY, None) or []) if is_service else []
     # ...and the parts bought outside, requests to the cash box.
     bought = (payload.pop("bought", None) or []) if is_service else []
+    # ...and the services done in the visit, rows of their own.
+    types = None
+    if is_service and pc.action in ("create", "update"):
+        payload, types = split_types(payload)
     if pc.action == "create":
         obj = Model(**payload)
         setattr(obj, creator_attr, pc.requested_by)
+        if types:
+            obj.set_types(types)
         db.session.add(obj)
         db.session.flush()
     elif pc.action == "update":
@@ -171,6 +183,8 @@ def _apply(pc):
             return False
         for k, v in payload.items():
             setattr(obj, k, v)
+        if types:
+            obj.set_types(types)
     elif pc.action == "delete":
         target = db.session.get(Model, pc.resource_id)
         if target:

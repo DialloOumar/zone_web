@@ -273,7 +273,7 @@
             <tr>
                 <td style="white-space:nowrap;">{{ r.record.date }}</td>
                 <td><a href="{{ url_for('vehicles.detail', vid=r.record.vehicle_id) }}" class="chip">{{ r.record.vehicle.code }}</a>
-                    <div class="muted small">{{ service_type_label(r.record.type) }}</div></td>
+                    <div class="muted small">{% for c in r.record.types %}{{ service_type_label(c) }}{% if not loop.last %}, {% endif %}{% endfor %}</div></td>
                 <td>{{ r.quantity | qty }} × {{ r.description }}</td>
                 <td>{{ r.supplier or '—' }}</td>
                 <td class="col-secondary muted small">{{ r.requester.full_name if r.requester else '—' }}</td>

@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, or_
 
-from models import Alert, DailyEntry, MaintenanceRecord, MaintenanceRule, db
+from models import Alert, DailyEntry, MaintenanceRecord, MaintenanceRecordType, MaintenanceRule, db
 
 RECURRING_TYPES = ("km_recurring", "hours_recurring", "trips_recurring", "time_recurring")
 
@@ -46,10 +46,14 @@ def _metric_applies(rule, vehicle):
 
 def _service_filter(vehicle, rule):
     """Records that count as 'this rule was serviced': either explicitly linked
-    to the rule, or a service of the rule's service type on the same vehicle."""
+    to the rule, or a visit on the same vehicle that did the rule's service
+    type among the others."""
     conds = [MaintenanceRecord.rule_id == rule.id]
     if rule.service_type:
         conds.append(MaintenanceRecord.type == rule.service_type)
+        conds.append(MaintenanceRecord.id.in_(
+            db.session.query(MaintenanceRecordType.record_id)
+            .filter(MaintenanceRecordType.type == rule.service_type)))
     return (MaintenanceRecord.vehicle_id == vehicle.id), or_(*conds)
 
 

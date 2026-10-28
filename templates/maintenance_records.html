@@ -51,7 +51,7 @@
             <tr>
                 <td>{{ m.date }}</td>
                 <td><a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a></td>
-                <td><span class="chip">{{ service_type_label(m.type) }}</span></td>
+                <td>{% for c in m.types %}<span class="chip"{% if m.types|length > 1 and m.parts_value %} title="{{ t['maint.parts_used'] }} {{ m.parts_value_for(c) | num }} GNF"{% endif %}>{{ service_type_label(c) }}</span> {% endfor %}</td>
                 <td class="col-secondary">{{ m.operator or '—' }}</td>
                 <td>{{ m.supplier or '—' }}</td>
                 <td class="col-secondary" style="text-align:right; white-space:nowrap;">
@@ -92,7 +92,7 @@
                 <span class="list-card__amount">{% if m.cost is not none or m.parts_value %}{{ m.total_cost | num }} <span class="muted small">{{ currency }}</span>{% endif %}</span>
             </div>
             <div class="list-card__meta">
-                <span class="chip">{{ service_type_label(m.type) }}</span>
+                {% for c in m.types %}<span class="chip"{% if m.types|length > 1 and m.parts_value %} title="{{ t['maint.parts_used'] }} {{ m.parts_value_for(c) | num }} GNF"{% endif %}>{{ service_type_label(c) }}</span> {% endfor %}
                 <span class="muted small">{{ m.date }}</span>
                 {% if m.operator %}<span class="muted small">· {{ m.operator }}</span>{% endif %}
                 {% if m.supplier %}<span class="muted small">· {{ m.supplier }}</span>{% endif %}

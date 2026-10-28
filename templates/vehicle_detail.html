@@ -323,7 +323,7 @@
             {% for m in records %}
             <tr>
                 <td>{{ m.date }}</td>
-                <td><span class="chip">{{ service_type_label(m.type) }}</span></td>
+                <td>{% for c in m.types %}<span class="chip"{% if m.types|length > 1 and m.parts_value %} title="{{ t['maint.parts_used'] }} {{ m.parts_value_for(c) | num }} GNF"{% endif %}>{{ service_type_label(c) }}</span> {% endfor %}</td>
                 <td class="col-secondary">{{ m.operator or '—' }}</td>
                 <td class="col-secondary" style="text-align:right; white-space:nowrap;">
                     {% if m.parts_value %}{{ m.parts_value | num }} GNF{% else %}<span class="muted">—</span>{% endif %}

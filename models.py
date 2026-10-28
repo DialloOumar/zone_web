@@ -6,7 +6,7 @@ Schema overview (25 tables, grouped):
                     RolePermission
   Domain            VehicleCategory, Vehicle, Operator
   Daily ops         DailyEntry
-  Maintenance       MaintenanceRule, MaintenanceRecord, Alert
+  Maintenance       MaintenanceRule, MaintenanceRecord, MaintenanceRecordType, Alert
   Money             Expense, CashMovement, CashAccount, Site
   Fuel              Citerne, FuelMovement
   Parts store       Part, StockMovement
@@ -519,6 +519,7 @@ class ServicePartPurchase(db.Model):
 
     id           = db.Column(db.Integer,     primary_key=True)
     record_id    = db.Column(db.Integer,     db.ForeignKey("maintenance_records.id"), nullable=False, index=True)
+    service_type = db.Column(db.String(40))                    # which of the record's services it was for
     description  = db.Column(db.String(160), nullable=False)
     quantity     = db.Column(db.Float,       nullable=False, default=1)
     supplier     = db.Column(db.String(120))                   # in words: the seller
@@ -552,7 +553,7 @@ class MaintenanceRecord(db.Model):
     id            = db.Column(db.Integer, primary_key=True)
     vehicle_id    = db.Column(db.Integer, db.ForeignKey("vehicles.id"),          nullable=False)
     rule_id       = db.Column(db.Integer, db.ForeignKey("maintenance_rules.id"), nullable=True)
-    type          = db.Column(db.String(40),  nullable=False)                    # a ServiceType code
+    type          = db.Column(db.String(40),  nullable=False)                    # the first of `services`, a ServiceType code
     date          = db.Column(db.String(10),  nullable=False)
     kilometers_at = db.Column(db.Float,       nullable=True)
     hours_at      = db.Column(db.Float,       nullable=True)
@@ -565,6 +566,10 @@ class MaintenanceRecord(db.Model):
 
     vehicle = db.relationship("Vehicle")
     rule    = db.relationship("MaintenanceRule")
+    # The kinds of service done in this one visit -- vidange, filtres... --
+    # each resetting its own rules. `type` keeps the first.
+    services = db.relationship("MaintenanceRecordType", back_populates="record",
+                               cascade="all, delete-orphan", order_by="MaintenanceRecordType.id")
     # Parts bought outside for this service, each a request to the cash box.
     purchases = db.relationship("ServicePartPurchase", back_populates="record",
                                 cascade="all, delete-orphan", order_by="ServicePartPurchase.id")
@@ -604,6 +609,36 @@ class MaintenanceRecord(db.Model):
     def total_cost(self):
         """Labour (ledger) + parts (store) — what the service really cost."""
         return (self.cost or 0) + self.parts_value
+
+    @property
+    def types(self):
+        """The codes of the services done, in the order they were ticked."""
+        return [s.type for s in self.services] or [self.type]
+
+    def set_types(self, codes):
+        """Replace the services done with `codes`; `type` follows the first."""
+        keep = {s.type: s for s in self.services}
+        self.services = [keep.get(c) or MaintenanceRecordType(type=c) for c in codes]
+        self.type = codes[0]
+
+    def parts_value_for(self, code):
+        """What the store parts taken for one of its services were worth."""
+        first = self.types[0]
+        mine = [m for m in self.part_movements if (m.service_type or first) == code]
+        return (sum(m.value or 0 for m in mine if m.kind == "sortie")
+                - sum(m.value or 0 for m in mine if m.kind == "retour"))
+
+
+class MaintenanceRecordType(db.Model):
+    """One kind of service done in a maintenance visit."""
+    __tablename__ = "maintenance_record_types"
+    __table_args__ = (db.UniqueConstraint("record_id", "type"),)
+
+    id        = db.Column(db.Integer,    primary_key=True)
+    record_id = db.Column(db.Integer,    db.ForeignKey("maintenance_records.id"), nullable=False, index=True)
+    type      = db.Column(db.String(40), nullable=False, index=True)   # a ServiceType code
+
+    record = db.relationship("MaintenanceRecord", back_populates="services")
 
 
 class Alert(db.Model):
@@ -2026,6 +2061,8 @@ class StockMovement(db.Model):
     note        = db.Column(db.String(255), nullable=True)
     # Set on a sortie (or a retour): the service the parts went to
     maintenance_record_id = db.Column(db.Integer, db.ForeignKey("maintenance_records.id"), nullable=True)
+    # ...and which of that record's services they were for.
+    service_type = db.Column(db.String(40), nullable=True)
     # Set when this receipt came in against a purchase order line. Its money
     # side is the supplier's bill, not a cash-box expense.
     purchase_line_id = db.Column(db.Integer, db.ForeignKey("purchase_order_lines.id"), nullable=True)
