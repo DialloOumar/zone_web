@@ -9,7 +9,7 @@ Schema overview (25 tables, grouped):
   Maintenance       MaintenanceRule, MaintenanceRecord, MaintenanceRecordType, Alert
   Money             Expense, CashMovement, CashAccount, Site
   Fuel              Citerne, FuelMovement
-  Parts store       Part, StockMovement
+  Parts store       Part, PartStoreLevel, StockMovement
   Workflow          PendingChange, AuditLog
   Config            AppSetting
 """
@@ -1797,8 +1797,9 @@ store_managers = db.Table(
 
 
 class Store(db.Model):
-    """A store of parts: the yard's, Siguiri's. The catalogue is shared,
-    the quantities are each store's own, counted from its movements."""
+    """A store of parts: the yard's, Siguiri's. Each is its own: the names of
+    the parts are common, what it holds, pays and re-orders at is its own,
+    and it shows only the parts it has had."""
     __tablename__ = "stores"
 
     id         = db.Column(db.Integer,    primary_key=True)
@@ -1813,10 +1814,11 @@ class Store(db.Model):
 
 
 class StockTransfer(db.Model):
-    """Parts sent from one store to another. They leave the first at once
-    (a transfert_out) and only count in the second once someone there says
-    what actually arrived (a transfert_in of that quantity). What went
-    missing on the way stays readable: sent minus received."""
+    """Parts sent from one store to another, while the stores could send
+    each other parts. They left the first at once (a transfert_out) and
+    counted in the second once someone there said what actually arrived (a
+    transfert_in of that quantity). No longer written: the stores are kept
+    apart. The rows stay, so the movements they made keep their story."""
     __tablename__ = "stock_transfers"
 
     id             = db.Column(db.Integer,    primary_key=True)
@@ -1885,8 +1887,10 @@ class UnitConversion(db.Model):
 
 
 class Part(db.Model):
-    """A maintenance part held in the workshop store (one store for the whole
-    company, not per fleet).
+    """A maintenance part. The name is common to every store, so the same
+    oil reads the same everywhere; everything else is each store's own: what
+    it holds, what it paid, the level it re-orders at. A store only shows the
+    parts it has had.
 
     Like a Citerne, it carries no quantity of its own: what is on hand is
     computed from its movements, so the figure on screen and the history can
@@ -1899,7 +1903,6 @@ class Part(db.Model):
     # The unit the store counts and hands it out in. What it is bought in
     # is chosen per order line, among the buying units that convert to this.
     unit          = db.Column(db.String(20),  nullable=False, default="piece")  # a PartUnit code
-    reorder_level = db.Column(db.Float,       nullable=True)   # below this, the list flags it to re-order
     photo_key     = db.Column(db.String(200), nullable=True)
     is_active     = db.Column(db.Boolean,     nullable=False, default=True)     # soft delete = archive
     created_at    = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
@@ -1908,6 +1911,8 @@ class Part(db.Model):
     movements = db.relationship("StockMovement", back_populates="part",
                                 foreign_keys="StockMovement.part_id",
                                 cascade="all, delete-orphan")
+    # The level each store re-orders it at, set by that store.
+    levels = db.relationship("PartStoreLevel", back_populates="part", cascade="all, delete-orphan")
 
     def _ordered_movements(self):
         return sorted(self.movements, key=lambda m: (m.date, m.id or 0))
@@ -1952,14 +1957,18 @@ class Part(db.Model):
     def quantity_in(self, store_id):
         return self.quantities.get(store_id, 0.0)
 
-    @property
-    def in_transit(self):
-        """What has left one store for another and is not confirmed yet."""
-        return sum(t.quantity for t in self.transfers if t.status == "transit")
+    def store_ids(self):
+        """The stores that have had this part: moved it, or set a level for it."""
+        return {m.store_id for m in self.movements if m.store_id} | {lv.store_id for lv in self.levels}
+
+    def reorder_level_in(self, store_id):
+        lv = next((lv for lv in self.levels if lv.store_id == store_id), None)
+        return lv.reorder_level if lv else None
 
     def below_reorder_in(self, store_id):
-        """Time to re-order in this store: the threshold holds per store."""
-        return self.reorder_level is not None and self.quantity_in(store_id) <= self.reorder_level
+        """Time to re-order in this store, at the level this store set."""
+        level = self.reorder_level_in(store_id)
+        return level is not None and self.quantity_in(store_id) <= level
 
     @property
     def opening_quantity(self):
@@ -1970,27 +1979,37 @@ class Part(db.Model):
                 return m.quantity
         return 0
 
-    def average_cost_as_of(self, date_str=None):
+    def average_cost_as_of(self, date_str=None, store_id=None):
         """Weighted average cost of one unit, over everything that came in on or
-        before `date_str`. This is what a sortie is valued at — computed once,
-        then frozen on the movement, so a later purchase can never change what
-        a past service cost.
+        before `date_str` -- into one store, or (store_id None) into all of
+        them. This is what a sortie is valued at, at its own store's prices --
+        computed once, then frozen on the movement, so a later purchase can
+        never change what a past service cost.
 
         Every price in here belongs to real parts: what the opening stock was
-        declared to be worth, and what each receipt actually cost. There is no
-        catalogue price to drift out of date. Falls back to the last price paid
-        when nothing is left to average, and to None when the part has never
-        been priced at all.
+        declared to be worth, what each receipt actually cost and, in one
+        store, what parts once sent to it from another were worth when they
+        left. There is no catalogue price to drift out of date. Falls back to
+        the last price paid when nothing is left to average, and to None when
+        the part has never been priced at all.
         """
         qty = value = 0.0
         last_price = None
         for m in self._ordered_movements():
             if date_str is not None and m.date > date_str:
                 continue
-            if m.kind in ("initial", "entree") and m.unit_price is not None:
+            if store_id is not None and m.store_id != store_id:
+                continue
+            if m.kind in ("initial", "entree"):
+                price = m.unit_price
+            elif m.kind == "transfert_in" and store_id is not None:
+                price = m.unit_value
+            else:
+                price = None
+            if price is not None:
                 qty += m.quantity
-                value += m.unit_price * m.quantity
-                last_price = m.unit_price
+                value += price * m.quantity
+                last_price = price
         if qty > 0:
             return int(round(value / qty))
         return last_price
@@ -2012,20 +2031,30 @@ class Part(db.Model):
         opening = next((m for m in self.movements if m.kind == "initial"), None)
         return opening.unit_price if opening else None
 
-    @property
-    def stock_value(self):
-        """What the shelf is worth: quantity on hand × weighted average cost."""
-        avg = self.average_cost_as_of()
-        return int(round(self.quantity * avg)) if avg is not None else None
+    def value_in(self, store_id):
+        """What one store's shelf of it is worth, at that store's own prices;
+        None when that store has never priced it."""
+        avg = self.average_cost_as_of(None, store_id)
+        return int(round(self.quantity_in(store_id) * avg)) if avg is not None else None
 
-    @property
-    def below_reorder(self):
-        """True when some store has reached the re-order threshold. No
-        threshold set = never flagged."""
-        if self.reorder_level is None:
-            return False
-        stores = [st.id for st in Store.query.filter_by(is_active=True).all()] or [None]
-        return any(self.quantity_in(sid) <= self.reorder_level for sid in stores)
+    def below_reorder_among(self, store_ids):
+        """True when one of these stores has reached the level it set."""
+        return any(self.below_reorder_in(sid) for sid in store_ids)
+
+
+class PartStoreLevel(db.Model):
+    """The level one store re-orders a part at. Each store sets its own: what
+    one store keeps on its shelf says nothing about another's."""
+    __tablename__ = "part_store_levels"
+    __table_args__ = (db.UniqueConstraint("part_id", "store_id"),)
+
+    id            = db.Column(db.Integer, primary_key=True)
+    part_id       = db.Column(db.Integer, db.ForeignKey("parts.id"), nullable=False, index=True)
+    store_id      = db.Column(db.Integer, db.ForeignKey("stores.id"), nullable=False, index=True)
+    reorder_level = db.Column(db.Float,   nullable=False)
+
+    part  = db.relationship("Part", back_populates="levels")
+    store = db.relationship("Store")
 
 
 class StockMovement(db.Model):

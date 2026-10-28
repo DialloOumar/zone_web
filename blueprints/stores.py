@@ -1,26 +1,23 @@
-"""Stores blueprint -- several stores of parts, each run by its own people.
+"""Stores blueprint -- several stores of parts, each its own.
 
-The catalogue of parts is shared; what is on hand is each store's own,
-counted from movements that name their store (see Part.quantities_as_of).
+The names of the parts are common to every store; what is on hand, what it
+cost and the level to re-order at are each store's own, counted from
+movements that name their store (see Part.quantities_as_of). A store shows
+only the parts it has had.
 
-Who works where: a user named on a store (Store.managers) receives, issues
-and sends from that store alone, and sees the others read-only. A user named
+Who works where: a user named on a store (Store.managers) receives and issues
+from that store alone, and sees only the stores he is named on. A user named
 on no store sees every store and works in none. Only the super admin works in
 all of them, and only he creates the stores and names who runs them.
 
-Parts move between stores by transfer: they leave the sending store at once
-and count in the other only when someone there says what actually arrived.
-The difference, if any, stays on the transfer for everyone to read.
+Parts are not sent from one store to another. The transfers of before stay
+in the history of the stores they moved.
 """
-from datetime import date, datetime
-
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
 from flask_login import current_user, login_required
 
-from app import (get_t, has_perm, is_modal_request, log_action, modal_ok,
-                 require_perm)
-from blueprints.notifications import notify
+from app import get_t, is_modal_request, log_action, modal_ok, require_perm
 from models import Part, Site, StockMovement, StockTransfer, Store, User, db
 
 stores_bp = Blueprint("stores", __name__, url_prefix="/stock")
@@ -45,6 +42,23 @@ def acting_store_ids():
 def can_act_in(store_id):
     ids = acting_store_ids()
     return ids is None or store_id in ids
+
+
+def visible_store_ids():
+    """The stores the current user may see. Someone named on stores sees
+    those alone; the super admin and the office, named on none, see all
+    (None)."""
+    if not current_user.is_authenticated:
+        return []
+    if current_user.is_super_admin:
+        return None
+    mine = [s.id for s in current_user.stores if s.is_active]
+    return mine or None
+
+
+def visible_stores():
+    ids = visible_store_ids()
+    return [st for st in active_stores() if ids is None or st.id in ids]
 
 
 def runs_every_store():
@@ -95,6 +109,10 @@ def _require_office():
 @require_perm("stock.view")
 def index():
     stores = Store.query.order_by(Store.is_active.desc(), Store.name).all()
+    # Someone named on stores sees those, not the others.
+    ids = visible_store_ids()
+    if ids is not None:
+        stores = [st for st in stores if st.id in ids]
     in_use = {}
     for st in stores:
         in_use[st.id] = (StockMovement.query.filter_by(store_id=st.id).count()
@@ -181,10 +199,7 @@ def store_action(sid, what):
     t = get_t()
     if what == "archive":
         held = sum(1 for p in Part.query.all() if p.quantity_in(store.id) > 1e-9)
-        transit = StockTransfer.query.filter(StockTransfer.status == "transit",
-                                             db.or_(StockTransfer.from_store_id == sid,
-                                                    StockTransfer.to_store_id == sid)).count()
-        if held or transit:
+        if held:
             flash("error|" + t["store.err.not_empty"])
             return redirect(url_for("stores.index"))
         if len(active_stores()) <= 1:
@@ -198,208 +213,7 @@ def store_action(sid, what):
     return redirect(url_for("stores.index"))
 
 
-# ── Transfers ────────────────────────────────────────────────────────────────
-
-def _valid_date(s):
-    try:
-        datetime.strptime(s or "", "%Y-%m-%d")
-        return True
-    except ValueError:
-        return False
-
-
-def _qty(raw):
-    try:
-        v = float((raw or "").strip().replace(",", "."))
-    except ValueError:
-        return None
-    return v
-
-
-def transfers_to_receive():
-    """Transfers waiting in a store the current user is named on -- or, for
-    the office, in a store nobody is named on."""
-    if not current_user.is_authenticated:
-        return []
-    mine = [s.id for s in current_user.stores if s.is_active]
-    q = StockTransfer.query.filter_by(status="transit")
-    if mine:
-        q = q.filter(StockTransfer.to_store_id.in_(mine))
-    elif runs_every_store():
-        unmanned = [s.id for s in active_stores() if not s.managers]
-        if not unmanned:
-            return []
-        q = q.filter(StockTransfer.to_store_id.in_(unmanned))
-    else:
-        return []
-    return q.order_by(StockTransfer.sent_date, StockTransfer.id).all()
-
-
-@stores_bp.route("/transferts")
-@login_required
-@require_perm("stock.view")
-def transfers():
-    status = request.args.get("status") or "transit"
-    q = StockTransfer.query
-    if status in ("transit", "received"):
-        q = q.filter(StockTransfer.status == status)
-    store_id = request.args.get("store", type=int)
-    if store_id:
-        q = q.filter(db.or_(StockTransfer.from_store_id == store_id,
-                            StockTransfer.to_store_id == store_id))
-    rows = q.order_by(StockTransfer.sent_date.desc(), StockTransfer.id.desc()).limit(300).all()
-    counts = dict(transit=StockTransfer.query.filter_by(status="transit").count())
-    return render_template("stock_transfers.html", rows=rows, status=status, counts=counts,
-                           stores=active_stores(), store_id=store_id,
-                           can_send=bool(acting_store_ids() is None or acting_store_ids()) and has_perm("stock.manage")
-                                    and len(active_stores()) > 1)
-
-
-def _render_transfer_form(error=None):
-    tpl = "_transfer_form.html" if is_modal_request() else "transfer_form.html"
-    status = 422 if (error and is_modal_request()) else 200
-    ids = acting_store_ids()
-    stores = active_stores()
-    from_stores = [s for s in stores if ids is None or s.id in ids]
-    parts = Part.query.filter(Part.is_active.is_(True)).order_by(Part.name).all()
-    # What each part holds in each store, for the form to show as it is picked.
-    held = {p.id: {str(k): v for k, v in p.quantities.items()} for p in parts}
-    return render_template(tpl, error=error, stores=stores, from_stores=from_stores,
-                           parts=parts, held=held, default_from=default_store_id(),
-                           preset_part=request.args.get("part_id", type=int),
-                           today=date.today().isoformat()), status
-
-
-@stores_bp.route("/transferts/nouveau", methods=["GET", "POST"])
-@login_required
-@require_perm("stock.manage")
-def transfer_new():
-    t = get_t()
-    if request.method == "POST":
-        src = store_or_default(request.form.get("from_store_id", type=int))
-        dst = store_or_default(request.form.get("to_store_id", type=int), need_act=False)
-        part = db.session.get(Part, request.form.get("part_id", type=int) or 0)
-        qty = _qty(request.form.get("quantity"))
-        day = (request.form.get("date") or "").strip() or date.today().isoformat()
-        if not src:
-            return _render_transfer_form(t["stransfer.err.from"])
-        if not dst or dst.id == src.id:
-            return _render_transfer_form(t["stransfer.err.to"])
-        if not part or not part.is_active:
-            return _render_transfer_form(t["stransfer.err.part"])
-        if qty is None or qty <= 0:
-            return _render_transfer_form(t["stransfer.err.qty"])
-        if qty > part.quantity_in(src.id) + 1e-9:
-            return _render_transfer_form(t["stransfer.err.more_than_held"] % (
-                "{:.10g}".format(part.quantity_in(src.id))))
-        if not _valid_date(day):
-            return _render_transfer_form(t.get("client.err.date", "Date invalide."))
-        out = StockMovement(part_id=part.id, store_id=src.id, kind="transfert_out", date=day,
-                            quantity=qty, unit_value=part.average_cost_as_of(day),
-                            note=dst.name, created_by=current_user.id)
-        db.session.add(out)
-        db.session.flush()
-        tr = StockTransfer(part_id=part.id, from_store_id=src.id, to_store_id=dst.id,
-                           quantity=qty, sent_date=day, sent_by=current_user.id,
-                           note=(request.form.get("note") or "").strip()[:255] or None,
-                           out_movement_id=out.id)
-        db.session.add(tr)
-        db.session.flush()
-        for u in dst.managers:
-            notify(u.id, "info.stock_transfer_sent", url_for("stores.transfers"),
-                   qty="{:.10g}".format(qty), part=part.name, store=src.name)
-        log_action("CREATE", "stock_transfer", resource_id=tr.id,
-                   detail="Sent %g x '%s' from %s to %s" % (qty, part.name, src.name, dst.name))
-        db.session.commit()
-        flash("success|" + t["stransfer.sent"])
-        return modal_ok() if is_modal_request() else redirect(url_for("stores.transfers"))
-    return _render_transfer_form()
-
-
-def _get_transfer(tid):
-    tr = db.session.get(StockTransfer, tid)
-    if not tr:
-        abort(404)
-    return tr
-
-
-def _render_receive_form(tr, error=None):
-    tpl = "_transfer_receive.html" if is_modal_request() else "transfer_receive.html"
-    status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, tr=tr, error=error, today=date.today().isoformat()), status
-
-
-@stores_bp.route("/transferts/<int:tid>/reception", methods=["GET", "POST"])
-@login_required
-@require_perm("stock.manage")
-def transfer_receive(tid):
-    """The receiving store says what actually came: that, and only that,
-    enters its stock."""
-    tr = _get_transfer(tid)
-    t = get_t()
-    if tr.status != "transit":
-        flash("error|" + t["stransfer.err.done"])
-        return modal_ok() if is_modal_request() else redirect(url_for("stores.transfers"))
-    if not can_act_in(tr.to_store_id):
-        abort(403)
-    if request.method == "POST":
-        qty = _qty(request.form.get("received_quantity"))
-        day = (request.form.get("date") or "").strip() or date.today().isoformat()
-        note = (request.form.get("received_note") or "").strip()[:255] or None
-        if qty is None or qty < 0 or qty > tr.quantity + 1e-9:
-            return _render_receive_form(tr, t["stransfer.err.received_qty"])
-        if not _valid_date(day) or day < tr.sent_date:
-            return _render_receive_form(tr, t["stransfer.err.received_date"])
-        if qty < tr.quantity - 1e-9 and not note:
-            return _render_receive_form(tr, t["stransfer.err.gap_note"])
-        if qty > 0:
-            mv = StockMovement(part_id=tr.part_id, store_id=tr.to_store_id, kind="transfert_in",
-                               date=day, quantity=qty,
-                               unit_value=tr.out_movement.unit_value if tr.out_movement else None,
-                               note=tr.from_store.name, created_by=current_user.id)
-            db.session.add(mv)
-            db.session.flush()
-            tr.in_movement_id = mv.id
-        tr.status, tr.received_quantity, tr.received_date = "received", qty, day
-        tr.received_by, tr.received_note = current_user.id, note
-        kind = "info.stock_transfer_gap" if tr.gap and tr.gap > 1e-9 else "info.stock_transfer_received"
-        notify(tr.sent_by, kind, url_for("stores.transfers", status="received"),
-               qty="{:.10g}".format(qty), sent="{:.10g}".format(tr.quantity),
-               part=tr.part.name, store=tr.to_store.name)
-        log_action("RECEIVE", "stock_transfer", resource_id=tr.id,
-                   detail="Received %g of %g x '%s' in %s" % (qty, tr.quantity, tr.part.name, tr.to_store.name))
-        db.session.commit()
-        flash("success|" + t["stransfer.received"])
-        return modal_ok() if is_modal_request() else redirect(url_for("stores.transfers"))
-    return _render_receive_form(tr)
-
-
-@stores_bp.route("/transferts/<int:tid>/annuler", methods=["POST"])
-@login_required
-@require_perm("stock.manage")
-def transfer_cancel(tid):
-    """Called back before the other store confirmed: the parts never left."""
-    tr = _get_transfer(tid)
-    t = get_t()
-    if tr.status != "transit" or not can_act_in(tr.from_store_id):
-        flash("error|" + t["stransfer.err.done"])
-        return redirect(url_for("stores.transfers"))
-    out = tr.out_movement
-    db.session.delete(tr)
-    if out:
-        db.session.delete(out)
-    log_action("DELETE", "stock_transfer", resource_id=tid, detail="Cancelled transfer #%d" % tid)
-    db.session.commit()
-    flash("success|" + t["stransfer.cancelled"])
-    return redirect(url_for("stores.transfers"))
-
-
 @stores_bp.app_context_processor
 def _store_helpers():
-    def waiting():
-        try:
-            return StockTransfer.query.filter_by(status="transit").count()
-        except Exception:
-            return 0
     return dict(can_act_in_store=can_act_in, runs_every_store=runs_every_store,
-                works_in_a_store=works_in_a_store, transfers_waiting=waiting)
+                works_in_a_store=works_in_a_store)

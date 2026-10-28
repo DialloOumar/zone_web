@@ -26,11 +26,20 @@
         </div>
     </div>
 
-    <div class="field">
-        <input type="number" id="reorder_level" name="reorder_level" placeholder=" " min="0" step="any"
-               value="{{ request.form.get('reorder_level') or (part.reorder_level if is_edit and part.reorder_level is not none else '') }}">
-        <label for="reorder_level">{{ t['part.reorder_level'] }} {{ hint('', t['part.reorder_hint']) }}</label>
+    {# Each store re-orders at its own level; the user sets the ones of the
+       stores they work in. #}
+    {% if level_stores %}
+    <div class="form-row">
+        {% for st in level_stores %}
+        {% set own = part.reorder_level_in(st.id) if is_edit else none %}
+        <div class="field">
+            <input type="number" id="reorder_{{ st.id }}" name="reorder_{{ st.id }}" placeholder=" " min="0" step="any"
+                   value="{{ request.form.get('reorder_%d' % st.id) or ('%g' | format(own) if own is not none else '') }}">
+            <label for="reorder_{{ st.id }}">{{ t['part.reorder_level'] }}{% if level_stores|length > 1 %} — {{ st.name }}{% endif %} {% if loop.first %}{{ hint('', t['part.reorder_hint']) }}{% endif %}</label>
+        </div>
+        {% endfor %}
     </div>
+    {% endif %}
 
     {# What is on the shelf already, and what a unit of it is worth. Kept for
        now, so a store can be loaded before its first order. Not an expense:

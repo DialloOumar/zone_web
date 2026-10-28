@@ -298,6 +298,13 @@ def _can_act(store_id):
     return store_id is None or can_act_in(store_id)
 
 
+def _seen_stores():
+    """The stores whose orders and requests the user sees: someone named on
+    stores sees those alone; everyone else, all (None)."""
+    from blueprints.stores import visible_store_ids
+    return visible_store_ids()
+
+
 def _stores():
     from blueprints.stores import active_stores
     return active_stores()
@@ -357,6 +364,10 @@ def index():
     if status not in STATUSES + ("pending",):
         status = ""
     q = PurchaseOrder.query
+    seen = _seen_stores()
+    if seen is not None:
+        q = q.filter(PurchaseOrder.store_id.in_(seen))
+    base = q
     if status == "pending":
         q = q.filter(PurchaseOrder.status.in_(PENDING))
     elif status:
@@ -368,7 +379,7 @@ def index():
                                            Supplier.code.ilike(like), PurchaseOrder.note.ilike(like)))
     pagination = (q.order_by(PurchaseOrder.date.desc(), PurchaseOrder.id.desc())
                   .paginate(page=request.args.get("page", 1, type=int), per_page=PER_PAGE, error_out=False))
-    counts = dict(db.session.query(PurchaseOrder.status, db.func.count(PurchaseOrder.id))
+    counts = dict(base.with_entities(PurchaseOrder.status, db.func.count(PurchaseOrder.id))
                   .group_by(PurchaseOrder.status).all())
     # What waits for the person looking: the signatures they can give.
     mine = 0
@@ -376,14 +387,15 @@ def index():
         mine += counts.get("pending_logistics", 0)
     if user_approves("finance"):
         mine += counts.get("pending_finance", 0)
-    open_requests = [r for r in PurchaseRequest.query.filter_by(status="open").all() if not r.fully_ordered]
+    open_requests = [r for r in PurchaseRequest.query.filter_by(status="open").all()
+                     if not r.fully_ordered and (seen is None or r.store_id in seen)]
     return render_template("purchase_orders.html", orders=pagination.items, pagination=pagination,
                            requests_todo=len(open_requests), can_request=_may_request(),
                            status=status, search=search, counts=counts, mine=mine,
                            statuses=STATUSES, can_create=_may_order(),
                            stores_count=len(_stores()),
                            parts_count=Part.query.filter(Part.is_active.is_(True)).count(),
-                           orders_count=PurchaseOrder.query.count())
+                           orders_count=base.count())
 
 
 # ── Create, edit ─────────────────────────────────────────────────────────────
@@ -546,7 +558,11 @@ def requests():
     if not _may_read():
         abort(403)
     state = request.args.get("state") or ""
-    rows = PurchaseRequest.query.order_by(PurchaseRequest.date.desc(), PurchaseRequest.id.desc()).limit(300).all()
+    q = PurchaseRequest.query
+    seen = _seen_stores()
+    if seen is not None:
+        q = q.filter(PurchaseRequest.store_id.in_(seen))
+    rows = q.order_by(PurchaseRequest.date.desc(), PurchaseRequest.id.desc()).limit(300).all()
     counts = {}
     for r in rows:
         counts[r.state] = counts.get(r.state, 0) + 1
@@ -559,7 +575,8 @@ def requests():
         state = ""
     return render_template("purchase_requests.html", rows=rows, state=state, counts=counts, todo=todo,
                            states=REQUEST_STATES, can_request=_may_request(), can_order=_may_order(),
-                           orders_count=PurchaseOrder.query.count())
+                           orders_count=(PurchaseOrder.query if seen is None else
+                                         PurchaseOrder.query.filter(PurchaseOrder.store_id.in_(seen))).count())
 
 
 def _render_request_form(req, error=None):

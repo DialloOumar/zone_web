@@ -651,10 +651,16 @@ def sync_record_parts(record, lines):
         part = db.session.get(Part, pid)
         if not part:
             continue
+        # At the prices of the store it came out of; one that never priced
+        # it falls back on what it cost anywhere.
+        sid = line.get("store_id")
+        value = part.average_cost_as_of(record.date, sid) if sid else None
+        if value is None:
+            value = part.average_cost_as_of(record.date)
         db.session.add(StockMovement(
-            part_id=pid, kind="sortie", date=record.date, store_id=line.get("store_id"),
+            part_id=pid, kind="sortie", date=record.date, store_id=sid,
             service_type=kind, quantity=line["quantity"],
-            unit_value=part.average_cost_as_of(record.date),
+            unit_value=value,
             maintenance_record_id=record.id,
             created_by=getattr(current_user, "id", None)))
     for mv in existing.values():

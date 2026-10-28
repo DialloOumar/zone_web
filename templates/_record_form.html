@@ -253,15 +253,18 @@
     var storeField = document.getElementById('parts-store-field');
     var HELD = {{ parts_held | tojson }};
 
-    // What each part holds in the store picked, shown beside its name.
+    // What each part holds in the store picked, shown beside its name; a
+    // part that store has never had is not offered.
     function relabel(root) {
         var sid = storeSel ? storeSel.value : '';
         (root || form).querySelectorAll('.parts-line select[name=part_id] option[data-name]').forEach(function (o) {
-            var n = ((HELD[o.value] || {})[sid]) || 0;
+            var held = HELD[o.value] || {}, n = held[sid] || 0;
             o.textContent = o.dataset.name + ' — ' + n.toLocaleString('fr-FR') + ' ' + o.dataset.unit;
+            o.hidden = !(sid in held) && !o.selected;
         });
     }
     if (storeSel) storeSel.addEventListener('change', function () { relabel(); });
+    relabel();
 
     // A new row carries the service of the block it is added to.
     function addLine(block, tpl, list, typeName) {

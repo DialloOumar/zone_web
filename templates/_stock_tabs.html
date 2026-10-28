@@ -1,12 +1,8 @@
-{# The store's tools, above its catalogue: the stores and the transfers
-   between them, the units and the conversions. The orders live on their own
-   page, Bons de commande. #}
+{# The store's tools, above its catalogue: the stores, the units and the
+   conversions. The orders live on their own page, Bons de commande. #}
 <div class="stock-settings">
     <a href="{{ url_for('stock.index') }}" class="btn btn--sm {{ 'btn--tonal' if stock_tab == 'stock' else 'btn--outlined' }}">
         <span class="material-symbols-outlined">shelves</span> {{ t['nav.stock'] }}
-    </a>
-    <a href="{{ url_for('stores.transfers') }}" class="btn btn--sm {{ 'btn--tonal' if stock_tab == 'transfers' else 'btn--outlined' }}">
-        <span class="material-symbols-outlined">swap_horiz</span> {{ t['stransfer.title'] }}{% set tw = transfers_waiting() %}{% if tw %} <span class="tab__count">{{ tw }}</span>{% endif %}
     </a>
     <a href="{{ url_for('stores.index') }}" class="btn btn--sm {{ 'btn--tonal' if stock_tab == 'stores' else 'btn--outlined' }}">
         <span class="material-symbols-outlined">store</span> {{ t['store.title'] }}

@@ -23,7 +23,7 @@ from flask_login import current_user, login_required
 import s3_storage
 from app import (slugify, get_t, is_modal_request, log_action, modal_ok,
                  parse_amount, require_perm)
-from models import Part, PartUnit, PurchaseOrderLine, StockMovement, UnitConversion, db
+from models import Part, PartStoreLevel, PartUnit, PurchaseOrderLine, StockMovement, UnitConversion, db
 
 stock_bp = Blueprint("stock", __name__, url_prefix="/stock")
 
@@ -83,15 +83,6 @@ def _valid_date(s):
         return False
 
 
-def active_stores_list():
-    from blueprints.stores import active_stores
-    return active_stores()
-
-
-def _active_parts():
-    return Part.query.filter(Part.is_active.is_(True)).order_by(Part.name).all()
-
-
 def _part_usage(part):
     """What would be lost if this part's row went away, so the list can offer an
     outright delete when there is nothing to lose.
@@ -122,17 +113,11 @@ def index():
     show_archived = request.args.get("archived") == "1"
     search = (request.args.get("q") or "").strip()
 
-    q = Part.query.filter(Part.is_active.is_(not show_archived))
-    if search:
-        q = q.filter(Part.name.ilike(f"%{search}%"))
-    parts = q.order_by(Part.name).all()
-
-    archived_count = Part.query.filter(Part.is_active.is_(False)).count()
-
     # Which store is shown: one asked for, else the user's own when they run
-    # exactly one, else all of them side by side.
-    from blueprints.stores import acting_store_ids, active_stores, can_act_in
-    stores = active_stores()
+    # exactly one, else all the ones they see side by side. Someone named on
+    # stores sees only those.
+    from blueprints.stores import acting_store_ids, visible_store_ids, visible_stores
+    stores = visible_stores()
     raw = request.args.get("store") or ""
     mine = acting_store_ids()
     if raw == "all":
@@ -144,40 +129,39 @@ def index():
                  if mine and len(mine) == 1 else None)
     if len(stores) == 1:
         store = stores[0]
+    shown = [store.id] if store else [st.id for st in stores]
+
+    # A store lists only the parts it has had. Whoever sees every store also
+    # sees the parts no store has had yet.
+    every = visible_store_ids() is None and not store
+    def listed(p):
+        return every or bool(p.store_ids() & set(shown))
+
+    q = Part.query
+    if search:
+        q = q.filter(Part.name.ilike(f"%{search}%"))
+    candidates = [p for p in q.order_by(Part.name).all() if listed(p)]
+    parts = [p for p in candidates if p.is_active == (not show_archived)]
+    archived_count = sum(1 for p in candidates if not p.is_active)
     qmap = {p.id: p.quantities for p in parts}
 
-    # Totals over what is shown, so a search narrows them too. A part with no
-    # price known contributes nothing rather than breaking the sum.
-    def value(p):
-        avg = p.average_cost_as_of()
-        if avg is None:
-            return 0
-        q = qmap[p.id].get(store.id, 0.0) if store else sum(qmap[p.id].values())
-        return int(round(q * avg))
-    total_value = sum(value(p) for p in parts)
-    low_count = sum(1 for p in parts
-                    if (p.below_reorder_in(store.id) if store else p.below_reorder))
-    transit = {}
-    from models import StockTransfer
-    for tr in StockTransfer.query.filter_by(status="transit").all():
-        transit[tr.part_id] = transit.get(tr.part_id, 0.0) + tr.quantity
+    # Totals over what is shown, so a search narrows them too, each store at
+    # its own prices. A part with no price known contributes nothing rather
+    # than breaking the sum.
+    values = {p.id: {sid: p.value_in(sid) for sid in shown} for p in parts}
+    total_value = sum(v or 0 for p in parts for v in values[p.id].values())
+    low_count = sum(1 for p in parts if p.below_reorder_among(shown))
 
-    recent_q = StockMovement.query
-    if store:
-        recent_q = recent_q.filter(StockMovement.store_id == store.id)
-    recent = (recent_q.order_by(StockMovement.date.desc(), StockMovement.id.desc())
-              .limit(15).all())
+    recent = (StockMovement.query.filter(StockMovement.store_id.in_(shown))
+              .order_by(StockMovement.date.desc(), StockMovement.id.desc())
+              .limit(15).all()) if shown else []
 
-    from models import PurchaseOrder
     return render_template(
         "stock.html", parts=parts, show_archived=show_archived, search=search,
-        parts_count=Part.query.filter(Part.is_active.is_(True)).count(),
-        orders_count=PurchaseOrder.query.count(),
         archived_count=archived_count, total_value=total_value,
-        low_count=low_count, recent=recent, active_parts=_active_parts(),
+        low_count=low_count, recent=recent,
         usage={p.id: _part_usage(p) for p in parts},
-        stores=stores, store=store, qmap=qmap, transit=transit,
-        can_send=bool(store and can_act_in(store.id) and len(stores) > 1),
+        stores=stores, store=store, shown=shown, qmap=qmap, values=values,
         today=date.today().isoformat())
 
 
@@ -211,9 +195,16 @@ def _read_part_form(part):
         except ValueError:
             return None, True
 
-    reorder, bad = _num(request.form.get("reorder_level"), float)
-    if bad or (reorder is not None and reorder < 0):
-        return None, t.get("part.err.reorder", "Seuil invalide.")
+    from blueprints.stores import acting_store_ids, active_stores
+    ids = acting_store_ids()
+    levels = {}
+    for st in active_stores():
+        if ids is not None and st.id not in ids:
+            continue
+        reorder, bad = _num(request.form.get("reorder_%d" % st.id), float)
+        if bad or (reorder is not None and reorder < 0):
+            return None, t.get("part.err.reorder", "Seuil invalide.")
+        levels[st.id] = reorder
 
     # Kept for now: what is already on the shelf, and what a unit is worth.
     # Movement fields, not columns of Part: the caller splits them out.
@@ -226,8 +217,23 @@ def _read_part_form(part):
     if bad or (opening_price is not None and opening_price < 0):
         return None, t.get("part.err.price", "Prix invalide.")
 
-    return dict(name=name, unit=unit, reorder_level=reorder,
+    return dict(name=name, unit=unit, levels=levels,
                 opening=opening or 0, opening_price=opening_price), None
+
+
+def _set_levels(part, levels):
+    """Each store's re-order level, for the stores the form showed; another
+    store's level is that store's to set."""
+    have = {lv.store_id: lv for lv in part.levels}
+    for sid, level in levels.items():
+        lv = have.get(sid)
+        if level is None:
+            if lv:
+                part.levels.remove(lv)
+        elif lv:
+            lv.reorder_level = level
+        else:
+            part.levels.append(PartStoreLevel(store_id=sid, reorder_level=level))
 
 
 def _set_opening_stock(part, quantity, price, today, store_id=None):
@@ -307,7 +313,8 @@ def _render_part_form(part, error=None):
     ids = acting_store_ids()
     stores = [st for st in active_stores() if ids is None or st.id in ids]
     return render_template(tpl, part=part, error=error, units=active_units(),
-                           opening_stores=stores, default_store=default_store_id()), status
+                           opening_stores=stores, level_stores=stores,
+                           default_store=default_store_id()), status
 
 
 @stock_bp.route("/parts/new", methods=["GET", "POST"])
@@ -324,8 +331,10 @@ def part_new():
             return _render_part_form(None, error)
         opening = data.pop("opening")
         opening_price = data.pop("opening_price")
+        levels = data.pop("levels")
         p = Part(created_by=current_user.id, **data)
         db.session.add(p)
+        _set_levels(p, levels)
         db.session.flush()
         perr = _apply_part_photo_change(p)
         if perr:
@@ -353,6 +362,7 @@ def part_edit(pid):
             return _render_part_form(part, error)
         opening = data.pop("opening")
         opening_price = data.pop("opening_price")
+        _set_levels(part, data.pop("levels"))
         for k, v in data.items():
             setattr(part, k, v)
         perr = _apply_part_photo_change(part)
@@ -450,7 +460,11 @@ def history():
         "date_from": (request.args.get("date_from") or "").strip(),
         "date_to":   (request.args.get("date_to") or "").strip(),
     }
+    from blueprints.stores import visible_store_ids, visible_stores
     q = StockMovement.query
+    ids = visible_store_ids()
+    if ids is not None:
+        q = q.filter(StockMovement.store_id.in_(ids))
     if filters["part_id"]:
         q = q.filter(StockMovement.part_id == filters["part_id"])
     if filters["store_id"]:
@@ -464,11 +478,15 @@ def history():
 
     movements = (q.order_by(StockMovement.date.desc(), StockMovement.id.desc())
                  .limit(HISTORY_LIMIT).all())
+    # The parts to filter on: the ones the stores seen have had.
+    parts = Part.query.order_by(Part.name).all()
+    if ids is not None:
+        parts = [p for p in parts if p.store_ids() & set(ids)]
     return render_template(
         "stock_history.html", movements=movements, filters=filters,
-        kinds=MOVEMENT_KINDS, parts=Part.query.order_by(Part.name).all(),
+        kinds=MOVEMENT_KINDS, parts=parts,
         has_filters=any(filters.values()), limit=HISTORY_LIMIT,
-        stores=active_stores_list())
+        stores=visible_stores())
 
 
 # ── The units the store counts in ────────────────────────────────────────────
