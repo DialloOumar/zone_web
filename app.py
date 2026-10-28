@@ -216,6 +216,7 @@ def _inject_globals():
         # Orders waiting for a signature this person can give, for the
         # drawer's badge on Bons de commande.
         "orders_to_sign": _orders_to_sign(),
+        "sees_orders": _sees_orders(),
         "cashier_only": cashier_only(),
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,
@@ -266,6 +267,18 @@ def cashier_only():
     return (has_perm("expense.view") and not any(has_perm(p) for p in (
         "supplier_invoice.view", "supplier_invoice.create", "invoicing.view", "invoicing.manage",
         "accounting.view", "accounting.manage")))
+
+
+def _sees_orders():
+    """Whether the purchase orders are open to the current user: the
+    permission, or a signature to give on them."""
+    if not current_user.is_authenticated:
+        return False
+    try:
+        from blueprints.purchases import may_read_orders
+        return may_read_orders()
+    except Exception:
+        return False
 
 
 def _orders_to_sign():
@@ -1487,6 +1500,9 @@ PERMISSIONS_CATALOG = [
     # maintenance_record permission — the storekeeper and the mechanic differ.
     ("stock.view",   "View parts stock",  "Stock", "stock", "view"),
     ("stock.manage", "Manage parts stock", "Stock", "stock", "manage"),
+    # The purchase orders: suppliers and prices. A storekeeper asks for parts
+    # and receives them from the store's own page without it.
+    ("purchase_order.view", "View purchase orders", "Stock", "purchase_order", "view"),
     # Insights (analyse)
     ("insights.view", "View insights", "Insights", "insights", "view"),
     # Reports
@@ -1617,7 +1633,7 @@ SYSTEM_ROLES = {
         "supplier_invoice.view", "supplier_invoice.create", "supplier_invoice.edit", "supplier_invoice.delete",
         "staff.view", "staff.create", "staff.edit", "staff.delete",
         "carburant.view", "carburant.create", "carburant.manage",
-        "stock.view", "stock.manage",
+        "stock.view", "stock.manage", "purchase_order.view",
         "insights.view", "report.view", "report.export_pdf",
         "invoicing.view", "invoicing.manage",
     ]),

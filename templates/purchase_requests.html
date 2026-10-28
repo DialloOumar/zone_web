@@ -14,13 +14,16 @@
 
 {% block content %}
 <section class="card">
+    {% with stock_tab = 'requests' %}{% include "_stock_tabs.html" %}{% endwith %}
     {# A store asks for articles here; the head of logistics turns each
        request into orders, a supplier each. #}
     <div class="tab-bar">
         <div class="tab-bar__filters">
+            {% if sees_orders %}
             <a href="{{ url_for('purchases.index') }}" class="btn btn--sm btn--outlined">
                 <span class="material-symbols-outlined">receipt_long</span> {{ t['po.title'] }}
             </a>
+            {% endif %}
         </div>
         <div class="tab-bar__actions">
             {% if can_request %}

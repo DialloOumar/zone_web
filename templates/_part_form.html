@@ -26,37 +26,7 @@
         </div>
     </div>
 
-    {# Each store re-orders at its own level; the user sets the ones of the
-       stores they work in. #}
-    {% if level_stores %}
-    <div class="form-row">
-        {% for st in level_stores %}
-        {% set own = part.reorder_level_in(st.id) if is_edit else none %}
-        <div class="field">
-            <input type="number" id="reorder_{{ st.id }}" name="reorder_{{ st.id }}" placeholder=" " min="0" step="any"
-                   value="{{ request.form.get('reorder_%d' % st.id) or ('%g' | format(own) if own is not none else '') }}">
-            <label for="reorder_{{ st.id }}">{{ t['part.reorder_level'] }}{% if level_stores|length > 1 %} — {{ st.name }}{% endif %} {% if loop.first %}{{ hint('', t['part.reorder_hint']) }}{% endif %}</label>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    {# What is on the shelf already in the store the form is for, and what a
-       unit of it is worth. Kept for now, so a store can be loaded before its
-       first order. Not an expense: those parts were paid before. #}
-    <div class="form-row">
-        <div class="field">
-            <input type="number" id="opening_quantity" name="opening_quantity" placeholder=" " min="0" step="any"
-                   value="{{ request.form.get('opening_quantity') or ('%g' | format(opening_mv.quantity) if opening_mv else '') }}">
-            <label for="opening_quantity">{{ t['part.opening'] }} {{ hint('', t['part.opening_hint']) }}</label>
-        </div>
-        <div class="field">
-            <input data-money type="text" inputmode="numeric" id="opening_price" name="opening_price" placeholder=" "
-                   value="{{ request.form.get('opening_price') or (opening_mv.unit_price if opening_mv and opening_mv.unit_price is not none else '') }}">
-            <label for="opening_price">{{ t['part.opening_price'] }}</label>
-        </div>
-    </div>
-    {# The store the article goes to, and its opening stock. #}
+    {# The store the article goes to: its opening stock is that store's. #}
     {% if opening_stores|length > 1 %}
     <div class="field field--select">
         {% set sel_os = request.form.get('opening_store_id')|int(0) or default_store %}
@@ -66,6 +36,25 @@
         <label for="opening_store_id">{{ t['part.opening_store'] }}</label>
     </div>
     {% endif %}
+
+    {# What is on the shelf already, kept for now so a store can be loaded
+       before its first order; then the level each store re-orders at, the
+       ones of the stores the user works in. #}
+    <div class="form-row">
+        <div class="field">
+            <input type="number" id="opening_quantity" name="opening_quantity" placeholder=" " min="0" step="any"
+                   value="{{ request.form.get('opening_quantity') or ('%g' | format(opening_mv.quantity) if opening_mv else '') }}">
+            <label for="opening_quantity">{{ t['part.opening'] }} {{ hint('', t['part.opening_hint']) }}</label>
+        </div>
+        {% for st in level_stores %}
+        {% set own = part.reorder_level_in(st.id) if is_edit else none %}
+        <div class="field">
+            <input type="number" id="reorder_{{ st.id }}" name="reorder_{{ st.id }}" placeholder=" " min="0" step="any"
+                   value="{{ request.form.get('reorder_%d' % st.id) or ('%g' | format(own) if own is not none else '') }}">
+            <label for="reorder_{{ st.id }}">{{ t['part.reorder_level'] }}{% if level_stores|length > 1 %} — {{ st.name }}{% endif %} {% if loop.first %}{{ hint('', t['part.reorder_hint']) }}{% endif %}</label>
+        </div>
+        {% endfor %}
+    </div>
 
     {% set photo_current = photo_url(part.photo_key) if is_edit and part.photo_key else None %}
     {% set photo_alt = part.name if is_edit else '' %}

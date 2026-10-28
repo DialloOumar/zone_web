@@ -87,10 +87,16 @@
     <span class="photo-input__label" style="margin-top:14px;">{{ t['preq.orders'] }}</span>
     <div class="table-wrap"><table class="data-table">
         <tbody>
+            {# Whoever does not see the orders reads where each one stands, not
+               whom it is from. #}
             {% for po in req.orders %}
             <tr>
+                {% if sees_orders %}
                 <td style="white-space:nowrap;"><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a></td>
                 <td>{{ po.supplier.name }}</td>
+                {% else %}
+                <td style="white-space:nowrap;"><strong>{{ po.number }}</strong></td>
+                {% endif %}
                 <td>{{ t['po.status.' + po.status] }}</td>
             </tr>
             {% endfor %}

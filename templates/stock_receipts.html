@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['rcv.title'] }}{% endblock %}
+{% block page_title %}{{ t['rcv.title'] }}{% endblock %}
+
+{% block content %}
+<section class="card">
+    {% with stock_tab = 'receipts' %}{% include "_stock_tabs.html" %}{% endwith %}
+    {# The approved orders on their way to the store: what is coming, and how
+       much is left to come. No supplier, no price: those are the orders'. #}
+    {% if orders %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['cinv.number'] }}</th>
+                <th>{{ t['po.date'] }}</th>
+                <th>{{ t['preq.store'] }}</th>
+                <th>{{ t['rcv.coming'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for po in orders %}
+            <tr>
+                <td style="white-space:nowrap;">
+                    {% if sees_orders %}<a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a>
+                    {% else %}<strong>{{ po.number }}</strong>{% endif %}
+                    {% if po.status == 'received_partial' %}<div><span class="badge badge--warning">{{ t['po.status.received_partial'] }}</span></div>{% endif %}
+                </td>
+                <td style="white-space:nowrap;">{{ po.date }}</td>
+                <td>{{ po.store.name if po.store else '—' }}</td>
+                <td>
+                    {% for l in po.lines if l.remaining_qty > 0.000000001 %}
+                    {% set unit = unit_label(l.part.unit) if l.part else unit_label(l.new_unit or 'piece') %}
+                    <div>{{ l.description }} <span class="muted small">× {{ l.remaining_qty | qty }} {{ unit }}</span></div>
+                    {% endfor %}
+                </td>
+                <td class="row-actions">
+                    {% if has_perm('stock.manage') and (not po.store_id or can_act_in_store(po.store_id)) %}
+                    <a href="{{ url_for('purchases.receive', oid=po.id) }}" class="btn btn--sm btn--primary">
+                        <span class="material-symbols-outlined">inventory</span> {{ t['po.receive'] }}
+                    </a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">inventory</span>
+        <p>{{ t['rcv.empty'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

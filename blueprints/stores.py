@@ -215,5 +215,11 @@ def store_action(sid, what):
 
 @stores_bp.app_context_processor
 def _store_helpers():
+    def receipts_waiting():
+        try:
+            from blueprints.stock import receipts_waiting_query
+            return receipts_waiting_query().count()
+        except Exception:
+            return 0
     return dict(can_act_in_store=can_act_in, runs_every_store=runs_every_store,
-                works_in_a_store=works_in_a_store)
+                works_in_a_store=works_in_a_store, receipts_waiting=receipts_waiting)

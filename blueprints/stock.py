@@ -22,7 +22,7 @@ from flask_login import current_user, login_required
 
 import s3_storage
 from app import (slugify, get_t, is_modal_request, log_action, modal_ok,
-                 parse_amount, require_perm)
+                 require_perm)
 from models import Part, PartStoreLevel, PartUnit, PurchaseOrderLine, StockMovement, UnitConversion, db
 
 stock_bp = Blueprint("stock", __name__, url_prefix="/stock")
@@ -216,19 +216,15 @@ def _read_part_form(part):
             return None, t.get("part.err.reorder", "Seuil invalide.")
         levels[st.id] = reorder
 
-    # Kept for now: what is already on the shelf, and what a unit is worth.
-    # Movement fields, not columns of Part: the caller splits them out.
+    # Kept for now: what is already on the shelf. No price is typed: what
+    # the parts are worth comes from what the store paid for them. A
+    # movement field, not a column of Part: the caller splits it out.
     opening, bad = _num(request.form.get("opening_quantity"), float)
     if bad or (opening is not None and opening < 0):
         return None, t.get("part.err.opening", "Quantité de départ invalide.")
-    raw_price = (request.form.get("opening_price") or "").strip()
-    opening_price = parse_amount(raw_price) if raw_price else None
-    bad = bool(raw_price) and opening_price is None
-    if bad or (opening_price is not None and opening_price < 0):
-        return None, t.get("part.err.price", "Prix invalide.")
 
     return dict(name=name, unit=unit, levels=levels, existing=existing,
-                opening=opening or 0, opening_price=opening_price), None
+                opening=opening or 0), None
 
 
 def _set_levels(part, levels, store_id=None):
@@ -250,19 +246,19 @@ def _opening_movement(part, store_id):
     return next((m for m in part.movements if m.kind == "initial" and m.store_id == store_id), None)
 
 
-def _set_opening_stock(part, quantity, price, today, store_id=None):
+def _set_opening_stock(part, quantity, today, store_id=None):
     """The opening stock is one 'initial' movement per store, so editing it
-    just adjusts (or removes) that row. Deliberately NOT an expense: those
-    parts were paid for before the store existed."""
+    just adjusts (or removes) that row; a price it was given before keeps.
+    Deliberately NOT an expense: those parts were paid for before the store
+    existed."""
     mv = _opening_movement(part, store_id)
     if quantity > 0:
         if mv:
             mv.quantity = quantity
-            mv.unit_price = price
         else:
             db.session.add(StockMovement(
                 part_id=part.id, kind="initial", date=today, store_id=store_id,
-                quantity=quantity, unit_price=price,
+                quantity=quantity,
                 created_by=current_user.id))
     elif mv:
         db.session.delete(mv)
@@ -342,7 +338,6 @@ def part_new():
         if error:
             return _render_part_form(None, error)
         opening = data.pop("opening")
-        opening_price = data.pop("opening_price")
         levels = data.pop("levels")
         store_id = _opening_store()
         existing = data.pop("existing")
@@ -350,7 +345,7 @@ def part_new():
             # Another store has it: the same part, now in this store too.
             existing.is_active = True
             _set_levels(existing, levels, store_id)
-            _set_opening_stock(existing, opening, opening_price, date.today().isoformat(), store_id)
+            _set_opening_stock(existing, opening, date.today().isoformat(), store_id)
             log_action("UPDATE", "part", resource_id=existing.id,
                        detail=f"Added part '{existing.name}' to store #{store_id}")
             db.session.commit()
@@ -364,7 +359,7 @@ def part_new():
         if perr:
             db.session.rollback()
             return _render_part_form(None, perr)
-        _set_opening_stock(p, opening, opening_price, date.today().isoformat(), store_id)
+        _set_opening_stock(p, opening, date.today().isoformat(), store_id)
         log_action("CREATE", "part", resource_id=p.id,
                    detail=f"Created part '{p.name}'")
         db.session.commit()
@@ -385,7 +380,6 @@ def part_edit(pid):
         if error:
             return _render_part_form(part, error)
         opening = data.pop("opening")
-        opening_price = data.pop("opening_price")
         data.pop("existing")
         _set_levels(part, data.pop("levels"))
         for k, v in data.items():
@@ -394,7 +388,7 @@ def part_edit(pid):
         if perr:
             db.session.rollback()
             return _render_part_form(part, perr)
-        _set_opening_stock(part, opening, opening_price, date.today().isoformat(), _opening_store())
+        _set_opening_stock(part, opening, date.today().isoformat(), _opening_store())
         log_action("UPDATE", "part", resource_id=part.id,
                    detail=f"Edited part '{part.name}'")
         db.session.commit()
@@ -467,6 +461,35 @@ def part_reactivate(pid):
     db.session.commit()
     flash("success|" + get_t().get("part.reactivated", "Article réactivé."))
     return redirect(url_for("stock.index", archived=1))
+
+
+# ── What the store waits for ─────────────────────────────────────────────────
+# The approved orders, delivered to the stores the user sees, waiting to be
+# received. Read from the store's own page, so a storekeeper receives
+# without seeing the orders themselves: no supplier, no price, only what
+# comes and how much.
+
+
+def receipts_waiting_query():
+    from blueprints.purchases import RECEIVABLE
+    from blueprints.stores import visible_store_ids
+    from models import PurchaseOrder
+    q = PurchaseOrder.query.filter(PurchaseOrder.status.in_(RECEIVABLE))
+    ids = visible_store_ids()
+    if ids is not None:
+        q = q.filter(PurchaseOrder.store_id.in_(ids))
+    return q
+
+
+@stock_bp.route("/receptions")
+@login_required
+@require_perm("stock.view")
+def receipts():
+    from blueprints.purchases import may_read_orders
+    from models import PurchaseOrder
+    orders = (receipts_waiting_query()
+              .order_by(PurchaseOrder.date, PurchaseOrder.id).all())
+    return render_template("stock_receipts.html", orders=orders, sees_orders=may_read_orders())
 
 
 # ── Movement history ─────────────────────────────────────────────────────────

@@ -58,10 +58,26 @@ def user_approves(kind):
     return any(uf.role and getattr(uf.role, flag, False) for uf in current_user.user_fleets)
 
 
-def _may_read():
-    """The store reads its orders; whoever signs them reads them too, from
-    wherever they sign -- Facturation, for the finance signature."""
-    return has_perm("stock.view") or user_approves("logistics") or user_approves("finance")
+def may_read_orders():
+    """The orders -- suppliers, prices -- are read with their permission;
+    whoever signs them reads them too, from wherever they sign --
+    Facturation, for the finance signature."""
+    return has_perm("purchase_order.view") or user_approves("logistics") or user_approves("finance")
+
+
+_may_read = may_read_orders
+
+
+def _may_read_requests():
+    """The requests are the store's as much as the orders' people's: whoever
+    sees the stock reads its own store's."""
+    return has_perm("stock.view") or may_read_orders()
+
+
+def _back_to_stock():
+    """Where a request or a receipt sends back someone who does not see the
+    orders: the store's own page."""
+    return not may_read_orders()
 
 
 def _back_to(default):
@@ -358,8 +374,9 @@ def _write_lines(po, lines):
 
 @purchases_bp.route("/")
 @login_required
-@require_perm("stock.view")
 def index():
+    if not may_read_orders():
+        abort(403)
     status = request.args.get("status") or ""
     if status not in STATUSES + ("pending",):
         status = ""
@@ -555,7 +572,7 @@ def _may_change_request(req):
 @purchases_bp.route("/demandes")
 @login_required
 def requests():
-    if not _may_read():
+    if not _may_read_requests():
         abort(403)
     state = request.args.get("state") or ""
     q = PurchaseRequest.query
@@ -575,6 +592,7 @@ def requests():
         state = ""
     return render_template("purchase_requests.html", rows=rows, state=state, counts=counts, todo=todo,
                            states=REQUEST_STATES, can_request=_may_request(), can_order=_may_order(),
+                           sees_orders=may_read_orders(),
                            orders_count=(PurchaseOrder.query if seen is None else
                                          PurchaseOrder.query.filter(PurchaseOrder.store_id.in_(seen))).count())
 
@@ -663,13 +681,16 @@ def request_new():
 @purchases_bp.route("/demandes/<int:rid>")
 @login_required
 def request_detail(rid):
-    if not _may_read():
+    if not _may_read_requests():
         abort(403)
     req = _get_request_or_404(rid)
+    seen = _seen_stores()
+    if seen is not None and req.store_id not in seen:
+        abort(403)
     from models import Vehicle
     ids = {int(x) for l in req.lines for x in (l.vehicle_ids or "").split(",") if x.isdigit()}
     vcodes = {v.id: v.code for v in Vehicle.query.filter(Vehicle.id.in_(ids)).all()} if ids else {}
-    return render_template("purchase_request.html", req=req, vcodes=vcodes,
+    return render_template("purchase_request.html", req=req, vcodes=vcodes, sees_orders=may_read_orders(),
                            can_order=_may_order() and req.status == "open" and not req.fully_ordered,
                            can_decide=_may_order() and req.status == "open" and not req.fully_ordered,
                            can_change=_may_change_request(req))
@@ -858,21 +879,23 @@ def receive(oid):
     A line with no catalogue part enters no stock; it is only ticked off."""
     po = _get_or_404(oid)
     t = get_t()
+    # Who does not see the orders comes from, and goes back to, the store.
+    back = url_for("stock.receipts") if _back_to_stock() else url_for("purchases.detail", oid=po.id)
     if po.status not in RECEIVABLE:
         flash("error|" + t["po.err.not_receivable"])
-        return redirect(url_for("purchases.detail", oid=po.id))
+        return redirect(back)
     # Only the people of the store it is delivered to receive it.
     from blueprints.stores import can_act_in, default_store_id
     if po.store_id is None:
         po.store_id = default_store_id()
     if not can_act_in(po.store_id):
         flash("error|" + t["po.err.other_store"] % (po.store.name if po.store else ""))
-        return redirect(url_for("purchases.detail", oid=po.id))
+        return redirect(back)
     if request.method == "POST":
         date_str = (request.form.get("date") or "").strip() or date.today().isoformat()
         if not _valid_date(date_str):
             return render_template("purchase_order_receive.html", po=po, error=t.get("client.err.date", "Date invalide."),
-                                   today=date.today().isoformat())
+                                   today=date.today().isoformat(), back=back, sees_orders=may_read_orders())
         written = 0
         for line in po.lines:
             raw = (request.form.get("recv_%d" % line.id) or "").strip().replace(",", ".")
@@ -884,7 +907,7 @@ def receive(oid):
                 qty = -1
             if qty < 0 or qty > line.remaining_qty + 1e-9:
                 return render_template("purchase_order_receive.html", po=po, error=t["po.err.receive_qty"],
-                                       today=date.today().isoformat())
+                                       today=date.today().isoformat(), back=back, sees_orders=may_read_orders())
             if qty == 0:
                 continue
             if not line.part_id and not request.form.get("skip_%d" % line.id):
@@ -908,11 +931,12 @@ def receive(oid):
             written += 1
         if not written:
             return render_template("purchase_order_receive.html", po=po, error=t["po.err.receive_none"],
-                                   today=date.today().isoformat())
+                                   today=date.today().isoformat(), back=back, sees_orders=may_read_orders())
         po.status = "received" if all(l.remaining_qty <= 1e-9 for l in po.lines) else "received_partial"
         log_action("RECEIVE", "purchase_order", resource_id=po.id,
                    detail="%s: %d line(s) received, now %s" % (po.number, written, po.status))
         db.session.commit()
         flash("success|" + (t["po.received_all"] if po.status == "received" else t["po.received_part"]))
-        return redirect(url_for("purchases.detail", oid=po.id))
-    return render_template("purchase_order_receive.html", po=po, error=None, today=date.today().isoformat())
+        return redirect(back)
+    return render_template("purchase_order_receive.html", po=po, error=None, today=date.today().isoformat(),
+                           back=back, sees_orders=may_read_orders())

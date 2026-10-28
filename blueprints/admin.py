@@ -321,7 +321,7 @@ def _save_fleet(fleet):
 # Permission grid layout: resources (rows grouped) × actions.
 RES_ORDER = ["dashboard", "vehicle", "operator", "entry", "maintenance_record",
              "maintenance_rule", "alert", "expense", "carburant", "stock",
-             "insights", "invoicing", "report", "admin"]
+             "purchase_order", "insights", "invoicing", "report", "admin"]
 ACTION_ORDER = ["view", "create", "edit", "delete", "manage", "export", "resolve",
                 "dismiss", "fleets", "roles", "categories"]
 

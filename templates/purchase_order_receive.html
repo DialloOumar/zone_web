@@ -5,13 +5,13 @@
 
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a data-back href="{{ url_for('purchases.detail', oid=po.id) }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a data-back href="{{ back }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
 </div>
 
 <section class="card">
     <div class="card-header">
         <div>
-            <h2>{{ po.number }} · {{ po.supplier.name }}</h2>
+            <h2>{{ po.number }}{% if sees_orders %} · {{ po.supplier.name }}{% endif %}</h2>
         </div>
     </div>
     {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
@@ -64,7 +64,7 @@
             <button type="submit" class="btn btn--primary">
                 <span class="material-symbols-outlined">inventory</span> {{ t['po.receive'] }}
             </button>
-            <a href="{{ url_for('purchases.detail', oid=po.id) }}" class="btn btn--outlined">{{ t['btn.cancel'] }}</a>
+            <a href="{{ back }}" class="btn btn--outlined">{{ t['btn.cancel'] }}</a>
         </div>
     </form>
 </section>
