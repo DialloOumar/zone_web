@@ -660,6 +660,7 @@ TRANSLATIONS = {
         "admin.roles":      "Rôles",
         "admin.categories": "Catégories de véhicules",
         "admin.settings":   "Paramètres",
+        "admin.stock_setup": "Configuration du stock",
         "admin.audit_log":  "Journal d'activité",
 
         # Activity log viewer
@@ -1406,8 +1407,12 @@ TRANSLATIONS = {
         "expense.cat.pieces":     "Achat de pièces",
 
         # Stock — pièces d'entretien
-        "stock.total_value":   "Valeur du stock",
-        "stock.to_reorder":    "à réapprovisionner",
+        "stock.status":        "Statut",
+        "stock.unit":          "Unité",
+        "stock.qty":           "Quantité",
+        "stock.st.ok":         "En stock",
+        "stock.st.low":        "À commander",
+        "stock.st.out":        "Rupture",
         "stock.reorder":       "à commander",
         "stock.search":        "Rechercher un article",
         "stock.empty":         "Aucun article. Créez-en un pour commencer.",
@@ -1418,8 +1423,6 @@ TRANSLATIONS = {
         "part.unit":           "Unité de consommation",
         "part.unit_hint":      "Ce dans quoi le magasin compte et sort l'article : litre, pièce, kg. Pour commander en fût ou en carton, réglez la conversion dans Stock → Conversions ; elle se choisit ensuite ligne par ligne sur le bon de commande.",
         "part.quantity":       "En stock",
-        "part.avg_cost":       "Coût moyen",
-        "part.stock_value":    "Valeur",
         "part.reorder_level":  "Seuil d'alerte",
         "part.reorder_hint":   "En dessous de cette quantité, l'article est signalé « à commander » dans la liste. Laissez vide pour ne rien signaler.",
         "part.reorder_at":     "Seuil :",
@@ -1776,7 +1779,6 @@ TRANSLATIONS = {
         "po.line_price":          "Prix unitaire",
         "po.line_discount":       "Remise",
         "store.title": "Magasins",
-        "store.intro": "Chaque magasin a ses responsables : ils réceptionnent, sortent et envoient depuis leur magasin, et voient les autres en lecture seule. Un utilisateur rattaché à aucun magasin les voit tous sans pouvoir y toucher. Seul l'administrateur crée les magasins et désigne leurs responsables.",
         "store.new": "Nouveau magasin",
         "store.edit": "Modifier le magasin",
         "store.name": "Nom du magasin",
@@ -2806,6 +2808,7 @@ TRANSLATIONS = {
         "admin.roles":      "Roles",
         "admin.categories": "Vehicle categories",
         "admin.settings":   "Settings",
+        "admin.stock_setup": "Stock setup",
         "admin.audit_log":  "Activity log",
 
         # Activity log viewer
@@ -3552,8 +3555,12 @@ TRANSLATIONS = {
         "expense.cat.pieces":     "Parts purchase",
 
         # Stock — maintenance parts
-        "stock.total_value":   "Stock value",
-        "stock.to_reorder":    "to re-order",
+        "stock.status":        "Status",
+        "stock.unit":          "Unit",
+        "stock.qty":           "Quantity",
+        "stock.st.ok":         "In stock",
+        "stock.st.low":        "To order",
+        "stock.st.out":        "Out of stock",
         "stock.reorder":       "re-order",
         "stock.search":        "Search a part",
         "stock.empty":         "No part yet. Create one to get started.",
@@ -3564,8 +3571,6 @@ TRANSLATIONS = {
         "part.unit":           "Consumption unit",
         "part.unit_hint":      "What the store counts and hands the article out in: litre, piece, kg. To order in drums or boxes, set the conversion under Stock → Conversions; it is then picked line by line on the purchase order.",
         "part.quantity":       "On hand",
-        "part.avg_cost":       "Average cost",
-        "part.stock_value":    "Value",
         "part.reorder_level":  "Re-order level",
         "part.reorder_hint":   "Below this quantity the part is flagged \"re-order\" in the list. Leave blank to flag nothing.",
         "part.reorder_at":     "Level:",
@@ -3921,7 +3926,6 @@ TRANSLATIONS = {
         "po.line_price":          "Unit price",
         "po.line_discount":       "Discount",
         "store.title": "Stores",
-        "store.intro": "Each store has its managers: they receive, issue and send from their store, and see the others read-only. A user tied to no store sees them all without touching them. Only the administrator creates stores and names their managers.",
         "store.new": "New store",
         "store.edit": "Edit store",
         "store.name": "Store name",

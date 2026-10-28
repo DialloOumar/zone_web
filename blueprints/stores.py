@@ -8,7 +8,8 @@ only the parts it has had.
 Who works where: a user named on a store (Store.managers) receives and issues
 from that store alone, and sees only the stores he is named on. A user named
 on no store sees every store and works in none. Only the super admin works in
-all of them, and only he creates the stores and names who runs them.
+all of them, and only he creates the stores and names who runs them: the
+stores' list is his page, Configuration du stock, under Administration.
 
 Parts are not sent from one store to another. The transfers of before stay
 in the history of the stores they moved.
@@ -108,11 +109,8 @@ def _require_office():
 @login_required
 @require_perm("stock.view")
 def index():
+    _require_office()
     stores = Store.query.order_by(Store.is_active.desc(), Store.name).all()
-    # Someone named on stores sees those, not the others.
-    ids = visible_store_ids()
-    if ids is not None:
-        stores = [st for st in stores if st.id in ids]
     in_use = {}
     for st in stores:
         in_use[st.id] = (StockMovement.query.filter_by(store_id=st.id).count()

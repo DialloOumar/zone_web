@@ -15,16 +15,6 @@
 
 {% block content %}
 <section class="card">
-    {# The units a new article may count in are set here as on Stock; the
-       conversions between units stay on Stock, the store's business. #}
-    {% if has_perm('stock.manage') %}
-    <div class="stock-settings">
-        <a href="{{ url_for('stock.units') }}" class="btn btn--sm btn--outlined"
-           data-modal-url="{{ url_for('stock.units') }}" data-modal-title="{{ t['punit.title'] }}">
-            <span class="material-symbols-outlined">tune</span> {{ t['punit.title'] }}
-        </a>
-    </div>
-    {% endif %}
     <div class="tab-bar">
         <div class="tab-bar__filters"></div>
         <div class="tab-bar__actions">

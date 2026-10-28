@@ -2041,6 +2041,13 @@ class Part(db.Model):
         """True when one of these stores has reached the level it set."""
         return any(self.below_reorder_in(sid) for sid in store_ids)
 
+    def status_in(self, store_id):
+        """Where one store stands with it: "out" when nothing is left, "low"
+        once at the level it re-orders at, "ok" otherwise."""
+        if self.quantity_in(store_id) <= 1e-9:
+            return "out"
+        return "low" if self.below_reorder_in(store_id) else "ok"
+
 
 class PartStoreLevel(db.Model):
     """A part in one store's list, and the level that store re-orders it at

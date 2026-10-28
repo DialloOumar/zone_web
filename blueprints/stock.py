@@ -145,12 +145,15 @@ def index():
     archived_count = sum(1 for p in candidates if not p.is_active)
     qmap = {p.id: p.quantities for p in parts}
 
-    # Totals over what is shown, so a search narrows them too, each store at
-    # its own prices. A part with no price known contributes nothing rather
-    # than breaking the sum.
-    values = {p.id: {sid: p.value_in(sid) for sid in shown} for p in parts}
-    total_value = sum(v or 0 for p in parts for v in values[p.id].values())
-    low_count = sum(1 for p in parts if p.below_reorder_among(shown))
+    # Each part's status in the shown stores that have it; one no shown
+    # store has had yet is simply out. The counts follow what is shown, so a
+    # search narrows them too.
+    statuses = {}
+    for p in parts:
+        mine_too = p.store_ids()
+        statuses[p.id] = [(sid, p.status_in(sid)) for sid in shown if sid in mine_too] or [(None, "out")]
+    low_count = sum(1 for p in parts if any(s == "low" for _, s in statuses[p.id]))
+    out_count = sum(1 for p in parts if any(s == "out" for _, s in statuses[p.id]))
 
     recent = (StockMovement.query.filter(StockMovement.store_id.in_(shown))
               .order_by(StockMovement.date.desc(), StockMovement.id.desc())
@@ -158,10 +161,9 @@ def index():
 
     return render_template(
         "stock.html", parts=parts, show_archived=show_archived, search=search,
-        archived_count=archived_count, total_value=total_value,
-        low_count=low_count, recent=recent,
-        usage={p.id: _part_usage(p) for p in parts},
-        stores=stores, store=store, shown=shown, qmap=qmap, values=values,
+        archived_count=archived_count, low_count=low_count, out_count=out_count,
+        recent=recent, usage={p.id: _part_usage(p) for p in parts},
+        stores=stores, store=store, shown=shown, qmap=qmap, statuses=statuses,
         today=date.today().isoformat())
 
 
@@ -550,9 +552,24 @@ def _unit_code(name):
     return code
 
 
+def _setup_only(view):
+    """The units and conversions are set up by the super admin alone, from
+    Configuration du stock."""
+    from functools import wraps
+
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        from blueprints.stores import runs_every_store
+        if not runs_every_store():
+            abort(403)
+        return view(*args, **kwargs)
+    return wrapped
+
+
 @stock_bp.route("/unites")
 @login_required
 @require_perm("stock.manage")
+@_setup_only
 def units():
     return _render_units()
 
@@ -606,6 +623,7 @@ def _save_unit(row):
 @stock_bp.route("/unites/nouveau", methods=["GET", "POST"])
 @login_required
 @require_perm("stock.manage")
+@_setup_only
 def unit_new():
     if request.method == "POST":
         error = _save_unit(None)
@@ -619,6 +637,7 @@ def unit_new():
 @stock_bp.route("/unites/<int:uid>/modifier", methods=["GET", "POST"])
 @login_required
 @require_perm("stock.manage")
+@_setup_only
 def unit_edit(uid):
     row = db.session.get(PartUnit, uid)
     if not row:
@@ -635,6 +654,7 @@ def unit_edit(uid):
 @stock_bp.route("/unites/<int:uid>/<any(archive,reactivate,delete):what>", methods=["POST"])
 @login_required
 @require_perm("stock.manage")
+@_setup_only
 def unit_action(uid, what):
     """Archive takes it out of the pickers and leaves the parts counting in
     it as they are; delete is only for one no part uses."""
@@ -689,6 +709,7 @@ def _render_conversions(error=None):
 @stock_bp.route("/conversions")
 @login_required
 @require_perm("stock.manage")
+@_setup_only
 def conversions():
     return _render_conversions()
 
@@ -696,6 +717,7 @@ def conversions():
 @stock_bp.route("/conversions/nouvelle", methods=["POST"])
 @login_required
 @require_perm("stock.manage")
+@_setup_only
 def conversion_new():
     t = get_t()
     frm = (request.form.get("from_code") or "").strip()
@@ -727,6 +749,7 @@ def conversion_new():
 @stock_bp.route("/conversions/<int:cid>/supprimer", methods=["POST"])
 @login_required
 @require_perm("stock.manage")
+@_setup_only
 def conversion_delete(cid):
     """A conversion goes freely: the lines written with it keep the factor
     they were written with."""

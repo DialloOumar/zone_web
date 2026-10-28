@@ -1,12 +1,23 @@
 {% extends "base.html" %}
-{% block title %}{{ t['store.title'] }}{% endblock %}
-{% block page_title %}{{ t['store.title'] }}{% endblock %}
+{% block title %}{{ t['admin.stock_setup'] }}{% endblock %}
+{% block page_title %}{{ t['admin.stock_setup'] }}{% endblock %}
 
 {% block content %}
 <section class="card">
-    {% with stock_tab = 'stores' %}{% include "_stock_tabs.html" %}{% endwith %}
+    {# What the stock is set up with: the units and their conversions, then
+       the stores and who runs each. The super admin's alone. #}
+    <div class="stock-settings">
+        <a href="{{ url_for('stock.units') }}" class="btn btn--sm btn--outlined"
+           data-modal-url="{{ url_for('stock.units') }}" data-modal-title="{{ t['punit.title'] }}">
+            <span class="material-symbols-outlined">tune</span> {{ t['punit.title'] }}
+        </a>
+        <a href="{{ url_for('stock.conversions') }}" class="btn btn--sm btn--outlined"
+           data-modal-url="{{ url_for('stock.conversions') }}" data-modal-title="{{ t['conv.title'] }}">
+            <span class="material-symbols-outlined">unfold_more</span> {{ t['conv.title'] }}
+        </a>
+    </div>
     <div class="card-header">
-        <p class="muted small" style="margin:0; max-width:640px;">{{ t['store.intro'] }}</p>
+        <h2 style="margin:0;">{{ t['store.title'] }}</h2>
         {% if can_edit %}
         <a href="{{ url_for('stores.store_new') }}" class="fab"
            data-modal-url="{{ url_for('stores.store_new') }}" data-modal-title="{{ t['store.new'] }}">
