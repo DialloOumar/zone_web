@@ -9,7 +9,7 @@
 
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    {% set back_url = (url_for('purchases.request_detail', rid=req.id) if is_edit else url_for('purchases.requests')) if is_req
+    {% set back_url = back_to or (url_for('purchases.request_detail', rid=req.id) if is_edit else url_for('purchases.requests')) if is_req
                       else (url_for('purchases.detail', oid=po.id) if is_edit else (url_for('purchases.request_detail', rid=req.id) if req else url_for('purchases.index'))) %}
     <a data-back href="{{ back_url }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
 </div>

@@ -4,8 +4,12 @@
 {% block page_title %}{{ t['rcv.title'] }}{% endblock %}
 
 {% block content %}
+{# Back where one came from: the stock for the store, the orders for
+   logistics. #}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a data-back href="{{ url_for('stock.index') if has_perm('stock.view') else url_for('purchases.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
 <section class="card">
-    {% with stock_tab = 'receipts' %}{% include "_stock_tabs.html" %}{% endwith %}
     {# The approved orders on their way to the store: what is coming, and how
        much is left to come. No supplier, no price: those are the orders'. #}
     {% if orders %}

@@ -1,15 +1,11 @@
-{# The store's tools, above its catalogue: what it asks for and what it
-   waits to receive. The orders live on their own page, Bons de commande;
-   the stores, units and conversions on Configuration du stock, the super
-   admin's. #}
+{# Out of the store's page, to what it has asked for and what it waits to
+   receive, each with how many are under way. Those pages lead back with
+   their own "Retour"; the orders live on Bons de commande. #}
 <div class="stock-settings">
-    <a href="{{ url_for('stock.index') }}" class="btn btn--sm {{ 'btn--tonal' if stock_tab == 'stock' else 'btn--outlined' }}">
-        <span class="material-symbols-outlined">shelves</span> {{ t['nav.stock'] }}
+    <a href="{{ url_for('purchases.requests') }}" class="btn btn--sm btn--outlined">
+        <span class="material-symbols-outlined">pending_actions</span> {{ t['preq.title'] }}{% set ro = requests_open() %}{% if ro %} <span class="tab__count">{{ ro }}</span>{% endif %}
     </a>
-    <a href="{{ url_for('purchases.requests') }}" class="btn btn--sm {{ 'btn--tonal' if stock_tab == 'requests' else 'btn--outlined' }}">
-        <span class="material-symbols-outlined">pending_actions</span> {{ t['preq.title'] }}
-    </a>
-    <a href="{{ url_for('stock.receipts') }}" class="btn btn--sm {{ 'btn--tonal' if stock_tab == 'receipts' else 'btn--outlined' }}">
+    <a href="{{ url_for('stock.receipts') }}" class="btn btn--sm btn--outlined">
         <span class="material-symbols-outlined">inventory</span> {{ t['rcv.title'] }}{% set rw = receipts_waiting() %}{% if rw %} <span class="tab__count">{{ rw }}</span>{% endif %}
     </a>
 </div>

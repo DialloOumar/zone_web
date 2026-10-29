@@ -597,7 +597,7 @@ def requests():
                                          PurchaseOrder.query.filter(PurchaseOrder.store_id.in_(seen))).count())
 
 
-def _render_request_form(req, error=None):
+def _render_request_form(req, error=None, prefill=None, store_id=None, back_to=None):
     if request.method == "POST":
         lines = []
         for i in range(len(request.form.getlist("description"))):
@@ -609,14 +609,17 @@ def _render_request_form(req, error=None):
         lines = [dict(part_id=l.part_id, description=l.description, reference=l.reference or "",
                       quantity="{:.10g}".format(l.quantity), unit=l.buy_unit or "stock", new_unit=l.new_unit,
                       machines=l.vehicle_ids or "", mode="stock" if l.part_id else "new")
-                 for l in (req.lines if req else [])]
+                 for l in (req.lines if req else [])] or (prefill or [])
     from blueprints.stores import default_store_id
+    stores = _request_stores()
+    if store_id not in [st.id for st in stores]:
+        store_id = None
     return render_template("purchase_order_form.html", mode="request", po=None, req=req, error=error,
                            lines=lines, suppliers=[], parts_json=_parts_json(), units=active_units(),
                            machines=[dict(id=v.id, code=v.code) for v in _accessible_vehicles()],
-                           stores=_request_stores(),
-                           default_store=req.store_id if req else default_store_id(),
-                           today=date.today().isoformat())
+                           stores=stores,
+                           default_store=req.store_id if req else (store_id or default_store_id()),
+                           back_to=back_to, today=date.today().isoformat())
 
 
 def _read_request():
@@ -675,7 +678,15 @@ def request_new():
         db.session.commit()
         flash("success|" + t["preq.created"])
         return redirect(url_for("purchases.request_detail", rid=req.id))
-    return _render_request_form(None)
+    # From the stock: the articles to order there, the quantity left to type.
+    store_id = request.args.get("store", type=int)
+    pids = request.args.getlist("part", type=int)
+    prefill = [dict(part_id=p.id, description=p.name, reference="", quantity="", unit="stock",
+                    new_unit=p.unit, machines="", mode="stock")
+               for p in (Part.query.filter(Part.id.in_(pids), Part.is_active.is_(True))
+                         .order_by(Part.name).all() if pids else [])]
+    back_to = url_for("stock.index", store=store_id) if prefill else None
+    return _render_request_form(None, prefill=prefill, store_id=store_id, back_to=back_to)
 
 
 @purchases_bp.route("/demandes/<int:rid>")

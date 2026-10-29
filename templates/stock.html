@@ -4,7 +4,7 @@
 {% block page_title %}{{ t['nav.stock'] }}{% endblock %}
 
 {% macro status_badge(s, where=none) -%}
-    <span class="badge {{ {'out': 'badge--critical', 'low': 'badge--warning'}.get(s, 'badge--active') }}">{{ t['stock.st.' ~ s] }}{% if where %} · {{ where }}{% endif %}</span>
+    <span class="badge {{ {'out': 'badge--critical', 'low': 'badge--warning', 'asked': 'badge--inactive', 'coming': 'badge--info'}.get(s, 'badge--active') }}">{{ t['stock.st.' ~ s] }}{% if where %} · {{ where }}{% endif %}</span>
 {%- endmacro %}
 
 {% macro part_status(p) -%}
@@ -19,7 +19,7 @@
 
 {% block content %}
 <section class="card">
-    {% with stock_tab = 'stock' %}{% include "_stock_tabs.html" %}{% endwith %}
+    {% include "_stock_tabs.html" %}
     {# One store at a time, or all the ones the user sees side by side. A
        magasinier lands on his own and sees no other. #}
     {% if stores|length > 1 %}
@@ -43,6 +43,11 @@
             <a href="{{ url_for('stock.index') }}" class="btn btn--sm btn--outlined">{{ t['archive.show_active'] }}</a>
             {% elif archived_count %}
             <a href="{{ url_for('stock.index', archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
+            {% endif %}
+            {% if to_ask|length > 1 %}
+            <a href="{{ url_for('purchases.request_new', store=store.id, part=to_ask) }}" class="btn btn--sm btn--tonal">
+                <span class="material-symbols-outlined">pending_actions</span> {{ t['stock.ask_all'] }} ({{ to_ask|length }})
+            </a>
             {% endif %}
             {# Kept for now: an article, with what is already on the shelf,
                written straight into the store. The usual way in stays the
@@ -122,6 +127,11 @@
                 {% endif %}
                 <td style="white-space:nowrap;">{{ part_status(p) }}</td>
                 <td class="row-actions">
+                    {% if p.id in to_ask %}
+                    <a href="{{ url_for('purchases.request_new', store=store.id, part=p.id) }}" class="btn btn--sm btn--tonal">
+                        <span class="material-symbols-outlined">pending_actions</span> {{ t['stock.ask'] }}
+                    </a>
+                    {% endif %}
                     {% if has_perm('stock.manage') and works_in_a_store() %}
                     <a href="{{ url_for('stock.part_edit', pid=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ url_for('stock.part_edit', pid=p.id) }}" data-modal-title="{{ t['part.edit'] }}"
@@ -166,6 +176,9 @@
             </div>
             {% if has_perm('stock.manage') and works_in_a_store() %}
             <div class="list-card__actions">
+                {% if p.id in to_ask %}
+                <a href="{{ url_for('purchases.request_new', store=store.id, part=p.id) }}" class="btn btn--sm btn--primary">{{ t['stock.ask'] }}</a>
+                {% endif %}
                 <a href="{{ url_for('stock.part_edit', pid=p.id) }}" class="btn btn--sm btn--tonal"
                    data-modal-url="{{ url_for('stock.part_edit', pid=p.id) }}" data-modal-title="{{ t['part.edit'] }}">{{ t['btn.edit'] }}</a>
                 {% if not p.is_active %}

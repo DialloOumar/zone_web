@@ -148,12 +148,32 @@ def index():
     # Each part's status in the shown stores that have it; one no shown
     # store has had yet is simply out. The counts follow what is shown, so a
     # search narrows them too.
+    # A part to order that a request or an order already covers says so --
+    # asked for, or on its way -- so it is not asked for twice.
+    asked, coming = _under_way(shown)
     statuses = {}
     for p in parts:
         mine_too = p.store_ids()
-        statuses[p.id] = [(sid, p.status_in(sid)) for sid in shown if sid in mine_too] or [(None, "out")]
+        rows = []
+        for sid in shown:
+            if sid not in mine_too:
+                continue
+            s = p.status_in(sid)
+            if s != "ok" and (p.id, sid) in coming:
+                s = "coming"
+            elif s != "ok" and (p.id, sid) in asked:
+                s = "asked"
+            rows.append((sid, s))
+        statuses[p.id] = rows or [(None, "out")]
     low_count = sum(1 for p in parts if any(s == "low" for _, s in statuses[p.id]))
     out_count = sum(1 for p in parts if any(s == "out" for _, s in statuses[p.id]))
+    # What the user may ask for from here: in one store he works in, the
+    # parts still to order there.
+    from blueprints.purchases import _may_request
+    from blueprints.stores import can_act_in
+    can_ask = store is not None and _may_request() and can_act_in(store.id)
+    to_ask = [p.id for p in parts if can_ask and p.is_active
+              and statuses[p.id][0][1] in ("low", "out")]
 
     recent = (StockMovement.query.filter(StockMovement.store_id.in_(shown))
               .order_by(StockMovement.date.desc(), StockMovement.id.desc())
@@ -163,7 +183,7 @@ def index():
         "stock.html", parts=parts, show_archived=show_archived, search=search,
         archived_count=archived_count, low_count=low_count, out_count=out_count,
         recent=recent, usage={p.id: _part_usage(p) for p in parts},
-        stores=stores, store=store, shown=shown, qmap=qmap, statuses=statuses,
+        stores=stores, store=store, shown=shown, qmap=qmap, statuses=statuses, to_ask=to_ask,
         today=date.today().isoformat())
 
 
@@ -470,6 +490,42 @@ def part_reactivate(pid):
 # received. Read from the store's own page, so a storekeeper receives
 # without seeing the orders themselves: no supplier, no price, only what
 # comes and how much.
+
+
+def _under_way(store_ids):
+    """The (part, store) pairs already asked for -- an open request not
+    ordered in full, an order waiting for its signatures -- and the ones on
+    their way -- an approved order not received in full."""
+    from blueprints.purchases import RECEIVABLE
+    from models import PurchaseOrder, PurchaseRequest, PurchaseRequestLine
+    asked, coming = set(), set()
+    if not store_ids:
+        return asked, coming
+    for l in (PurchaseRequestLine.query.join(PurchaseRequest)
+              .filter(PurchaseRequest.status == "open", PurchaseRequest.store_id.in_(store_ids),
+                      PurchaseRequestLine.part_id.isnot(None)).all()):
+        if l.remaining_qty > 1e-9:
+            asked.add((l.part_id, l.request.store_id))
+    for l in (PurchaseOrderLine.query.join(PurchaseOrder)
+              .filter(PurchaseOrder.store_id.in_(store_ids), PurchaseOrderLine.part_id.isnot(None),
+                      PurchaseOrder.status.notin_(("received",))).all()):
+        if l.remaining_qty <= 1e-9:
+            continue
+        key = (l.part_id, l.order.store_id)
+        (coming if l.order.status in RECEIVABLE else asked).add(key)
+    return asked, coming
+
+
+def requests_open_query():
+    """The requests of the stores the user sees that logistics has not
+    ordered in full yet."""
+    from blueprints.stores import visible_store_ids
+    from models import PurchaseRequest
+    q = PurchaseRequest.query.filter(PurchaseRequest.status == "open")
+    ids = visible_store_ids()
+    if ids is not None:
+        q = q.filter(PurchaseRequest.store_id.in_(ids))
+    return [r for r in q.all() if not r.fully_ordered]
 
 
 def receipts_waiting_query():
