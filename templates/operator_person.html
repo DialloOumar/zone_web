@@ -8,6 +8,20 @@
 {# The operations door to a person: what he does on the ground, on one of his
    fleets or all of them, for a month. The head carries his licence and his
    fleets; the month's figures sit under the filters, the detail in tabs. #}
+{# The month of the tabs that read by month (fuel, costs): it belongs to
+   them, not to the page -- the figures on top are always this month's. #}
+{% macro month_bar() -%}
+<form method="get" class="filter-bar">
+    {% if fleet %}<input type="hidden" name="fleet" value="{{ fleet }}">{% endif %}
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <div class="field filter-field">
+        <input type="month" id="f_month" name="month" value="{{ month }}" onchange="this.form.submit()">
+        <label for="f_month">{{ t['entry.month'] }}</label>
+    </div>
+    {% if tab == 'fuel' and fuel_rows %}<span class="filter-total">{{ t['person.fuel_short'] }} : <strong>{{ fuel_month_litres | num }} L</strong></span>{% endif %}
+</form>
+{%- endmacro %}
+
 {% block content %}
 {% call person_head(p, 'ops', licence) %}
     {{ fact(t['staff.phone'], p.phone) }}
@@ -18,23 +32,19 @@
     {{ fact(t['operator.last_activity'], last_date|dmy if last_date else none) }}
 {% endcall %}
 
+{% if links|length > 1 %}
 <form method="get" class="filter-bar">
     <input type="hidden" name="tab" value="{{ tab }}">
-    {% if links|length > 1 %}
     {% set fl_opts = [] %}
     {% for o in links %}{% set _ = fl_opts.append((o.fleet_id, o.fleet.name ~ (' · ' ~ t['operator.inactive'] if not o.is_active else ''))) %}{% endfor %}
     {{ filter_select('fleet', t['operator.fleet'], fl_opts, fleet, t['operator.all']) }}
-    {% endif %}
-    <div class="field filter-field">
-        <input type="month" id="f_month" name="month" value="{{ month }}" onchange="this.form.submit()">
-        <label for="f_month">{{ t['entry.month'] }}</label>
-    </div>
 </form>
+{% endif %}
 
 <div class="stat-grid person-stats">
     <div class="stat-card">
         <span class="stat-icon stat-icon--teal material-symbols-outlined">fact_check</span>
-        <div><div class="stat-value">{{ n_pointages }}</div><div class="stat-label">{{ t['operator.kpi.pointages'] }}</div></div>
+        <div><div class="stat-value">{{ n_pointages }}</div><div class="stat-label">{{ t['operator.kpi.pointages'] }} · {{ t['vehicle.this_month'] }}</div></div>
     </div>
     <div class="stat-card">
         <span class="stat-icon stat-icon--amber material-symbols-outlined">directions_bus</span>
@@ -57,9 +67,9 @@
 <section class="card">
     <nav class="tabs" role="tablist">
         {% set icons = {'vehicles': 'directions_bus', 'records': 'handyman', 'fuel': 'local_gas_station', 'costs': 'payments'} %}
-        {% set counts = {'vehicles': vehicles|length, 'records': records|length, 'fuel': fuel_rows|length} %}
+        {% set counts = {'vehicles': vehicles|length, 'records': records|length} %}
         {% for key in tabs %}
-        <a href="{{ url_for('operators.person', pid=p.id, fleet=fleet, month=month, tab=key) }}" role="tab"
+        <a href="{{ url_for('operators.person', pid=p.id, fleet=fleet, tab=key, month=month if key in ('fuel', 'costs') and request.args.get('month') else None) }}" role="tab"
            aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
             <span class="material-symbols-outlined">{{ icons[key] }}</span> {{ t['person.tab.' + key] }}
             {%- if counts.get(key) %} <span class="tab__count">{{ counts[key] }}</span>{% endif %}
@@ -107,17 +117,20 @@
     {% endif %}
 
     {% elif tab == 'fuel' %}
+    {{ month_bar() }}
     {% if fuel_rows %}
     <div class="table-wrap"><table class="data-table">
         <thead><tr>
             <th>{{ t['maint.date'] }}</th>
+            <th class="col-secondary">{{ t['movement.time'] }}</th>
             <th>{{ t['maint.vehicle'] }}</th>
             <th style="text-align:right;">{{ t['person.litres'] }}</th>
         </tr></thead>
         <tbody>
             {% for m in fuel_rows %}
             <tr>
-                <td>{{ m.date|dmy }}{% if m.time %} <span class="muted small">{{ m.time }}</span>{% endif %}</td>
+                <td>{{ m.date|dmy }}</td>
+                <td class="col-secondary">{{ m.time or '—' }}</td>
                 <td>{% if m.vehicle %}<strong>{{ m.vehicle.code }}</strong>{% elif m.citerne %}<strong>{{ m.citerne.code }}</strong>{% else %}—{% endif %}</td>
                 <td style="text-align:right;">{{ m.liters | num }} L</td>
             </tr>
@@ -129,6 +142,7 @@
     {% endif %}
 
     {% else %}
+    {{ month_bar() }}
     {% if expense_chart.series %}
     <div class="chart-box" style="height:300px;"><canvas id="chart-exp"></canvas></div>
     {% else %}

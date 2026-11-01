@@ -2666,3 +2666,4 @@ a.person-cell:hover { text-decoration: none; }
 a.person-cell:hover strong { text-decoration: underline; }
 .person-cell__sub { padding-left: 44px; }
 .vehicle-tab-bar { justify-content: flex-end; }
+.filter-total { align-self: flex-end; padding-bottom: 10px; color: var(--md-on-surface-variant); font-size: 0.88rem; }

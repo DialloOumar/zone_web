@@ -151,8 +151,7 @@ def index():
 def detail(oid):
     """The old per-fleet driver sheet: now the person's page, on that fleet."""
     op = _get_operator_or_404(oid)
-    return redirect(url_for("operators.person", pid=op.staff_id, fleet=op.fleet_id,
-                            month=request.args.get("month") or None))
+    return redirect(url_for("operators.person", pid=op.staff_id, fleet=op.fleet_id))
 
 
 @operators_bp.route("/operators/personne/<int:pid>")
@@ -177,11 +176,14 @@ def person(pid):
         fleet = None
     scope = [fleet] if fleet else [o.fleet_id for o in links]
 
+    # The figures on top are this month's. The month chosen in the tabs'
+    # section (fuel, costs) is that section's alone.
+    this_month = datetime.utcnow().strftime("%Y-%m")
     month = request.args.get("month", "")
     try:
         datetime.strptime(month, "%Y-%m")
     except (TypeError, ValueError):
-        month = datetime.utcnow().strftime("%Y-%m")
+        month = this_month
 
     fleet_vehicles = db.session.query(Vehicle.id).filter(Vehicle.fleet_id.in_(scope))
 
@@ -196,7 +198,7 @@ def person(pid):
             co(func.sum(DailyEntry.trips), 0),
             co(func.sum(DailyEntry.hours), 0.0),
             co(func.sum(DailyEntry.kilometers), 0.0))
-        .filter(DailyEntry.date.like(month + "%")).one())
+        .filter(DailyEntry.date.like(this_month + "%")).one())
     last_date = entries().with_entities(func.max(DailyEntry.date)).scalar()
 
     # Vehicles driven (all-time): default-driver assignments and machines pointed.
@@ -213,14 +215,18 @@ def person(pid):
                .filter(Vehicle.fleet_id.in_(scope), MaintenanceRecord.driver_id == pid)
                .order_by(MaintenanceRecord.date.desc()).limit(50).all())
 
-    # Fuel he took in the month: fills on the fleet's machines or tanks.
-    fuel_q = FuelMovement.query.filter(
-        FuelMovement.driver_id == pid, FuelMovement.date.like(month + "%"),
-        db.or_(FuelMovement.vehicle_id.in_(fleet_vehicles),
-               FuelMovement.citerne_id.in_(
-                   db.session.query(Citerne.id).filter(Citerne.fleet_id.in_(scope)))))
-    fuel_litres = fuel_q.with_entities(co(func.sum(FuelMovement.liters), 0)).scalar()
-    fuel_rows = fuel_q.order_by(FuelMovement.date.desc(), FuelMovement.id.desc()).limit(20).all()
+    # Fuel he took: fills on the fleet's machines or tanks -- this month for
+    # the figure on top, the chosen month for the tab.
+    def fuel_in(m):
+        return FuelMovement.query.filter(
+            FuelMovement.driver_id == pid, FuelMovement.date.like(m + "%"),
+            db.or_(FuelMovement.vehicle_id.in_(fleet_vehicles),
+                   FuelMovement.citerne_id.in_(
+                       db.session.query(Citerne.id).filter(Citerne.fleet_id.in_(scope)))))
+    fuel_litres = fuel_in(this_month).with_entities(co(func.sum(FuelMovement.liters), 0)).scalar()
+    fuel_q = fuel_in(month)
+    fuel_month_litres = fuel_q.with_entities(co(func.sum(FuelMovement.liters), 0)).scalar()
+    fuel_rows = fuel_q.order_by(FuelMovement.date.desc(), FuelMovement.id.desc()).all()
 
     # Costs tied to him, stacked by category over the 6 months ending at the
     # selected month.
@@ -256,6 +262,7 @@ def person(pid):
         tot_hours=float(tot_hours or 0), tot_km=float(tot_km or 0),
         last_date=last_date, vehicles=vehicles, default_ids=default_ids,
         records=records, fuel_litres=float(fuel_litres or 0), fuel_rows=fuel_rows,
+        fuel_month_litres=float(fuel_month_litres or 0),
         expense_chart={"months": months, "series": chart_series})
 
 
