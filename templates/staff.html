@@ -30,8 +30,7 @@
             <strong>{{ total_active }}</strong>
         </div>
         {% if has_perm('staff.create') %}
-        <a href="{{ url_for('staff.new') }}" class="fab"
-           data-modal-url="{{ url_for('staff.new') }}" data-modal-title="{{ t['staff.new'] }}">
+        <a href="{{ url_for('staff.new') }}" class="fab">
             <span class="material-symbols-outlined">add</span> {{ t['staff.new'] }}
         </a>
         {% endif %}
@@ -77,9 +76,14 @@
             {% set sp = spend.get(p.id) %}
             <tr>
                 <td>
-                    <a href="{{ url_for('staff.profile', pid=p.id) }}"><strong {% if not p.is_active %}class="muted"{% endif %}>{{ p.name }}</strong></a>
+                    <a href="{{ url_for('staff.profile', pid=p.id) }}" class="person-cell">
+                        {% set ph = photo_url(p.photo_key) if p.photo_key else None %}
+                        {% if ph %}<span class="avatar avatar--sm"><img src="{{ ph }}" alt="" loading="lazy"></span>
+                        {% else %}<span class="avatar avatar--sm" aria-hidden="true">{{ p.initials }}</span>{% endif %}
+                        <strong {% if not p.is_active %}class="muted"{% endif %}>{{ p.name }}</strong>
+                    </a>
                     {% if not p.is_active %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
-                    {% if p.matricule and p.is_employee %}<div class="muted small">{{ t['staff.matricule_short'] }} {{ p.matricule }}</div>{% endif %}
+                    {% if p.matricule and p.is_employee %}<div class="muted small person-cell__sub">{{ t['staff.matricule_short'] }} {{ p.matricule }}</div>{% endif %}
                 </td>
                 <td>
                     {% if p.is_employee %}<span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
@@ -109,8 +113,7 @@
                 </td>
                 <td class="row-actions">
                     {% if has_perm('staff.edit') %}
-                    <a href="{{ url_for('staff.edit', pid=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
-                       data-modal-url="{{ url_for('staff.edit', pid=p.id) }}" data-modal-title="{{ p.name }}"
+                    <a href="{{ url_for('staff.edit', pid=p.id, next=request.full_path) }}" class="btn btn--sm btn--tonal btn--icon"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% if not p.is_active %}
                     <form method="post" action="{{ url_for('staff.action', pid=p.id, what='reactivate') }}" style="display:inline">
@@ -141,7 +144,12 @@
         {% for p in people %}
         <a class="list-card" href="{{ url_for('staff.profile', pid=p.id) }}">
             <div class="list-card__top">
-                <strong>{{ p.name }}</strong>
+                <span class="person-cell">
+                    {% set ph = photo_url(p.photo_key) if p.photo_key else None %}
+                    {% if ph %}<span class="avatar avatar--sm"><img src="{{ ph }}" alt="" loading="lazy"></span>
+                    {% else %}<span class="avatar avatar--sm" aria-hidden="true">{{ p.initials }}</span>{% endif %}
+                    <strong>{{ p.name }}</strong>
+                </span>
                 {% if p.is_employee %}<span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
                 {%- else %}<span class="badge badge--warning">{{ t['staff.kind.external'] }}</span>{% endif %}
             </div>

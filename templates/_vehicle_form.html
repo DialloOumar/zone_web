@@ -37,10 +37,18 @@
     </div>
 
     <div class="form-row">
-        <div class="field">
-            <input type="text" id="site" name="site" placeholder="{{ t['ph.vehicle.site'] }}"
-                   value="{{ request.form.get('site') or (vehicle.site if is_edit else '') }}">
-            <label for="site">{{ t['vehicle.site'] }}</label>
+        <div class="field field--select">
+            {% set sel_site = (request.form.get('site_id')|int(0)) if request.method == 'POST' else (vehicle.site_id if is_edit and vehicle.site_id else 0) %}
+            <select id="site_id" name="site_id">
+                <option value=""></option>
+                {% for st in sites %}
+                <option value="{{ st.id }}" {% if st.id == sel_site %}selected{% endif %}>{{ st.name }}</option>
+                {% endfor %}
+                {% if is_edit and vehicle.site_ref and not vehicle.site_ref.is_active %}
+                <option value="{{ vehicle.site_ref.id }}" {% if vehicle.site_ref.id == sel_site %}selected{% endif %}>{{ vehicle.site_ref.name }}</option>
+                {% endif %}
+            </select>
+            <label for="site_id">{{ t['vehicle.site'] }}</label>
         </div>
     </div>
 

@@ -2577,3 +2577,92 @@ label.merge-col:has(input:checked) { border-color: var(--md-primary); background
 .person-filter .filter-chips { margin-bottom: 0; }
 .person-filter__month { padding: 6px 10px; border: 1px solid var(--md-outline-variant); border-radius: var(--shape-sm);
                         background: var(--md-surface); color: var(--md-on-surface); font: inherit; }
+
+/* ── The page form (the person's file, RH side): a card per section with its
+   icon and title, a contents list at the side ticked as sections are filled
+   in, the save bar stuck to the bottom. As myafrica_web draws it. ── */
+.form-page { gap: 0; }
+.form-page__layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 18px; align-items: start; max-width: 1080px; }
+.form-page__sections { display: grid; gap: 14px; min-width: 0; }
+.form-toc { position: sticky; top: 76px; display: grid; gap: 2px; font-size: 0.88rem; }
+.form-toc a { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px;
+              color: var(--md-on-surface-variant); text-decoration: none; }
+.form-toc a:hover { background: var(--md-surface-container); text-decoration: none; }
+.form-toc a.is-on { background: var(--md-surface); color: var(--md-on-surface); font-weight: 600;
+                    box-shadow: inset 3px 0 0 var(--md-primary); }
+.form-toc a .material-symbols-outlined { font-size: 18px; }
+/* Not yet filled: a ring. Filled: the green tick. */
+.form-toc__state { margin-left: auto; width: 15px; height: 15px; border-radius: 50%; flex: none;
+                   border: 2px solid var(--md-outline-variant); }
+.form-toc a.is-done .form-toc__state { border: 0; width: auto; height: auto; color: var(--c-green); font-size: 17px !important; }
+.fsec { background: var(--md-surface); border: 1px solid var(--md-outline-variant); border-radius: var(--shape-xl);
+        scroll-margin-top: 80px; min-width: 0; }
+.fsec__head { display: flex; align-items: center; gap: 12px; padding: 16px 18px 0; }
+.fsec__icon { width: 36px; height: 36px; flex: none; border-radius: 10px; display: inline-flex; align-items: center;
+              justify-content: center; background: var(--md-primary-container); color: var(--md-on-primary-container); font-size: 20px; }
+.fsec__title { font-weight: 700; font-size: 1.02rem; color: var(--md-on-surface); }
+.fsec__body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 16px; }
+.form-bar { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+            flex-wrap: wrap; margin: 16px 0 0; padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+            background: color-mix(in srgb, var(--md-surface) 92%, transparent); backdrop-filter: blur(6px);
+            border: 1px solid var(--md-outline-variant); border-radius: var(--shape-lg); max-width: 1080px; }
+.form-bar__state { margin-right: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem;
+                   color: var(--md-on-surface-variant); }
+.form-bar__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--md-primary); }
+.form-bar .btn { min-height: 42px; }
+/* A few choices as one row of buttons (Type, Sexe): radios underneath. */
+.choice { display: inline-flex; flex-wrap: wrap; border: 1.5px solid var(--md-outline-variant); border-radius: 9px;
+          overflow: hidden; max-width: 100%; align-self: flex-start; }
+.choice__opt { position: relative; cursor: pointer; }
+.choice__opt input { position: absolute; opacity: 0; pointer-events: none; }
+.choice__opt span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; font-weight: 600;
+                    font-size: 0.88rem; color: var(--md-on-surface-variant); }
+.choice__opt + .choice__opt span { border-left: 1px solid var(--md-outline-variant); }
+.choice__opt:hover span { background: var(--md-surface-container); }
+.choice__opt input:checked + span { background: var(--md-primary); color: var(--md-on-primary); }
+.choice__opt input:focus-visible + span { outline: 3px solid var(--md-primary); outline-offset: -3px; }
+.field > .choice { order: 0; }
+/* A choice is labels inside a field: they must not read as the field's own
+   small capital label. */
+.field .choice label.choice__opt { order: 0; font-size: inherit; font-weight: inherit; color: inherit;
+                                   text-transform: none; letter-spacing: 0; }
+/* The photo in its round frame; a new one shows at once. */
+.photo-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.photo-pick__frame { position: relative; display: inline-flex; }
+.photo-pick__frame .photo-pick__preview { position: absolute; inset: 0; }
+.photo-pick__buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.photo-pick input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.photo-pick:has(input[name=photo_remove]:checked) .photo-pick__frame { opacity: 0.35; }
+/* Papers to add: one large button that opens the files. */
+.file-pick { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer;
+             border: 1.5px dashed var(--md-outline-variant); border-radius: var(--shape-lg); }
+.file-pick:hover { border-color: var(--md-primary); background: var(--md-surface-container); }
+.file-pick input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.file-pick__icon { width: 36px; height: 36px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+                   background: var(--md-surface-container-high); color: var(--md-on-surface-variant); }
+@media (max-width: 860px) {
+    .form-page__layout { grid-template-columns: 1fr; }
+    .form-toc { position: sticky; top: 52px; z-index: 4; display: flex; overflow-x: auto; gap: 4px; padding: 6px 0;
+                background: var(--md-background); }
+    .form-toc a { white-space: nowrap; background: var(--md-surface); border: 1px solid var(--md-outline-variant); }
+    .form-bar .btn { flex: 1; justify-content: center; }
+}
+
+/* ── A machine's file: its picture in the head, drawn like a person's ── */
+.vehicle-frame { width: 176px; height: 116px; flex: none; border-radius: var(--shape-lg); overflow: hidden;
+                 display: inline-flex; align-items: center; justify-content: center;
+                 background: var(--md-surface-container); color: var(--md-on-surface-variant); }
+.vehicle-frame a { display: block; width: 100%; height: 100%; }
+.vehicle-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vehicle-frame--drawing img { object-fit: contain; padding: 6px; }
+.vehicle-frame .material-symbols-outlined { font-size: 2.6rem; }
+.vehicle-alerts { margin-bottom: 16px; }
+.vehicle-sub { font-size: 0.95rem; margin: 18px 0 8px; }
+@media (max-width: 640px) { .vehicle-frame { width: 100%; height: 160px; } }
+/* A person in a list: the small round photo or initials, then the name. */
+.avatar--sm { width: 34px; height: 34px; font-size: 0.78rem; }
+.person-cell { display: inline-flex; align-items: center; gap: 10px; color: inherit; }
+a.person-cell:hover { text-decoration: none; }
+a.person-cell:hover strong { text-decoration: underline; }
+.person-cell__sub { padding-left: 44px; }
+.vehicle-tab-bar { justify-content: flex-end; }

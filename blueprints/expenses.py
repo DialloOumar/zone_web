@@ -17,7 +17,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 from app import (cashier_only, current_user_fleet_ids, get_t, has_perm, is_modal_request, log_action,
-                 modal_ok, needs_approval, parse_amount, require_perm,
+                 modal_ok, needs_approval, parse_amount, require_perm, super_admin_required,
                  submit_change, with_current_fleet)
 from blueprints.notifications import notify
 from ledger import charge_accounts, ensure_purse_account, read_code
@@ -1097,13 +1097,21 @@ def _list_ctx(kind):
 
 @expenses_bp.route("/caisse/listes")
 @login_required
-@require_perm("expense.create")
+@super_admin_required
 def cash_lists():
     return render_template("cash_lists.html",
                            sites=Site.query.order_by(Site.sort_order, Site.name).all(),
-                           used_sites={r[0] for r in db.session.query(
-                               Expense.site_id).filter(
-                               Expense.site_id.isnot(None)).distinct().all()})
+                           used_sites=_site_in_use())
+
+
+def _site_in_use():
+    """The sites something points at -- a cost, a person, a machine, a store:
+    those are archived, never deleted."""
+    from models import Staff, Store, Vehicle
+    used = set()
+    for col in (Expense.site_id, Staff.site_id, Vehicle.site_id, Store.site_id):
+        used |= {r[0] for r in db.session.query(col).filter(col.isnot(None)).distinct().all()}
+    return used
 
 
 def _save_list_row(model, row, kind):
@@ -1158,7 +1166,7 @@ def _render_list_form(row, kind, error=None):
 
 @expenses_bp.route("/caisse/listes/<kind>/new", methods=["GET", "POST"])
 @login_required
-@require_perm("expense.create")
+@super_admin_required
 def cash_list_new(kind):
     model, _ = _list_ctx(kind)
     if request.method == "POST":
@@ -1172,7 +1180,7 @@ def cash_list_new(kind):
 
 @expenses_bp.route("/caisse/listes/<kind>/<int:row_id>/edit", methods=["GET", "POST"])
 @login_required
-@require_perm("expense.create")
+@super_admin_required
 def cash_list_edit(kind, row_id):
     model, _ = _list_ctx(kind)
     row = db.session.get(model, row_id)
@@ -1190,7 +1198,7 @@ def cash_list_edit(kind, row_id):
 @expenses_bp.route("/caisse/listes/<kind>/<int:row_id>/<any(archive,reactivate,delete):what>",
                    methods=["POST"])
 @login_required
-@require_perm("expense.create")
+@super_admin_required
 def cash_list_action(kind, row_id, what):
     """Archive takes it out of the pickers and leaves its history named; delete
     is only for one nothing has ever pointed at."""
@@ -1200,7 +1208,7 @@ def cash_list_action(kind, row_id, what):
         abort(404)
     t = get_t()
     if what == "delete":
-        used = Expense.query.filter_by(site_id=row.id).count()
+        used = _site_in_use().__contains__(row.id)
         if used:
             flash("error|" + t.get("list.err.delete_blocked",
                                    "Impossible de supprimer : cet élément est "

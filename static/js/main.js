@@ -689,7 +689,7 @@ console.log("Zone Web booted");
     // The file shows what its kind needs: the employee's parts, the external
     // driver's company, and the driving part for anybody who drives.
     function syncPerson(form) {
-        var kind = form.querySelector('[name="kind"]');
+        var kind = form.querySelector('[name="kind"]:checked') || form.querySelector('select[name="kind"]');
         if (!kind) return;
         var ext = kind.value === 'external';
         form.querySelectorAll('[data-kind="employee"]').forEach(function (el) { el.hidden = ext; });
@@ -700,6 +700,9 @@ console.log("Zone Web booted");
             || !!form.querySelector('[name="fleets"]:checked');
         var part = form.querySelector('[data-driver-part]');
         if (part) part.hidden = !driving;
+        // An employee must have a position; an external driver has none.
+        if (pos && form.hasAttribute('data-form-page')) pos.required = !ext;
+        if (window.formPageRefresh) window.formPageRefresh();
     }
 
     document.addEventListener('change', function (e) {
@@ -707,4 +710,104 @@ console.log("Zone Web booted");
         if (t.matches && t.matches('[data-person-pick]')) syncLogin(t);
         if (t.form && t.form.matches('[data-person-form]')) syncPerson(t.form);
     });
+})();
+
+
+// ── The page form (templates/staff_form.html) ──────────────────────────────
+// The contents list at the side is built from the sections and ticks one
+// once it is filled in -- its required fields, or for a section with none,
+// anything at all; the one on screen is marked. The save bar says when
+// something changed, and leaving asks first.
+(function () {
+    var form = document.querySelector("form[data-form-page]");
+    if (!form) return;
+    var toc = form.querySelector("[data-form-toc]");
+
+    function sections() {
+        return Array.prototype.slice.call(form.querySelectorAll("[data-toc]"))
+            .filter(function (sec) { return !sec.hidden && !sec.closest("[hidden]"); });
+    }
+    function live(el) { return !el.disabled && !el.closest("[hidden]") && el.type !== "hidden"; }
+    function complete(sec) {
+        var needed = Array.prototype.filter.call(
+            sec.querySelectorAll("input[required], select[required], textarea[required]"), live);
+        if (needed.length) {
+            return needed.every(function (el) {
+                if (el.type === "radio") return !!form.querySelector("input[name='" + el.name + "']:checked");
+                return el.value && (!el.validity || el.validity.valid);
+            });
+        }
+        return Array.prototype.some.call(sec.querySelectorAll("input, select, textarea"), function (el) {
+            if (!live(el) || el.type === "radio") return false;
+            if (el.type === "checkbox") return el.checked && el.name !== "photo_remove" && el.name !== "doc_remove";
+            if (el.type === "file") return el.files && el.files.length > 0;
+            return !!el.value;
+        }) || !!sec.querySelector("[data-has-content]");
+    }
+    function buildToc() {
+        if (!toc) return;
+        toc.innerHTML = sections().map(function (sec) {
+            return '<a href="#' + sec.id + '" data-for="' + sec.id + '"><span class="material-symbols-outlined">' +
+                sec.getAttribute("data-toc-icon") + '</span><span>' + sec.getAttribute("data-toc-title") +
+                '</span><span class="material-symbols-outlined form-toc__state"></span></a>';
+        }).join("");
+        tick();
+    }
+    function tick() {
+        if (!toc) return;
+        sections().forEach(function (sec) {
+            var a = toc.querySelector('[data-for="' + sec.id + '"]');
+            if (!a) return;
+            var done = complete(sec);
+            a.classList.toggle("is-done", done);
+            a.querySelector(".form-toc__state").textContent = done ? "check_circle" : "";
+        });
+    }
+    if (toc && "IntersectionObserver" in window) {
+        var seen = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+                if (!e.isIntersecting) return;
+                toc.querySelectorAll("a").forEach(function (a) {
+                    a.classList.toggle("is-on", a.getAttribute("data-for") === e.target.id);
+                });
+            });
+        }, { rootMargin: "-30% 0px -60% 0px" });
+        form.querySelectorAll("[data-toc]").forEach(function (s) { seen.observe(s); });
+    }
+
+    var dirty = false, note = form.querySelector("[data-dirty-note]");
+    function mark() { dirty = true; if (note) note.hidden = false; }
+    form.addEventListener("input", function () { mark(); tick(); });
+    form.addEventListener("change", function () { mark(); tick(); });
+    form.addEventListener("submit", function () { dirty = false; });
+    document.addEventListener("click", function (e) {
+        if (e.target.closest && e.target.closest("a[data-back]")) dirty = false;
+    }, true);
+    window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+    // The photo just chosen shows in its frame before anything is saved.
+    form.addEventListener("change", function (e) {
+        var el = e.target;
+        if (el.matches("[data-photo-pick] input[type=file]")) {
+            var box = el.closest("[data-photo-pick]"), shown = box.querySelector(".photo-pick__preview");
+            var file = el.files && el.files[0];
+            if (!file || !/^image\//.test(file.type)) { shown.hidden = true; return; }
+            var img = shown.querySelector("img");
+            if (img.src) URL.revokeObjectURL(img.src);
+            img.src = URL.createObjectURL(file);
+            shown.hidden = false;
+            var off = box.querySelector("input[name=photo_remove]");
+            if (off) off.checked = false;
+        }
+        // The papers picked are named on the button.
+        if (el.matches("input[type=file][data-file-pick]")) {
+            var label = el.closest(".file-pick").querySelector("[data-file-name]");
+            var names = Array.prototype.map.call(el.files || [], function (f) { return f.name; });
+            if (!label.hasAttribute("data-prompt")) label.setAttribute("data-prompt", label.textContent);
+            label.textContent = names.length ? names.join(", ") : label.getAttribute("data-prompt");
+        }
+    });
+
+    buildToc();
+    window.formPageRefresh = function () { buildToc(); };
 })();

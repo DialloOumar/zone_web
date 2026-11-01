@@ -291,7 +291,8 @@ class Vehicle(db.Model):
     category_id                   = db.Column(db.Integer,   db.ForeignKey("vehicle_categories.id"), nullable=False)
     fleet_id                      = db.Column(db.Integer,   db.ForeignKey("fleets.id"),             nullable=False)
     description                   = db.Column(db.String(200), nullable=True)
-    site                          = db.Column(db.String(80),  nullable=True)
+    # Where the machine works: one of the sites the super admin keeps.
+    site_id                       = db.Column(db.Integer,   db.ForeignKey("sites.id"), nullable=True)
     baseline_l_per_unit_override  = db.Column(db.Float,     nullable=True)
     cost_per_unit_override        = db.Column(db.Integer,   nullable=True)
     # Optional default driver — a real link to a registered Operator (same
@@ -321,8 +322,23 @@ class Vehicle(db.Model):
     category         = db.relationship("VehicleCategory")
     fleet            = db.relationship("Fleet")
     default_operator = db.relationship("Operator", foreign_keys=[default_operator_id])
+    site_ref         = db.relationship("Site")
     supplier         = db.relationship("Supplier", back_populates="machines")
     client           = db.relationship("Client", back_populates="machines")
+
+    @property
+    def site(self):
+        """The site's name, which is all the screens show."""
+        return self.site_ref.name if self.site_ref else None
+
+    @site.setter
+    def site(self, value):
+        """A name, from an approval asked when the site was typed: the site of
+        that name, if the list has it."""
+        name = " ".join((value or "").split())
+        found = (Site.query.filter(db.func.lower(Site.name) == name.lower()).first()
+                 if name else None)
+        self.site_id = found.id if found else None
 
     @property
     def effective_baseline(self):

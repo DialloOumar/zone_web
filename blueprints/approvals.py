@@ -131,6 +131,11 @@ def _describe(pc):
             val = ", ".join((o.code if o else str(i)) for i, o in
                             ((i, db.session.get(Vehicle, i)) for i in v))
             label = "véhicules (répartie)"
+        elif k == "site_id":
+            from models import Site
+            o = db.session.get(Site, v)
+            val = o.name if o else v
+            label = "site"
         elif k == "fleet_id":
             o = db.session.get(Fleet, v)
             val = o.name if o else v

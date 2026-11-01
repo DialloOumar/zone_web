@@ -16,7 +16,7 @@ import s3_storage
 import vehicle_images
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
-from models import (purchase_order_line_vehicles, PurchaseOrder, PurchaseOrderLine, supplier_invoice_vehicles, Alert, DailyEntry, Expense, ExpenseShare, SupplierInvoice, Fleet, FuelMovement,
+from models import (purchase_order_line_vehicles, PurchaseOrder, PurchaseOrderLine, supplier_invoice_vehicles, Alert, DailyEntry, Expense, ExpenseShare, SupplierInvoice, Fleet, FuelMovement, Site,
                     MaintenanceRecord, MaintenanceRule, Operator, StockMovement,
                     Vehicle, VehicleCategory, VehicleStatusChange, db)
 
@@ -193,12 +193,20 @@ def _read_vehicle_form(vehicle):
             return None, t.get("vehicle.err.operator_fleet",
                                "Le conducteur par défaut doit appartenir à la flotte.")
 
+    # The site, from the list the super admin keeps. One archived since
+    # stays on the machine that already had it.
+    site_id = request.form.get("site_id", type=int) or None
+    if site_id:
+        site = db.session.get(Site, site_id)
+        if not site or not (site.is_active or (vehicle and vehicle.site_id == site_id)):
+            return None, t["vehicle.err.site"]
+
     data = dict(
         code=code,
         fleet_id=fleet_id,
         category_id=category_id,
         description=(request.form.get("description") or "").strip() or None,
-        site=(request.form.get("site") or "").strip() or None,
+        site_id=site_id,
         default_operator_id=default_operator_id,
         is_active=request.form.get("is_active") is not None,
     )
@@ -214,6 +222,7 @@ def _form_context(vehicle):
         "fleets": with_current_fleet(_accessible_fleets(), vehicle.fleet if vehicle else None),
         "categories": VehicleCategory.query.order_by(VehicleCategory.sort_order).all(),
         "operators": _accessible_operators(),
+        "sites": Site.query.filter(Site.is_active.is_(True)).order_by(Site.sort_order, Site.name).all(),
         "form_active": (request.form.get("is_active") is not None)
         if request.method == "POST"
         else (vehicle.is_active if vehicle else True),
@@ -369,7 +378,30 @@ def detail(vid):
     # the store. The two never overlap, so this can be added up safely.
     direct_total = sum(e.share_for(vid) for e in Expense.query.filter(mine).all())
 
-    return render_template("vehicle_detail.html", vehicle=vehicle,
+    # The month's figures, read first under the head.
+    month = date.today().strftime("%Y-%m")
+    co = db.func.coalesce
+    m_entries, m_trips, m_hours, m_km = (
+        db.session.query(db.func.count(DailyEntry.id), co(db.func.sum(DailyEntry.trips), 0),
+                         co(db.func.sum(DailyEntry.hours), 0.0),
+                         co(db.func.sum(DailyEntry.kilometers), 0.0))
+        .filter(DailyEntry.vehicle_id == vid, DailyEntry.date.like(month + "-%")).one())
+    m_fuel = (db.session.query(co(db.func.sum(FuelMovement.liters), 0))
+              .filter(FuelMovement.vehicle_id == vid,
+                      FuelMovement.kind.in_(("distribution", "direct")),
+                      FuelMovement.date.like(month + "-%")).scalar())
+    stats = {"entries": int(m_entries or 0), "trips": int(m_trips or 0),
+             "hours": float(m_hours or 0), "km": float(m_km or 0), "fuel": float(m_fuel or 0)}
+
+    tabs = ["entries", "records", "costs"]
+    if parts_used:
+        tabs.append("parts")
+    if vehicle.status_changes:
+        tabs.append("history")
+    tab = request.args.get("tab") if request.args.get("tab") in tabs else "entries"
+
+    return render_template("vehicle_detail.html", vehicle=vehicle, stats=stats,
+                           tabs=tabs, tab=tab,
                            entries=entries, expenses=expenses, bills=bills, open_orders=open_orders,
                            status_changes=vehicle.status_changes[:10], statuses=STATUSES,
                            records=records, alerts=alerts,

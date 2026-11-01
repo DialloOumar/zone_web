@@ -319,8 +319,8 @@ def _read_staff_form(row):
 
 
 def _render_staff_form(row, error=None):
-    tpl = "_staff_form.html" if is_modal_request() else "staff_form.html"
-    status = 422 if (error and is_modal_request()) else 200
+    tpl = "staff_form.html"
+    status = 200
     driver_pos = StaffPosition.query.filter(
         db.func.lower(StaffPosition.name) == "chauffeur").first()
     if request.method == "POST":
@@ -338,11 +338,12 @@ def _render_staff_form(row, error=None):
         today=date.today().isoformat()), status
 
 
-def _back_url():
+def _back_url(row=None):
+    """Where a saved file goes: where it was opened from, else the file."""
     nxt = request.args.get("next") or request.form.get("next")
     if nxt and nxt.startswith("/") and not nxt.startswith("//"):
         return nxt
-    return url_for("staff.index")
+    return url_for("staff.profile", pid=row.id) if row is not None else url_for("staff.index")
 
 
 # ── Routes: the list ─────────────────────────────────────────────────────────
@@ -409,7 +410,7 @@ def new():
                    detail="Added %s '%s'" % (row.kind, row.name))
         db.session.commit()
         flash("success|" + t["staff.created"])
-        return modal_ok() if is_modal_request() else redirect(_back_url())
+        return redirect(_back_url(row))
     return _render_staff_form(None)
 
 
@@ -448,7 +449,7 @@ def edit(pid):
         for key in gone:
             s3_storage.delete_photo(key)
         flash("success|" + t["staff.updated"])
-        return modal_ok() if is_modal_request() else redirect(_back_url())
+        return redirect(_back_url(row))
     return _render_staff_form(row)
 
 

@@ -1,130 +1,202 @@
 {% extends "base.html" %}
+{% from "_person_header.html" import fact with context %}
 
 {% block title %}{{ vehicle.code }}{% endblock %}
-{% block page_title %}{{ vehicle.code }}{% endblock %}
+{% block page_title %}{{ t['nav.vehicles'] }}{% endblock %}
 
+{# A machine's file, drawn like a person's: the head (its picture, code,
+   category, fleet and site, its marks, the facts read first), the month's
+   figures, then the detail in tabs. #}
 {% block content %}
-<section class="card vehicle-hero">
-    {% set vimg = vehicle_image(vehicle) %}
-    <div class="vehicle-hero__media {% if not vimg %}vehicle-hero__media--empty{% elif vimg.drawing %}vehicle-hero__media--drawing{% endif %}">
-        {% if vimg %}
-        <a href="{{ vimg.url }}" target="_blank" rel="noopener"><img src="{{ vimg.url }}" alt="{{ vehicle.code }}"></a>
-        {% else %}
-        <span class="material-symbols-outlined">{{ 'directions_bus' if vehicle.category.code == 'BUS' else 'local_gas_station' if citerne else 'handyman' }}</span>
-        {% endif %}
-    </div>
-    <div class="vehicle-hero__body">
-        <div class="card-header" style="margin:0;">
-            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                <span class="chip chip--{{ vehicle.category.code|lower }}">{{ vehicle.category.label_fr if lang == 'fr' else vehicle.category.label }}</span>
+{% set vimg = vehicle_image(vehicle) %}
+<section class="card">
+    <div class="file-head">
+        <span class="vehicle-frame {% if vimg and vimg.drawing %}vehicle-frame--drawing{% endif %}">
+            {% if vimg %}<a href="{{ vimg.url }}" target="_blank" rel="noopener"><img src="{{ vimg.url }}" alt="{{ vehicle.code }}"></a>
+            {% else %}<span class="material-symbols-outlined">{{ 'directions_bus' if vehicle.category.code == 'BUS' else 'handyman' }}</span>{% endif %}
+        </span>
+        <div class="file-head__main">
+            <div class="file-head__title">{{ vehicle.code }}</div>
+            <div class="file-head__sub">
+                {{- vehicle.category.label_fr if lang == 'fr' else vehicle.category.label }} · {{ vehicle.fleet.name }}
+                {%- if vehicle.site %} · {{ vehicle.site }}{% endif -%}
+            </div>
+            <div class="file-head__badges">
                 {% if vehicle.is_active %}
-                {# Its working state, and for how long. #}
                 <span class="badge badge--status-{{ vehicle.status }}">{{ t['vehicle.status.' + vehicle.status] }}</span>
-                {% if vehicle.status != 'active' and vehicle.status_since %}<span class="muted small">{{ t['vehicle.since'] }} {{ vehicle.status_since }} · {{ days_since(vehicle.status_since) }} {{ t['vehicle.days'] }}</span>{% endif %}
+                {% if vehicle.status != 'active' and vehicle.status_since %}<span class="muted small">{{ t['vehicle.since'] }} {{ vehicle.status_since|dmy }} · {{ days_since(vehicle.status_since) }} {{ t['vehicle.days'] }}</span>{% endif %}
                 {% else %}
                 <span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>
                 {% endif %}
-            </div>
-            <div class="row-actions">
-                {% if has_perm('vehicle.edit') and vehicle.is_active %}
-                <a href="{{ url_for('vehicles.status', vid=vehicle.id) }}" class="btn btn--tonal"
-                   data-modal-url="{{ url_for('vehicles.status', vid=vehicle.id) }}" data-modal-title="{{ t['vehicle.change_status'] }}">
-                    <span class="material-symbols-outlined">{{ 'build' if vehicle.status == 'active' else 'check_circle' }}</span> {{ t['vehicle.change_status'] }}
-                </a>
-                {% endif %}
-                {% if has_perm('vehicle.edit') %}
-                <a href="{{ url_for('vehicles.edit', vid=vehicle.id) }}" class="btn btn--tonal"
-                   data-modal-url="{{ url_for('vehicles.edit', vid=vehicle.id) }}" data-modal-title="{{ t['vehicle.edit'] }}">
-                    <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}
-                </a>
-                {% endif %}
-                <a data-back href="{{ url_for('vehicles.index') }}" class="btn btn--outlined">{{ t['btn.back'] }}</a>
+                {% if alerts %}<span class="badge badge--critical">{{ alerts|length }} {{ t['nav.alerts']|lower }}</span>{% endif %}
             </div>
         </div>
-
-    <dl class="detail-grid">
-        <div>
-            <dt>{{ t['vehicle.fleet'] }}</dt>
-            <dd>{{ vehicle.fleet.name }}</dd>
+        <div class="file-head__actions">
+            {% if has_perm('vehicle.edit') and vehicle.is_active %}
+            <a href="{{ url_for('vehicles.status', vid=vehicle.id) }}" class="btn btn--sm btn--outlined"
+               data-modal-url="{{ url_for('vehicles.status', vid=vehicle.id) }}" data-modal-title="{{ t['vehicle.change_status'] }}">
+                <span class="material-symbols-outlined">{{ 'build' if vehicle.status == 'active' else 'check_circle' }}</span> {{ t['vehicle.change_status'] }}</a>
+            {% endif %}
+            {% if has_perm('vehicle.edit') %}
+            <a href="{{ url_for('vehicles.edit', vid=vehicle.id) }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('vehicles.edit', vid=vehicle.id) }}" data-modal-title="{{ t['vehicle.edit'] }}">
+                <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}</a>
+            {% endif %}
         </div>
-        <div>
-            <dt>{{ t['vehicle.site'] }}</dt>
-            <dd>{{ vehicle.site or '—' }}</dd>
-        </div>
-        <div>
-            <dt>{{ t['vehicle.default_operator'] }}</dt>
-            <dd>{{ vehicle.default_operator.name if vehicle.default_operator else '—' }}</dd>
-        </div>
-        {% if vehicle.supplier %}
-        <div>
-            <dt>{{ t['vehicle.supplier'] }}</dt>
-            <dd>{{ vehicle.supplier.code }} — {{ vehicle.supplier.name }}</dd>
-        </div>
-        {% endif %}
+    </div>
+    <dl class="detail-grid file-head__facts">
+        {{ fact(t['vehicle.fleet'], vehicle.fleet.name) }}
+        {{ fact(t['vehicle.site'], vehicle.site) }}
+        <div><dt>{{ t['vehicle.default_operator'] }}</dt><dd>
+            {% set dop = vehicle.default_operator %}
+            {% if dop %}{% if has_perm('operator.view') %}<a href="{{ url_for('operators.person', pid=dop.staff_id, fleet=dop.fleet_id) }}">{{ dop.name }}</a>{% else %}{{ dop.name }}{% endif %}
+            {% else %}<span class="muted">&mdash;</span>{% endif %}</dd></div>
         {% if vehicle.client %}
-        <div>
-            <dt>{{ t['vehicle.client'] }}</dt>
-            <dd><a href="{{ url_for('invoicing.client_detail', cid=vehicle.client.id) }}">{{ vehicle.client.code }} — {{ vehicle.client.name }}</a></dd>
-        </div>
+        <div><dt>{{ t['vehicle.client'] }}</dt><dd><a href="{{ url_for('invoicing.client_detail', cid=vehicle.client.id) }}">{{ vehicle.client.name }}</a></dd></div>
         {% endif %}
+        {% if vehicle.supplier %}{{ fact(t['vehicle.supplier'], vehicle.supplier.name) }}{% endif %}
+        {{ fact(t['vehicle.cost_total'], ((direct_total + parts_total) | num) ~ ' GNF') }}
         {% if vehicle.description %}
-        <div style="grid-column: 1 / -1;">
-            <dt>{{ t['vehicle.description'] }}</dt>
-            <dd>{{ vehicle.description }}</dd>
-        </div>
+        <div style="grid-column: 1 / -1;"><dt>{{ t['vehicle.description'] }}</dt><dd>{{ vehicle.description }}</dd></div>
         {% endif %}
     </dl>
-    </div>
 </section>
 
+{% if alerts %}
+<div class="alert-list vehicle-alerts">
+    {% for a in alerts %}
+    <div class="alert-card alert-card--{{ a.severity }}">
+        <div class="alert-card__body"><div class="alert-card__msg">{{ a.message }}</div></div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="stat-grid person-stats">
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--teal material-symbols-outlined">fact_check</span>
+        <div><div class="stat-value">{{ stats.entries }}</div><div class="stat-label">{{ t['operator.kpi.pointages'] }} · {{ t['vehicle.this_month'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--amber material-symbols-outlined">directions_bus</span>
+        <div><div class="stat-value">{{ stats.trips }}</div><div class="stat-label">{{ t['operator.kpi.trips'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--blue material-symbols-outlined">history</span>
+        <div><div class="stat-value">{{ '%.0f'|format(stats.hours) }}</div><div class="stat-label">{{ t['operator.kpi.hours'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--green material-symbols-outlined">donut_large</span>
+        <div><div class="stat-value">{{ stats.km | num }}</div><div class="stat-label">{{ t['operator.kpi.km'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--blue material-symbols-outlined">local_gas_station</span>
+        <div><div class="stat-value">{{ stats.fuel | num }} L</div><div class="stat-label">{{ t['person.fuel_short'] }}</div></div>
+    </div>
+</div>
+
 <section class="card">
-    <div class="card-header">
-        <h2>{{ t['nav.daily_entries'] }}</h2>
-        {% if has_perm('entry.create') %}
+    <nav class="tabs" role="tablist">
+        {% set icons = {'entries': 'list_alt', 'records': 'handyman', 'costs': 'payments', 'parts': 'inventory', 'history': 'history'} %}
+        {% set labels = {'entries': t['nav.daily_entries'], 'records': t['nav.maintenance_records'], 'costs': t['perm.res.expense'], 'parts': t['vehicle.parts_used'], 'history': t['vehicle.status_history']} %}
+        {% for key in tabs %}
+        <a href="{{ url_for('vehicles.detail', vid=vehicle.id, tab=key if key != 'entries' else None) }}" role="tab"
+           aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
+            <span class="material-symbols-outlined">{{ icons[key] }}</span> {{ labels[key] }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    {% if tab == 'entries' %}
+    {% if has_perm('entry.create') %}
+    <div class="tab-bar vehicle-tab-bar">
         <a href="{{ url_for('entries.new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--primary"
            data-modal-url="{{ url_for('entries.new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['entry.new'] }}">
-            <span class="material-symbols-outlined">add</span> {{ t['entry.add'] }}
-        </a>
-        {% endif %}
+            <span class="material-symbols-outlined">add</span> {{ t['entry.add'] }}</a>
     </div>
+    {% endif %}
     {% if entries %}
     <div class="table-wrap"><table class="data-table">
-        <thead>
-            <tr>
-                <th>{{ t['entry.date'] }}</th>
-                <th>{{ t['entry.activity'] }}</th>
-                <th>{{ t['entry.km'] }}</th>
-                <th>{{ t['entry.operator'] }}</th>
-                <th></th>
-            </tr>
-        </thead>
+        <thead><tr>
+            <th>{{ t['entry.date'] }}</th>
+            <th>{{ t['entry.activity'] }}</th>
+            <th>{{ t['entry.km'] }}</th>
+            <th>{{ t['entry.operator'] }}</th>
+            <th></th>
+        </tr></thead>
         <tbody>
             {% with show_vehicle = False %}{% include "_entry_rows.html" %}{% endwith %}
         </tbody>
     </table></div>
     {% else %}
-    <p class="muted" style="padding: 6px 0;">{{ t['entry.empty'] }}</p>
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">list_alt</span><p>{{ t['entry.empty'] }}</p></div>
     {% endif %}
-</section>
 
-<section class="card">
-    <div class="card-header">
-        <h2>{{ t['perm.res.expense'] }}</h2>
+    {% elif tab == 'records' %}
+    <div class="tab-bar vehicle-tab-bar">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            {% if has_perm('maintenance_rule.create') %}
+            <a href="{{ url_for('maintenance.rule_new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('maintenance.rule_new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['maint.rule_new'] }}">
+                <span class="material-symbols-outlined">rule</span> {{ t['vehicle.schedule_service'] }}</a>
+            {% endif %}
+            {% if has_perm('maintenance_record.create') %}
+            <a href="{{ url_for('maintenance.record_new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--primary"
+               data-modal-url="{{ url_for('maintenance.record_new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['maint.record_new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['maint.record_new'] }}</a>
+            {% endif %}
+        </div>
     </div>
+    {% if records %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['maint.date'] }}</th>
+            <th>{{ t['maint.record_type'] }}</th>
+            <th class="col-secondary">{{ t['maint.operator'] }}</th>
+            <th class="col-secondary" style="text-align:right;">{{ t['maint.parts_used'] }}</th>
+            <th style="text-align:right;">{{ t['maint.total_cost'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for m in records %}
+            <tr>
+                <td>{{ m.date|dmy }}</td>
+                <td>{% for c in m.types %}<span class="chip"{% if m.types|length > 1 and m.parts_value %} title="{{ t['maint.parts_used'] }} {{ m.parts_value_for(c) | num }} GNF"{% endif %}>{{ service_type_label(c) }}</span> {% endfor %}</td>
+                <td class="col-secondary">{{ m.operator or '—' }}</td>
+                <td class="col-secondary" style="text-align:right; white-space:nowrap;">
+                    {% if m.parts_value %}{{ m.parts_value | num }} GNF{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if m.cost is not none or m.parts_value %}{{ m.total_cost | num }} GNF{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">handyman</span><p>{{ t['maint.records_empty'] }}</p></div>
+    {% endif %}
+
+    {% elif tab == 'costs' %}
+    {% if parts_total %}
+    {# Parts are not ledger rows -- they were paid for when bought. Shown apart
+       so the two can be added without counting the same money twice. #}
+    <div class="cost-split">
+        <div class="cost-split__row"><span>{{ t['vehicle.cost_direct'] }}</span><strong>{{ direct_total | num }} GNF</strong></div>
+        <div class="cost-split__row"><span>{{ t['vehicle.cost_parts'] }}</span><strong>{{ parts_total | num }} GNF</strong></div>
+        <div class="cost-split__row cost-split__row--total"><span>{{ t['vehicle.cost_total'] }}</span><strong>{{ (direct_total + parts_total) | num }} GNF</strong></div>
+        <p class="muted small">{{ t['vehicle.cost_hint_parts'] }}</p>
+    </div>
+    {% endif %}
     {% if expenses %}
     <div class="table-wrap"><table class="data-table">
-        <thead>
-            <tr>
-                <th>{{ t['expense.date'] }}</th>
-                <th>{{ t['expense.category'] }}</th>
-                <th>{{ t['expense.supplier'] }}</th>
-                <th style="text-align:right;">{{ t['expense.amount'] }}</th>
-            </tr>
-        </thead>
+        <thead><tr>
+            <th>{{ t['expense.date'] }}</th>
+            <th>{{ t['expense.category'] }}</th>
+            <th>{{ t['expense.supplier'] }}</th>
+            <th style="text-align:right;">{{ t['expense.amount'] }}</th>
+        </tr></thead>
         <tbody>
             {% for e in expenses %}
             <tr>
-                <td>{{ e.date }}</td>
+                <td>{{ e.date|dmy }}</td>
                 <td><span class="chip">{{ category_label(e.category) }}</span>{% if e.description %} <span class="muted small">{{ e.description }}</span>{% endif %}</td>
                 <td>{{ e.supplier or '—' }}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ e.share_for(vehicle.id) | num }} GNF
@@ -134,27 +206,25 @@
         </tbody>
     </table></div>
     {% else %}
-    <p class="muted" style="padding: 6px 0;">{{ t['expense.empty'] }}</p>
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">payments</span><p>{{ t['expense.empty'] }}</p></div>
     {% endif %}
 
-    {# Orders on their way with a line for this machine: "have the parts
-       for the breakdown been ordered?" answered on the machine's own page. #}
+    {# Orders on their way with a line for this machine: "have the parts for
+       the breakdown been ordered?" answered on the machine's own page. #}
     {% if open_orders %}
-    <h3 style="font-size:0.95rem; margin:18px 0 8px;">{{ t['vehicle.open_orders'] }}</h3>
+    <h3 class="vehicle-sub">{{ t['vehicle.open_orders'] }}</h3>
     <div class="table-wrap"><table class="data-table">
-        <thead>
-            <tr>
-                <th>{{ t['po.date'] }}</th>
-                <th>N°</th>
-                <th>{{ t['invoice.supplier'] }}</th>
-                <th>{{ t['po.line_part'] }}</th>
-                <th>{{ t['invoice.status'] }}</th>
-            </tr>
-        </thead>
+        <thead><tr>
+            <th>{{ t['po.date'] }}</th>
+            <th>N°</th>
+            <th>{{ t['invoice.supplier'] }}</th>
+            <th>{{ t['po.line_part'] }}</th>
+            <th>{{ t['invoice.status'] }}</th>
+        </tr></thead>
         <tbody>
             {% for po in open_orders %}
             <tr>
-                <td>{{ po.date }}</td>
+                <td>{{ po.date|dmy }}</td>
                 <td><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a></td>
                 <td>{{ po.supplier.name }}</td>
                 <td>{% for l in po.lines if l.vehicles | selectattr('id', 'equalto', vehicle.id) | list %}{{ l.description }} <span class="muted small">× {{ l.quantity | qty }}</span>{{ ', ' if not loop.last }}{% endfor %}</td>
@@ -168,22 +238,20 @@
     {# The supplier bills linked to this machine, alone or with others. For
        reference: they are not part of what the machine cost. #}
     {% if bills %}
-    <h3 style="font-size:0.95rem; margin:18px 0 4px;">{{ t['vehicle.bills'] }}</h3>
+    <h3 class="vehicle-sub">{{ t['vehicle.bills'] }}</h3>
     <p class="muted small" style="margin:0 0 8px;">{{ t['vehicle.bills_note'] }}</p>
     <div class="table-wrap"><table class="data-table">
-        <thead>
-            <tr>
-                <th>{{ t['expense.date'] }}</th>
-                <th>{{ t['invoice.supplier'] }}</th>
-                <th>{{ t['bank.description'] }}</th>
-                <th>{{ t['invoice.status'] }}</th>
-                <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
-            </tr>
-        </thead>
+        <thead><tr>
+            <th>{{ t['expense.date'] }}</th>
+            <th>{{ t['invoice.supplier'] }}</th>
+            <th>{{ t['bank.description'] }}</th>
+            <th>{{ t['invoice.status'] }}</th>
+            <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
+        </tr></thead>
         <tbody>
             {% for inv in bills %}
             <tr>
-                <td>{{ inv.date }}</td>
+                <td>{{ inv.date|dmy }}</td>
                 <td>{{ inv.supplier.name }}{% if inv.number %} <span class="muted small">{{ inv.number }}</span>{% endif %}</td>
                 <td>{{ inv.description or '—' }}
                     {% set others = inv.vehicles | rejectattr('id', 'equalto', vehicle.id) | list %}
@@ -196,88 +264,40 @@
     </table></div>
     {% endif %}
 
-    {% if parts_total %}
-    {# Parts are not ledger rows — they were paid for when bought. Shown apart
-       so the two can be added without counting the same money twice. #}
-    <div class="cost-split">
-        <div class="cost-split__row">
-            <span>{{ t['vehicle.cost_direct'] }}</span>
-            <strong>{{ direct_total | num }} GNF</strong>
-        </div>
-        <div class="cost-split__row">
-            <span>{{ t['vehicle.cost_parts'] }}</span>
-            <strong>{{ parts_total | num }} GNF</strong>
-        </div>
-        <div class="cost-split__row cost-split__row--total">
-            <span>{{ t['vehicle.cost_total'] }}</span>
-            <strong>{{ (direct_total + parts_total) | num }} GNF</strong>
-        </div>
-        <p class="muted small">{{ t['vehicle.cost_hint_parts'] }}</p>
-    </div>
+    {% elif tab == 'parts' %}
+    {% if has_perm('stock.view') %}
+    <div class="tab-bar vehicle-tab-bar"><a class="link-more" href="{{ url_for('stock.history') }}">{{ t['mv.history'] }}</a></div>
     {% endif %}
-</section>
-
-{% if parts_used %}
-<section class="card">
-    <div class="card-header">
-        <h2>{{ t['vehicle.parts_used'] }}</h2>
-        {% if has_perm('stock.view') %}
-        <a class="link-more" href="{{ url_for('stock.history') }}">{{ t['mv.history'] }}</a>
-        {% endif %}
-    </div>
     <div class="table-wrap"><table class="data-table">
-        <thead>
-            <tr>
-                <th>{{ t['mv.date'] }}</th>
-                <th>{{ t['part.name'] }}</th>
-                <th style="text-align:right;">{{ t['mv.quantity'] }}</th>
-                <th style="text-align:right;">{{ t['mv.value'] }}</th>
-            </tr>
-        </thead>
+        <thead><tr>
+            <th>{{ t['mv.date'] }}</th>
+            <th>{{ t['part.name'] }}</th>
+            <th style="text-align:right;">{{ t['mv.quantity'] }}</th>
+            <th style="text-align:right;">{{ t['mv.value'] }}</th>
+        </tr></thead>
         <tbody>
             {% for m in parts_used %}
             <tr>
-                <td>{{ m.date }}</td>
-                <td>{{ m.part.name }}
-                    {% if m.kind == 'retour' %}<span class="chip">{{ t['mv.kind.retour'] }}</span>{% endif %}
-                </td>
+                <td>{{ m.date|dmy }}</td>
+                <td>{{ m.part.name }}{% if m.kind == 'retour' %} <span class="chip">{{ t['mv.kind.retour'] }}</span>{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">
                     {% if m.kind == 'sortie' %}−{% else %}+{% endif %}{{ m.quantity | qty }}
-                    <span class="muted small">{{ unit_label(m.part.unit) }}</span>
-                </td>
+                    <span class="muted small">{{ unit_label(m.part.unit) }}</span></td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">
-                    {% if m.value is not none %}{{ m.value | num }} GNF{% else %}—{% endif %}
-                </td>
+                    {% if m.value is not none %}{{ m.value | num }} GNF{% else %}—{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table></div>
-</section>
-{% endif %}
 
-{% if alerts %}
-<section class="card">
-    <div class="card-header"><h2>{{ t['nav.alerts'] }} <span class="badge badge--critical">{{ alerts|length }}</span></h2></div>
-    <div class="alert-list">
-        {% for a in alerts %}
-        <div class="alert-card alert-card--{{ a.severity }}">
-            <div class="alert-card__body"><div class="alert-card__msg">{{ a.message }}</div></div>
-        </div>
-        {% endfor %}
-    </div>
-</section>
-{% endif %}
-
-{# The machine's working states over time: when it went down, when it
-   came back, and why. #}
-{% if status_changes %}
-<section class="card">
-    <div class="card-header"><h2>{{ t['vehicle.status_history'] }}</h2></div>
+    {% elif tab == 'history' %}
+    {# The machine's working states over time: when it went down, when it
+       came back, and why. #}
     <div class="table-wrap"><table class="data-table">
         <tbody>
             {% for c in status_changes %}
             <tr>
-                <td style="white-space:nowrap;">{{ c.date }}</td>
+                <td style="white-space:nowrap;">{{ c.date|dmy }}</td>
                 <td><span class="badge badge--status-{{ c.to_status }}">{{ t['vehicle.status.' + c.to_status] }}</span> <span class="muted small">{{ t['vehicle.from'] }} {{ t['vehicle.status.' + c.from_status] | lower }}</span></td>
                 <td>{{ c.note or '' }}</td>
                 <td class="muted small col-secondary">{{ c.author.full_name if c.author else '' }}</td>
@@ -285,58 +305,6 @@
             {% endfor %}
         </tbody>
     </table></div>
-</section>
-{% endif %}
-
-<section class="card">
-    <div class="card-header">
-        <h2>{{ t['nav.maintenance_records'] }}</h2>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            {# Schedule one: a rule aimed at this machine alone. #}
-            {% if has_perm('maintenance_rule.create') %}
-            <a href="{{ url_for('maintenance.rule_new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--tonal"
-               data-modal-url="{{ url_for('maintenance.rule_new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['maint.rule_new'] }}">
-                <span class="material-symbols-outlined">rule</span> {{ t['vehicle.schedule_service'] }}
-            </a>
-            {% endif %}
-            {# Record one done. #}
-            {% if has_perm('maintenance_record.create') %}
-            <a href="{{ url_for('maintenance.record_new', vehicle_id=vehicle.id) }}" class="btn btn--sm btn--primary"
-               data-modal-url="{{ url_for('maintenance.record_new', vehicle_id=vehicle.id) }}" data-modal-title="{{ t['maint.record_new'] }}">
-                <span class="material-symbols-outlined">add</span> {{ t['maint.record_new'] }}
-            </a>
-            {% endif %}
-        </div>
-    </div>
-    {% if records %}
-    <div class="table-wrap"><table class="data-table">
-        <thead>
-            <tr>
-                <th>{{ t['maint.date'] }}</th>
-                <th>{{ t['maint.record_type'] }}</th>
-                <th class="col-secondary">{{ t['maint.operator'] }}</th>
-                <th class="col-secondary" style="text-align:right;">{{ t['maint.parts_used'] }}</th>
-                <th style="text-align:right;">{{ t['maint.total_cost'] }}</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for m in records %}
-            <tr>
-                <td>{{ m.date }}</td>
-                <td>{% for c in m.types %}<span class="chip"{% if m.types|length > 1 and m.parts_value %} title="{{ t['maint.parts_used'] }} {{ m.parts_value_for(c) | num }} GNF"{% endif %}>{{ service_type_label(c) }}</span> {% endfor %}</td>
-                <td class="col-secondary">{{ m.operator or '—' }}</td>
-                <td class="col-secondary" style="text-align:right; white-space:nowrap;">
-                    {% if m.parts_value %}{{ m.parts_value | num }} GNF{% else %}<span class="muted">—</span>{% endif %}
-                </td>
-                <td style="text-align:right; white-space:nowrap;">
-                    {% if m.cost is not none or m.parts_value %}{{ m.total_cost | num }} GNF{% else %}—{% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table></div>
-    {% else %}
-    <p class="muted" style="padding: 6px 0;">{{ t['maint.records_empty'] }}</p>
     {% endif %}
 </section>
 {% endblock %}
