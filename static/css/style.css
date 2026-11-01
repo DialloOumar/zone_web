@@ -917,6 +917,12 @@ a:hover { text-decoration: underline; }
 
 /* Two-column form rows (collapse to one column on narrow screens) */
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.form-row--3 { grid-template-columns: 1fr 1fr 1fr; }
+/* A paper on a person's file: its name opens it, the box beside drops it. */
+.doc-line { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+            border: 1px solid var(--md-outline-variant); border-radius: var(--shape-sm); }
+.doc-line a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-line .checkbox-item { padding: 4px 10px; font-size: 0.8rem; }
 
 /* A tank reading under zero: the figure itself carries the alarm, since the
    gauge bar cannot draw a negative fill and would just look empty. */
@@ -2251,7 +2257,7 @@ body { font-size: 0.9rem; }
        Not below 10px: a card would look stuck to the edge of the screen. */
     .content { padding: 10px; gap: 10px; overflow-x: hidden; }
     .card { padding: 12px; min-width: 0; }
-    .form-row { grid-template-columns: 1fr; }
+    .form-row, .form-row--3 { grid-template-columns: 1fr; }
     /* Keep the quantity and its remove button side by side when stacked */
     .parts-line { grid-template-columns: 1fr auto; gap: 12px; }
     .parts-line .field--select { grid-column: 1 / -1; }
@@ -2523,3 +2529,17 @@ html.scan-open, html.scan-open body { overflow: hidden; }
 .po-mach__panel .inv-machines__filter { margin-top: 0; }
 .po-mach__copy { margin: 0 0 8px 8px; }
 .po-for { color: var(--md-on-surface-variant); }
+
+/* ── Merge screen: two files side by side, one decision under them ── */
+.merge-pair { padding: 14px 0; border-bottom: 1px solid var(--md-outline-variant); }
+.merge-pair:last-child { border-bottom: none; }
+.merge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+.merge-col { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px;
+             border: 1px solid var(--md-outline-variant); border-radius: var(--shape-sm); }
+label.merge-col { cursor: pointer; }
+label.merge-col:has(input:checked) { border-color: var(--md-primary); background: var(--md-surface-container); }
+.merge-col__keep { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 600;
+                   text-transform: uppercase; letter-spacing: 0.04em; color: var(--md-on-surface-variant); }
+.merge-col__keep input { accent-color: var(--md-primary); }
+.merge-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 700px) { .merge-grid { grid-template-columns: 1fr; } }

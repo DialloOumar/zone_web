@@ -206,11 +206,7 @@ def _read_vehicle_form(vehicle):
 
 
 def _accessible_operators():
-    q = Operator.query.filter_by(is_active=True)
-    fids = current_user_fleet_ids()
-    if fids is not None:
-        q = q.filter(Operator.fleet_id.in_(fids))
-    return q.order_by(Operator.name).all()
+    return Operator.active_query(current_user_fleet_ids()).all()
 
 
 def _form_context(vehicle):

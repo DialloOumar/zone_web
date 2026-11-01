@@ -14,9 +14,9 @@
             {% endif %}
         </div>
         <div class="row-actions">
-            {% if has_perm('operator.edit') %}
-            <a href="{{ url_for('operators.edit', oid=op.id) }}" class="btn btn--tonal"
-               data-modal-url="{{ url_for('operators.edit', oid=op.id) }}" data-modal-title="{{ t['operator.edit'] }}">
+            {% if has_perm('operator.edit') or has_perm('staff.edit') %}
+            <a href="{{ url_for('staff.edit', pid=op.staff_id, next=request.path) }}" class="btn btn--tonal"
+               data-modal-url="{{ url_for('staff.edit', pid=op.staff_id, next=request.path) }}" data-modal-title="{{ op.name }}">
                 <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}
             </a>
             {% endif %}

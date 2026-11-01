@@ -1,69 +1,215 @@
 {% from "_hint.html" import hint with context %}
 {% set is_edit = row is not none %}
-{# Who they are and what they do. Everything an HR module will want later --
-   contract, pay, leave -- hangs off this row; none of it is asked here. #}
+{% set posted = request.method == 'POST' %}
+{# The person's file. One form for both kinds: the employee parts and the
+   external driver's company show and hide with the type (main.js,
+   syncPerson); the driving part shows for anybody who drives. #}
+{% macro v(name) -%}
+{%- if request.method == 'POST' -%}{{ request.form.get(name, '') }}
+{%- elif row is not none and row[name] is not none -%}{{ row[name] }}
+{%- endif -%}
+{%- endmacro %}
+{% set kind = request.form.get('kind') if posted else (row.kind if is_edit else (preset_kind if preset_kind in ('employee', 'external') else 'employee')) %}
+{% set ext = kind == 'external' %}
+{% set sel_pos = (request.form.get('position_id')|int(0)) if posted else (row.position_id if is_edit and row.position_id else (driver_position_id if preset_driver else 0)) %}
+{% set driving = ext or (driver_position_id and sel_pos == driver_position_id) or ticked %}
+{% set next_url = request.args.get('next') or request.form.get('next') or '' %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
-<form method="post" class="entry-form" data-modal-form
-      action="{{ url_for('staff.edit', pid=row.id) if is_edit else url_for('staff.new') }}">
+<form method="post" class="entry-form" data-modal-form data-person-form enctype="multipart/form-data"
+      data-driver-position="{{ driver_position_id or '' }}"
+      action="{{ url_for('staff.edit', pid=row.id, next=next_url or None) if is_edit else url_for('staff.new', next=next_url or None) }}">
 
-    <div class="form-row">
-        <div class="field">
-            <input type="text" id="last_name" name="last_name" placeholder=" " required
-                   value="{{ request.form.get('last_name') or (row.last_name if is_edit else '') }}">
-            <label for="last_name">{{ t['staff.last_name'] }} {{ hint("", t['staff.name_hint']) }}</label>
-        </div>
-        <div class="field">
-            <input type="text" id="first_name" name="first_name" placeholder=" "
-                   value="{{ request.form.get('first_name') or (row.first_name or '' if is_edit else '') }}">
-            <label for="first_name">{{ t['staff.first_name'] }} {{ hint(t['form.optional'], t['staff.first_name_hint']) }}</label>
-        </div>
-    </div>
-
-    {# Everything below waits for the HR module. It is kept rather than cut:
-       one switch in blueprints/staff.py brings it all back, and a person who
-       already carries a phone or a position keeps it meanwhile. #}
-    {% if extra_fields %}
     <div class="form-row">
         <div class="field field--select">
-            {% set sel_q = request.form.get('position_id')|int(0) or (row.position_id if is_edit else 0) %}
-            <select id="position_id" name="position_id">
-                <option value="">{{ t['staff.no_position'] }}</option>
-                {% for q in positions %}
-                <option value="{{ q.id }}" {% if q.id == sel_q %}selected{% endif %}>{{ q.name }}</option>
-                {% endfor %}
+            <select id="kind" name="kind">
+                <option value="employee" {% if not ext %}selected{% endif %}>{{ t['staff.kind.employee'] }}</option>
+                <option value="external" {% if ext %}selected{% endif %}>{{ t['staff.kind.external'] }}</option>
             </select>
-            <label for="position_id">{{ t['staff.position'] }}</label>
+            <label for="kind">{{ t['staff.kind'] }}</label>
         </div>
-        <div class="field">
-            <input type="tel" id="phone" name="phone" placeholder=" "
-                   value="{{ request.form.get('phone') or (row.phone or '' if is_edit else '') }}">
-            <label for="phone">{{ t['staff.phone'] }}</label>
+        <div class="field" data-kind="employee" {% if ext %}hidden{% endif %}>
+            <input type="text" id="matricule" name="matricule" placeholder=" " value="{{ v('matricule') }}">
+            <label for="matricule">{{ t['staff.matricule'] }}</label>
+        </div>
+        <div class="field" data-kind="external" {% if not ext %}hidden{% endif %}>
+            <input type="text" id="company" name="company" placeholder=" " value="{{ v('company') }}">
+            <label for="company">{{ t['staff.company'] }}</label>
         </div>
     </div>
 
-    <div class="form-row">
-        <div class="field">
-            <input type="text" id="matricule" name="matricule" placeholder=" "
-                   value="{{ request.form.get('matricule') or (row.matricule or '' if is_edit else '') }}">
-            <label for="matricule">{{ t['staff.matricule'] }}</label>
+    <div class="form-section">
+        <div class="form-section__title">{{ t['staff.sec.identity'] }}</div>
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="last_name" name="last_name" placeholder=" " required value="{{ v('last_name') }}">
+                <label for="last_name">{{ t['staff.last_name'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="first_name" name="first_name" placeholder=" " value="{{ v('first_name') }}">
+                <label for="first_name">{{ t['staff.first_name'] }} {{ hint('', t['staff.first_name_hint']) }}</label>
+            </div>
         </div>
+        <div class="form-row" data-kind="employee" {% if ext %}hidden{% endif %}>
+            <div class="field field--select">
+                {% set sex = v('sex') %}
+                <select id="sex" name="sex">
+                    <option value=""></option>
+                    <option value="M" {% if sex == 'M' %}selected{% endif %}>{{ t['staff.sex.M'] }}</option>
+                    <option value="F" {% if sex == 'F' %}selected{% endif %}>{{ t['staff.sex.F'] }}</option>
+                </select>
+                <label for="sex">{{ t['staff.sex'] }}</label>
+            </div>
+            <div class="field">
+                <input type="date" id="birth_date" name="birth_date" value="{{ v('birth_date') }}">
+                <label for="birth_date">{{ t['staff.birth_date'] }}</label>
+            </div>
+        </div>
+        <div class="form-row form-row--3" data-kind="employee" {% if ext %}hidden{% endif %}>
+            <div class="field">
+                <input type="text" id="birth_place" name="birth_place" placeholder=" " value="{{ v('birth_place') }}">
+                <label for="birth_place">{{ t['staff.birth_place'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="nationality" name="nationality" placeholder=" " value="{{ v('nationality') }}">
+                <label for="nationality">{{ t['staff.nationality'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="id_number" name="id_number" placeholder=" " value="{{ v('id_number') }}">
+                <label for="id_number">{{ t['staff.id_number'] }}</label>
+            </div>
+        </div>
+        <div data-kind="employee" {% if ext %}hidden{% endif %}>
+            {% set photo_current = photo_url(row.photo_key) if is_edit and row.photo_key else None %}
+            {% set photo_alt = row.name if is_edit else '' %}
+            {% include "_photo_field.html" %}
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section__title">{{ t['staff.sec.contact'] }}</div>
+        <div class="form-row">
+            <div class="field">
+                <input type="tel" id="phone" name="phone" placeholder=" " value="{{ v('phone') }}">
+                <label for="phone">{{ t['staff.phone'] }}</label>
+            </div>
+            <div class="field" data-kind="employee" {% if ext %}hidden{% endif %}>
+                <input type="text" id="address" name="address" placeholder=" " value="{{ v('address') }}">
+                <label for="address">{{ t['staff.address'] }}</label>
+            </div>
+        </div>
+        <div class="form-row" data-kind="employee" {% if ext %}hidden{% endif %}>
+            <div class="field">
+                <input type="text" id="emergency_name" name="emergency_name" placeholder=" " value="{{ v('emergency_name') }}">
+                <label for="emergency_name">{{ t['staff.emergency_name'] }}</label>
+            </div>
+            <div class="field">
+                <input type="tel" id="emergency_phone" name="emergency_phone" placeholder=" " value="{{ v('emergency_phone') }}">
+                <label for="emergency_phone">{{ t['staff.emergency_phone'] }}</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-section" data-kind="employee" {% if ext %}hidden{% endif %}>
+        <div class="form-section__title">{{ t['staff.sec.work'] }}</div>
+        <div class="form-row form-row--3">
+            <div class="field field--select">
+                <select id="position_id" name="position_id">
+                    <option value=""></option>
+                    {% for q in positions %}
+                    <option value="{{ q.id }}" {% if q.id == sel_pos %}selected{% endif %}>{{ q.name }}</option>
+                    {% endfor %}
+                    {% if is_edit and row.position and not row.position.is_active %}
+                    <option value="{{ row.position.id }}" {% if row.position.id == sel_pos %}selected{% endif %}>{{ row.position.name }}</option>
+                    {% endif %}
+                </select>
+                <label for="position_id">{{ t['staff.position'] }}</label>
+            </div>
+            <div class="field field--select">
+                {% set sel_site = v('site_id')|int(0) %}
+                <select id="site_id" name="site_id">
+                    <option value=""></option>
+                    {% for st in sites %}
+                    <option value="{{ st.id }}" {% if st.id == sel_site %}selected{% endif %}>{{ st.name }}</option>
+                    {% endfor %}
+                </select>
+                <label for="site_id">{{ t['staff.site'] }}</label>
+            </div>
+            <div class="field">
+                <input type="date" id="hired_on" name="hired_on" value="{{ v('hired_on') }}">
+                <label for="hired_on">{{ t['staff.hired_on'] }}</label>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="field">
+                <input type="text" id="cnss_number" name="cnss_number" placeholder=" " value="{{ v('cnss_number') }}">
+                <label for="cnss_number">{{ t['staff.cnss'] }}</label>
+            </div>
+            <div></div>
+        </div>
+    </div>
+
+    <div class="form-section" data-driver-part {% if not driving %}hidden{% endif %}>
+        <div class="form-section__title">{{ t['staff.sec.driving'] }}</div>
+        <div class="form-row form-row--3">
+            <div class="field">
+                <input type="text" id="license_number" name="license_number" placeholder=" " value="{{ v('license_number') }}">
+                <label for="license_number">{{ t['staff.license_number'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="license_categories" name="license_categories" placeholder=" " value="{{ v('license_categories') }}">
+                <label for="license_categories">{{ t['staff.license_categories'] }}</label>
+            </div>
+            <div class="field">
+                <input type="date" id="license_expires" name="license_expires" value="{{ v('license_expires') }}">
+                <label for="license_expires">{{ t['staff.license_expires'] }}</label>
+            </div>
+        </div>
+        {% if fleets %}
+        <div>
+            <span class="field-label">{{ t['staff.fleets'] }} {{ hint('', t['staff.fleets_hint']) }}</span>
+            <div class="checkbox-grid">
+                {% for fl in fleets %}
+                <label class="checkbox-item">
+                    <input type="checkbox" name="fleets" value="{{ fl.id }}" {% if fl.id in ticked %}checked{% endif %}>
+                    <span>{{ fl.name }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="form-section">
+        <div class="form-section__title">{{ t['staff.sec.documents'] }}</div>
+        {% if is_edit %}
+        {% for d in row.documents %}
+        <div class="doc-line">
+            <span class="material-symbols-outlined">{{ 'picture_as_pdf' if d.content_type == 'application/pdf' else 'description' }}</span>
+            <a href="{{ url_for('staff.document', did=d.id) }}" target="_blank" rel="noopener">{{ d.name }}</a>
+            <span class="muted small">{{ d.created_at.strftime('%d/%m/%Y') }}</span>
+            <label class="checkbox-item">
+                <input type="checkbox" name="doc_remove" value="{{ d.id }}">
+                <span>{{ t['btn.delete'] }}</span>
+            </label>
+        </div>
+        {% endfor %}
+        {% endif %}
         <div class="field">
-            <input type="date" id="hired_on" name="hired_on" placeholder=" "
-                   value="{{ request.form.get('hired_on') or (row.hired_on or '' if is_edit else '') }}">
-            <label for="hired_on">{{ t['staff.hired_on'] }}</label>
+            <input type="file" id="documents" name="documents" multiple accept="image/*,application/pdf">
+            <label for="documents">{{ t['staff.add_documents'] }}</label>
         </div>
     </div>
 
     <div class="field">
-        <textarea id="note" name="note" placeholder=" " rows="2">{{ request.form.get('note') or (row.note or '' if is_edit else '') }}</textarea>
+        <textarea id="note" name="note" placeholder=" " rows="2">{{ v('note') }}</textarea>
         <label for="note">{{ t['entry.note'] }}</label>
     </div>
-    {% endif %}
 
+    {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
     <div class="form-actions">
         <button type="submit" class="btn btn--primary">
             <span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}
         </button>
-        <a href="{{ url_for('staff.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+        <a href="{{ next_url or url_for('staff.index') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>

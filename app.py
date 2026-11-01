@@ -28,7 +28,7 @@ from languages import TRANSLATIONS
 from models import (Alert, AppSetting, AuditLog, Citerne, DailyEntry, Expense, ExpenseShare,
                     Fleet, FleetRate, FuelMovement, MaintenanceRecord,
                     MaintenanceRule, Operator, PendingChange, Permission, Role,
-                    RolePermission, User, UserFleet, Vehicle, VehicleCategory, db)
+                    RolePermission, Staff, User, UserFleet, Vehicle, VehicleCategory, db)
 
 load_dotenv()
 
@@ -343,6 +343,15 @@ def _page_args():
 # this, and the space is what they write by hand anyway. No-break so a figure
 # never breaks across two lines.
 THIN_SPACE = "\u00a0"
+
+
+@app.template_filter("dmy")
+def _dmy(value):
+    """A stored YYYY-MM-DD read the way it is read here: 10/02/2027."""
+    s = str(value or "")
+    if len(s) == 10 and s[4] == "-" and s[7] == "-":
+        return "%s/%s/%s" % (s[8:], s[5:7], s[:4])
+    return s
 
 
 @app.template_filter("num")
@@ -2145,8 +2154,13 @@ def seed_demo_cmd(days, force):
     # Operators
     for slug, names in DEMO_OPERATORS.items():
         for nm in names:
-            if not Operator.query.filter_by(fleet_id=fleets[slug].id, name=nm).first():
-                db.session.add(Operator(fleet_id=fleets[slug].id, name=nm, is_active=True))
+            person = Staff.query.filter_by(last_name=nm, first_name=None).first()
+            if person is None:
+                person = Staff(last_name=nm, kind="employee")
+                db.session.add(person)
+                db.session.flush()
+            if not Operator.query.filter_by(fleet_id=fleets[slug].id, staff_id=person.id).first():
+                db.session.add(Operator(fleet_id=fleets[slug].id, staff_id=person.id, is_active=True))
     db.session.flush()
     ops_by_fleet = {
         slug: [o.name for o in Operator.query.filter_by(fleet_id=fleets[slug].id).all()]

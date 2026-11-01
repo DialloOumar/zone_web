@@ -670,3 +670,41 @@ console.log("Zone Web booted");
         location.assign(to);
     });
 })();
+
+// ── People: the login's employee, and the parts of a person's file ──────────
+(function () {
+    // A login tied to an employee takes the name and phone of his file.
+    function syncLogin(sel) {
+        var form = sel.form, opt = sel.options[sel.selectedIndex];
+        var name = form.querySelector('[data-person-name]');
+        var phone = form.querySelector('[data-person-phone]');
+        var linked = !!sel.value;
+        [name, phone].forEach(function (el) { if (el) el.readOnly = linked; });
+        if (linked) {
+            if (name) name.value = opt.getAttribute('data-name') || '';
+            if (phone) phone.value = opt.getAttribute('data-phone') || '';
+        }
+    }
+
+    // The file shows what its kind needs: the employee's parts, the external
+    // driver's company, and the driving part for anybody who drives.
+    function syncPerson(form) {
+        var kind = form.querySelector('[name="kind"]');
+        if (!kind) return;
+        var ext = kind.value === 'external';
+        form.querySelectorAll('[data-kind="employee"]').forEach(function (el) { el.hidden = ext; });
+        form.querySelectorAll('[data-kind="external"]').forEach(function (el) { el.hidden = !ext; });
+        var pos = form.querySelector('[name="position_id"]');
+        var driverPos = form.getAttribute('data-driver-position');
+        var driving = ext || (pos && driverPos && pos.value === driverPos)
+            || !!form.querySelector('[name="fleets"]:checked');
+        var part = form.querySelector('[data-driver-part]');
+        if (part) part.hidden = !driving;
+    }
+
+    document.addEventListener('change', function (e) {
+        var t = e.target;
+        if (t.matches && t.matches('[data-person-pick]')) syncLogin(t);
+        if (t.form && t.form.matches('[data-person-form]')) syncPerson(t.form);
+    });
+})();

@@ -1,0 +1,16 @@
+{% from "_hint.html" import hint with context %}
+{# The employee a login belongs to. Picked: the name and phone of the login
+   come from his file and are locked. Empty: somebody from outside (the
+   owner, a client's contact), whose name is typed below. Expects `people`
+   and `sel_person`, set by the including form (a set inside an include does
+   not reach the fields around it). #}
+<div class="field field--select">
+    <select id="staff_id" name="staff_id" data-person-pick>
+        <option value="">{{ t['user.no_person'] }}</option>
+        {% for p in people %}
+        <option value="{{ p.id }}" data-name="{{ p.name }}" data-phone="{{ p.phone or '' }}"
+                {% if p.id == sel_person %}selected{% endif %}>{{ p.name }}{% if p.position %} — {{ p.position.name }}{% endif %}</option>
+        {% endfor %}
+    </select>
+    <label for="staff_id">{{ t['user.person'] }} {{ hint('', t['user.person_hint']) }}</label>
+</div>

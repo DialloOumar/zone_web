@@ -24,6 +24,7 @@
             <tr>
                 <th>{{ t['user.username'] }}</th>
                 <th>{{ t['user.full_name'] }}</th>
+                <th>{{ t['user.person'] }}</th>
                 <th>{{ t['user.access'] }}</th>
                 <th>{{ t['user.active'] }}</th>
                 <th></th>
@@ -34,6 +35,16 @@
             <tr>
                 <td><strong>{{ u.username }}</strong>{% if u.email %}<div class="muted small">{{ u.email }}</div>{% endif %}</td>
                 <td>{{ u.full_name }}</td>
+                {# Which employee the login belongs to; a login with no file is
+                   somebody from outside, or one still to tie. #}
+                <td>
+                    {% if u.person %}
+                    <span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
+                    {% if u.person.position %}<span class="muted small">{{ u.person.position.name }}</span>{% endif %}
+                    {% else %}
+                    <span class="badge badge--warning">{{ t['user.external'] }}</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% for fleet, role in assigns[u.id] %}
                         {% if fleet and role %}<span class="chip">{{ fleet.name }} · {{ role.name }}</span>{% endif %}

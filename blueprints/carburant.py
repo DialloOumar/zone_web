@@ -92,11 +92,13 @@ def _entry_vehicles():
 
 
 def _accessible_operators():
-    q = Operator.query.filter(Operator.is_active.is_(True))
-    fids = current_user_fleet_ids()
-    if fids is not None:
-        q = q.filter(Operator.fleet_id.in_(fids))
-    return q.order_by(Operator.name).all()
+    """One line per person: a driver on two fleets is one name here."""
+    seen, out = set(), []
+    for o in Operator.active_query(current_user_fleet_ids()).all():
+        if o.staff_id not in seen:
+            seen.add(o.staff_id)
+            out.append(o)
+    return out
 
 
 # ── Overview ──────────────────────────────────────────────────────────────────

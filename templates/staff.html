@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% from "_pager.html" import pager with context %}
 
-{% block title %}{{ t['nav.staff'] }}{% endblock %}
-{% block page_title %}{{ t['nav.staff'] }}{% endblock %}
+{% block title %}{{ t['nav.people'] }}{% endblock %}
+{% block page_title %}{{ t['nav.people'] }}{% endblock %}
 
 {% macro tickbox(name, label, rows, chosen, attr) %}
 <details class="filter-dd{% if chosen %} filter-dd--on{% endif %}">
@@ -28,21 +28,27 @@
             <span class="caisse-balance__label">{{ t['staff.on_payroll'] }}</span>
             <strong>{{ total_active }}</strong>
         </div>
-        {# The jobs are named once and then left alone, so they live on a page
-           of their own rather than beside the list read every day. #}
-        {% if extra_fields and has_perm('staff.create') %}
-        <a href="{{ url_for('staff.positions') }}" class="btn btn--sm btn--outlined">
-            <span class="material-symbols-outlined">tune</span> {{ t['staff.positions'] }}
+        {% if has_perm('staff.create') %}
+        <a href="{{ url_for('staff.new') }}" class="fab"
+           data-modal-url="{{ url_for('staff.new') }}" data-modal-title="{{ t['staff.new'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['staff.new'] }}
         </a>
         {% endif %}
     </div>
 
+    <div class="filter-chips">
+        {% for key in ('all', 'employee', 'external', 'driver') %}
+        <a href="{{ url_for('staff.index', show=key if key != 'all' else None, q=search or None, archived='1' if show_archived else None) }}"
+           class="filter-chip {% if show == key %}active{% endif %}">{{ t['staff.show.' + key] }}</a>
+        {% endfor %}
+    </div>
+
     <form method="get" class="filter-bar filter-bar--live">
+        {% if show != 'all' %}<input type="hidden" name="show" value="{{ show }}">{% endif %}
         {% if positions %}{{ tickbox('position', t['staff.position'], positions, position_ids, 'name') }}{% endif %}
         <label class="filter-search">
             <input type="search" name="q" value="{{ search }}" placeholder="{{ t['staff.search'] }}">
         </label>
-        {# Someone who has left is out of the way, not gone. #}
         <label class="filter-date">
             <input type="checkbox" name="archived" value="1" {% if show_archived %}checked{% endif %}>
             <span>{{ t['staff.show_archived'] }}</span>
@@ -50,28 +56,17 @@
         <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
     </form>
 
-    <div class="tab-bar">
-        <div class="tab-bar__actions">
-            {% if has_perm('staff.create') %}
-            <a href="{{ url_for('staff.new') }}" class="fab"
-               data-modal-url="{{ url_for('staff.new') }}" data-modal-title="{{ t['staff.new'] }}">
-                <span class="material-symbols-outlined">add</span> {{ t['staff.new'] }}
-            </a>
-            {% endif %}
-        </div>
-    </div>
-
     {% if people %}
     <div class="table-desktop">
     <table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['staff.name'] }}</th>
-                {% if extra_fields %}
-                <th>{{ t['staff.position'] }}</th>
+                <th>{{ t['staff.kind'] }}</th>
+                <th>{{ t['staff.position_or_company'] }}</th>
                 <th>{{ t['staff.phone'] }}</th>
-                <th class="col-secondary">{{ t['staff.hired_on'] }}</th>
-                {% endif %}
+                <th class="col-secondary">{{ t['staff.fleets'] }}</th>
+                <th class="col-secondary">{{ t['staff.login'] }}</th>
                 <th style="text-align:right;">{{ t['staff.spent_on'] }}</th>
                 <th></th>
             </tr>
@@ -83,17 +78,26 @@
                 <td>
                     <strong {% if not p.is_active %}class="muted"{% endif %}>{{ p.name }}</strong>
                     {% if not p.is_active %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
-                    {% if extra_fields %}
-                    {% if p.matricule %}<div class="muted small">{{ t['staff.matricule_short'] }} {{ p.matricule }}</div>{% endif %}
-                    {% if p.note %}<div class="muted small">{{ p.note }}</div>{% endif %}
-                    {% endif %}
+                    {% if p.matricule and p.is_employee %}<div class="muted small">{{ t['staff.matricule_short'] }} {{ p.matricule }}</div>{% endif %}
                 </td>
-                {% if extra_fields %}
-                <td>{% if p.position %}<span class="chip">{{ p.position.name }}</span>
-                    {%- else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td>
+                    {% if p.is_employee %}<span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
+                    {%- else %}<span class="badge badge--warning">{{ t['staff.kind.external'] }}</span>{% endif %}
+                </td>
+                <td>
+                    {% if p.is_employee %}
+                        {% if p.position %}<span class="chip">{{ p.position.name }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}
+                    {% else %}{{ p.company or '—' }}{% endif %}
+                </td>
                 <td>{% if p.phone %}{{ p.phone }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
-                <td class="col-secondary">{% if p.hired_on %}{{ p.hired_on }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
-                {% endif %}
+                <td class="col-secondary">
+                    {% set fl = p.active_fleets %}
+                    {% if fl %}{{ fl|map(attribute='name')|join(', ') }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td class="col-secondary">
+                    {% if p.login %}<span class="material-symbols-outlined" style="font-size:16px; vertical-align:-3px; color:var(--c-green);">check_circle</span> {{ p.login.username }}
+                    {%- else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
                 <td style="text-align:right; white-space:nowrap;">
                     {% if sp %}
                     <a href="{{ url_for('expenses.index', staff=p.id, date_from='', date_to='') }}">
@@ -105,7 +109,7 @@
                 <td class="row-actions">
                     {% if has_perm('staff.edit') %}
                     <a href="{{ url_for('staff.edit', pid=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
-                       data-modal-url="{{ url_for('staff.edit', pid=p.id) }}" data-modal-title="{{ t['staff.edit'] }}"
+                       data-modal-url="{{ url_for('staff.edit', pid=p.id) }}" data-modal-title="{{ p.name }}"
                        title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% if not p.is_active %}
                     <form method="post" action="{{ url_for('staff.action', pid=p.id, what='reactivate') }}" style="display:inline">
@@ -118,8 +122,8 @@
                     </form>
                     {% endif %}
                     {% endif %}
-                    {% if has_perm('staff.delete') and not sp %}
-                    {# No cost has ever named them, so there is no history to keep. #}
+                    {% if has_perm('staff.delete') and not sp and not p.login and not p.drives %}
+                    {# Nothing has ever pointed at this file, so there is no history to keep. #}
                     <form method="post" action="{{ url_for('staff.delete', pid=p.id) }}"
                           data-confirm="{{ t['staff.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
                         <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
@@ -134,27 +138,26 @@
 
     <div class="list-cards">
         {% for p in people %}
-        {% set sp = spend.get(p.id) %}
-        <div class="list-card">
+        <a class="list-card" href="{{ url_for('staff.edit', pid=p.id) }}"
+           data-modal-url="{{ url_for('staff.edit', pid=p.id) }}" data-modal-title="{{ p.name }}">
             <div class="list-card__top">
                 <strong>{{ p.name }}</strong>
-                {% if sp %}<span class="list-card__amount">{{ sp.total | num }} <span class="muted small">{{ currency }}</span></span>{% endif %}
+                {% if p.is_employee %}<span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
+                {%- else %}<span class="badge badge--warning">{{ t['staff.kind.external'] }}</span>{% endif %}
             </div>
             <div class="list-card__meta">
-                {% if extra_fields %}
-                {% if p.position %}<span class="chip">{{ p.position.name }}</span>{% endif %}
+                {% if p.is_employee and p.position %}<span class="chip">{{ p.position.name }}</span>{% endif %}
+                {% if not p.is_employee and p.company %}<span class="muted small">{{ p.company }}</span>{% endif %}
                 {% if p.phone %}<span class="muted small">&middot; {{ p.phone }}</span>{% endif %}
-                {% if p.matricule %}<span class="muted small">&middot; {{ t['staff.matricule_short'] }} {{ p.matricule }}</span>{% endif %}
-                {% endif %}
                 {% if not p.is_active %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
             </div>
-        </div>
+        </a>
         {% endfor %}
     </div>
     {{ pager(pagination, 'staff.index') }}
     {% else %}
     <div class="empty-state">
-        <span class="material-symbols-outlined">engineering</span>
+        <span class="material-symbols-outlined">group</span>
         <p>{{ t['staff.empty'] }}</p>
     </div>
     {% endif %}

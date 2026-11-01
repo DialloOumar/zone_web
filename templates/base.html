@@ -36,21 +36,24 @@
             </a></li>
             {% endif %}
 
-            {# The payroll, next to the drivers. The two lists are separate on
-               purpose: a driver belongs to a client's fleet, a mechanic to the
-               company. #}
-            {% if has_perm('staff.view') %}
-            <li><a href="{{ url_for('staff.index') }}" class="{% if request.blueprint == 'staff' %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">engineering</span> {{ t['nav.staff'] }}
-            </a></li>
-            {% endif %}
-
             {% if has_perm('entry.view') %}
             <li><a href="{{ url_for('entries.roster_index') }}" class="{% if request.endpoint in ['entries.roster', 'entries.roster_index'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">fact_check</span> {{ t['nav.roster'] }}
             </a></li>
             <li><a href="{{ url_for('entries.index') }}" class="{% if request.endpoint == 'entries.index' %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">list_alt</span> {{ t['nav.daily_entries'] }}
+            </a></li>
+            {% endif %}
+
+            {# RH: the people, one file each -- employees and external
+               drivers. The drivers above are a view of the same files. #}
+            {% if has_perm('staff.view') %}
+            <li class="sidebar-section">{{ t['nav.hr'] }}</li>
+            <li><a href="{{ url_for('staff.index') }}" class="sidebar-sub {% if request.blueprint == 'staff' and not (request.endpoint or '').startswith('staff.position') and request.endpoint != 'staff.merge' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">group</span> {{ t['nav.people'] }}
+            </a></li>
+            <li><a href="{{ url_for('staff.positions') }}" class="sidebar-sub {% if (request.endpoint or '').startswith('staff.position') %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">engineering</span> {{ t['staff.positions'] }}
             </a></li>
             {% endif %}
 
@@ -202,6 +205,9 @@
             {% if is_super_admin %}
             <li><a href="{{ url_for('admin.users') }}" class="sidebar-sub {% if request.endpoint in ['admin.users', 'admin.user_new', 'admin.user_edit'] %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">group</span> {{ t['admin.users'] }}
+            </a></li>
+            <li><a href="{{ url_for('staff.merge') }}" class="sidebar-sub {% if request.endpoint == 'staff.merge' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">swap_horiz</span> {{ t['merge.title'] }}
             </a></li>
             <li><a href="{{ url_for('stores.index') }}" class="sidebar-sub {% if request.blueprint == 'stores' or request.endpoint in ('stock.units', 'stock.conversions') %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">store</span> {{ t['admin.stock_setup'] }}

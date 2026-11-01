@@ -170,6 +170,9 @@ def _apply(pc):
     types = None
     if is_service and pc.action in ("create", "update"):
         payload, types = split_types(payload)
+    if pc.resource_type == "operator" and pc.action in ("create", "update"):
+        from blueprints.operators import legacy_operator_payload
+        payload = legacy_operator_payload(payload)
     if pc.action == "create":
         obj = Model(**payload)
         setattr(obj, creator_attr, pc.requested_by)

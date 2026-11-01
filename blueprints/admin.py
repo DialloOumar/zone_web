@@ -26,7 +26,7 @@ from vehicle_images import available_default_images, is_default_image
 from models import (Alert, AppSetting, AuditLog, Citerne, DailyEntry, Expense,
                     Fleet, FleetRate, FuelMovement, MaintenanceRecord,
                     MaintenanceRule, Operator, PendingChange, Permission, Role,
-                    RolePermission, User, UserFleet, Vehicle, VehicleCategory, db)
+                    RolePermission, Staff, User, UserFleet, Vehicle, VehicleCategory, db)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -610,6 +610,28 @@ def users():
                            show_archived=show_archived, archived_count=archived_count)
 
 
+def _free_people(user=None):
+    """Employees a login can be tied to: active, without a login yet -- plus
+    the one this login already belongs to."""
+    q = Staff.query.filter(Staff.kind == "employee", Staff.is_active.is_(True))
+    taken = db.session.query(User.staff_id).filter(User.staff_id.isnot(None))
+    if user is not None and user.staff_id:
+        taken = taken.filter(User.id != user.id)
+    return q.filter(Staff.id.notin_(taken)).order_by(Staff.last_name, Staff.first_name).all()
+
+
+def _read_person_link(user=None):
+    """The employee picked on the login form, or None for somebody from
+    outside. Returns (person, error)."""
+    sid = request.form.get("staff_id", type=int)
+    if not sid:
+        return None, None
+    person = db.session.get(Staff, sid)
+    if person is None or person.id not in {p.id for p in _free_people(user)}:
+        return None, get_t()["user.err.person"]
+    return person, None
+
+
 def _create_user():
     t = get_t()
     username = (request.form.get("username") or "").strip().lower()
@@ -618,6 +640,12 @@ def _create_user():
     phone = (request.form.get("phone") or "").strip() or None
     password = request.form.get("password") or ""
     is_active = request.form.get("is_active") is not None
+    person, perr = _read_person_link()
+    if perr:
+        return perr, None
+    if person is not None:
+        # An employee's login carries the name and phone of his file.
+        full_name, phone = person.name[:120], person.phone
     if not username:
         return t.get("user.err.username_required", "Nom d'utilisateur obligatoire."), None
     if not full_name:
@@ -629,7 +657,7 @@ def _create_user():
     if email and User.query.filter(db.func.lower(User.email) == email).first():
         return t.get("user.err.email_taken", "Ce courriel est deja utilise."), None
     u = User(username=username, full_name=full_name, email=email, phone=phone,
-             is_active=is_active, lang="fr")
+             is_active=is_active, lang="fr", staff_id=person.id if person else None)
     u.set_password(password)
     db.session.add(u)
     db.session.flush()
@@ -647,13 +675,13 @@ def user_new():
         if error:
             tpl = "_user_form.html" if is_modal_request() else "admin_user_new.html"
             status = 422 if (error and is_modal_request()) else 200
-            return render_template(tpl, error=error), status
+            return render_template(tpl, error=error, people=_free_people()), status
         flash("success|" + get_t().get("user.created", "Utilisateur cree."))
         if is_modal_request():
             return modal_ok()
         return redirect(url_for("admin.user_edit", user_id=user.id))
     tpl = "_user_form.html" if is_modal_request() else "admin_user_new.html"
-    return render_template(tpl, error=None)
+    return render_template(tpl, error=None, people=_free_people())
 
 
 def _get_managed_user(user_id):
@@ -673,7 +701,13 @@ def user_edit(user_id):
         username = (request.form.get("username") or "").strip().lower()
         full_name = (request.form.get("full_name") or "").strip()
         email = (request.form.get("email") or "").strip().lower() or None
-        if not username or not full_name:
+        phone = (request.form.get("phone") or "").strip() or None
+        person, perr = _read_person_link(user)
+        if person is not None:
+            full_name, phone = person.name[:120], person.phone
+        if perr:
+            flash("error|" + perr)
+        elif not username or not full_name:
             flash("error|" + t.get("user.err.name_required", "Champs obligatoires manquants."))
         elif User.query.filter(db.func.lower(User.username) == username, User.id != user.id).first():
             flash("error|" + t.get("user.err.username_taken", "Ce nom d'utilisateur existe deja."))
@@ -683,7 +717,8 @@ def user_edit(user_id):
             user.username = username
             user.full_name = full_name
             user.email = email
-            user.phone = (request.form.get("phone") or "").strip() or None
+            user.phone = phone
+            user.staff_id = person.id if person else None
             user.is_active = request.form.get("is_active") is not None
             log_action("UPDATE", "user", resource_id=user.id, detail="Updated user '%s'" % username)
             db.session.commit()
@@ -698,7 +733,8 @@ def user_edit(user_id):
         for uf in UserFleet.query.filter_by(user_id=user.id).order_by(UserFleet.fleet_id).all()
     ]
     return render_template("admin_user_edit.html", user=user, fleets=fleets,
-                           roles=roles, assignments=assignments)
+                           roles=roles, assignments=assignments,
+                           people=_free_people(user))
 
 
 @admin_bp.route("/users/<int:user_id>/password", methods=["POST"])

@@ -5,6 +5,7 @@ Schema overview (25 tables, grouped):
   Auth & access     User, Fleet, FleetRate, UserFleet, Role, Permission,
                     RolePermission
   Domain            VehicleCategory, Vehicle, Operator
+  People            Staff, StaffPosition, StaffDocument, PersonMatchDismissed
   Daily ops         DailyEntry
   Maintenance       MaintenanceRule, MaintenanceRecord, MaintenanceRecordType, Alert
   Money             Expense, CashMovement, CashAccount, Site
@@ -62,6 +63,12 @@ class User(UserMixin, db.Model):
     # When the user finished/skipped the first-login welcome guide (null = not yet).
     tour_seen_at   = db.Column(db.DateTime,   nullable=True)
     created_at     = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+    # The employee this login belongs to. Then full_name and phone are copied
+    # from the person's file and follow it; null = somebody from outside (the
+    # owner, a client's contact) whose name is typed here.
+    staff_id       = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=True, unique=True)
+
+    person = db.relationship("Staff", back_populates="login", foreign_keys=[staff_id])
 
     # UserFleet has two FKs pointing at users (user_id and assigned_by), so the
     # back relationship must say which one is the "owner" side.
@@ -326,29 +333,59 @@ class Vehicle(db.Model):
 
 
 class Operator(db.Model):
-    """Driver / operator pool for a fleet.
+    """A person who drives for a fleet: nothing more than the pair.
 
-    DailyEntry.operator stays a String so historical entries are preserved
-    if an operator is later renamed or deactivated; the Operator table is
-    primarily the source for typeahead dropdowns and the operators admin
-    page (similar to batmex_web's Operator model).
+    Who the driver is -- name, phone, licence -- lives on their Staff row, the
+    one place a person exists. This row only says "this person drives for this
+    fleet, and still does": it is what the pointing dropdowns list, and what a
+    vehicle's default driver points at. A driver on two fleets is two rows and
+    one person.
+
+    DailyEntry.operator and its kin still store the name as text; renaming the
+    person rewrites that text (see blueprints.staff.rename_on_records).
     """
     __tablename__ = "operators"
     __table_args__ = (
-        db.UniqueConstraint("fleet_id", "name", name="uq_operators_fleet_name"),
+        db.UniqueConstraint("fleet_id", "staff_id", name="uq_operators_fleet_staff"),
     )
 
     id              = db.Column(db.Integer, primary_key=True)
     fleet_id        = db.Column(db.Integer, db.ForeignKey("fleets.id"), nullable=False)
-    name            = db.Column(db.String(120), nullable=False)
-    phone           = db.Column(db.String(30),  nullable=True)
-    license_number  = db.Column(db.String(40),  nullable=True)
-    notes           = db.Column(db.String(255), nullable=True)
+    staff_id        = db.Column(db.Integer, db.ForeignKey("staff.id"),  nullable=False, index=True)
     is_active       = db.Column(db.Boolean,     nullable=False, default=True)
     created_at      = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
     created_by      = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
 
-    fleet = db.relationship("Fleet")
+    fleet  = db.relationship("Fleet")
+    person = db.relationship("Staff", back_populates="drives")
+
+    # Read through to the person, so every dropdown and list that showed the
+    # driver's own columns keeps working unchanged.
+    @property
+    def name(self):
+        return self.person.name if self.person else ""
+
+    @property
+    def phone(self):
+        return self.person.phone if self.person else None
+
+    @property
+    def license_number(self):
+        return self.person.license_number if self.person else None
+
+    @property
+    def notes(self):
+        return self.person.note if self.person else None
+
+    @classmethod
+    def active_query(cls, fleet_ids=None):
+        """Drivers offered on a form: the link and the person both active,
+        sorted by the person's name. fleet_ids None = every fleet."""
+        q = (cls.query.join(Staff, cls.staff_id == Staff.id)
+             .filter(cls.is_active.is_(True), Staff.is_active.is_(True)))
+        if fleet_ids is not None:
+            q = q.filter(cls.fleet_id.in_(fleet_ids))
+        return q.order_by(Staff.last_name, Staff.first_name)
 
 
 # ── Personnel (the seed of an HR module) ─────────────────────────────────────
@@ -371,20 +408,16 @@ class StaffPosition(db.Model):
 
 
 class Staff(db.Model):
-    """Someone on the company's payroll.
+    """A person: the one place anybody working on the ground exists.
 
-    Deliberately not the same table as Operator. An operator is a driver
-    attached to one client's fleet, and that list feeds the roster and the
-    daily entries; the storekeeper and the accountant have no business in a
-    pointing dropdown. So a driver who is also on the payroll sits in both
-    lists for now, and the two can be tied together the day the HR module
-    proper is built.
+    Two kinds. An employee is on the company's payroll and carries the full
+    file (identity, position, CNSS); contracts, leave and pay hang off this row
+    later. An external driver works for a subcontractor or a client and only
+    carries what the pointing needs: name, phone, company, licence.
 
-    The company's, not a client's: like sites, accounts and suppliers, a
-    person carries no fleet.
-
-    Today it exists so a cost can name who it was for. Everything an HR module
-    needs later — contracts, leave, pay — hangs off this row.
+    A driver is not a list of his own: the fleets he drives for are Operator
+    rows pointing here. A login belongs to an employee through User.staff_id;
+    somebody with a login who is not an employee has no row here at all.
     """
     __tablename__ = "staff"
     __table_args__ = (
@@ -410,10 +443,49 @@ class Staff(db.Model):
     # them have to keep naming them.
     is_active   = db.Column(db.Boolean,     nullable=False, default=True)
 
+    kind              = db.Column(db.String(10), nullable=False, default="employee",
+                                  server_default="employee")   # employee | external
+    # Identity
+    sex               = db.Column(db.String(1))      # M | F
+    birth_date        = db.Column(db.String(10))     # YYYY-MM-DD
+    birth_place       = db.Column(db.String(80))
+    nationality       = db.Column(db.String(60))
+    id_number         = db.Column(db.String(60))     # CNI, passport...
+    photo_key         = db.Column(db.String(200))    # S3 key
+    # Contact
+    address           = db.Column(db.String(200))
+    emergency_name    = db.Column(db.String(120))
+    emergency_phone   = db.Column(db.String(30))
+    # Work (employees)
+    site_id           = db.Column(db.Integer, db.ForeignKey("sites.id"), nullable=True)
+    cnss_number       = db.Column(db.String(40))
+    # External drivers: who they work for.
+    company           = db.Column(db.String(120))
+    # Driving
+    license_number     = db.Column(db.String(40))
+    license_categories = db.Column(db.String(40))
+    license_expires    = db.Column(db.String(10))    # YYYY-MM-DD
+
     created_by  = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     created_at  = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    position = db.relationship("StaffPosition")
+    position  = db.relationship("StaffPosition")
+    site      = db.relationship("Site")
+    drives    = db.relationship("Operator", back_populates="person")
+    documents = db.relationship("StaffDocument", back_populates="person",
+                                order_by="StaffDocument.created_at",
+                                cascade="all, delete-orphan")
+    login     = db.relationship("User", back_populates="person", uselist=False,
+                                foreign_keys="User.staff_id")
+
+    @property
+    def is_employee(self):
+        return self.kind != "external"
+
+    @property
+    def active_fleets(self):
+        return sorted((o.fleet for o in self.drives if o.is_active and o.fleet),
+                      key=lambda f: f.name)
 
     @property
     def name(self):
@@ -421,6 +493,35 @@ class Staff(db.Model):
         in here. Everything on screen asks for this rather than the two halves,
         so how a person is written stays decided in one place."""
         return " ".join(part for part in (self.last_name, self.first_name) if part)
+
+
+class StaffDocument(db.Model):
+    """A scanned paper on a person's file: ID card, licence, diploma."""
+    __tablename__ = "staff_documents"
+
+    id           = db.Column(db.Integer, primary_key=True)
+    staff_id     = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=False, index=True)
+    name         = db.Column(db.String(160), nullable=False)   # the file name as uploaded
+    file_key     = db.Column(db.String(200), nullable=False)   # S3 key
+    content_type = db.Column(db.String(60))
+    created_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at   = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    person = db.relationship("Staff", back_populates="documents")
+
+
+class PersonMatchDismissed(db.Model):
+    """"These two are different people", said once on the merge screen so the
+    pair is not offered again. Either two people (staff_a < staff_b) or a
+    person and a login (staff_a + user_id)."""
+    __tablename__ = "person_match_dismissed"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    staff_a_id = db.Column(db.Integer, db.ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
+    staff_b_id = db.Column(db.Integer, db.ForeignKey("staff.id", ondelete="CASCADE"), nullable=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
 # ── Daily operations ──────────────────────────────────────────────────────────

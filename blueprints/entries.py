@@ -64,11 +64,7 @@ def _accessible_fleets():
 
 
 def _accessible_operators():
-    q = Operator.query.filter_by(is_active=True)
-    fids = current_user_fleet_ids()
-    if fids is not None:
-        q = q.filter(Operator.fleet_id.in_(fids))
-    return q.order_by(Operator.name).all()
+    return Operator.active_query(current_user_fleet_ids()).all()
 
 
 def _get_entry_or_404(eid):
@@ -207,7 +203,8 @@ def _form_context(entry):
     preset_operator = ""
     if preset_vehicle and entry is None:
         v = db.session.get(Vehicle, preset_vehicle)
-        if v and v.default_operator and v.default_operator.is_active:
+        if (v and v.default_operator and v.default_operator.is_active
+                and v.default_operator.person.is_active):
             preset_operator = v.default_operator.name
     return {
         "vehicles": _accessible_vehicles(active_only=True),

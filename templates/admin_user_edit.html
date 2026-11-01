@@ -9,6 +9,9 @@
         <a data-back href="{{ url_for('admin.users') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
     </div>
     <form method="post" action="{{ url_for('admin.user_edit', user_id=user.id) }}" class="entry-form">
+        {% set sel_person = (request.form.get('staff_id')|int(0)) if request.method == 'POST' else (user.staff_id or 0) %}
+    {% set picked = (people|selectattr('id', 'equalto', sel_person)|list|first) if sel_person else none %}
+        {% include "_person_pick.html" %}
         <div class="form-row">
             <div class="field">
                 <input type="text" id="username" name="username" placeholder="{{ t['ph.user.username'] }}" required
@@ -16,7 +19,8 @@
                 <label for="username">{{ t['user.username'] }}</label>
             </div>
             <div class="field">
-                <input type="text" id="full_name" name="full_name" placeholder="{{ t['ph.user.full_name'] }}" required value="{{ user.full_name }}">
+                <input type="text" id="full_name" name="full_name" placeholder="{{ t['ph.user.full_name'] }}" required
+                       data-person-name {% if picked %}readonly{% endif %} value="{{ picked.name if picked else user.full_name }}">
                 <label for="full_name">{{ t['user.full_name'] }}</label>
             </div>
         </div>
@@ -25,7 +29,8 @@
             <label for="email">{{ t['user.email'] }}</label>
         </div>
         <div class="field">
-            <input type="tel" id="phone" name="phone" placeholder="{{ t['ph.operator.phone'] }}" value="{{ user.phone or '' }}">
+            <input type="tel" id="phone" name="phone" placeholder="{{ t['ph.operator.phone'] }}"
+                   data-person-phone {% if picked %}readonly{% endif %} value="{{ (picked.phone or '') if picked else (user.phone or '') }}">
             <label for="phone">{{ t['user.phone'] }}</label>
         </div>
 

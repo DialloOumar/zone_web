@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['merge.title'] }}{% endblock %}
+{% block page_title %}{{ t['merge.title'] }}{% endblock %}
+
+{# The near-matches left when the one list was made: two files that may be
+   one person, or a login that may be an employee's. Same name written the
+   same way was joined already; these are for somebody who knows. #}
+{% macro person_card(p, a, b) %}
+<label class="merge-col">
+    <span class="merge-col__keep">
+        <input type="radio" name="keep" value="{{ p.id }}" {% if p.id == a.id %}checked{% endif %}>
+        {{ t['merge.keep_name'] }}
+    </span>
+    <strong>{{ p.name }}</strong>
+    <span class="muted small">
+        {% if p.is_employee %}{{ t['staff.kind.employee'] }}{% if p.position %} · {{ p.position.name }}{% endif %}
+        {%- else %}{{ t['staff.kind.external'] }}{% if p.company %} · {{ p.company }}{% endif %}{% endif %}
+    </span>
+    {% if p.matricule %}<span class="small">{{ t['staff.matricule_short'] }} {{ p.matricule }}</span>{% endif %}
+    {% if p.phone %}<span class="small">{{ p.phone }}</span>{% endif %}
+    {% if p.license_number %}<span class="small">{{ t['staff.license_number'] }} {{ p.license_number }}</span>{% endif %}
+    {% set fl = p.drives|map(attribute='fleet')|map(attribute='name')|list %}
+    {% if fl %}<span class="small">{{ t['staff.fleets'] }} : {{ fl|join(', ') }}</span>{% endif %}
+    {% if p.login %}<span class="small">{{ t['staff.login'] }} : {{ p.login.username }}</span>{% endif %}
+</label>
+{% endmacro %}
+
+{% block content %}
+<section class="card">
+    {% if not person_pairs and not login_pairs %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">task_alt</span>
+        <p>{{ t['merge.none'] }}</p>
+    </div>
+    {% endif %}
+
+    {% if person_pairs %}
+    <div class="card-header"><h2>{{ t['merge.people'] }} ({{ person_pairs|length }})</h2></div>
+    {% for a, b in person_pairs %}
+    <form method="post" class="merge-pair">
+        <input type="hidden" name="a" value="{{ a.id }}">
+        <input type="hidden" name="b" value="{{ b.id }}">
+        <div class="merge-grid">
+            {{ person_card(a, a, b) }}
+            {{ person_card(b, a, b) }}
+        </div>
+        <div class="merge-actions">
+            <button type="submit" name="what" value="merge" class="btn btn--sm btn--primary"
+                    data-confirm="{{ t['merge.confirm'] }}" data-confirm-title="{{ t['merge.title'] }}" data-confirm-ok="{{ t['merge.same'] }}">
+                <span class="material-symbols-outlined">check</span> {{ t['merge.same'] }}
+            </button>
+            <button type="submit" name="what" value="different" class="btn btn--sm btn--outlined">{{ t['merge.different'] }}</button>
+        </div>
+    </form>
+    {% endfor %}
+    {% endif %}
+
+    {% if login_pairs %}
+    <div class="card-header" style="margin-top:18px;"><h2>{{ t['merge.logins'] }} ({{ login_pairs|length }})</h2></div>
+    {% for p, u in login_pairs %}
+    <form method="post" class="merge-pair">
+        <input type="hidden" name="a" value="{{ p.id }}">
+        <input type="hidden" name="u" value="{{ u.id }}">
+        <div class="merge-grid">
+            <div class="merge-col">
+                <span class="merge-col__keep">{{ t['merge.file'] }}</span>
+                <strong>{{ p.name }}</strong>
+                {% if p.position %}<span class="muted small">{{ p.position.name }}</span>{% endif %}
+                {% if p.phone %}<span class="small">{{ p.phone }}</span>{% endif %}
+            </div>
+            <div class="merge-col">
+                <span class="merge-col__keep">{{ t['staff.login'] }}</span>
+                <strong>{{ u.full_name }}</strong>
+                <span class="muted small">{{ u.username }}</span>
+                {% if u.phone %}<span class="small">{{ u.phone }}</span>{% endif %}
+            </div>
+        </div>
+        <div class="merge-actions">
+            <button type="submit" name="what" value="link" class="btn btn--sm btn--primary">
+                <span class="material-symbols-outlined">check</span> {{ t['merge.same'] }}
+            </button>
+            <button type="submit" name="what" value="unrelated" class="btn btn--sm btn--outlined">{{ t['merge.different'] }}</button>
+        </div>
+    </form>
+    {% endfor %}
+    {% endif %}
+</section>
+{% endblock %}

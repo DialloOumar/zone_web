@@ -55,6 +55,7 @@ VEHICLE_PREFIX  = S3_PREFIX + "vehicles/"      # one photo per vehicle
 CITERNE_PREFIX  = S3_PREFIX + "citernes/"      # one photo per citerne
 PART_PREFIX     = S3_PREFIX + "parts/"         # one photo per stock part
 INVOICE_PREFIX  = S3_PREFIX + "invoices/"      # supplier invoices, foldered by month
+PEOPLE_PREFIX   = S3_PREFIX + "people/"        # a person's photo and scanned papers
 MAX_SCAN_PAGES  = 20                 # pages in one scanned invoice (scanner.js holds the same)
 SCAN_MAX        = 2000               # longest side of a scanned page, as the browser sends it
 A4_LONG_INCHES  = 11.69              # a scanned page opens at paper size, not as a poster
@@ -200,6 +201,38 @@ def upload_citerne_photo(file_storage, code: str = "") -> Tuple[Optional[str], O
 def upload_part_photo(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
     """Resize and upload a stock part photo to {S3_PREFIX}parts/."""
     return _upload_photo(file_storage, PART_PREFIX, code)
+
+
+def upload_person_photo(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """Resize and upload a person's photo to {S3_PREFIX}people/."""
+    return _upload_photo(file_storage, PEOPLE_PREFIX, code)
+
+
+def upload_person_document(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """A paper on a person's file: a PDF kept as it came, an image resized
+    like any photo. Returns (key, None) or (None, error_code)."""
+    s3 = _client()
+    if s3 is None:
+        log.warning("S3 not configured; skipping person document upload")
+        return None, ERR_NOT_CONFIGURED
+    head = file_storage.stream.read(1024)
+    file_storage.stream.seek(0)
+    if b"%PDF-" not in head:
+        return _upload_photo(file_storage, PEOPLE_PREFIX + "docs/", code)
+    try:
+        body = file_storage.read(MAX_PDF_BYTES + 1)
+        if len(body) > MAX_PDF_BYTES:
+            return None, ERR_TOO_LARGE
+        key = (f"{PEOPLE_PREFIX}docs/{_slug(code)}-{int(time.time())}"
+               f"-{uuid.uuid4().hex[:6]}.pdf")
+        s3.put_object(Bucket=S3_BUCKET, Key=key, Body=body, ContentType="application/pdf")
+        return key, None
+    except (BotoCoreError, ClientError) as e:
+        log.exception("S3 person document upload failed: %s", e)
+        return None, ERR_S3
+    except Exception as e:
+        log.exception("Unexpected error during person document upload: %s", e)
+        return None, ERR_UNKNOWN
 
 
 def upload_invoice_photo(file_storage, code: str = "", month: str = "") -> Tuple[Optional[str], Optional[str]]:

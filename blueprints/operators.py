@@ -1,23 +1,19 @@
-"""Operators blueprint — the driver pool.
+"""Conducteurs -- the people who drive, seen from the fleets.
 
-List / create / edit / delete drivers, scoped to the user's fleets. Operators
-feed the driver dropdowns on the vehicle and daily-entry forms. DailyEntry
-stores the operator as a string snapshot, so deleting an operator never
-orphans historical data — no delete guard needed.
-
-Reuses the same approval+grace flow as vehicles via submit_change().
+Not a list of its own any more: a driver is a person (blueprints.staff) and
+the fleets he drives for are Operator rows ticked on his file. This page lists
+those people, and each fleet's driver sheet (activity, vehicles, costs) still
+lives here. Adding or editing a driver opens the person's file.
 """
 from datetime import datetime
 
-from flask import (Blueprint, abort, flash, redirect, render_template,
-                   request, url_for)
-from flask_login import current_user, login_required
+from flask import Blueprint, abort, redirect, render_template, request, url_for
+from flask_login import login_required
 from sqlalchemy import func
 
-from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
-                 modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
+from app import current_user_fleet_ids, require_perm
 from models import (DailyEntry, Expense, Fleet, FuelMovement,
-                    MaintenanceRecord, Operator, Vehicle, db)
+                    MaintenanceRecord, Operator, Staff, Vehicle, db)
 
 operators_bp = Blueprint("operators", __name__)
 
@@ -47,55 +43,7 @@ def _get_operator_or_404(oid):
     return op
 
 
-def _read_operator_form(operator):
-    """Validate the form into a column dict. Returns (data, None) or (None, err)."""
-    t = get_t()
-    name = (request.form.get("name") or "").strip()
-    fleet_id = request.form.get("fleet_id", type=int)
-
-    if not name:
-        return None, t["operator.err.name_required"]
-    if not fleet_id:
-        return None, t["operator.err.fleet_required"]
-
-    fids = current_user_fleet_ids()
-    if fids is not None and fleet_id not in fids:
-        return None, t["error.forbidden"]
-    if not db.session.get(Fleet, fleet_id):
-        return None, t["operator.err.fleet_required"]
-
-    # Name unique within the fleet (matches the DB constraint), excluding self.
-    q = Operator.query.filter(Operator.fleet_id == fleet_id,
-                              db.func.lower(Operator.name) == name.lower())
-    if operator:
-        q = q.filter(Operator.id != operator.id)
-    if q.first():
-        return None, t["operator.err.name_taken"]
-
-    data = dict(
-        name=name,
-        fleet_id=fleet_id,
-        phone=(request.form.get("phone") or "").strip() or None,
-        license_number=(request.form.get("license_number") or "").strip() or None,
-        notes=(request.form.get("notes") or "").strip() or None,
-        is_active=request.form.get("is_active") is not None,
-    )
-    return data, None
-
-
-def _form_context(operator):
-    return {
-        "fleets": with_current_fleet(_accessible_fleets(), operator.fleet if operator else None),
-        "form_active": (request.form.get("is_active") is not None)
-        if request.method == "POST"
-        else (operator.is_active if operator else True),
-    }
-
-
-# ── Routes ───────────────────────────────────────────────────────────────────
-
-
-def _operator_usage(op):
+def operator_usage(op):
     """What still refers to a driver, and whether the row can be deleted.
 
     Entries, services, fuel movements and expenses store the driver as a name,
@@ -139,27 +87,68 @@ def _operator_usage(op):
 @login_required
 @require_perm("operator.view")
 def index():
+    """Everybody who drives for a fleet this user sees, one row per person
+    with the fleets listed. Archived = no longer drives anywhere visible, or
+    the person himself has left."""
+    from blueprints.staff import licence_state
     fleets = _accessible_fleets()
     active_fleet = request.args.get("fleet", type=int)
     show_archived = request.args.get("archived") == "1"
+    fids = current_user_fleet_ids()
 
-    q = scoped(Operator).filter(Operator.is_active.is_(not show_archived))
+    links = Operator.query
+    if fids is not None:
+        links = links.filter(Operator.fleet_id.in_(fids))
     if active_fleet:
-        q = q.filter(Operator.fleet_id == active_fleet)
+        links = links.filter(Operator.fleet_id == active_fleet)
+    live = links.filter(Operator.is_active.is_(True))
+
+    q = Staff.query
+    if show_archived:
+        q = q.filter(Staff.id.in_(links.with_entities(Operator.staff_id)),
+                     db.or_(Staff.is_active.is_(False),
+                            Staff.id.notin_(live.with_entities(Operator.staff_id))))
+    else:
+        q = q.filter(Staff.is_active.is_(True),
+                     Staff.id.in_(live.with_entities(Operator.staff_id)))
     search = (request.args.get("q") or "").strip()
     if search:
-        q = q.filter(Operator.name.ilike("%" + search + "%"))
-    pagination = q.order_by(Operator.name).paginate(
+        like = "%" + search + "%"
+        q = q.filter(db.or_(Staff.last_name.ilike(like), Staff.first_name.ilike(like),
+                            Staff.company.ilike(like)))
+    pagination = q.order_by(Staff.last_name, Staff.first_name).paginate(
         page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
         error_out=False)
-    operators = pagination.items
-    archived_count = scoped(Operator).filter(Operator.is_active.is_(False)).count()
-    usage = {o.id: _operator_usage(o) for o in operators}
+    people = pagination.items
 
-    return render_template("operators.html", operators=operators, usage=usage,
+    seen = None if fids is None else set(fids)
+    rows = []
+    for p in people:
+        own = [o for o in p.drives if seen is None or o.fleet_id in seen]
+        rows.append({
+            "p": p,
+            "links": sorted([o for o in own if o.is_active] or own,
+                            key=lambda o: o.fleet.name),
+            "licence": licence_state(p),
+        })
+
+    archived_q = Staff.query.filter(
+        Staff.id.in_(links.with_entities(Operator.staff_id)),
+        db.or_(Staff.is_active.is_(False),
+               Staff.id.notin_(live.with_entities(Operator.staff_id))))
+    return render_template("operators.html", rows=rows,
                            pagination=pagination, search=search,
                            filter_fleets=fleets, active_fleet=active_fleet,
-                           show_archived=show_archived, archived_count=archived_count)
+                           show_archived=show_archived,
+                           archived_count=archived_q.count())
+
+
+@operators_bp.route("/operators/new")
+@login_required
+@require_perm("operator.create")
+def new():
+    """A new driver is a new person: his file, the driver part open."""
+    return redirect(url_for("staff.new", driver=1, next=url_for("operators.index")))
 
 
 @operators_bp.route("/operators/<int:oid>")
@@ -247,125 +236,26 @@ def detail(oid):
         records=records, expense_chart=expense_chart)
 
 
-def _render_operator_form(operator, error=None):
-    """Render the operator form as a modal partial or a full page."""
-    tpl = "_operator_form.html" if is_modal_request() else "operator_form.html"
-    status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, operator=operator, error=error,
-                           **_form_context(operator)), status
+def legacy_operator_payload(payload):
+    """A driver change asked for before drivers became people, approved now.
 
-
-@operators_bp.route("/operators/new", methods=["GET", "POST"])
-@login_required
-@require_perm("operator.create")
-def new():
-    t = get_t()
-    if request.method == "POST":
-        data, error = _read_operator_form(None)
-        if error:
-            return _render_operator_form(None, error)
-        if needs_approval("operator.create"):
-            submit_change(resource_type="operator", action="create",
-                          fleet_id=data["fleet_id"], payload=data)
-            flash("success|" + t["operator.submitted"])
-            return modal_ok() if is_modal_request() else redirect(url_for("operators.index"))
-        op = Operator(created_by=current_user.id, **data)
-        db.session.add(op)
-        db.session.flush()
-        log_action("CREATE", "operator", resource_id=op.id, fleet_id=op.fleet_id,
-                   detail=f"Created operator '{op.name}'")
-        db.session.commit()
-        flash("success|" + t["operator.created"])
-        return modal_ok() if is_modal_request() else redirect(url_for("operators.index"))
-    return _render_operator_form(None)
-
-
-@operators_bp.route("/operators/<int:oid>/edit", methods=["GET", "POST"])
-@login_required
-@require_perm("operator.edit")
-def edit(oid):
-    op = _get_operator_or_404(oid)
-    t = get_t()
-    if request.method == "POST":
-        data, error = _read_operator_form(op)
-        if error:
-            return _render_operator_form(op, error)
-        if needs_approval("operator.edit", op.created_by, op.created_at):
-            submit_change(resource_type="operator", action="update",
-                          resource_id=op.id, fleet_id=data["fleet_id"], payload=data)
-            flash("success|" + t["operator.submitted"])
-            return modal_ok() if is_modal_request() else redirect(url_for("operators.index"))
-        for k, val in data.items():
-            setattr(op, k, val)
-        log_action("UPDATE", "operator", resource_id=op.id, fleet_id=op.fleet_id,
-                   detail=f"Updated operator '{op.name}'")
-        db.session.commit()
-        flash("success|" + t["operator.updated"])
-        return modal_ok() if is_modal_request() else redirect(url_for("operators.index"))
-    return _render_operator_form(op)
-
-
-
-@operators_bp.route("/operators/<int:oid>/delete", methods=["POST"])
-@login_required
-@require_perm("operator.delete")
-def delete(oid):
-    """Soft delete: archive the operator (preserves history; reversible)."""
-    op = _get_operator_or_404(oid)
-    t = get_t()
-    op.is_active = False
-    log_action("ARCHIVE", "operator", resource_id=oid, fleet_id=op.fleet_id,
-               detail=f"Archived operator '{op.name}'")
-    db.session.commit()
-    flash("success|" + t.get("operator.archived", "Conducteur archivé."))
-    return redirect(url_for("operators.index"))
-
-
-@operators_bp.route("/operators/<int:oid>/destroy", methods=["POST"])
-@login_required
-@require_perm("operator.delete")
-def destroy(oid):
-    """Hard delete, allowed only while nothing was ever logged under the name.
-
-    Re-checked here rather than trusting the button, since the list may have
-    been rendered before someone pointed a day of work at this driver.
-    """
-    op = _get_operator_or_404(oid)
-    t = get_t()
-    usage = _operator_usage(op)
-    if not usage["deletable"]:
-        flash("error|" + t.get("operator.err.delete_blocked",
-                               "Impossible de supprimer : ce conducteur a déjà "
-                               "de l'activité enregistrée."))
-        return redirect(url_for("operators.index"))
-
-    name, fid = op.name, op.fleet_id
-    # A tombstoned machine still names him as its default driver. That does not
-    # block the delete — nobody can open a deleted machine to unassign him —
-    # but the key is real, so unhook it or the delete is refused outright.
-    ghosts = (Vehicle.query
-              .filter_by(default_operator_id=op.id)
-              .filter(Vehicle.deleted_at.isnot(None))
-              .update({Vehicle.default_operator_id: None}, synchronize_session=False))
-    db.session.delete(op)
-    log_action("DELETE", "operator", resource_id=oid, fleet_id=fid,
-               detail="Deleted operator '%s' (no activity, row removed)%s"
-                      % (name, " + unhooked from %d deleted vehicle(s)" % ghosts
-                         if ghosts else ""))
-    db.session.commit()
-    flash("success|" + t.get("operator.deleted", "Conducteur supprimé."))
-    return redirect(url_for("operators.index"))
-
-
-@operators_bp.route("/operators/<int:oid>/reactivate", methods=["POST"])
-@login_required
-@require_perm("operator.delete")
-def reactivate(oid):
-    op = _get_operator_or_404(oid)
-    t = get_t()
-    op.is_active = True
-    log_action("REACTIVATE", "operator", resource_id=oid, fleet_id=op.fleet_id,
-               detail=f"Reactivated operator '{op.name}'")
-    db.session.commit()
-    flash("success|" + t.get("operator.reactivated", "Conducteur réactivé."))
-    return redirect(url_for("operators.index"))
+    Its name, phone, licence and notes go to the person's file -- the person
+    of that name, or a new one -- and the row keeps only the link."""
+    payload = dict(payload)
+    name = " ".join((payload.pop("name", None) or "").split())
+    phone = payload.pop("phone", None)
+    licence = payload.pop("license_number", None)
+    notes = payload.pop("notes", None)
+    if name and "staff_id" not in payload:
+        key = name.lower()
+        person = next((p for p in Staff.query.all()
+                       if " ".join(p.name.lower().split()) == key), None)
+        if person is None:
+            person = Staff(last_name=name[:80], kind="employee")
+            db.session.add(person)
+            db.session.flush()
+        person.phone = person.phone or phone
+        person.license_number = person.license_number or licence
+        person.note = person.note or notes
+        payload["staff_id"] = person.id
+    return payload

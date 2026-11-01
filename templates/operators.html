@@ -5,6 +5,19 @@
 {% block title %}{{ t['nav.operators'] }}{% endblock %}
 {% block page_title %}{{ t['nav.operators'] }}{% endblock %}
 
+{# The people who drive, seen from the fleets: one row per person, his fleets
+   listed, each one opening that fleet's driver sheet. Editing opens the
+   person's file -- there is no driver list of its own any more. #}
+{% set back = url_for('operators.index', fleet=active_fleet, archived='1' if show_archived else None) %}
+
+{% macro licence(r) -%}
+{%- if r.p.license_expires -%}
+    {%- if r.licence == 'expired' -%}<span class="badge badge--critical">{{ r.p.license_expires | dmy }}</span>
+    {%- elif r.licence == 'soon' -%}<span class="badge badge--warning">{{ r.p.license_expires | dmy }}</span>
+    {%- else -%}{{ r.p.license_expires | dmy }}{%- endif -%}
+{%- else -%}<span class="muted">&mdash;</span>{%- endif -%}
+{%- endmacro %}
+
 {% block content %}
 <section class="card">
     <div class="card-header card-header--end">
@@ -15,7 +28,8 @@
             <a href="{{ url_for('operators.index', fleet=active_fleet, archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
         {% endif %}
         {% if has_perm('operator.create') %}
-        <a href="{{ url_for('operators.new') }}" class="fab" data-modal-url="{{ url_for('operators.new') }}" data-modal-title="{{ t['operator.new'] }}">
+        <a href="{{ url_for('staff.new', driver=1, next=back) }}" class="fab"
+           data-modal-url="{{ url_for('staff.new', driver=1, next=back) }}" data-modal-title="{{ t['operator.new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['operator.new'] }}
         </a>
         {% endif %}
@@ -33,60 +47,42 @@
 
     {{ searchbox(search, {'fleet': active_fleet, 'archived': '1' if show_archived else ''}) }}
 
-    {% if operators %}
-    {# Desktop: full table #}
+    {% if rows %}
     <div class="table-desktop">
     <table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['operator.name'] }}</th>
-                <th>{{ t['operator.fleet'] }}</th>
+                <th>{{ t['staff.kind'] }}</th>
+                <th>{{ t['staff.fleets'] }}</th>
                 <th>{{ t['operator.phone'] }}</th>
-                <th>{{ t['operator.license'] }}</th>
-                <th>{{ t['operator.status'] }}</th>
+                <th class="col-secondary">{{ t['staff.license_categories'] }}</th>
+                <th>{{ t['staff.license_expires'] }}</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
-            {% for op in operators %}
+            {% for r in rows %}
             <tr>
                 <td>
-                    <a href="{{ url_for('operators.detail', oid=op.id) }}"><strong>{{ op.name }}</strong></a>
-                    {% if op.notes %}<div class="muted small">{{ op.notes }}</div>{% endif %}
+                    <strong {% if not r.p.is_active %}class="muted"{% endif %}>{{ r.p.name }}</strong>
+                    {% if not r.p.is_employee and r.p.company %}<div class="muted small">{{ r.p.company }}</div>{% endif %}
                 </td>
-                <td class="col-secondary">{{ op.fleet.name }}</td>
-                <td class="col-secondary">{{ op.phone or '—' }}</td>
-                <td class="col-secondary">{{ op.license_number or '—' }}</td>
                 <td>
-                    {% if op.is_active %}
-                        <span class="badge badge--active">{{ t['operator.active'] }}</span>
-                    {% else %}
-                        <span class="badge badge--inactive">{{ t['operator.inactive'] }}</span>
-                    {% endif %}
+                    {% if r.p.is_employee %}<span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
+                    {%- else %}<span class="badge badge--warning">{{ t['staff.kind.external'] }}</span>{% endif %}
                 </td>
+                <td>
+                    {% for o in r.links %}<a href="{{ url_for('operators.detail', oid=o.id) }}" {% if not o.is_active %}class="muted"{% endif %}>{{ o.fleet.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+                </td>
+                <td>{{ r.p.phone or '—' }}</td>
+                <td class="col-secondary">{{ r.p.license_categories or '—' }}</td>
+                <td>{{ licence(r) }}</td>
                 <td class="row-actions">
-                    {% if has_perm('operator.edit') %}
-                    <a href="{{ url_for('operators.edit', oid=op.id) }}" class="btn btn--sm btn--tonal btn--icon"
-                       data-modal-url="{{ url_for('operators.edit', oid=op.id) }}" data-modal-title="{{ t['operator.edit'] }}" title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
-                    {% endif %}
-                    {% if has_perm('operator.delete') %}
-                        {% if not op.is_active %}
-                        <form method="post" action="{{ url_for('operators.reactivate', oid=op.id) }}" style="display:inline">
-                            <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>
-                        </form>
-                        {% endif %}
-                        {% if usage[op.id].deletable %}
-                        {# Nothing was ever logged under this name: no history to keep. #}
-                        <form method="post" action="{{ url_for('operators.destroy', oid=op.id) }}"
-                              data-confirm="{{ t['operator.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" style="display:inline">
-                            <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
-                        </form>
-                        {% elif op.is_active %}
-                        <form method="post" action="{{ url_for('operators.delete', oid=op.id) }}"
-                              data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}" style="display:inline">
-                            <button type="submit" class="btn btn--sm btn--tonal btn--icon" title="{{ t['btn.archive'] }}" aria-label="{{ t['btn.archive'] }}"><span class="material-symbols-outlined">archive</span></button>
-                        </form>
-                        {% endif %}
+                    {% if has_perm('operator.edit') or has_perm('staff.edit') %}
+                    <a href="{{ url_for('staff.edit', pid=r.p.id, next=back) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('staff.edit', pid=r.p.id, next=back) }}" data-modal-title="{{ r.p.name }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% endif %}
                 </td>
             </tr>
@@ -95,48 +91,22 @@
     </table>
     </div>
 
-    {# Mobile: one card per operator #}
     <div class="list-cards">
-        {% for op in operators %}
+        {% for r in rows %}
         <div class="list-card">
             <div class="list-card__top">
-                <a href="{{ url_for('operators.detail', oid=op.id) }}"><strong>{{ op.name }}</strong></a>
-                {% if op.is_active %}
-                <span class="badge badge--active">{{ t['operator.active'] }}</span>
-                {% else %}
-                <span class="badge badge--inactive">{{ t['operator.inactive'] }}</span>
-                {% endif %}
+                <strong>{{ r.p.name }}</strong>
+                {% if r.p.is_employee %}<span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
+                {%- else %}<span class="badge badge--warning">{{ t['staff.kind.external'] }}</span>{% endif %}
             </div>
             <div class="list-card__meta">
-                <span class="muted small">{{ op.fleet.name }}</span>
-                {% if op.phone %}<span class="muted small">· {{ op.phone }}</span>{% endif %}
-                {% if op.license_number %}<span class="muted small">· {{ op.license_number }}</span>{% endif %}
+                {% for o in r.links %}<a href="{{ url_for('operators.detail', oid=o.id) }}" class="muted small">{{ o.fleet.name }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+                {% if r.p.phone %}<span class="muted small">· {{ r.p.phone }}</span>{% endif %}
             </div>
-            {% if op.notes %}<div class="muted small">{{ op.notes }}</div>{% endif %}
-            {% if has_perm('operator.edit') or has_perm('operator.delete') %}
+            {% if has_perm('operator.edit') or has_perm('staff.edit') %}
             <div class="list-card__actions">
-                {% if has_perm('operator.edit') %}
-                <a href="{{ url_for('operators.edit', oid=op.id) }}" class="btn btn--sm btn--tonal"
-                   data-modal-url="{{ url_for('operators.edit', oid=op.id) }}" data-modal-title="{{ t['operator.edit'] }}">{{ t['btn.edit'] }}</a>
-                {% endif %}
-                {% if has_perm('operator.delete') %}
-                    {% if not op.is_active %}
-                    <form method="post" action="{{ url_for('operators.reactivate', oid=op.id) }}">
-                        <button type="submit" class="btn btn--sm btn--primary">{{ t['btn.reactivate'] }}</button>
-                    </form>
-                    {% endif %}
-                    {% if usage[op.id].deletable %}
-                    <form method="post" action="{{ url_for('operators.destroy', oid=op.id) }}"
-                          data-confirm="{{ t['operator.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}">
-                        <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.delete'] }}</button>
-                    </form>
-                    {% elif op.is_active %}
-                    <form method="post" action="{{ url_for('operators.delete', oid=op.id) }}"
-                          data-confirm="{{ t['archive.confirm'] }}" data-confirm-title="{{ t['archive.title'] }}" data-confirm-ok="{{ t['btn.archive'] }}">
-                        <button type="submit" class="btn btn--sm btn--tonal">{{ t['btn.archive'] }}</button>
-                    </form>
-                    {% endif %}
-                {% endif %}
+                <a href="{{ url_for('staff.edit', pid=r.p.id, next=back) }}" class="btn btn--sm btn--tonal"
+                   data-modal-url="{{ url_for('staff.edit', pid=r.p.id, next=back) }}" data-modal-title="{{ r.p.name }}">{{ t['btn.edit'] }}</a>
             </div>
             {% endif %}
         </div>
@@ -147,11 +117,6 @@
     <div class="empty-state">
         <span class="material-symbols-outlined">badge</span>
         <p>{{ t['operator.empty'] }}</p>
-        {% if has_perm('operator.create') %}
-        <a href="{{ url_for('operators.new') }}" class="fab" data-modal-url="{{ url_for('operators.new') }}" data-modal-title="{{ t['operator.new'] }}">
-            <span class="material-symbols-outlined">add</span> {{ t['operator.new'] }}
-        </a>
-        {% endif %}
     </div>
     {% endif %}
 </section>
