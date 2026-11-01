@@ -190,17 +190,20 @@
         <thead><tr>
             <th>{{ t['expense.date'] }}</th>
             <th>{{ t['expense.category'] }}</th>
+            <th>{{ t['bank.description'] }}</th>
             <th>{{ t['expense.supplier'] }}</th>
+            <th class="col-secondary">{{ t['vehicle.shared_col'] }}</th>
             <th style="text-align:right;">{{ t['expense.amount'] }}</th>
         </tr></thead>
         <tbody>
             {% for e in expenses %}
             <tr>
                 <td>{{ e.date|dmy }}</td>
-                <td><span class="chip">{{ category_label(e.category) }}</span>{% if e.description %} <span class="muted small">{{ e.description }}</span>{% endif %}</td>
+                <td><span class="chip">{{ category_label(e.category) }}</span></td>
+                <td>{{ e.description or '—' }}</td>
                 <td>{{ e.supplier or '—' }}</td>
-                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ e.share_for(vehicle.id) | num }} GNF
-                    {% if e.shares %}<div class="muted small" style="font-weight:400;">{{ t['expense.share_of'] % ((e.amount | num), e.shares|length) }}</div>{% endif %}</td>
+                <td class="col-secondary">{% if e.shares %}{{ t['expense.share_of'] % ((e.amount | num), e.shares|length) }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ e.share_for(vehicle.id) | num }} GNF</td>
             </tr>
             {% endfor %}
         </tbody>

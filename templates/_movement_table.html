@@ -15,11 +15,13 @@
     <thead>
         <tr>
             <th>{{ t['distribution.date'] }}</th>
+            <th class="col-secondary">{{ t['movement.time'] }}</th>
             <th>{{ t['movement.type'] }}</th>
             <th>{{ t['distribution.citerne'] }}</th>
             <th>{{ t['distribution.machine'] }}</th>
             <th style="text-align:right;">{{ t['distribution.liters'] }}</th>
             <th class="col-secondary">{{ t['movement.detail'] }}</th>
+            {% if movements|selectattr('out_of_range')|list %}<th class="col-secondary" style="text-align:right;">{{ t['movement.level'] }}</th>{% endif %}
             <th></th>
         </tr>
     </thead>
@@ -28,8 +30,8 @@
         {# The row that took the citerne outside [0, capacity]: the one to look
            at when a tank's history does not add up. #}
         <tr {% if m.out_of_range %}class="mv-row--out"{% endif %}>
-            <td>{{ m.date }}{% if m.time %}<div class="muted small">{{ m.time }}</div>{% endif %}
-                {% if m.out_of_range %}<div class="muted small stock-negative">{{ m.level_after | num }} L</div>{% endif %}</td>
+            <td style="white-space:nowrap;">{{ m.date|dmy }}</td>
+            <td class="col-secondary">{{ m.time or '—' }}</td>
             {% if m.kind == 'releve' %}
             {% set ec = m.ecart %}
             {% set bad = ec is not none and (ec > seuil or ec < -seuil) %}
@@ -64,6 +66,9 @@
                 {{ '+' if is_in else '−' }}{{ m.liters | num }} L
             </td>
             <td class="col-secondary muted">{{ m.operator or m.note or '—' }}</td>
+            {% endif %}
+            {% if movements|selectattr('out_of_range')|list %}
+            <td class="col-secondary" style="text-align:right; white-space:nowrap;">{% if m.out_of_range %}<span class="stock-negative">{{ m.level_after | num }} L</span>{% endif %}</td>
             {% endif %}
             <td class="row-actions">
                 {% if has_perm('carburant.create') %}

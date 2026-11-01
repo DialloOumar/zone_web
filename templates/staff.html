@@ -1,25 +1,10 @@
 {% extends "base.html" %}
 {% from "_pager.html" import pager with context %}
+{% from "_filters.html" import filter_select, filter_search, filter_clear with context %}
 
 {% block title %}{{ t['nav.staff'] }}{% endblock %}
 {% block page_title %}{{ t['nav.staff'] }}{% endblock %}
 
-{% macro tickbox(name, label, rows, chosen, attr) %}
-<details class="filter-dd{% if chosen %} filter-dd--on{% endif %}">
-    <summary>
-        {{ label }}
-        {% if chosen %}<span class="filter-dd__count">{{ chosen|length }}</span>{% endif %}
-    </summary>
-    <div class="filter-dd__panel">
-        {% for r in rows %}
-        <label class="filter-dd__opt">
-            <input type="checkbox" name="{{ name }}" value="{{ r.id }}" {% if r.id in chosen %}checked{% endif %}>
-            <span>{{ r[attr] }}</span>
-        </label>
-        {% endfor %}
-    </div>
-</details>
-{% endmacro %}
 
 {% block content %}
 {% with staff_tab = 'people' %}{% include "_staff_tabs.html" %}{% endwith %}
@@ -36,24 +21,18 @@
         {% endif %}
     </div>
 
-    <div class="filter-chips">
-        {% for key in ('all', 'employee', 'external', 'driver') %}
-        <a href="{{ url_for('staff.index', show=key if key != 'all' else None, q=search or None, archived='1' if show_archived else None) }}"
-           class="filter-chip {% if show == key %}active{% endif %}">{{ t['staff.show.' + key] }}</a>
-        {% endfor %}
-    </div>
-
-    <form method="get" class="filter-bar filter-bar--live">
-        {% if show != 'all' %}<input type="hidden" name="show" value="{{ show }}">{% endif %}
-        {% if positions %}{{ tickbox('position', t['staff.position'], positions, position_ids, 'name') }}{% endif %}
-        <label class="filter-search">
-            <input type="search" name="q" value="{{ search }}" placeholder="{{ t['staff.search'] }}">
-        </label>
-        <label class="filter-date">
-            <input type="checkbox" name="archived" value="1" {% if show_archived %}checked{% endif %}>
-            <span>{{ t['staff.show_archived'] }}</span>
-        </label>
-        <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
+    <form method="get" class="filter-bar">
+        {% set kind_opts = [] %}
+        {% for key in ('employee', 'external', 'driver') %}{% set _ = kind_opts.append((key, t['staff.show.' + key])) %}{% endfor %}
+        {{ filter_select('show', t['staff.kind'], kind_opts, show if show != 'all' else '', t['staff.show.all']) }}
+        {% if positions %}
+        {% set pos_opts = [] %}
+        {% for q in positions %}{% set _ = pos_opts.append((q.id, q.name)) %}{% endfor %}
+        {{ filter_select('position', t['staff.position'], pos_opts, position_ids[0] if position_ids else '', t['filter.all_positions']) }}
+        {% endif %}
+        {{ filter_select('archived', t['filter.show'], [('', t['filter.active']), ('1', t['filter.archived'])], '1' if show_archived else '') }}
+        {{ filter_search(search) }}
+        {{ filter_clear(show != 'all' or position_ids or show_archived or search, url_for('staff.index')) }}
     </form>
 
     {% if people %}
@@ -64,6 +43,7 @@
                 <th>{{ t['staff.name'] }}</th>
                 <th>{{ t['staff.kind'] }}</th>
                 <th>{{ t['staff.position_or_company'] }}</th>
+                <th class="col-secondary">{{ t['staff.matricule'] }}</th>
                 <th>{{ t['staff.phone'] }}</th>
                 <th class="col-secondary">{{ t['staff.fleets'] }}</th>
                 <th class="col-secondary">{{ t['staff.login'] }}</th>
@@ -83,7 +63,6 @@
                         <strong {% if not p.is_active %}class="muted"{% endif %}>{{ p.name }}</strong>
                     </a>
                     {% if not p.is_active %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
-                    {% if p.matricule and p.is_employee %}<div class="muted small person-cell__sub">{{ t['staff.matricule_short'] }} {{ p.matricule }}</div>{% endif %}
                 </td>
                 <td>
                     {% if p.is_employee %}<span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
@@ -94,6 +73,7 @@
                         {% if p.position %}<span class="chip">{{ p.position.name }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}
                     {% else %}{{ p.company or '—' }}{% endif %}
                 </td>
+                <td class="col-secondary">{% if p.is_employee and p.matricule %}{{ p.matricule }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td>{% if p.phone %}{{ p.phone }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td class="col-secondary">
                     {% set fl = p.active_fleets %}
@@ -105,10 +85,9 @@
                 </td>
                 <td style="text-align:right; white-space:nowrap;">
                     {% if sp %}
-                    <a href="{{ url_for('expenses.index', staff=p.id, date_from='', date_to='') }}">
+                    <a href="{{ url_for('expenses.index', staff=p.id, date_from='', date_to='') }}" title="{{ sp.count }} {{ t['expense.count'] }}">
                         <strong>{{ sp.total | num }} {{ currency }}</strong>
                     </a>
-                    <div class="muted small">{{ sp.count }} {{ t['expense.count'] }}</div>
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td class="row-actions">

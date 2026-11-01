@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_person_header.html" import person_head, fact with context %}
+{% from "_filters.html" import filter_select with context %}
 
 {% block title %}{{ p.name }}{% endblock %}
 {% block page_title %}{{ t['nav.operators'] }}{% endblock %}
@@ -17,19 +18,17 @@
     {{ fact(t['operator.last_activity'], last_date|dmy if last_date else none) }}
 {% endcall %}
 
-<form method="get" class="person-filter">
-    <div class="filter-chips">
-        {% if links|length > 1 %}
-        <a href="{{ url_for('operators.person', pid=p.id, month=month, tab=tab) }}" class="filter-chip {% if not fleet %}active{% endif %}">{{ t['operator.all'] }}</a>
-        {% endif %}
-        {% for o in links %}
-        <a href="{{ url_for('operators.person', pid=p.id, fleet=o.fleet_id, month=month, tab=tab) }}"
-           class="filter-chip {% if fleet == o.fleet_id or links|length == 1 %}active{% endif %}">{{ o.fleet.name }}{% if not o.is_active %} · {{ t['operator.inactive'] }}{% endif %}</a>
-        {% endfor %}
-    </div>
-    {% if fleet %}<input type="hidden" name="fleet" value="{{ fleet }}">{% endif %}
+<form method="get" class="filter-bar">
     <input type="hidden" name="tab" value="{{ tab }}">
-    <input type="month" name="month" value="{{ month }}" onchange="this.form.submit()" class="person-filter__month">
+    {% if links|length > 1 %}
+    {% set fl_opts = [] %}
+    {% for o in links %}{% set _ = fl_opts.append((o.fleet_id, o.fleet.name ~ (' · ' ~ t['operator.inactive'] if not o.is_active else ''))) %}{% endfor %}
+    {{ filter_select('fleet', t['operator.fleet'], fl_opts, fleet, t['operator.all']) }}
+    {% endif %}
+    <div class="field filter-field">
+        <input type="month" id="f_month" name="month" value="{{ month }}" onchange="this.form.submit()">
+        <label for="f_month">{{ t['entry.month'] }}</label>
+    </div>
 </form>
 
 <div class="stat-grid person-stats">

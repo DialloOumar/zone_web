@@ -1,0 +1,44 @@
+{# A list page's filters are dropdowns, never rows of pill buttons: one
+   field per question, its label above, applied as soon as it changes.
+
+   filter_select : a field of the page's GET form, sent with the rest.
+       options   : [(value, text)], current : the value chosen,
+       all_label : the first line, for no filter (none = no such line).
+   nav_select    : a choice that is a page of its own (a fleet's roster):
+       options   : [(url, text, is_current)]. #}
+
+{% macro filter_select(name, label, options, current, all_label=none) -%}
+<div class="field field--select filter-field">
+    <select id="f_{{ name }}" name="{{ name }}" onchange="this.form.submit()">
+        {% if all_label is not none %}<option value="">{{ all_label }}</option>{% endif %}
+        {% for value, text in options %}
+        <option value="{{ value }}" {% if (value|string) == ((current if current is not none else '')|string) %}selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+    </select>
+    <label for="f_{{ name }}">{{ label }}</label>
+</div>
+{%- endmacro %}
+
+{% macro nav_select(id, label, options) -%}
+<div class="field field--select filter-field">
+    <select id="{{ id }}" onchange="if (this.value) location.href = this.value">
+        {% for url, text, on in options %}
+        <option value="{{ url }}" {% if on %}selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+    </select>
+    <label for="{{ id }}">{{ label }}</label>
+</div>
+{%- endmacro %}
+
+{# The search field of the same form, the same height as the dropdowns. #}
+{% macro filter_search(value, label=none) -%}
+<div class="field filter-field filter-field--search">
+    <input type="search" id="f_q" name="q" value="{{ value or '' }}" placeholder="{{ t['search.placeholder'] }}">
+    <label for="f_q">{{ label or t['search.label'] }}</label>
+</div>
+{%- endmacro %}
+
+{# "Effacer", when something is filtered. #}
+{% macro filter_clear(active, url) -%}
+{% if active %}<div class="filter-actions"><a href="{{ url }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a></div>{% endif %}
+{%- endmacro %}

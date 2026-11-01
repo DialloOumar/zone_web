@@ -135,6 +135,8 @@
             <tr>
                 <th>{{ t['entry.date'] }}</th>
                 <th>{{ t['entry.vehicle'] }}</th>
+                <th>{{ t['vehicle.category'] }}</th>
+                {% if suppliers %}<th class="col-secondary">{{ t['invoice.supplier'] }}</th>{% endif %}
                 <th>{{ t['entry.activity'] }}</th>
                 <th>{{ t['entry.km'] }}</th>
                 <th>{{ t['entry.operator'] }}</th>
@@ -144,15 +146,17 @@
         <tbody>
             {% for g in ghost_creates %}
             <tr class="row-pending row-ghost">
-                <td>{{ g.date }}</td>
+                <td>{{ g.date|dmy }}</td>
                 <td>{% if g.vehicle %}<strong>{{ g.vehicle.code }}</strong>{% else %}—{% endif %}</td>
+                <td>{% if g.vehicle %}<span class="chip chip--{{ g.vehicle.category.code|lower }}">{{ g.vehicle.category.label_fr if lang == 'fr' else g.vehicle.category.label }}</span>{% else %}—{% endif %}</td>
+                {% if suppliers %}<td class="col-secondary">{{ g.vehicle.supplier.name if g.vehicle and g.vehicle.supplier else '—' }}</td>{% endif %}
                 <td>{% if g.trips is not none %}{{ g.trips }} {{ t['unit.trips'] }}{% elif g.hours is not none %}{{ g.hours }} {{ t['unit.hours'] }}{% else %}—{% endif %}</td>
                 <td class="col-secondary">{% if g.kilometers is not none %}{{ g.kilometers }}{% else %}—{% endif %}</td>
                 <td class="col-secondary">{{ g.operator or '—' }}</td>
                 <td class="row-actions"><span class="pending-chip"><span class="material-symbols-outlined">pending_actions</span> {{ t['pending.create'] }}</span></td>
             </tr>
             {% endfor %}
-            {% with show_vehicle = True %}{% include "_entry_rows.html" %}{% endwith %}
+            {% with show_vehicle = True, show_lessor = suppliers %}{% include "_entry_rows.html" %}{% endwith %}
         </tbody>
     </table>
     </div>

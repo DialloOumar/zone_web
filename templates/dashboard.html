@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_filters.html" import nav_select with context %}
 
 {% block title %}{{ t['nav.dashboard'] }}{% endblock %}
 {% block page_title %}{{ t['nav.dashboard'] }}{% endblock %}
@@ -10,8 +11,9 @@
    state, the recent entries -- does not follow it. #}
 <div class="period-bar">
     <div class="period-bar__kind">
-        <a href="{{ url_for('dashboard', period=(other_kind_period if period_kind == 'year' else period)) }}" class="filter-chip {% if period_kind == 'month' %}active{% endif %}">{{ t['dash.by_month'] }}</a>
-        <a href="{{ url_for('dashboard', period=(other_kind_period if period_kind == 'month' else period)) }}" class="filter-chip {% if period_kind == 'year' %}active{% endif %}">{{ t['dash.by_year'] }}</a>
+        {{ nav_select('f_period', t['filter.period'], [
+            (url_for('dashboard', period=(other_kind_period if period_kind == 'year' else period)), t['dash.by_month'], period_kind == 'month'),
+            (url_for('dashboard', period=(other_kind_period if period_kind == 'month' else period)), t['dash.by_year'], period_kind == 'year')]) }}
     </div>
     <div class="period-bar__nav">
         <a href="{{ url_for('dashboard', period=prev_period) }}" class="btn btn--sm btn--tonal btn--icon" title="{{ t['dash.prev'] }}" aria-label="{{ t['dash.prev'] }}"><span class="material-symbols-outlined">chevron_left</span></a>

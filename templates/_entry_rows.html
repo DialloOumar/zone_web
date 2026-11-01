@@ -3,14 +3,12 @@
 {% for e in entries %}
 {% set pa = (pending_map|default({})).get(e.id) %}
 <tr{% if pa %} class="row-pending"{% endif %}>
-    <td>{{ e.date }}</td>
+    <td style="white-space:nowrap;">{{ e.date|dmy }}</td>
     {% if show_vehicle %}
-    <td>
-        <a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a>
-        <span class="chip chip--{{ e.vehicle.category.code|lower }}">{{ e.vehicle.category.label_fr if lang == 'fr' else e.vehicle.category.label }}</span>
-        {# Whose machine it is, when it is leased: the name its bill is checked under. #}
-        {% if e.vehicle.supplier %}<div class="muted small">{{ t['invoice.supplier'] }} : {{ e.vehicle.supplier.code }} {{ e.vehicle.supplier.name }}</div>{% endif %}
-    </td>
+    <td><a href="{{ url_for('vehicles.detail', vid=e.vehicle_id) }}"><strong>{{ e.vehicle.code }}</strong></a></td>
+    <td><span class="chip chip--{{ e.vehicle.category.code|lower }}">{{ e.vehicle.category.label_fr if lang == 'fr' else e.vehicle.category.label }}</span></td>
+    {# Whose machine it is, when it is leased: the name its bill is checked under. #}
+    {% if show_lessor %}<td class="col-secondary">{{ e.vehicle.supplier.name if e.vehicle.supplier else '—' }}</td>{% endif %}
     {% endif %}
     <td>
         {% if e.vehicle.category.unit_type == 'trips' %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_filters.html" import nav_select with context %}
 {% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.approvals'] }}{% endblock %}
@@ -6,10 +7,8 @@
 
 {% block content %}
 <section class="card">
-    <div class="filter-chips">
-        <a href="{{ url_for('approvals.index', status='pending') }}" class="filter-chip {% if show == 'pending' %}active{% endif %}">{{ t['approval.pending'] }}</a>
-        <a href="{{ url_for('approvals.index', status='approved') }}" class="filter-chip {% if show == 'approved' %}active{% endif %}">{{ t['approval.approved_tab'] }}</a>
-        <a href="{{ url_for('approvals.index', status='rejected') }}" class="filter-chip {% if show == 'rejected' %}active{% endif %}">{{ t['approval.rejected_tab'] }}</a>
+    <div class="filter-bar">
+        {{ nav_select('f_status', t['filter.status'], [(url_for('approvals.index', status='pending'), t['approval.pending'], show == 'pending'), (url_for('approvals.index', status='approved'), t['approval.approved_tab'], show == 'approved'), (url_for('approvals.index', status='rejected'), t['approval.rejected_tab'], show == 'rejected')]) }}
     </div>
 
     {% if items %}

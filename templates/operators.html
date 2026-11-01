@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_search.html" import searchbox with context %}
+{% from "_filters.html" import filter_select, filter_search, filter_clear with context %}
 {% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.operators'] }}{% endblock %}
@@ -19,26 +19,16 @@
 
 {% block content %}
 <section class="card">
-    <div class="card-header card-header--end">
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
-        {% if show_archived %}
-            <a href="{{ url_for('operators.index', fleet=active_fleet) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_active'] }}</a>
-        {% elif archived_count %}
-            <a href="{{ url_for('operators.index', fleet=active_fleet, archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
+    <form method="get" class="filter-bar">
+        {% if filter_fleets|length > 1 %}
+        {% set fl_opts = [] %}
+        {% for f in filter_fleets %}{% set _ = fl_opts.append((f.id, f.name)) %}{% endfor %}
+        {{ filter_select('fleet', t['operator.fleet'], fl_opts, active_fleet, t['operator.all']) }}
         {% endif %}
-        </div>
-    </div>
-
-    {% if filter_fleets|length > 1 %}
-    <div class="filter-chips">
-        <a href="{{ url_for('operators.index') }}" class="filter-chip {% if not active_fleet %}active{% endif %}">{{ t['operator.all'] }}</a>
-        {% for f in filter_fleets %}
-        <a href="{{ url_for('operators.index', fleet=f.id) }}" class="filter-chip {% if active_fleet == f.id %}active{% endif %}">{{ f.name }}</a>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    {{ searchbox(search, {'fleet': active_fleet, 'archived': '1' if show_archived else ''}) }}
+        {{ filter_select('archived', t['filter.show'], [('', t['filter.active']), ('1', t['filter.archived'] ~ (' (' ~ archived_count ~ ')' if archived_count and not show_archived else ''))], '1' if show_archived else '') }}
+        {{ filter_search(search) }}
+        {{ filter_clear(active_fleet or show_archived or search, url_for('operators.index')) }}
+    </form>
 
     {% if rows %}
     <div class="table-desktop">
@@ -47,6 +37,7 @@
             <tr>
                 <th>{{ t['operator.name'] }}</th>
                 <th>{{ t['staff.kind'] }}</th>
+                <th class="col-secondary">{{ t['staff.company'] }}</th>
                 <th>{{ t['staff.fleets'] }}</th>
                 <th>{{ t['operator.phone'] }}</th>
                 <th class="col-secondary">{{ t['staff.license_categories'] }}</th>
@@ -58,12 +49,12 @@
             <tr>
                 <td>
                     <a href="{{ url_for('operators.person', pid=r.p.id) }}"><strong {% if not r.p.is_active %}class="muted"{% endif %}>{{ r.p.name }}</strong></a>
-                    {% if not r.p.is_employee and r.p.company %}<div class="muted small">{{ r.p.company }}</div>{% endif %}
                 </td>
                 <td>
                     {% if r.p.is_employee %}<span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
                     {%- else %}<span class="badge badge--warning">{{ t['staff.kind.external'] }}</span>{% endif %}
                 </td>
+                <td class="col-secondary">{% if not r.p.is_employee and r.p.company %}{{ r.p.company }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td>
                     {% for o in r.links %}<a href="{{ url_for('operators.person', pid=r.p.id, fleet=o.fleet_id) }}" {% if not o.is_active %}class="muted"{% endif %}>{{ o.fleet.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
                 </td>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_filters.html" import nav_select with context %}
 
 {% block title %}{{ t['nav.roster'] }}{% endblock %}
 {% block page_title %}{{ t['nav.roster'] }}{% endblock %}
@@ -12,11 +13,11 @@
 {% else %}
 
 {% if fleets|length > 1 %}
-<div class="filter-chips">
-    {% for f in fleets %}
-    <a href="{{ url_for('entries.roster', slug=f.slug, date=date_str) }}"
-       class="filter-chip {% if f.id == fleet.id %}active{% endif %}">{{ f.name }}</a>
-    {% endfor %}
+{# Each fleet's roster is a page of its own: the dropdown goes to it. #}
+<div class="filter-bar">
+    {% set fl_opts = [] %}
+    {% for f in fleets %}{% set _ = fl_opts.append((url_for('entries.roster', slug=f.slug, date=date_str), f.name, f.id == fleet.id)) %}{% endfor %}
+    {{ nav_select('f_fleet', t['operator.fleet'], fl_opts) }}
 </div>
 {% endif %}
 

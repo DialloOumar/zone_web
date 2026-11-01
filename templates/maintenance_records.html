@@ -42,6 +42,7 @@
                 <th class="col-secondary">{{ t['maint.operator'] }}</th>
                 <th>{{ t['maint.supplier'] }}</th>
                 <th class="col-secondary" style="text-align:right;">{{ t['maint.parts_used'] }}</th>
+                <th class="col-secondary" style="text-align:right;">{{ t['maint.labour_col'] }}</th>
                 <th style="text-align:right;">{{ t['maint.total_cost'] }}</th>
                 <th></th>
             </tr>
@@ -49,7 +50,7 @@
         <tbody>
             {% for m in records %}
             <tr>
-                <td>{{ m.date }}</td>
+                <td style="white-space:nowrap;">{{ m.date|dmy }}</td>
                 <td><a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a></td>
                 <td>{% for c in m.types %}<span class="chip"{% if m.types|length > 1 and m.parts_value %} title="{{ t['maint.parts_used'] }} {{ m.parts_value_for(c) | num }} GNF"{% endif %}>{{ service_type_label(c) }}</span> {% endfor %}</td>
                 <td class="col-secondary">{{ m.operator or '—' }}</td>
@@ -57,13 +58,11 @@
                 <td class="col-secondary" style="text-align:right; white-space:nowrap;">
                     {% if m.parts_value %}{{ m.parts_value | num }} {{ currency }}{% else %}<span class="muted">—</span>{% endif %}
                 </td>
+                <td class="col-secondary" style="text-align:right; white-space:nowrap;">
+                    {% if m.cost is not none %}{{ m.cost | num }} {{ currency }}{% else %}<span class="muted">—</span>{% endif %}
+                </td>
                 <td style="text-align:right; white-space:nowrap;">
-                    {% if m.cost is not none or m.parts_value %}
-                    <strong>{{ m.total_cost | num }}</strong> {{ currency }}
-                    {% if m.cost is not none and m.parts_value %}
-                    <div class="muted small" title="{{ t['maint.cost'] }}">{{ t['maint.labour_short'] }} {{ m.cost | num }}</div>
-                    {% endif %}
-                    {% else %}—{% endif %}
+                    {% if m.cost is not none or m.parts_value %}<strong>{{ m.total_cost | num }}</strong> {{ currency }}{% else %}—{% endif %}
                 </td>
                 <td class="row-actions">
                     {% if has_perm('maintenance_record.edit') %}
