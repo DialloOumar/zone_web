@@ -100,6 +100,9 @@ def _describe(pc):
     for k, v in (pc.payload or {}).items():
         if v is None or v == "":
             continue
+        # The driver's link rides beside his name, which is what is shown.
+        if k == "driver_id":
+            continue
         label = _FIELD_LABELS.get(k, k.replace("_id", "").replace("_", " "))
         val = v
         if k == "types":

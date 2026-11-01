@@ -20,6 +20,7 @@ from flask_login import current_user, login_required
 import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, require_perm, with_current_fleet)
+from blueprints.staff import driver_from_form
 from models import Citerne, Fleet, FuelMovement, Operator, Vehicle, db
 
 carburant_bp = Blueprint("carburant", __name__, url_prefix="/carburant")
@@ -454,12 +455,12 @@ def _read_distribution_form():
     if not liters or liters <= 0:
         return None, t.get("distribution.err.liters", "Litres invalides.")
 
-    operator = (request.form.get("operator") or "").strip() or None
+    driver_id, operator = driver_from_form(request.form.get("operator"))
 
     if source == "direct":
         # Straight at the client — no citerne, no reservoir to draw down.
         return dict(kind="direct", citerne_id=None, vehicle_id=v.id, date=date_str,
-                    time=time_str, liters=liters, operator=operator), None
+                    time=time_str, liters=liters, operator=operator, driver_id=driver_id), None
 
     c = db.session.get(Citerne, request.form.get("citerne_id", type=int) or 0)
     if not c or not c.is_active:
@@ -493,7 +494,7 @@ def _read_distribution_form():
         return None, msg % {"code": c.code, "n": _litres(available),
                             "asked": _litres(liters)}
     return dict(kind="distribution", citerne_id=c.id, vehicle_id=v.id, date=date_str,
-                time=time_str, liters=liters, operator=operator), None
+                time=time_str, liters=liters, operator=operator, driver_id=driver_id), None
 
 
 def _render_distribution_form(error=None):
@@ -693,8 +694,9 @@ def _read_conso_form():
     if not liters or liters <= 0:
         return None, t.get("conso.err.liters", "Litres invalides.")
 
+    driver_id, operator = driver_from_form(request.form.get("operator"))
     return dict(citerne_id=c.id, date=date_str, liters=liters,
-                operator=(request.form.get("operator") or "").strip() or None), None
+                operator=operator, driver_id=driver_id), None
 
 
 def _render_conso_form(error=None):
@@ -746,7 +748,7 @@ def _read_ravitaillement_form():
     liters = request.form.get("liters", type=int)
     if not liters or liters <= 0:
         return None, t.get("rentree.err.liters", "Litres invalides.")
-    operator = (request.form.get("operator") or "").strip() or None
+    driver_id, operator = driver_from_form(request.form.get("operator"))
     fids = current_user_fleet_ids()
     target = (request.form.get("target") or "").strip()
 
@@ -759,10 +761,10 @@ def _read_ravitaillement_form():
         if (request.form.get("fill_type") or "reservoir") == "conso":
             # The citerne took fuel for its own engine, not for its reservoir.
             return dict(kind="conso", citerne_id=c.id, date=date_str, time=time_str,
-                        liters=liters, operator=operator), None
+                        liters=liters, operator=operator, driver_id=driver_id), None
         room = c.capacity_liters - c.max_stock_from(date_str, time_str)
         return dict(kind="rentree", citerne_id=c.id, date=date_str, time=time_str,
-                    liters=liters, operator=operator,
+                    liters=liters, operator=operator, driver_id=driver_id,
                     warn_over=max(liters - room, 0),
                     note=(request.form.get("reference") or "").strip() or None), None
 
@@ -773,7 +775,7 @@ def _read_ravitaillement_form():
         if fids is not None and v.fleet_id not in fids:
             return None, t.get("error.forbidden", "Action non autorisée.")
         return dict(kind="direct", vehicle_id=v.id, citerne_id=None, date=date_str,
-                    time=time_str, liters=liters, operator=operator), None
+                    time=time_str, liters=liters, operator=operator, driver_id=driver_id), None
 
     return None, t.get("rav.err.target", "Choisissez une citerne ou un véhicule.")
 
@@ -863,7 +865,7 @@ def direct_edit(mid):
         mv.date = date_str
         mv.time = _clean_time(request.form.get("time"))
         mv.liters = liters
-        mv.operator = (request.form.get("operator") or "").strip() or None
+        mv.driver_id, mv.operator = driver_from_form(request.form.get("operator"))
         log_action("UPDATE", "fuel_movement", resource_id=mv.id, fleet_id=v.fleet_id,
                    detail=f"Corrected direct fill: {before} -> {v.code} {mv.date} {mv.liters} L")
         db.session.commit()

@@ -1,3 +1,4 @@
+{% from "_driver_options.html" import driver_options, driver_sel with context %}
 {% from "_hint.html" import hint with context %}
 {% set is_edit = record is not none %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
@@ -48,16 +49,10 @@
             <label for="supplier">{{ t['maint.done_by'] }}</label>
         </div>
         <div class="field field--select">
-            {% set sel_op = request.form.get('operator') or (record.operator if is_edit and record.operator else '') %}
-            {% set op_names = operators|map(attribute='name')|list %}
+            {% set sel_op = driver_sel(record if is_edit else none)|string %}
             <select id="operator" name="operator">
                 <option value="">{{ t['form.select'] }}</option>
-                {% for o in operators %}
-                <option value="{{ o.name }}" {% if o.name == sel_op %}selected{% endif %}>{{ o.name }}</option>
-                {% endfor %}
-                {% if sel_op and sel_op not in op_names %}
-                <option value="{{ sel_op }}" selected>{{ sel_op }}</option>
-                {% endif %}
+                {{ driver_options(operators, sel_op, record if is_edit else none) }}
             </select>
             <label for="operator">{{ t['maint.operator'] }}</label>
         </div>

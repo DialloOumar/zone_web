@@ -349,7 +349,7 @@ def _read_expense_form(expense):
         common["description"] = common.get("description") or ("%s — %s" % (pr.description, pr.supplier) if pr.supplier else pr.description)
 
     vehicle_id = vehicle_ids[0] if len(vehicle_ids) == 1 else None
-    common.update(vehicle_id=vehicle_id, fleet_id=None, label=None, operator=None,
+    common.update(vehicle_id=vehicle_id, fleet_id=None, label=None, operator=None, driver_id=None,
                   supplier=None, site_id=site_id, liters=None,
                   account_id=account_id, staff_id=staff_id, ledger_code=ledger_code,
                   category=FIELD_CATEGORY if site_id else OFFICE_CATEGORY)

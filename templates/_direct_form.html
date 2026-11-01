@@ -1,3 +1,4 @@
+{% from "_driver_options.html" import driver_options, driver_sel with context %}
 {# Correcting a plein direct: a machine filled straight at the pump, so no
    citerne is involved and no stock moves. Only what was typed can be wrong:
    the machine, the day, the hour, the litres, the driver. #}
@@ -35,16 +36,10 @@
     </div>
 
     <div class="field field--select">
-        {% set sel_o = request.form.get('operator') if request.method == 'POST' else (mv.operator or '') %}
         <select id="operator" name="operator">
             <option value=""></option>
-            {% for o in operators %}
-            <option value="{{ o.name }}" {% if o.name == sel_o %}selected{% endif %}>{{ o.name }}</option>
-            {% endfor %}
-            {# A driver no longer on the list keeps their name on the row. #}
-            {% if mv.operator and mv.operator not in operators|map(attribute='name')|list %}
-            <option value="{{ mv.operator }}" {% if mv.operator == sel_o %}selected{% endif %}>{{ mv.operator }}</option>
-            {% endif %}
+            {# A driver no longer on the list keeps his own option on the row. #}
+            {{ driver_options(operators, driver_sel(mv)|string, mv) }}
         </select>
         <label for="operator">{{ t['distribution.driver'] }}</label>
     </div>

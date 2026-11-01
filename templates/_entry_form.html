@@ -1,3 +1,4 @@
+{% from "_driver_options.html" import driver_options, driver_sel with context %}
 {% set is_edit = entry is not none %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
@@ -9,7 +10,7 @@
                 {% set sel_v = request.form.get('vehicle_id')|int(0) or (entry.vehicle_id if is_edit else preset_vehicle or 0) %}
                 {% for v in vehicles %}
                 <option value="{{ v.id }}" data-unit="{{ v.category.unit_type }}" data-tracking="{{ v.category.tracking }}" data-fleet="{{ v.fleet_id }}"
-                        data-default-op="{{ v.default_operator.name if v.default_operator and v.default_operator.is_active else '' }}"
+                        data-default-op="{{ v.default_operator.staff_id if v.default_operator and v.default_operator.is_active else '' }}"
                         {% if v.id == sel_v %}selected{% endif %}>{{ v.code }} — {{ v.category.label_fr if lang == 'fr' else v.category.label }}</option>
                 {% endfor %}
             </select>
@@ -59,16 +60,10 @@
             <label for="kilometers">{{ t['entry.km'] }}</label>
         </div>
         <div class="field field--select">
-            {% set sel_op = request.form.get('operator') or (entry.operator if is_edit and entry.operator else '') or (preset_operator if not is_edit else '') %}
-            {% set op_names = operators|map(attribute='name')|list %}
+            {% set sel_op = driver_sel(entry if is_edit else none)|string or (preset_operator|string if not is_edit else '') %}
             <select id="operator" name="operator">
                 <option value="">{{ t['form.select'] }}</option>
-                {% for o in operators %}
-                <option value="{{ o.name }}" data-fleet="{{ o.fleet_id }}" {% if o.name == sel_op %}selected{% endif %}>{{ o.name }}</option>
-                {% endfor %}
-                {% if sel_op and sel_op not in op_names %}
-                <option value="{{ sel_op }}" data-fleet="" selected>{{ sel_op }}</option>
-                {% endif %}
+                {{ driver_options(operators, sel_op, entry if is_edit else none, fleets=true) }}
             </select>
             <label for="operator">{{ t['entry.operator'] }}</label>
         </div>
@@ -160,7 +155,9 @@
                 var def = (opt && opt.dataset.defaultOp) || "";
                 if (def) {
                     Array.prototype.forEach.call(opSel.options, function (o) {
-                        if (o.value === def && !o.hidden) opSel.value = def;
+                        // A driver on two fleets has two options with his id:
+                        // pick the one this vehicle's fleet shows.
+                        if (o.value === def && !o.hidden && !opSel.value) o.selected = true;
                     });
                 }
             }

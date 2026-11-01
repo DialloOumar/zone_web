@@ -59,7 +59,7 @@
             <div class="field field--select filter-field">
                 <select name="operator">
                     <option value="">{{ t['entry.all_operators'] }}</option>
-                    {% for o in operators %}<option value="{{ o.name }}" {% if f.operator == o.name %}selected{% endif %}>{{ o.name }}</option>{% endfor %}
+                    {% for o in operators|unique(attribute='staff_id') %}<option value="{{ o.staff_id }}" {% if f.operator == (o.staff_id|string) %}selected{% endif %}>{{ o.name }}</option>{% endfor %}
                 </select>
                 <label>{{ t['entry.operator'] }}</label>
             </div>

@@ -2163,7 +2163,7 @@ def seed_demo_cmd(days, force):
                 db.session.add(Operator(fleet_id=fleets[slug].id, staff_id=person.id, is_active=True))
     db.session.flush()
     ops_by_fleet = {
-        slug: [o.name for o in Operator.query.filter_by(fleet_id=fleets[slug].id).all()]
+        slug: [(o.name, o.staff_id) for o in Operator.query.filter_by(fleet_id=fleets[slug].id).all()]
         for slug in fleets
     }
     # First operator of each fleet — used as the vehicles' default driver.
@@ -2201,7 +2201,7 @@ def seed_demo_cmd(days, force):
             skip = (idle and d > recent_cut) or rng.random() < 0.25
             if not skip:
                 ym = d.strftime("%Y-%m")
-                op = rng.choice(ops_by_fleet[slug]) if ops_by_fleet[slug] else None
+                op, op_id = rng.choice(ops_by_fleet[slug]) if ops_by_fleet[slug] else (None, None)
                 km = round(rng.uniform(40, 120) if cat.unit_type == "trips" else rng.uniform(0, 30), 0)
                 cum_km[code] += km
                 trips = hours = index_start = index_end = None
@@ -2223,7 +2223,7 @@ def seed_demo_cmd(days, force):
                     index_start=index_start, index_end=index_end,
                     cumulative_km=round(cum_km[code], 1),
                     cumulative_hours=round(cum_h[code], 1) if cat.unit_type == "hours" else None,
-                    operator=op,
+                    operator=op, driver_id=op_id,
                 ))
             d += timedelta(days=1)
     db.session.flush()

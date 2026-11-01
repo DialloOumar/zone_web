@@ -1,0 +1,30 @@
+{# The options of a driver dropdown. Each carries the person's id, so what is
+   saved is the link to his file (blueprints.staff.driver_from_form).
+
+   sel     : what is chosen, as a string -- a person's id, or an old name
+   current : the record being edited, or none. Its driver keeps an option of
+             his own when he is no longer offered (archived, another fleet),
+             and so does a name that matches no file.
+   fleets  : write data-fleet on each option (the entry form filters by it) #}
+{% macro driver_options(operators, sel, current=none, fleets=false) -%}
+{%- set ids = operators|map(attribute='staff_id')|map('string')|list -%}
+{%- for o in operators %}
+<option value="{{ o.staff_id }}"{% if fleets %} data-fleet="{{ o.fleet_id }}"{% endif %} {% if (o.staff_id|string) == sel %}selected{% endif %}>{{ o.name }}</option>
+{%- endfor %}
+{%- if current is not none and sel and sel not in ids %}
+{%- if current.driver_id %}
+<option value="{{ current.driver_id }}"{% if fleets %} data-fleet=""{% endif %} selected>{{ current.operator }}</option>
+{%- elif current.operator_text %}
+<option value="{{ current.operator_text }}"{% if fleets %} data-fleet=""{% endif %} selected>{{ current.operator_text }}</option>
+{%- endif %}
+{%- endif %}
+{%- endmacro %}
+
+{# What a form's driver dropdown starts on: what was sent back, else the
+   record's driver (his id, or the old name when it links no file). #}
+{% macro driver_sel(current) -%}
+{%- if request.method == 'POST' -%}{{ request.form.get('operator', '') }}
+{%- elif current is not none and current.driver_id -%}{{ current.driver_id }}
+{%- elif current is not none -%}{{ current.operator_text or '' }}
+{%- endif -%}
+{%- endmacro %}

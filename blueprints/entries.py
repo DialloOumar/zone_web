@@ -23,7 +23,7 @@ import maintenance_engine
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, pending_change_exists, require_perm,
                  submit_change)
-from models import (Client, DailyEntry, Fleet, Operator, PendingChange, Supplier, Vehicle,
+from models import (Client, DailyEntry, Fleet, Operator, PendingChange, Staff, Supplier, Vehicle,
                     VehicleCategory, db)
 
 entries_bp = Blueprint("entries", __name__)
@@ -179,6 +179,8 @@ def _read_entry_form(entry):
            for v in (km, trips, hours, index_start, index_end)):
         return None, t["entry.err.negative"]
 
+    from blueprints.staff import driver_from_form
+    driver_id, driver_name = driver_from_form(request.form.get("operator"))
     data = dict(
         vehicle_id=vehicle_id,
         date=date_str,
@@ -187,7 +189,8 @@ def _read_entry_form(entry):
         hours=hours,
         index_start=index_start,
         index_end=index_end,
-        operator=(request.form.get("operator") or "").strip() or None,
+        operator=driver_name,
+        driver_id=driver_id,
         note=(request.form.get("note") or "").strip() or None,
     )
     return data, None
@@ -205,7 +208,7 @@ def _form_context(entry):
         v = db.session.get(Vehicle, preset_vehicle)
         if (v and v.default_operator and v.default_operator.is_active
                 and v.default_operator.person.is_active):
-            preset_operator = v.default_operator.name
+            preset_operator = str(v.default_operator.staff_id)
     return {
         "vehicles": _accessible_vehicles(active_only=True),
         "operators": _accessible_operators(),
@@ -254,7 +257,12 @@ def _apply_filters(q):
     if f["vehicle_id"]:
         q = q.filter(DailyEntry.vehicle_id == f["vehicle_id"])
     if f["operator"]:
-        q = q.filter(DailyEntry.operator == f["operator"])
+        # A person (his id, from the dropdown) or an old name with no file.
+        if f["operator"].isdigit():
+            q = q.filter(DailyEntry.driver_id == int(f["operator"]))
+        else:
+            q = q.filter(DailyEntry.driver_id.is_(None),
+                         DailyEntry.operator_text == f["operator"])
     if f["supplier_id"]:
         q = q.filter(Vehicle.supplier_id == f["supplier_id"])
     if f["client_id"]:
@@ -350,7 +358,9 @@ def _export_context():
         if v:
             parts.append(v.code)
     if f["operator"]:
-        parts.append(f["operator"])
+        person = (db.session.get(Staff, int(f["operator"]))
+                  if f["operator"].isdigit() else None)
+        parts.append(person.name if person else f["operator"])
     if f["supplier_id"]:
         sup = db.session.get(Supplier, f["supplier_id"])
         if sup:

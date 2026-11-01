@@ -21,7 +21,7 @@ from app import (current_user_categories, current_user_fleet_ids, get_t,
                  require_perm, scoped, slugify, submit_change, with_current_fleet)
 from blueprints.expenses import MAINTENANCE_CATEGORY
 from models import (Alert, Expense, Fleet, MaintenanceRecord, MaintenanceRecordType, MaintenanceRule,
-                    Operator, Part, ServicePartPurchase, ServiceType, StockMovement,
+                    Operator, Part, ServicePartPurchase, ServiceType, Staff, StockMovement,
                     Supplier, Vehicle, VehicleCategory, db)
 
 maintenance_bp = Blueprint("maintenance", __name__)
@@ -397,9 +397,11 @@ def _read_record_form(record):
         return None, e5
 
     rule_id = request.form.get("rule_id", type=int) or None
+    from blueprints.staff import driver_from_form
+    driver_id, driver_name = driver_from_form(request.form.get("operator"))
     data = dict(
         vehicle_id=vehicle_id, rule_id=rule_id, type=types[0], types=types, date=date_str,
-        operator=(request.form.get("operator") or "").strip() or None,
+        operator=driver_name, driver_id=driver_id,
         supplier=(request.form.get("supplier") or "").strip() or None,
         description=(request.form.get("description") or "").strip() or None,
         # No money is typed on a service any more; the keys stay in the payload
@@ -605,7 +607,8 @@ def sync_service_expense(record, money):
         currency="GNF",
         payment_method=money.get("payment_method"),
         payment_reference=money.get("payment_reference"),
-        operator=record.operator,
+        operator=record.operator_text,
+        driver_id=record.driver_id,
         supplier=record.supplier,
         description=record.description,
     )
@@ -818,7 +821,10 @@ def records():
         q = q.filter(db.or_(
             MaintenanceRecord.description.ilike(like),
             MaintenanceRecord.supplier.ilike(like),
-            MaintenanceRecord.operator.ilike(like),
+            MaintenanceRecord.operator_text.ilike(like),
+            MaintenanceRecord.driver_id.in_(
+                db.session.query(Staff.id).filter(db.or_(
+                    Staff.last_name.ilike(like), Staff.first_name.ilike(like)))),
             MaintenanceRecord.vehicle_id.in_(
                 db.session.query(Vehicle.id).filter(Vehicle.code.ilike(like))),
             # ...or one of the services done, by its name.

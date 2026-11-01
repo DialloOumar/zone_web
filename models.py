@@ -18,6 +18,7 @@ from datetime import date, datetime
 
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import declared_attr
 from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
@@ -341,8 +342,8 @@ class Operator(db.Model):
     vehicle's default driver points at. A driver on two fleets is two rows and
     one person.
 
-    DailyEntry.operator and its kin still store the name as text; renaming the
-    person rewrites that text (see blueprints.staff.rename_on_records).
+    DailyEntry and its kin link the driver's file itself (DriverLink), so a
+    renamed person keeps his history.
     """
     __tablename__ = "operators"
     __table_args__ = (
@@ -524,10 +525,48 @@ class PersonMatchDismissed(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
+class DriverLink:
+    """The driver on a record: a link to the person's file (driver_id) and the
+    name as it was chosen at the time (operator_text, the "operator" column).
+
+    `operator` reads the person's current name when the link exists -- so a
+    renamed driver keeps his history under his new name -- and the old text
+    otherwise (a name that matches no file). Setting it writes the text, for
+    the forms and approval payloads that still pass a name.
+
+    Queries go through driver_id, or operator_text for an unlinked name.
+    """
+
+    @property
+    def operator(self):
+        if self.driver_id is not None and self.driver is not None:
+            return self.driver.name
+        return self.operator_text
+
+    @operator.setter
+    def operator(self, value):
+        self.operator_text = value
+
+    @declared_attr
+    def driver(cls):
+        return db.relationship("Staff", foreign_keys=[cls.driver_id])
+
+
+class DriverNameIgnored(db.Model):
+    """A driver name on old records that matches no file, left as it is on
+    the merge screen so it is not offered again."""
+    __tablename__ = "driver_names_ignored"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(120), nullable=False, unique=True)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 # ── Daily operations ──────────────────────────────────────────────────────────
 
 
-class DailyEntry(db.Model):
+class DailyEntry(DriverLink, db.Model):
     """One operational period for a vehicle (trip, shift, hour block).
 
     Multiple rows per (vehicle, date) are allowed — a bus running 4 trips
@@ -550,7 +589,10 @@ class DailyEntry(db.Model):
     # Running totals as of this entry — for the maintenance rule engine.
     cumulative_km    = db.Column(db.Float,   nullable=True)
     cumulative_hours = db.Column(db.Float,   nullable=True)
-    operator         = db.Column(db.String(120), nullable=True)
+    # The driver: a link to his file, and the name as it was chosen then,
+    # kept as a trace (see DriverLink).
+    operator_text = db.Column("operator", db.String(120), nullable=True)
+    driver_id     = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=True, index=True)
     note             = db.Column(db.String(255), nullable=True)
     photo_key        = db.Column(db.String(200), nullable=True)              # S3 slip photo
     created_by       = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -640,7 +682,7 @@ class ServicePartPurchase(db.Model):
     requester = db.relationship("User", foreign_keys=[requested_by])
 
 
-class MaintenanceRecord(db.Model):
+class MaintenanceRecord(DriverLink, db.Model):
     """A maintenance event that actually happened — closes the relevant alert
     and resets that rule's counter for the vehicle.
 
@@ -658,7 +700,10 @@ class MaintenanceRecord(db.Model):
     date          = db.Column(db.String(10),  nullable=False)
     kilometers_at = db.Column(db.Float,       nullable=True)
     hours_at      = db.Column(db.Float,       nullable=True)
-    operator      = db.Column(db.String(120), nullable=True)   # driver linked to the service (name, like DailyEntry.operator)
+    # The driver: a link to his file, and the name as it was chosen then,
+    # kept as a trace (see DriverLink).
+    operator_text = db.Column("operator", db.String(120), nullable=True)
+    driver_id     = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=True, index=True)
     supplier      = db.Column(db.String(120), nullable=True)
     description   = db.Column(db.String(255), nullable=True)
     photo_key     = db.Column(db.String(200), nullable=True)
@@ -766,7 +811,7 @@ class Alert(db.Model):
 # ── Expenses ──────────────────────────────────────────────────────────────────
 
 
-class Expense(db.Model):
+class Expense(DriverLink, db.Model):
     """THE single money ledger — every cost lands here, whatever the screen it
     was entered from:
 
@@ -799,7 +844,10 @@ class Expense(db.Model):
     currency              = db.Column(db.String(5),  nullable=False, default="GNF")
     payment_method        = db.Column(db.String(20),  nullable=True)                              # mobile_money | cash | transfer | cheque | other
     payment_reference     = db.Column(db.String(60),  nullable=True)                              # cheque no., transfer ref., transaction id…
-    operator              = db.Column(db.String(120), nullable=True)                              # optional driver this cost is attributed to (name, like DailyEntry.operator)
+    # The driver: a link to his file, and the name as it was chosen then,
+    # kept as a trace (see DriverLink).
+    operator_text = db.Column("operator", db.String(120), nullable=True)
+    driver_id     = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=True, index=True)
     supplier              = db.Column(db.String(120), nullable=True)
     description           = db.Column(db.String(255), nullable=True)
     photo_key             = db.Column(db.String(200), nullable=True)                              # S3 receipt
@@ -831,7 +879,7 @@ class Expense(db.Model):
     fleet   = db.relationship("Fleet")
     site    = db.relationship("Site")
     account = db.relationship("CashAccount")
-    staff   = db.relationship("Staff")
+    staff   = db.relationship("Staff", foreign_keys=[staff_id])
     # The instalment this cost settles, when it was paid against a supplier's
     # bill. Like the money-in below it, it belongs to the cost: written,
     # corrected and deleted with it, never on its own.
@@ -1823,7 +1871,7 @@ class Citerne(db.Model):
 
 
 
-class FuelMovement(db.Model):
+class FuelMovement(DriverLink, db.Model):
     """One dated fuel movement. `liters` is always positive; the sign is
     carried by `kind`:
         rentree       — the citerne filled up at the client (+)
@@ -1843,7 +1891,10 @@ class FuelMovement(db.Model):
     time        = db.Column(db.String(5),   nullable=True)                   # HH:MM — when the fuel was actually taken (prises)
     liters      = db.Column(db.Integer,     nullable=False)                  # positive; sign from kind
     vehicle_id  = db.Column(db.Integer,     db.ForeignKey("vehicles.id"), nullable=True)  # the machine, for distributions
-    operator    = db.Column(db.String(120), nullable=True)                  # driver who took the fuel
+    # The driver: a link to his file, and the name as it was chosen then,
+    # kept as a trace (see DriverLink).
+    operator_text = db.Column("operator", db.String(120), nullable=True)
+    driver_id     = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=True, index=True)
     note        = db.Column(db.String(255), nullable=True)
     created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)

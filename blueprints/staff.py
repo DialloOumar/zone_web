@@ -10,8 +10,9 @@ The rest points here rather than keeping a copy:
 - an employee's login points here and takes its name and phone from the file;
 - a cost names who it went out for (Expense.staff_id).
 
-Past records (daily entries, services, fuel, costs) still write the driver's
-name as text. Renaming a person rewrites that text, so his history stays his.
+Past records (daily entries, services, fuel, costs) link the driver's file
+(DriverLink), so a renamed person keeps his history; the name chosen then is
+kept beside the link as a trace.
 
 When the one list was made, people already typed into several places were
 joined where the name was the same; the merge screen at the bottom of this
@@ -28,7 +29,8 @@ from flask_login import current_user, login_required
 import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, require_any_perm, require_perm)
-from models import (Expense, Fleet, Operator, PersonMatchDismissed, Site, Staff,
+from models import (DailyEntry, DriverNameIgnored, Expense, Fleet, FuelMovement,
+                    MaintenanceRecord, Operator, PersonMatchDismissed, Site, Staff,
                     StaffDocument, StaffPosition, User, Vehicle, db)
 
 staff_bp = Blueprint("staff", __name__)
@@ -128,24 +130,48 @@ def licence_state(person, today=None):
     return "soon" if days <= 60 else None
 
 
-def rename_on_records(fleet_id, old, new):
-    """Rewrite a driver's name on what one fleet recorded under it.
+def driver_from_form(raw):
+    """What a driver dropdown sent, as (driver_id, name).
 
-    The records keep the name as text; without this a renamed driver would
-    lose his history (his sheet, his costs) to the old spelling."""
-    if not old or old == new:
-        return
-    in_fleet = "vehicle_id IN (SELECT id FROM vehicles WHERE fleet_id = :f)"
-    p = {"f": fleet_id, "o": old, "n": new}
-    for sql in (
-        "UPDATE daily_entries SET operator = :n WHERE operator = :o AND " + in_fleet,
-        "UPDATE maintenance_records SET operator = :n WHERE operator = :o AND " + in_fleet,
-        "UPDATE fuel_movements SET operator = :n WHERE operator = :o AND "
-        "(vehicle_id IS NULL OR " + in_fleet + ")",
-        "UPDATE expenses SET operator = :n WHERE operator = :o AND "
-        "(fleet_id IS NULL OR fleet_id = :f)",
-    ):
-        db.session.execute(db.text(sql), p)
+    The options carry the person's id: the record links his file and keeps
+    his name as a trace. An old record whose name matches no file offers that
+    name itself as an option; sent back, it stays a name with no link."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None, None
+    if raw.isdigit():
+        person = db.session.get(Staff, int(raw))
+        if person is not None:
+            return person.id, person.name
+    return None, raw[:120]
+
+
+# The four kinds of record that name a driver (DriverLink).
+DRIVER_RECORDS = (DailyEntry, MaintenanceRecord, FuelMovement, Expense)
+
+
+def unlinked_driver_names():
+    """Driver names on records that link no file, with how many records each,
+    leaving out the ones set aside on the merge screen."""
+    counts = {}
+    for model in DRIVER_RECORDS:
+        for name, n in (db.session.query(model.operator_text, db.func.count(model.id))
+                        .filter(model.driver_id.is_(None), model.operator_text.isnot(None))
+                        .group_by(model.operator_text).all()):
+            if name and name.strip():
+                counts[name] = counts.get(name, 0) + int(n)
+    ignored = {r.name for r in DriverNameIgnored.query.all()}
+    return sorted(((n, c) for n, c in counts.items() if n not in ignored),
+                  key=lambda x: (-x[1], x[0].lower()))
+
+
+def link_driver_name(name, person):
+    """Tie every record carrying this name, and no link yet, to the person."""
+    total = 0
+    for model in DRIVER_RECORDS:
+        total += (model.query.filter(model.driver_id.is_(None), model.operator_text == name)
+                  .update({model.driver_id: person.id}, synchronize_session=False))
+    return total
 
 
 def sync_login(person):
@@ -402,9 +428,6 @@ def edit(pid):
         old_name = row.name
         for k, val in data.items():
             setattr(row, k, val)
-        if row.name != old_name:
-            for link in row.drives:
-                rename_on_records(link.fleet_id, old_name, row.name)
         _apply_fleets(row, chosen)
         gone = []
         for doc_id in request.form.getlist("doc_remove"):
@@ -469,7 +492,8 @@ def _delete_blockers(row):
         out.append("expenses")
     if row.login is not None:
         out.append("login")
-    if any(not operator_usage(o)["deletable"] for o in row.drives):
+    if any(not operator_usage(o)["deletable"] for o in row.drives) or any(
+            m.query.filter_by(driver_id=row.id).first() for m in DRIVER_RECORDS):
         out.append("driving")
     return out
 
@@ -672,8 +696,8 @@ def _pairs():
 
 
 def merge_people(keep, drop):
-    """Fold `drop` into `keep`: fleets, costs, papers, login, and the name on
-    past records. Returns an error string or None."""
+    """Fold `drop` into `keep`: fleets, records, costs, papers and login.
+    Returns an error string or None."""
     if keep.login is not None and drop.login is not None:
         return get_t()["merge.err.two_logins"]
     for col in _MERGE_FILL:
@@ -685,7 +709,6 @@ def merge_people(keep, drop):
 
     mine = {o.fleet_id: o for o in keep.drives}
     for link in list(drop.drives):
-        rename_on_records(link.fleet_id, drop.name, keep.name)
         twin = mine.get(link.fleet_id)
         if twin is None:
             link.staff_id = keep.id
@@ -697,6 +720,9 @@ def merge_people(keep, drop):
 
     Expense.query.filter_by(staff_id=drop.id).update(
         {Expense.staff_id: keep.id}, synchronize_session=False)
+    for model in DRIVER_RECORDS:
+        model.query.filter_by(driver_id=drop.id).update(
+            {model.driver_id: keep.id}, synchronize_session=False)
     StaffDocument.query.filter_by(staff_id=drop.id).update(
         {StaffDocument.staff_id: keep.id}, synchronize_session=False)
     PersonMatchDismissed.query.filter(db.or_(
@@ -727,6 +753,24 @@ def merge():
     t = get_t()
     if request.method == "POST":
         what = request.form.get("what")
+        if what in ("link_name", "ignore_name"):
+            name = request.form.get("name") or ""
+            if not name:
+                abort(400)
+            if what == "link_name":
+                person = db.session.get(Staff, request.form.get("person", type=int) or 0)
+                if person is None:
+                    flash("error|" + t["merge.err.pick_person"])
+                    return redirect(url_for("staff.merge"))
+                n = link_driver_name(name, person)
+                log_action("UPDATE", "staff", resource_id=person.id,
+                           detail="Linked %d record(s) named '%s' to '%s'" % (n, name, person.name))
+                flash("success|" + t["merge.name_linked"] % {"n": n, "name": person.name})
+            else:
+                if not DriverNameIgnored.query.filter_by(name=name).first():
+                    db.session.add(DriverNameIgnored(name=name[:120], created_by=current_user.id))
+            db.session.commit()
+            return redirect(url_for("staff.merge"))
         a = db.session.get(Staff, request.form.get("a", type=int) or 0)
         if a is None:
             abort(404)
@@ -776,5 +820,12 @@ def merge():
         return redirect(url_for("staff.merge"))
 
     person_pairs, login_pairs = _pairs()
+    # Names on records that link no file, each with the person it most
+    # looks like, offered first.
+    people = Staff.query.order_by(Staff.last_name, Staff.first_name).all()
+    names = []
+    for name, count in unlinked_driver_names():
+        guess = next((p for p in people if looks_alike(p.name, name)), None)
+        names.append({"name": name, "count": count, "guess": guess})
     return render_template("staff_merge.html", person_pairs=person_pairs,
-                           login_pairs=login_pairs)
+                           login_pairs=login_pairs, names=names, people=people)

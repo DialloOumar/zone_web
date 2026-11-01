@@ -2543,3 +2543,7 @@ label.merge-col:has(input:checked) { border-color: var(--md-primary); background
 .merge-col__keep input { accent-color: var(--md-primary); }
 .merge-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 700px) { .merge-grid { grid-template-columns: 1fr; } }
+/* A driver name with no file: the name, the person to tie it to, the choice. */
+.merge-name { display: grid; grid-template-columns: minmax(0, 1fr) 280px auto; gap: 12px; align-items: center; }
+.merge-name__what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+@media (max-width: 800px) { .merge-name { grid-template-columns: 1fr; } }

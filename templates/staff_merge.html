@@ -28,7 +28,7 @@
 
 {% block content %}
 <section class="card">
-    {% if not person_pairs and not login_pairs %}
+    {% if not person_pairs and not login_pairs and not names %}
     <div class="empty-state">
         <span class="material-symbols-outlined">task_alt</span>
         <p>{{ t['merge.none'] }}</p>
@@ -81,6 +81,35 @@
                 <span class="material-symbols-outlined">check</span> {{ t['merge.same'] }}
             </button>
             <button type="submit" name="what" value="unrelated" class="btn btn--sm btn--outlined">{{ t['merge.different'] }}</button>
+        </div>
+    </form>
+    {% endfor %}
+    {% endif %}
+
+    {% if names %}
+    {# Driver names on old records that link no file: a typo, a driver never
+       registered. One choice ties every record carrying the name. #}
+    <div class="card-header" style="margin-top:18px;"><h2>{{ t['merge.names'] }} ({{ names|length }})</h2></div>
+    {% for n in names %}
+    <form method="post" class="merge-pair merge-name">
+        <input type="hidden" name="name" value="{{ n.name }}">
+        <div class="merge-name__what">
+            <strong>{{ n.name }}</strong>
+            <span class="muted small">{{ n.count }} {{ t['merge.records'] }}</span>
+        </div>
+        <div class="field field--select merge-name__pick">
+            <select name="person" aria-label="{{ t['merge.pick_person'] }}">
+                <option value="">{{ t['merge.pick_person'] }}</option>
+                {% for p in people %}
+                <option value="{{ p.id }}" {% if n.guess and n.guess.id == p.id %}selected{% endif %}>{{ p.name }}{% if not p.is_employee %} · {{ t['staff.kind.external'] }}{% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="merge-actions">
+            <button type="submit" name="what" value="link_name" class="btn btn--sm btn--primary">
+                <span class="material-symbols-outlined">check</span> {{ t['merge.link'] }}
+            </button>
+            <button type="submit" name="what" value="ignore_name" class="btn btn--sm btn--outlined">{{ t['merge.leave'] }}</button>
         </div>
     </form>
     {% endfor %}

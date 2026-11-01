@@ -1,3 +1,4 @@
+{% from "_driver_options.html" import driver_options, driver_sel with context %}
 {% from "_hint.html" import hint with context %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
@@ -30,10 +31,7 @@
         <div class="field field--select">
             <select id="operator" name="operator">
                 <option value=""></option>
-                {% set sel_o = request.form.get('operator') %}
-                {% for o in operators %}
-                <option value="{{ o.name }}" {% if o.name == sel_o %}selected{% endif %}>{{ o.name }}</option>
-                {% endfor %}
+                {{ driver_options(operators, request.form.get('operator', '')) }}
             </select>
             <label for="operator">{{ t['conso.driver'] }}</label>
         </div>

@@ -7,12 +7,12 @@ lives here. Read only: people are created and edited on the RH side only.
 """
 from datetime import datetime
 
-from flask import Blueprint, abort, redirect, render_template, request, url_for
+from flask import Blueprint, abort, render_template, request
 from flask_login import login_required
 from sqlalchemy import func
 
 from app import current_user_fleet_ids, require_perm
-from models import (DailyEntry, Expense, Fleet, FuelMovement,
+from models import (Citerne, DailyEntry, Expense, Fleet, FuelMovement,
                     MaintenanceRecord, Operator, Staff, Vehicle, db)
 
 operators_bp = Blueprint("operators", __name__)
@@ -44,33 +44,35 @@ def _get_operator_or_404(oid):
 
 
 def operator_usage(op):
-    """What still refers to a driver, and whether the row can be deleted.
+    """What still refers to this person driving for this fleet, and whether
+    the link can be deleted.
 
-    Entries, services, fuel movements and expenses store the driver as a name,
-    not an id — deliberately, so history survives a rename. Deleting the row
-    therefore orphans nothing, but it would strip that history of the only
-    place the name is still a real person with a phone number and a licence.
-    So anything logged under the name blocks, and the driver gets archived
-    instead.
-
-    Being a vehicle's default driver is the one genuine foreign key, and it
-    blocks too: silently clearing someone else's default is a surprise, and
-    the fix is one edit away on the vehicle.
+    Entries, services, fuel movements and costs link the person (driver_id);
+    anything recorded under him in this fleet blocks, and the link is archived
+    instead. Being a vehicle's default driver blocks too: silently clearing
+    someone else's default is a surprise, and the fix is one edit away on the
+    vehicle.
     """
-    name, fid = op.name, op.fleet_id
+    sid, fid = op.staff_id, op.fleet_id
+    fleet_vehicles = db.session.query(Vehicle.id).filter(Vehicle.fleet_id == fid)
     usage = {
         "entries": (DailyEntry.query
                     .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
-                    .filter(Vehicle.fleet_id == fid, DailyEntry.operator == name).count()),
+                    .filter(Vehicle.fleet_id == fid, DailyEntry.driver_id == sid).count()),
         "records": (MaintenanceRecord.query
                     .join(Vehicle, MaintenanceRecord.vehicle_id == Vehicle.id)
                     .filter(Vehicle.fleet_id == fid,
-                            MaintenanceRecord.operator == name).count()),
-        # A fill or a cost can sit outside any vehicle, so there is no fleet to
-        # join through; matching the name alone over-counts at worst, and an
-        # over-count only ever means "archive it instead", never a bad delete.
-        "movements": FuelMovement.query.filter_by(operator=name).count(),
-        "expenses": Expense.query.filter_by(operator=name).count(),
+                            MaintenanceRecord.driver_id == sid).count()),
+        # A fill hangs off a machine or a tank of the fleet; a cost off the
+        # fleet or one of its machines.
+        "movements": FuelMovement.query.filter(
+            FuelMovement.driver_id == sid,
+            db.or_(FuelMovement.vehicle_id.in_(fleet_vehicles),
+                   FuelMovement.citerne_id.in_(
+                       db.session.query(Citerne.id).filter(Citerne.fleet_id == fid)))).count(),
+        "expenses": Expense.query.filter(
+            Expense.driver_id == sid,
+            db.or_(Expense.fleet_id == fid, Expense.vehicle_id.in_(fleet_vehicles))).count(),
         # Live machines only. A deleted machine that logged something keeps a
         # tombstone row, and that row keeps its default_operator_id — so a
         # driver would stay pinned by a vehicle nobody can see any more.
@@ -148,10 +150,9 @@ def index():
 @require_perm("operator.view")
 def detail(oid):
     """Driver sheet — activity KPIs for a month, vehicles driven, and the
-    services he's tied to. Daily entries / records store the driver as a name,
-    so we match by name within the operator's fleet (names are unique there)."""
+    services he's tied to: what links this person, within this fleet."""
     op = _get_operator_or_404(oid)
-    name, fid = op.name, op.fleet_id
+    sid, fid = op.staff_id, op.fleet_id
 
     month = request.args.get("month", "")
     try:
@@ -161,7 +162,7 @@ def detail(oid):
 
     def _scoped_entries():
         return (DailyEntry.query.join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
-                .filter(Vehicle.fleet_id == fid, DailyEntry.operator == name))
+                .filter(Vehicle.fleet_id == fid, DailyEntry.driver_id == sid))
 
     # Activity KPIs for the selected month.
     co = func.coalesce
@@ -172,11 +173,11 @@ def detail(oid):
             co(func.sum(DailyEntry.hours), 0.0),
             co(func.sum(DailyEntry.kilometers), 0.0))
         .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
-        .filter(Vehicle.fleet_id == fid, DailyEntry.operator == name,
+        .filter(Vehicle.fleet_id == fid, DailyEntry.driver_id == sid,
                 DailyEntry.date.like(month + "%")).one())
     last_date = (db.session.query(func.max(DailyEntry.date))
                  .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
-                 .filter(Vehicle.fleet_id == fid, DailyEntry.operator == name).scalar())
+                 .filter(Vehicle.fleet_id == fid, DailyEntry.driver_id == sid).scalar())
 
     # Vehicles driven (all-time): default-driver assignments ∪ vehicles pointed.
     default_ids = {v.id for v in Vehicle.query.filter_by(default_operator_id=op.id).all()}
@@ -189,11 +190,11 @@ def detail(oid):
     # Services the driver is tied to.
     records = (MaintenanceRecord.query
                .join(Vehicle, MaintenanceRecord.vehicle_id == Vehicle.id)
-               .filter(Vehicle.fleet_id == fid, MaintenanceRecord.operator == name)
+               .filter(Vehicle.fleet_id == fid, MaintenanceRecord.driver_id == sid)
                .order_by(MaintenanceRecord.date.desc()).limit(50).all())
 
     # Costs attributed to this driver — stacked by category over the 6 months
-    # ending at the selected month (Expense.operator is the driver tag). Fuel and
+    # ending at the selected month (Expense.driver_id is the driver). Fuel and
     # services are ordinary ledger categories, so one query covers them all.
     from blueprints.expenses import category_label
     y, mo = int(month[:4]), int(month[5:7])
@@ -207,7 +208,7 @@ def detail(oid):
     idx = {m: i for i, m in enumerate(months)}
     ym = func.substr(Expense.date, 1, 7)
     rows = (db.session.query(ym, Expense.category, func.sum(Expense.amount))
-            .filter(Expense.fleet_id == fid, Expense.operator == name, ym.in_(months))
+            .filter(Expense.fleet_id == fid, Expense.driver_id == sid, ym.in_(months))
             .group_by(ym, Expense.category).all())
     # Built from the categories the rows actually carry, rather than a fixed
     # list: nothing files costs by category any more, so the list would drift.
