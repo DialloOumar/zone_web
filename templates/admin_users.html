@@ -39,7 +39,7 @@
                    somebody from outside, or one still to tie. #}
                 <td>
                     {% if u.person %}
-                    <span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
+                    <a href="{{ url_for('staff.profile', pid=u.person.id) }}" class="badge badge--active">{{ t['staff.kind.employee'] }}</a>
                     {% if u.person.position %}<span class="muted small">{{ u.person.position.name }}</span>{% endif %}
                     {% else %}
                     <span class="badge badge--warning">{{ t['user.external'] }}</span>

@@ -2547,3 +2547,33 @@ label.merge-col:has(input:checked) { border-color: var(--md-primary); background
 .merge-name { display: grid; grid-template-columns: minmax(0, 1fr) 280px auto; gap: 12px; align-items: center; }
 .merge-name__what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 @media (max-width: 800px) { .merge-name { grid-template-columns: 1fr; } }
+
+/* ── A person's file: the head (photo or initials, name, who, marks, the
+   few facts read first), then tabs. As myafrica_web draws it. ── */
+.avatar { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%;
+    overflow: hidden; background: var(--md-primary-container); color: var(--md-on-primary-container); font-weight: 700;
+    text-decoration: none; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar--lg { width: 96px; height: 96px; font-size: 1.6rem; }
+.file-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 24px; }
+.file-head__main { flex: 1; min-width: 240px; }
+.file-head__title { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+.file-head__sub { color: var(--md-on-surface-variant); margin-top: 2px; }
+.file-head__badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.file-head__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.file-head__facts { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--md-outline-variant); }
+.file-sections { display: flex; flex-direction: column; }
+.file-section { padding: 14px 0; }
+.file-section + .file-section { border-top: 1px solid var(--md-outline-variant); }
+.file-section h3 { margin: 0 0 12px; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em;
+                   text-transform: uppercase; color: var(--md-on-surface-variant); }
+.person-stats { margin-bottom: 16px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .person-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .person-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.person-docs { display: flex; flex-direction: column; gap: 8px; }
+.person-docs .doc-line { color: inherit; text-decoration: none; }
+.person-docs .doc-line:hover { background: var(--md-surface-container); }
+.person-filter { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.person-filter .filter-chips { margin-bottom: 0; }
+.person-filter__month { padding: 6px 10px; border: 1px solid var(--md-outline-variant); border-radius: var(--shape-sm);
+                        background: var(--md-surface); color: var(--md-on-surface); font: inherit; }

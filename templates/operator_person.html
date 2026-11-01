@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% from "_person_header.html" import person_head, fact with context %}
+
+{% block title %}{{ p.name }}{% endblock %}
+{% block page_title %}{{ t['nav.operators'] }}{% endblock %}
+
+{# The operations door to a person: what he does on the ground, on one of his
+   fleets or all of them, for a month. The head carries his licence and his
+   fleets; the month's figures sit under the filters, the detail in tabs. #}
+{% block content %}
+{% call person_head(p, 'ops', licence) %}
+    {{ fact(t['staff.phone'], p.phone) }}
+    {{ fact(t['staff.license_number'], p.license_number) }}
+    {{ fact(t['staff.license_categories'], p.license_categories) }}
+    {{ fact(t['staff.license_expires'], p.license_expires|dmy if p.license_expires else none) }}
+    {{ fact(t['staff.fleets'], links|selectattr('is_active')|map(attribute='fleet')|map(attribute='name')|join(', ')) }}
+    {{ fact(t['operator.last_activity'], last_date|dmy if last_date else none) }}
+{% endcall %}
+
+<form method="get" class="person-filter">
+    <div class="filter-chips">
+        {% if links|length > 1 %}
+        <a href="{{ url_for('operators.person', pid=p.id, month=month, tab=tab) }}" class="filter-chip {% if not fleet %}active{% endif %}">{{ t['operator.all'] }}</a>
+        {% endif %}
+        {% for o in links %}
+        <a href="{{ url_for('operators.person', pid=p.id, fleet=o.fleet_id, month=month, tab=tab) }}"
+           class="filter-chip {% if fleet == o.fleet_id or links|length == 1 %}active{% endif %}">{{ o.fleet.name }}{% if not o.is_active %} · {{ t['operator.inactive'] }}{% endif %}</a>
+        {% endfor %}
+    </div>
+    {% if fleet %}<input type="hidden" name="fleet" value="{{ fleet }}">{% endif %}
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <input type="month" name="month" value="{{ month }}" onchange="this.form.submit()" class="person-filter__month">
+</form>
+
+<div class="stat-grid person-stats">
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--teal material-symbols-outlined">fact_check</span>
+        <div><div class="stat-value">{{ n_pointages }}</div><div class="stat-label">{{ t['operator.kpi.pointages'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--amber material-symbols-outlined">directions_bus</span>
+        <div><div class="stat-value">{{ tot_trips }}</div><div class="stat-label">{{ t['operator.kpi.trips'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--blue material-symbols-outlined">history</span>
+        <div><div class="stat-value">{{ '%.0f'|format(tot_hours) }}</div><div class="stat-label">{{ t['operator.kpi.hours'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--green material-symbols-outlined">donut_large</span>
+        <div><div class="stat-value">{{ tot_km | num }}</div><div class="stat-label">{{ t['operator.kpi.km'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--blue material-symbols-outlined">local_gas_station</span>
+        <div><div class="stat-value">{{ fuel_litres | num }} L</div><div class="stat-label">{{ t['person.fuel_short'] }}</div></div>
+    </div>
+</div>
+
+<section class="card">
+    <nav class="tabs" role="tablist">
+        {% set icons = {'vehicles': 'directions_bus', 'records': 'handyman', 'fuel': 'local_gas_station', 'costs': 'payments'} %}
+        {% set counts = {'vehicles': vehicles|length, 'records': records|length, 'fuel': fuel_rows|length} %}
+        {% for key in tabs %}
+        <a href="{{ url_for('operators.person', pid=p.id, fleet=fleet, month=month, tab=key) }}" role="tab"
+           aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
+            <span class="material-symbols-outlined">{{ icons[key] }}</span> {{ t['person.tab.' + key] }}
+            {%- if counts.get(key) %} <span class="tab__count">{{ counts[key] }}</span>{% endif %}
+        </a>
+        {% endfor %}
+    </nav>
+
+    {% if tab == 'vehicles' %}
+    {% if vehicles %}
+    <div class="chip-list">
+        {% for v in vehicles %}
+        <a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="vehicle-pill">
+            <strong>{{ v.code }}</strong>
+            <span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
+            {% if v.id in default_ids %}<span class="badge badge--active">{{ t['operator.default_badge'] }}</span>{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">directions_bus</span><p>{{ t['operator.no_vehicles'] }}</p></div>
+    {% endif %}
+
+    {% elif tab == 'records' %}
+    {% if records %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['maint.date'] }}</th>
+            <th>{{ t['maint.vehicle'] }}</th>
+            <th>{{ t['maint.record_type'] }}</th>
+            <th style="text-align:right;">{{ t['maint.cost'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for m in records %}
+            <tr>
+                <td>{{ m.date|dmy }}</td>
+                <td><a href="{{ url_for('vehicles.detail', vid=m.vehicle_id) }}"><strong>{{ m.vehicle.code }}</strong></a></td>
+                <td>{% for c in m.types %}<span class="chip">{{ service_type_label(c) }}</span> {% endfor %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if m.cost is not none %}{{ m.cost | num }} {{ currency }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">handyman</span><p>{{ t['operator.no_records'] }}</p></div>
+    {% endif %}
+
+    {% elif tab == 'fuel' %}
+    {% if fuel_rows %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['maint.date'] }}</th>
+            <th>{{ t['maint.vehicle'] }}</th>
+            <th style="text-align:right;">{{ t['person.litres'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for m in fuel_rows %}
+            <tr>
+                <td>{{ m.date|dmy }}{% if m.time %} <span class="muted small">{{ m.time }}</span>{% endif %}</td>
+                <td>{% if m.vehicle %}<strong>{{ m.vehicle.code }}</strong>{% elif m.citerne %}<strong>{{ m.citerne.code }}</strong>{% else %}—{% endif %}</td>
+                <td style="text-align:right;">{{ m.liters | num }} L</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">local_gas_station</span><p>{{ t['person.no_fuel'] }}</p></div>
+    {% endif %}
+
+    {% else %}
+    {% if expense_chart.series %}
+    <div class="chart-box" style="height:300px;"><canvas id="chart-exp"></canvas></div>
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">payments</span><p>{{ t['operator.no_expenses'] }}</p></div>
+    {% endif %}
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}?v={{ v }}"></script>
+<script type="application/json" id="exp-chart-data">{{ expense_chart|tojson }}</script>
+<script>
+(function () {
+    if (typeof Chart === "undefined") return;
+    var css = getComputedStyle(document.documentElement);
+    var v = function (n) { return css.getPropertyValue(n).trim(); };
+    var data = JSON.parse(document.getElementById("exp-chart-data").textContent);
+    var el = document.getElementById("chart-exp");
+    if (!el || !data.series.length) return;
+    var colors = {
+        fuel: v("--c-blue"), assurance: v("--c-teal"), accident: v("--c-red"),
+        lavage: v("--c-green"), agent: v("--c-amber"), autre: v("--c-orange"),
+        entretien: v("--c-indigo"),
+    };
+    var currency = {{ currency|tojson }};
+    var textColor = v("--md-on-surface-variant") || "#666";
+    var gridColor = v("--md-outline-variant") || "#ddd";
+    Chart.defaults.font.family = "Roboto, sans-serif";
+    Chart.defaults.color = textColor;
+    var money = function (n) { return Number(n).toLocaleString() + " " + currency; };
+    new Chart(el, {
+        type: "bar",
+        data: {
+            labels: data.months,
+            datasets: data.series.map(function (s) {
+                return { label: s.label, data: s.data, backgroundColor: colors[s.cat] || v("--c-blue") };
+            }),
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: "top", labels: { color: textColor, boxWidth: 12 } },
+                tooltip: { callbacks: { label: function (c) { return c.dataset.label + ": " + money(c.parsed.y); } } },
+            },
+            scales: {
+                x: { stacked: true, grid: { display: false }, ticks: { color: textColor } },
+                y: {
+                    stacked: true, grid: { color: gridColor },
+                    ticks: {
+                        color: textColor,
+                        callback: function (x) { if (x >= 1e6) return (x / 1e6) + "M"; if (x >= 1e3) return (x / 1e3) + "k"; return x; },
+                    },
+                },
+            },
+        },
+    });
+})();
+</script>
+{% endblock %}

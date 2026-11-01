@@ -57,7 +57,7 @@
             {% for r in rows %}
             <tr>
                 <td>
-                    <strong {% if not r.p.is_active %}class="muted"{% endif %}>{{ r.p.name }}</strong>
+                    <a href="{{ url_for('operators.person', pid=r.p.id) }}"><strong {% if not r.p.is_active %}class="muted"{% endif %}>{{ r.p.name }}</strong></a>
                     {% if not r.p.is_employee and r.p.company %}<div class="muted small">{{ r.p.company }}</div>{% endif %}
                 </td>
                 <td>
@@ -65,7 +65,7 @@
                     {%- else %}<span class="badge badge--warning">{{ t['staff.kind.external'] }}</span>{% endif %}
                 </td>
                 <td>
-                    {% for o in r.links %}<a href="{{ url_for('operators.detail', oid=o.id) }}" {% if not o.is_active %}class="muted"{% endif %}>{{ o.fleet.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+                    {% for o in r.links %}<a href="{{ url_for('operators.person', pid=r.p.id, fleet=o.fleet_id) }}" {% if not o.is_active %}class="muted"{% endif %}>{{ o.fleet.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
                 </td>
                 <td>{{ r.p.phone or '—' }}</td>
                 <td class="col-secondary">{{ r.p.license_categories or '—' }}</td>
@@ -80,12 +80,12 @@
         {% for r in rows %}
         <div class="list-card">
             <div class="list-card__top">
-                <strong>{{ r.p.name }}</strong>
+                <a href="{{ url_for('operators.person', pid=r.p.id) }}"><strong>{{ r.p.name }}</strong></a>
                 {% if r.p.is_employee %}<span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>
                 {%- else %}<span class="badge badge--warning">{{ t['staff.kind.external'] }}</span>{% endif %}
             </div>
             <div class="list-card__meta">
-                {% for o in r.links %}<a href="{{ url_for('operators.detail', oid=o.id) }}" class="muted small">{{ o.fleet.name }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+                {% for o in r.links %}<a href="{{ url_for('operators.person', pid=r.p.id, fleet=o.fleet_id) }}" class="muted small">{{ o.fleet.name }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
                 {% if r.p.phone %}<span class="muted small">· {{ r.p.phone }}</span>{% endif %}
             </div>
         </div>

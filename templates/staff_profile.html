@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% from "_person_header.html" import person_head, fact with context %}
+
+{% block title %}{{ p.name }}{% endblock %}
+{% block page_title %}{{ t['nav.staff'] }}{% endblock %}
+
+{# The RH door to a person: who they are and on what terms they work. The
+   head carries what is read first; the rest sits in tabs, where contracts,
+   leave and pay will join. #}
+{% block content %}
+{% call person_head(p, 'hr', licence) %}
+    {{ fact(t['staff.phone'], p.phone) }}
+    {% if p.is_employee %}
+    {{ fact(t['staff.hired_on'], (p.hired_on|dmy) ~ (' · ' ~ seniority ~ ' ' ~ t['person.years_short'] if seniority is not none else '') if p.hired_on else none) }}
+    {{ fact(t['staff.birth_date'], (p.birth_date|dmy) ~ (' · ' ~ age ~ ' ' ~ t['person.years'] if age is not none else '') if p.birth_date else none) }}
+    {{ fact(t['staff.cnss'], p.cnss_number) }}
+    {{ fact(t['staff.id_number'], p.id_number) }}
+    {% else %}
+    {{ fact(t['staff.company'], p.company) }}
+    {{ fact(t['staff.license_number'], p.license_number) }}
+    {{ fact(t['staff.fleets'], p.active_fleets|map(attribute='name')|join(', ')) }}
+    {% endif %}
+{% endcall %}
+
+<section class="card">
+    <nav class="tabs" role="tablist">
+        {% set icons = {'file': 'badge', 'documents': 'description', 'money': 'payments'} %}
+        {% for key in tabs %}
+        <a href="{{ url_for('staff.profile', pid=p.id, tab=key if key != 'file' else None) }}" role="tab"
+           aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
+            <span class="material-symbols-outlined">{{ icons[key] }}</span> {{ t['person.tab.' + key] }}
+            {%- if key == 'documents' and p.documents %} <span class="tab__count">{{ p.documents|length }}</span>{% endif %}
+            {%- if key == 'money' and money.count %} <span class="tab__count">{{ money.count }}</span>{% endif %}
+        </a>
+        {% endfor %}
+    </nav>
+
+    {% if tab == 'file' %}
+    <div class="file-sections">
+        {% if p.is_employee %}
+        <div class="file-section">
+            <h3>{{ t['staff.sec.identity'] }}</h3>
+            <dl class="detail-grid">
+                {{ fact(t['staff.last_name'], p.last_name) }}
+                {{ fact(t['staff.first_name'], p.first_name) }}
+                {{ fact(t['staff.sex'], t['staff.sex.' + p.sex] if p.sex else none) }}
+                {{ fact(t['staff.birth_place'], p.birth_place) }}
+                {{ fact(t['staff.nationality'], p.nationality) }}
+            </dl>
+        </div>
+        <div class="file-section">
+            <h3>{{ t['staff.sec.work'] }}</h3>
+            <dl class="detail-grid">
+                {{ fact(t['staff.position'], p.position.name if p.position else none) }}
+                {{ fact(t['staff.site'], p.site.name if p.site else none) }}
+                {{ fact(t['staff.matricule'], p.matricule) }}
+            </dl>
+        </div>
+        {% endif %}
+        <div class="file-section">
+            <h3>{{ t['staff.sec.contact'] }}</h3>
+            <dl class="detail-grid">
+                {{ fact(t['staff.phone'], p.phone) }}
+                {% if p.is_employee %}
+                {{ fact(t['staff.address'], p.address) }}
+                {{ fact(t['staff.emergency_name'], p.emergency_name) }}
+                {{ fact(t['staff.emergency_phone'], p.emergency_phone) }}
+                {% endif %}
+            </dl>
+        </div>
+        {% if p.license_number or p.license_expires or p.drives %}
+        <div class="file-section">
+            <h3>{{ t['staff.sec.driving'] }}</h3>
+            <dl class="detail-grid">
+                {{ fact(t['staff.license_number'], p.license_number) }}
+                {{ fact(t['staff.license_categories'], p.license_categories) }}
+                {{ fact(t['staff.license_expires'], p.license_expires|dmy if p.license_expires else none) }}
+                {{ fact(t['staff.fleets'], p.active_fleets|map(attribute='name')|join(', ')) }}
+            </dl>
+        </div>
+        {% endif %}
+        {% if p.note %}
+        <div class="file-section">
+            <h3>{{ t['entry.note'] }}</h3>
+            <p style="margin:0; white-space:pre-line;">{{ p.note }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% elif tab == 'documents' %}
+    {% if p.documents %}
+    <div class="person-docs">
+        {% for d in p.documents %}
+        <a class="doc-line" href="{{ url_for('staff.document', did=d.id) }}" target="_blank" rel="noopener">
+            <span class="material-symbols-outlined">{{ 'picture_as_pdf' if d.content_type == 'application/pdf' else 'description' }}</span>
+            <span>{{ d.name }}</span>
+            <span class="muted small">{{ d.created_at.strftime('%d/%m/%Y') }}</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">description</span>
+        <p>{{ t['person.no_documents'] }}</p>
+    </div>
+    {% endif %}
+
+    {% elif tab == 'money' %}
+    {% if money.rows %}
+    <div class="tab-bar">
+        <span class="muted small">{{ t['person.money_total'] }} <strong>{{ money.total | num }} {{ currency }}</strong></span>
+        <a href="{{ url_for('expenses.index', staff=p.id, date_from='', date_to='') }}" class="link-more">{{ t['person.see_all'] }}</a>
+    </div>
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['maint.date'] }}</th>
+            <th>{{ t['person.what'] }}</th>
+            <th style="text-align:right;">{{ t['maint.cost'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for x in money.rows %}
+            <tr>
+                <td>{{ x.date|dmy }}</td>
+                <td>{{ x.label or x.description or category_label(x.category) }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ x.amount | num }} {{ currency }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">payments</span>
+        <p>{{ t['person.no_money'] }}</p>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</section>
+{% endblock %}

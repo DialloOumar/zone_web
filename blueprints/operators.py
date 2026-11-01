@@ -7,7 +7,7 @@ lives here. Read only: people are created and edited on the RH side only.
 """
 from datetime import datetime
 
-from flask import Blueprint, abort, render_template, request
+from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import login_required
 from sqlalchemy import func
 
@@ -149,10 +149,33 @@ def index():
 @login_required
 @require_perm("operator.view")
 def detail(oid):
-    """Driver sheet — activity KPIs for a month, vehicles driven, and the
-    services he's tied to: what links this person, within this fleet."""
+    """The old per-fleet driver sheet: now the person's page, on that fleet."""
     op = _get_operator_or_404(oid)
-    sid, fid = op.staff_id, op.fleet_id
+    return redirect(url_for("operators.person", pid=op.staff_id, fleet=op.fleet_id,
+                            month=request.args.get("month") or None))
+
+
+@operators_bp.route("/operators/personne/<int:pid>")
+@login_required
+@require_perm("operator.view")
+def person(pid):
+    """The operations door to a person: what he does on the ground -- his
+    pointing, the machines he drives, the services, the fuel and the costs
+    tied to him -- on one of his fleets or all of them, for a month.
+    Who he is and on what terms he works is the RH door (staff.profile)."""
+    from blueprints.staff import licence_state
+    p = db.session.get(Staff, pid)
+    if not p:
+        abort(404)
+    fids = current_user_fleet_ids()
+    links = [o for o in p.drives if fids is None or o.fleet_id in fids]
+    if not links:
+        abort(404)
+    links.sort(key=lambda o: (not o.is_active, o.fleet.name))
+    fleet = request.args.get("fleet", type=int)
+    if fleet not in {o.fleet_id for o in links}:
+        fleet = None
+    scope = [fleet] if fleet else [o.fleet_id for o in links]
 
     month = request.args.get("month", "")
     try:
@@ -160,42 +183,47 @@ def detail(oid):
     except (TypeError, ValueError):
         month = datetime.utcnow().strftime("%Y-%m")
 
-    def _scoped_entries():
-        return (DailyEntry.query.join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
-                .filter(Vehicle.fleet_id == fid, DailyEntry.driver_id == sid))
+    fleet_vehicles = db.session.query(Vehicle.id).filter(Vehicle.fleet_id.in_(scope))
 
-    # Activity KPIs for the selected month.
+    def entries():
+        return (DailyEntry.query.join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
+                .filter(Vehicle.fleet_id.in_(scope), DailyEntry.driver_id == pid))
+
     co = func.coalesce
     n_pointages, tot_trips, tot_hours, tot_km = (
-        db.session.query(
+        entries().with_entities(
             func.count(DailyEntry.id),
             co(func.sum(DailyEntry.trips), 0),
             co(func.sum(DailyEntry.hours), 0.0),
             co(func.sum(DailyEntry.kilometers), 0.0))
-        .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
-        .filter(Vehicle.fleet_id == fid, DailyEntry.driver_id == sid,
-                DailyEntry.date.like(month + "%")).one())
-    last_date = (db.session.query(func.max(DailyEntry.date))
-                 .join(Vehicle, DailyEntry.vehicle_id == Vehicle.id)
-                 .filter(Vehicle.fleet_id == fid, DailyEntry.driver_id == sid).scalar())
+        .filter(DailyEntry.date.like(month + "%")).one())
+    last_date = entries().with_entities(func.max(DailyEntry.date)).scalar()
 
-    # Vehicles driven (all-time): default-driver assignments ∪ vehicles pointed.
-    default_ids = {v.id for v in Vehicle.query.filter_by(default_operator_id=op.id).all()}
-    pointed_ids = {r[0] for r in _scoped_entries()
-                   .with_entities(DailyEntry.vehicle_id).distinct()}
+    # Vehicles driven (all-time): default-driver assignments and machines pointed.
+    link_ids = [o.id for o in links if o.fleet_id in scope]
+    default_ids = {v.id for v in Vehicle.query.filter(
+        Vehicle.default_operator_id.in_(link_ids)).all()} if link_ids else set()
+    pointed_ids = {r[0] for r in entries().with_entities(DailyEntry.vehicle_id).distinct()}
     veh_ids = default_ids | pointed_ids
     vehicles = (Vehicle.query.filter(Vehicle.id.in_(veh_ids)).order_by(Vehicle.code).all()
                 if veh_ids else [])
 
-    # Services the driver is tied to.
     records = (MaintenanceRecord.query
                .join(Vehicle, MaintenanceRecord.vehicle_id == Vehicle.id)
-               .filter(Vehicle.fleet_id == fid, MaintenanceRecord.driver_id == sid)
+               .filter(Vehicle.fleet_id.in_(scope), MaintenanceRecord.driver_id == pid)
                .order_by(MaintenanceRecord.date.desc()).limit(50).all())
 
-    # Costs attributed to this driver — stacked by category over the 6 months
-    # ending at the selected month (Expense.driver_id is the driver). Fuel and
-    # services are ordinary ledger categories, so one query covers them all.
+    # Fuel he took in the month: fills on the fleet's machines or tanks.
+    fuel_q = FuelMovement.query.filter(
+        FuelMovement.driver_id == pid, FuelMovement.date.like(month + "%"),
+        db.or_(FuelMovement.vehicle_id.in_(fleet_vehicles),
+               FuelMovement.citerne_id.in_(
+                   db.session.query(Citerne.id).filter(Citerne.fleet_id.in_(scope)))))
+    fuel_litres = fuel_q.with_entities(co(func.sum(FuelMovement.liters), 0)).scalar()
+    fuel_rows = fuel_q.order_by(FuelMovement.date.desc(), FuelMovement.id.desc()).limit(20).all()
+
+    # Costs tied to him, stacked by category over the 6 months ending at the
+    # selected month.
     from blueprints.expenses import category_label
     y, mo = int(month[:4]), int(month[5:7])
     months = []
@@ -208,10 +236,9 @@ def detail(oid):
     idx = {m: i for i, m in enumerate(months)}
     ym = func.substr(Expense.date, 1, 7)
     rows = (db.session.query(ym, Expense.category, func.sum(Expense.amount))
-            .filter(Expense.fleet_id == fid, Expense.driver_id == sid, ym.in_(months))
+            .filter(Expense.driver_id == pid, ym.in_(months),
+                    db.or_(Expense.fleet_id.in_(scope), Expense.vehicle_id.in_(fleet_vehicles)))
             .group_by(ym, Expense.category).all())
-    # Built from the categories the rows actually carry, rather than a fixed
-    # list: nothing files costs by category any more, so the list would drift.
     series = {}
     for m, cat, amt in rows:
         if m in idx:
@@ -219,14 +246,17 @@ def detail(oid):
     chart_series = [{"cat": c, "label": category_label(c), "data": series[c]}
                     for c in sorted(series) if any(series[c])]
 
-    expense_chart = {"months": months, "series": chart_series}
-
+    tabs = ["vehicles", "records", "fuel", "costs"]
+    tab = request.args.get("tab") if request.args.get("tab") in tabs else "vehicles"
     return render_template(
-        "operator_detail.html", op=op, month=month,
+        "operator_person.html", p=p, links=links, fleet=fleet, month=month,
+        tabs=tabs, tab=tab,
+        licence=licence_state(p),
         n_pointages=n_pointages, tot_trips=int(tot_trips or 0),
         tot_hours=float(tot_hours or 0), tot_km=float(tot_km or 0),
         last_date=last_date, vehicles=vehicles, default_ids=default_ids,
-        records=records, expense_chart=expense_chart)
+        records=records, fuel_litres=float(fuel_litres or 0), fuel_rows=fuel_rows,
+        expense_chart={"months": months, "series": chart_series})
 
 
 def legacy_operator_payload(payload):

@@ -1,0 +1,56 @@
+{# The head of both doors to a person: the round photo or initials, the
+   name, one line of who they are, their marks, the way to the other door
+   when this user may open it -- and under it, the few facts this door
+   reads first (the caller's block).
+     p    : the person (Staff)
+     side : 'hr' (Personnel) or 'ops' (Conducteurs) #}
+{% macro person_head(p, side, licence=none) -%}
+<section class="card">
+    <div class="file-head">
+        {% set ph = photo_url(p.photo_key) if p.photo_key else None %}
+        {% if ph %}<a href="{{ ph }}" class="avatar avatar--lg" target="_blank" rel="noopener"><img src="{{ ph }}" alt="{{ p.name }}"></a>
+        {% else %}<span class="avatar avatar--lg" aria-hidden="true">{{ p.initials }}</span>{% endif %}
+        <div class="file-head__main">
+            <div class="file-head__title">{{ p.name }}</div>
+            <div class="file-head__sub">
+                {%- if p.is_employee -%}
+                    {{ p.position.name if p.position else t['staff.kind.employee'] }}
+                    {%- if p.site %} · {{ p.site.name }}{% endif %}
+                    {%- if p.matricule %} · {{ t['staff.matricule_short'] }} {{ p.matricule }}{% endif %}
+                {%- else -%}
+                    {{ t['staff.kind.external'] }}{% if p.company %} · {{ p.company }}{% endif %}
+                {%- endif -%}
+            </div>
+            <div class="file-head__badges">
+                {% if p.is_active %}<span class="badge badge--active">{{ t['person.active'] }}</span>
+                {%- else %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
+                {% if not p.is_employee %}<span class="badge badge--warning">{{ t['staff.kind.external'] }}</span>{% endif %}
+                {% if licence == 'expired' %}<span class="badge badge--critical">{{ t['person.licence_expired'] }}</span>
+                {% elif licence == 'soon' %}<span class="badge badge--warning">{{ t['person.licence_soon'] }}</span>{% endif %}
+            </div>
+        </div>
+        <div class="file-head__actions">
+            {% if side == 'hr' and p.drives and has_perm('operator.view') %}
+            <a href="{{ url_for('operators.person', pid=p.id) }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">badge</span> {{ t['person.to_ops'] }}</a>
+            {% elif side == 'ops' and has_perm('staff.view') %}
+            <a href="{{ url_for('staff.profile', pid=p.id) }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">group</span> {{ t['person.to_hr'] }}</a>
+            {% endif %}
+            {% if side == 'hr' and has_perm('staff.edit') %}
+            <a href="{{ url_for('staff.edit', pid=p.id, next=request.path) }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('staff.edit', pid=p.id, next=request.path) }}" data-modal-title="{{ p.name }}">
+                <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}</a>
+            {% endif %}
+        </div>
+    </div>
+    <dl class="detail-grid file-head__facts">
+        {{ caller() }}
+    </dl>
+</section>
+{%- endmacro %}
+
+{# One fact; an empty one shows a dash, so a gap in the file is seen. #}
+{% macro fact(label, value) -%}
+<div><dt>{{ label }}</dt><dd>{% if value %}{{ value }}{% else %}<span class="muted">&mdash;</span>{% endif %}</dd></div>
+{%- endmacro %}

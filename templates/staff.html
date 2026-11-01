@@ -77,7 +77,7 @@
             {% set sp = spend.get(p.id) %}
             <tr>
                 <td>
-                    <strong {% if not p.is_active %}class="muted"{% endif %}>{{ p.name }}</strong>
+                    <a href="{{ url_for('staff.profile', pid=p.id) }}"><strong {% if not p.is_active %}class="muted"{% endif %}>{{ p.name }}</strong></a>
                     {% if not p.is_active %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
                     {% if p.matricule and p.is_employee %}<div class="muted small">{{ t['staff.matricule_short'] }} {{ p.matricule }}</div>{% endif %}
                 </td>
@@ -139,8 +139,7 @@
 
     <div class="list-cards">
         {% for p in people %}
-        <a class="list-card" href="{{ url_for('staff.edit', pid=p.id) }}"
-           data-modal-url="{{ url_for('staff.edit', pid=p.id) }}" data-modal-title="{{ p.name }}">
+        <a class="list-card" href="{{ url_for('staff.profile', pid=p.id) }}">
             <div class="list-card__top">
                 <strong>{{ p.name }}</strong>
                 {% if p.is_employee %}<span class="badge badge--active">{{ t['staff.kind.employee'] }}</span>

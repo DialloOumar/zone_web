@@ -484,6 +484,20 @@ class Staff(db.Model):
         return self.kind != "external"
 
     @property
+    def initials(self):
+        """Two letters for the round badge where there is no photo."""
+        last = (self.last_name or "").split()
+        first = (self.first_name or "").split()
+        if last and first:
+            return (last[0][0] + first[0][0]).upper()
+        words = last or first
+        if not words:
+            return "?"
+        if len(words) == 1:
+            return words[0][:2].upper()
+        return (words[0][0] + words[1][0]).upper()
+
+    @property
     def active_fleets(self):
         return sorted((o.fleet for o in self.drives if o.is_active and o.fleet),
                       key=lambda f: f.name)

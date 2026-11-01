@@ -452,6 +452,44 @@ def edit(pid):
     return _render_staff_form(row)
 
 
+def _years_since(ymd, today=None):
+    """Whole years from a YYYY-MM-DD date to today, or None."""
+    if not ymd or not _valid_date(ymd):
+        return None
+    d = datetime.strptime(ymd, "%Y-%m-%d").date()
+    today = today or date.today()
+    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+
+
+@staff_bp.route("/personnel/<int:pid>")
+@login_required
+@require_perm("staff.view")
+def profile(pid):
+    """The RH door to a person: who they are and on what terms they work.
+    What they do on the ground is the other door (operators.person)."""
+    row = db.session.get(Staff, pid)
+    if not row:
+        abort(404)
+    from app import has_perm
+    money = None
+    # What the company has paid out to the person -- an advance, a mission, a
+    # phone bill: the costs whose "spent for" names them. Later the advances
+    # among them come off the pay.
+    if has_perm("expense.view"):
+        q = Expense.query.filter(Expense.staff_id == row.id)
+        total = q.with_entities(db.func.coalesce(db.func.sum(Expense.amount), 0)).scalar()
+        money = {"count": q.count(), "total": int(total or 0),
+                 "rows": q.order_by(Expense.date.desc(), Expense.id.desc()).limit(10).all()}
+    tabs = ["file", "documents"]
+    if money is not None:
+        tabs.append("money")
+    tab = request.args.get("tab") if request.args.get("tab") in tabs else "file"
+    return render_template(
+        "staff_profile.html", p=row, money=money, tabs=tabs, tab=tab,
+        age=_years_since(row.birth_date), seniority=_years_since(row.hired_on),
+        licence=licence_state(row))
+
+
 @staff_bp.route("/personnel/document/<int:did>")
 @login_required
 @require_any_perm("staff.view", "operator.view")
