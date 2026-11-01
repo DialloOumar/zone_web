@@ -6,9 +6,8 @@
 {% block page_title %}{{ t['nav.operators'] }}{% endblock %}
 
 {# The people who drive, seen from the fleets: one row per person, his fleets
-   listed, each one opening that fleet's driver sheet. Editing opens the
-   person's file -- there is no driver list of its own any more. #}
-{% set back = url_for('operators.index', fleet=active_fleet, archived='1' if show_archived else None) %}
+   listed, each one opening that fleet's driver sheet. Read only: people are
+   created and edited on the RH side, where the fleets are ticked. #}
 
 {% macro licence(r) -%}
 {%- if r.p.license_expires -%}
@@ -26,12 +25,6 @@
             <a href="{{ url_for('operators.index', fleet=active_fleet) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_active'] }}</a>
         {% elif archived_count %}
             <a href="{{ url_for('operators.index', fleet=active_fleet, archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
-        {% endif %}
-        {% if has_perm('operator.create') %}
-        <a href="{{ url_for('staff.new', driver=1, next=back) }}" class="fab"
-           data-modal-url="{{ url_for('staff.new', driver=1, next=back) }}" data-modal-title="{{ t['operator.new'] }}">
-            <span class="material-symbols-outlined">add</span> {{ t['operator.new'] }}
-        </a>
         {% endif %}
         </div>
     </div>
@@ -58,7 +51,6 @@
                 <th>{{ t['operator.phone'] }}</th>
                 <th class="col-secondary">{{ t['staff.license_categories'] }}</th>
                 <th>{{ t['staff.license_expires'] }}</th>
-                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -78,13 +70,6 @@
                 <td>{{ r.p.phone or '—' }}</td>
                 <td class="col-secondary">{{ r.p.license_categories or '—' }}</td>
                 <td>{{ licence(r) }}</td>
-                <td class="row-actions">
-                    {% if has_perm('operator.edit') or has_perm('staff.edit') %}
-                    <a href="{{ url_for('staff.edit', pid=r.p.id, next=back) }}" class="btn btn--sm btn--tonal btn--icon"
-                       data-modal-url="{{ url_for('staff.edit', pid=r.p.id, next=back) }}" data-modal-title="{{ r.p.name }}"
-                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
-                    {% endif %}
-                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -103,12 +88,6 @@
                 {% for o in r.links %}<a href="{{ url_for('operators.detail', oid=o.id) }}" class="muted small">{{ o.fleet.name }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
                 {% if r.p.phone %}<span class="muted small">· {{ r.p.phone }}</span>{% endif %}
             </div>
-            {% if has_perm('operator.edit') or has_perm('staff.edit') %}
-            <div class="list-card__actions">
-                <a href="{{ url_for('staff.edit', pid=r.p.id, next=back) }}" class="btn btn--sm btn--tonal"
-                   data-modal-url="{{ url_for('staff.edit', pid=r.p.id, next=back) }}" data-modal-title="{{ r.p.name }}">{{ t['btn.edit'] }}</a>
-            </div>
-            {% endif %}
         </div>
         {% endfor %}
     </div>

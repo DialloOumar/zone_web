@@ -3,7 +3,7 @@
 Not a list of its own any more: a driver is a person (blueprints.staff) and
 the fleets he drives for are Operator rows ticked on his file. This page lists
 those people, and each fleet's driver sheet (activity, vehicles, costs) still
-lives here. Adding or editing a driver opens the person's file.
+lives here. Read only: people are created and edited on the RH side only.
 """
 from datetime import datetime
 
@@ -141,14 +141,6 @@ def index():
                            filter_fleets=fleets, active_fleet=active_fleet,
                            show_archived=show_archived,
                            archived_count=archived_q.count())
-
-
-@operators_bp.route("/operators/new")
-@login_required
-@require_perm("operator.create")
-def new():
-    """A new driver is a new person: his file, the driver part open."""
-    return redirect(url_for("staff.new", driver=1, next=url_for("operators.index")))
 
 
 @operators_bp.route("/operators/<int:oid>")

@@ -49,11 +49,9 @@
                drivers. The drivers above are a view of the same files. #}
             {% if has_perm('staff.view') %}
             <li class="sidebar-section">{{ t['nav.hr'] }}</li>
-            <li><a href="{{ url_for('staff.index') }}" class="sidebar-sub {% if request.blueprint == 'staff' and not (request.endpoint or '').startswith('staff.position') and request.endpoint != 'staff.merge' %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">group</span> {{ t['nav.people'] }}
-            </a></li>
-            <li><a href="{{ url_for('staff.positions') }}" class="sidebar-sub {% if (request.endpoint or '').startswith('staff.position') %}active{% endif %}">
-                <span class="nav-icon material-symbols-outlined">engineering</span> {{ t['staff.positions'] }}
+            {# One entry, two tabs: the people and their positions. #}
+            <li><a href="{{ url_for('staff.index') }}" class="sidebar-sub {% if request.blueprint == 'staff' and request.endpoint != 'staff.merge' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">group</span> {{ t['nav.staff'] }}
             </a></li>
             {% endif %}
 

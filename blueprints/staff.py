@@ -364,7 +364,7 @@ def index():
 
 @staff_bp.route("/personnel/nouveau", methods=["GET", "POST"])
 @login_required
-@require_any_perm("staff.create", "operator.create")
+@require_perm("staff.create")
 def new():
     t = get_t()
     if request.method == "POST":
@@ -389,7 +389,7 @@ def new():
 
 @staff_bp.route("/personnel/<int:pid>/modifier", methods=["GET", "POST"])
 @login_required
-@require_any_perm("staff.edit", "operator.edit")
+@require_perm("staff.edit")
 def edit(pid):
     row = db.session.get(Staff, pid)
     if not row:

@@ -1,14 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}{{ t['staff.positions'] }}{% endblock %}
-{% block page_title %}{{ t['staff.positions'] }}{% endblock %}
+{% block title %}{{ t['nav.staff'] }}{% endblock %}
+{% block page_title %}{{ t['nav.staff'] }}{% endblock %}
 
 {% block content %}
+{% with staff_tab = 'positions' %}{% include "_staff_tabs.html" %}{% endwith %}
 <section class="card">
-    <div class="card-header">
-        <div>
-            <h2>{{ t['staff.positions'] }}</h2>
-        </div>
+    <div class="card-header card-header--end">
         {% if has_perm('staff.create') %}
         <a href="{{ url_for('staff.position_new') }}" class="fab"
            data-modal-url="{{ url_for('staff.position_new') }}" data-modal-title="{{ t['staff.position_new'] }}">

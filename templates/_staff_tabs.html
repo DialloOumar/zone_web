@@ -1,0 +1,12 @@
+{# Personnel's two tabs, on both of its pages: the people, and the positions
+   they hold. Each is its own page; the nav makes them read as one. #}
+<nav class="tabs" role="tablist">
+    <a href="{{ url_for('staff.index') }}" role="tab" aria-selected="{{ 'true' if staff_tab == 'people' else 'false' }}"
+       class="tab {% if staff_tab == 'people' %}tab--on{% endif %}">
+        <span class="material-symbols-outlined">group</span> {{ t['nav.people'] }}
+    </a>
+    <a href="{{ url_for('staff.positions') }}" role="tab" aria-selected="{{ 'true' if staff_tab == 'positions' else 'false' }}"
+       class="tab {% if staff_tab == 'positions' %}tab--on{% endif %}">
+        <span class="material-symbols-outlined">engineering</span> {{ t['staff.positions'] }}
+    </a>
+</nav>

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% from "_pager.html" import pager with context %}
 
-{% block title %}{{ t['nav.people'] }}{% endblock %}
-{% block page_title %}{{ t['nav.people'] }}{% endblock %}
+{% block title %}{{ t['nav.staff'] }}{% endblock %}
+{% block page_title %}{{ t['nav.staff'] }}{% endblock %}
 
 {% macro tickbox(name, label, rows, chosen, attr) %}
 <details class="filter-dd{% if chosen %} filter-dd--on{% endif %}">
@@ -22,6 +22,7 @@
 {% endmacro %}
 
 {% block content %}
+{% with staff_tab = 'people' %}{% include "_staff_tabs.html" %}{% endwith %}
 <section class="card">
     <div class="card-header">
         <div class="caisse-balance">

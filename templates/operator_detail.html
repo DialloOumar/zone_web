@@ -14,12 +14,6 @@
             {% endif %}
         </div>
         <div class="row-actions">
-            {% if has_perm('operator.edit') or has_perm('staff.edit') %}
-            <a href="{{ url_for('staff.edit', pid=op.staff_id, next=request.path) }}" class="btn btn--tonal"
-               data-modal-url="{{ url_for('staff.edit', pid=op.staff_id, next=request.path) }}" data-modal-title="{{ op.name }}">
-                <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}
-            </a>
-            {% endif %}
             <a data-back href="{{ url_for('operators.index') }}" class="btn btn--outlined">{{ t['btn.back'] }}</a>
         </div>
     </div>
