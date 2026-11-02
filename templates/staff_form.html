@@ -138,7 +138,7 @@
             {% endcall %}
 
             {% call section('work', 'engineering', t['staff.sec.work'], 'data-kind="employee" ' ~ hide_emp) %}
-            <div class="form-row form-row--3">
+            <div class="form-row">
                 <div class="field field--select">
                     <select id="position_id" name="position_id" {% if not ext %}required{% endif %}>
                         <option value=""></option>
@@ -151,6 +151,21 @@
                     </select>
                     <label for="position_id">{{ t['staff.position'] }}</label>
                 </div>
+                <div class="field field--select">
+                    {% set sel_dep = v('department_id')|int(0) %}
+                    <select id="department_id" name="department_id">
+                        <option value=""></option>
+                        {% for d in departments %}
+                        <option value="{{ d.id }}" {% if d.id == sel_dep %}selected{% endif %}>{{ d.name }}</option>
+                        {% endfor %}
+                        {% if is_edit and row.department and not row.department.is_active %}
+                        <option value="{{ row.department.id }}" {% if row.department.id == sel_dep %}selected{% endif %}>{{ row.department.name }}</option>
+                        {% endif %}
+                    </select>
+                    <label for="department_id">{{ t['staff.department'] }}</label>
+                </div>
+            </div>
+            <div class="form-row">
                 <div class="field field--select">
                     {% set sel_site = v('site_id')|int(0) %}
                     <select id="site_id" name="site_id">

@@ -56,25 +56,27 @@
                 <th>{{ t['invoice.paid_date'] }}</th>
                 <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
                 <th>{{ t['expense.payment_method'] }}</th>
+                <th>{{ t['bank.reference'] }}</th>
                 <th>{{ t['invoice.payment_source'] }}</th>
+                <th>{{ t['caisse.account'] }}</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
             {% for p in invoice.payments %}
             <tr>
-                <td style="white-space:nowrap;">{{ p.date }}</td>
+                <td style="white-space:nowrap;">{{ p.date|dmy }}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ p.amount | num }} {{ currency }}</td>
-                <td>{% if p.method %}{{ t['pay.' + p.method] }}{% else %}<span class="muted">&mdash;</span>{% endif %}
-                    {% if p.reference %}<div class="muted small">{{ p.reference }}</div>{% endif %}</td>
+                <td style="white-space:nowrap;">{% if p.method %}{{ t['pay.' + p.method] }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="white-space:nowrap;">{% if p.reference %}{{ p.reference }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td>
                     {% if p.from_cash_box %}
                     <span class="badge badge--info">{{ t['invoice.from_cash_box'] }}</span>
                     {% else %}
                     <span class="muted">{{ t['invoice.from_outside'] }}</span>
                     {% endif %}
-                    {% if p.account %}<div class="muted small">{{ p.account.name }}</div>{% endif %}
                 </td>
+                <td>{% if p.account %}{{ p.account.name }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td class="row-actions">
                     {% if p.from_cash_box %}
                     {# It mirrors a cost in the cash box, and is corrected there. #}

@@ -168,7 +168,10 @@
         <thead>
             <tr>
                 <th>{{ t['invoice.date'] }}</th>
+                <th>{{ t['invoice.number_col'] }}</th>
                 <th>{{ t['invoice.supplier'] }}</th>
+                <th class="col-secondary">{{ t['invoice.po_col'] }}</th>
+                <th>{{ t['invoice.vehicles_col'] }}</th>
                 <th>{{ t['invoice.object'] }}</th>
                 <th>{{ t['invoice.due_date'] }}</th>
                 <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
@@ -180,49 +183,40 @@
         <tbody>
             {% for inv in invoices %}
             <tr>
-                <td style="white-space:nowrap;">{{ inv.date }}
-                    {% if inv.received_on and inv.received_on != inv.date %}
-                    <div class="muted small">{{ t['invoice.received_short'] }} {{ inv.received_on }}</div>
-                    {% endif %}
+                <td style="white-space:nowrap;">{{ inv.date|dmy }}</td>
+                <td style="white-space:nowrap;">{{ inv.number or '—' }}</td>
+                <td><strong>{{ inv.supplier.name }}</strong></td>
+                <td class="col-secondary" style="white-space:nowrap;">
+                    {% if inv.purchase_order %}<a href="{{ url_for('purchases.detail', oid=inv.purchase_order_id) }}">{{ inv.purchase_order.number }}</a>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                {# The machines: the one, or how many -- their codes when the
+                   pointer rests on the cell. #}
+                <td style="white-space:nowrap;">
+                    {% if inv.vehicles|length == 1 %}{% set v = inv.vehicles[0] %}<a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="chip">{{ v.code }}</a>
+                    {% elif inv.vehicles %}<span class="chip chip--more" title="{{ inv.vehicles|map(attribute='code')|join(', ') }}">{{ inv.vehicles|length }} {{ t['invoice.vehicles_n'] }}</span>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td>
-                    <span class="muted small">{{ inv.supplier.code }}</span>
-                    <strong>{{ inv.supplier.name }}</strong>
-                    {% if inv.number %}<div class="muted small">{{ t['invoice.number_short'] }} {{ inv.number }}</div>{% endif %}
-                    {% if inv.purchase_order %}<div class="muted small"><a href="{{ url_for('purchases.detail', oid=inv.purchase_order_id) }}">{{ inv.purchase_order.number }}</a></div>{% endif %}
-                </td>
-                <td>
-                    {% for v in inv.vehicles %}<a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="chip">{{ v.code }}</a> {% endfor %}
                     {% if inv.is_opening %}<span class="badge badge--info">{{ t['opening.title'] }}</span>
-                    {% elif inv.description %}{{ inv.description }}{% else %}<span class="muted">&mdash;</span>{% endif %}
-                    {% if inv.photo_key %}
-                    {% set purl = photo_url(inv.photo_key) %}
-                    {% if purl %}
-                    <a href="{{ purl }}" target="_blank" rel="noopener" class="muted small"
-                       style="display:inline-flex; align-items:center; gap:4px;">
-                        {% if inv.photo_key.endswith('.pdf') %}
-                        <span class="material-symbols-outlined" style="font-size:16px;">picture_as_pdf</span>{{ t['scan.view_pdf'] }}
-                        {% else %}
-                        <span class="material-symbols-outlined" style="font-size:16px;">image</span>{{ t['invoice.photo_view'] }}
-                        {% endif %}
-                    </a>
-                    {% endif %}
-                    {% endif %}
+                    {% elif inv.description %}<span class="cell-clamp" title="{{ inv.description }}">{{ inv.description }}</span>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td style="white-space:nowrap;">
-                    {% if inv.due_date %}{{ inv.due_date }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+                    {% if inv.due_date %}{{ inv.due_date|dmy }}{% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ inv.amount | num }} {{ currency }}</td>
                 <td style="text-align:right; white-space:nowrap;" class="{% if inv.remaining > 0 %}stock-negative{% endif %}">
                     {% if inv.remaining > 0 %}<strong>{{ inv.remaining | num }}</strong>
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
-                <td>{{ status_chip(inv) }}
-                    {% if inv.payments %}
-                    <div class="muted small">{{ inv.payments | length }} {{ t['invoice.payment_count'] }}</div>
-                    {% endif %}
-                </td>
+                <td style="white-space:nowrap;">{{ status_chip(inv) }}</td>
                 <td class="row-actions">
+                    {% set purl = photo_url(inv.photo_key) if inv.photo_key else None %}
+                    {% if purl %}
+                    <a href="{{ purl }}" target="_blank" rel="noopener" class="btn btn--sm btn--tonal btn--icon"
+                       title="{{ t['scan.view_pdf'] if inv.photo_key.endswith('.pdf') else t['invoice.photo_view'] }}"
+                       aria-label="{{ t['scan.view_pdf'] if inv.photo_key.endswith('.pdf') else t['invoice.photo_view'] }}">
+                        <span class="material-symbols-outlined">{{ 'picture_as_pdf' if inv.photo_key.endswith('.pdf') else 'image' }}</span></a>
+                    {% endif %}
                     <a href="{{ url_for('supplier_invoices.payments', iid=inv.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        title="{{ t['invoice.payments'] }}" aria-label="{{ t['invoice.payments'] }}"><span class="material-symbols-outlined">price_check</span></a>
                     {% if has_perm('supplier_invoice.edit') %}

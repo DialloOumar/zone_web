@@ -56,6 +56,7 @@
             <tr>
                 <th>{{ t['audit.timestamp'] }}</th>
                 <th>{{ t['audit.user'] }}</th>
+                <th class="col-secondary">{{ t['user.role'] }}</th>
                 <th>{{ t['audit.action'] }}</th>
                 <th>{{ t['audit.resource'] }}</th>
                 <th>{{ t['audit.detail'] }}</th>
@@ -67,10 +68,8 @@
             {% for log in logs %}
             <tr>
                 <td class="nowrap muted small">{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
-                <td>
-                    <strong>{{ log.username }}</strong>
-                    {% if log.actor_role %}<div class="muted small">{{ log.actor_role }}</div>{% endif %}
-                </td>
+                <td><strong>{{ log.username }}</strong></td>
+                <td class="col-secondary">{% if log.actor_role %}{{ log.actor_role }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td><span class="audit-action audit-action--{{ log.action|lower }}">{{ log.action }}</span></td>
                 <td>{{ log.resource_type }}{% if log.resource_id %} <span class="muted">#{{ log.resource_id }}</span>{% endif %}</td>
                 <td class="audit-detail">{{ log.detail or '—' }}</td>

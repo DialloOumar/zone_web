@@ -230,7 +230,15 @@
                 <td>{{ po.date|dmy }}</td>
                 <td><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a></td>
                 <td>{{ po.supplier.name }}</td>
-                <td>{% for l in po.lines if l.vehicles | selectattr('id', 'equalto', vehicle.id) | list %}{{ l.description }} <span class="muted small">× {{ l.quantity | qty }}</span>{{ ', ' if not loop.last }}{% endfor %}</td>
+                {# This machine's lines on the order: the one, or how many --
+                   each with its quantity when the pointer rests on the chip. #}
+                {% set ns = namespace(lines=[]) %}
+                {% for l in po.lines if l.vehicles | selectattr('id', 'equalto', vehicle.id) | list %}{% set ns.lines = ns.lines + [l.description ~ ' × ' ~ (l.quantity | qty)] %}{% endfor %}
+                <td>
+                    {% if ns.lines | length == 1 %}{{ ns.lines[0] }}
+                    {% elif ns.lines %}<span class="chip chip--more" title="{{ ns.lines | join(', ') }}">{{ ns.lines | length }} {{ t['po.lines_count'] }}</span>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
                 <td><span class="badge {{ 'badge--active' if po.status == 'approved' else 'badge--warning' }}">{{ t['po.status.' + po.status] }}</span></td>
             </tr>
             {% endfor %}

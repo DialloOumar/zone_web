@@ -60,6 +60,7 @@
                 <th>{{ t['po.date'] }}</th>
                 <th>{{ t['preq.store'] }}</th>
                 <th>{{ t['po.requested_by'] }}</th>
+                <th class="col-secondary" style="text-align:right;">{{ t['po.lines'] }}</th>
                 <th>{{ t['cinv.status'] }}</th>
                 <th></th>
             </tr>
@@ -67,11 +68,11 @@
         <tbody>
             {% for r in rows %}
             <tr>
-                <td style="white-space:nowrap;"><a href="{{ url_for('purchases.request_detail', rid=r.id) }}"><strong>{{ r.number }}</strong></a>
-                    <div class="muted small">{{ r.lines | length }} {{ t['po.lines_count'] }}</div></td>
-                <td style="white-space:nowrap;">{{ r.date }}</td>
+                <td style="white-space:nowrap;"><a href="{{ url_for('purchases.request_detail', rid=r.id) }}"><strong>{{ r.number }}</strong></a></td>
+                <td style="white-space:nowrap;">{{ r.date|dmy }}</td>
                 <td>{{ r.store.name }}</td>
-                <td>{{ r.requester_name or '—' }}</td>
+                <td>{% if r.requester_name %}{{ r.requester_name }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td class="col-secondary" style="text-align:right;">{{ r.lines | length }}</td>
                 <td>{{ state_chip(r) }}</td>
                 <td class="row-actions">
                     <a href="{{ url_for('purchases.request_detail', rid=r.id) }}" class="btn btn--sm btn--tonal btn--icon"

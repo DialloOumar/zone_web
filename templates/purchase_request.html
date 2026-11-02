@@ -56,8 +56,10 @@
         <thead>
             <tr>
                 <th>{{ t['po.line_part'] }}</th>
+                <th class="col-secondary">{{ t['po.col_origin'] }}</th>
                 <th>{{ t['po.line_reference'] }}</th>
                 <th style="text-align:right;">{{ t['preq.asked'] }}</th>
+                <th class="col-secondary" style="text-align:right; white-space:nowrap;">{{ t['po.col_stock_qty'] }}</th>
                 <th style="text-align:right;">{{ t['preq.ordered'] }}</th>
                 <th style="text-align:right;">{{ t['preq.left'] }}</th>
                 <th>{{ t['po.machines'] }}</th>
@@ -66,18 +68,28 @@
         <tbody>
             {% for l in req.lines %}
             {% set stock_unit = unit_label(l.part.unit) if l.part else unit_label(l.new_unit) %}
+            {% set codes = [] %}
+            {% for vid in (l.vehicle_ids or '').split(',') if vid and vcodes.get(vid|int) %}{% set _ = codes.append(vcodes[vid|int]) %}{% endfor %}
             <tr>
-                <td><strong>{{ l.description }}</strong>
-                    <div class="muted small">{{ t['po.from_catalogue'] if l.part else t['po.new_article'] }}</div></td>
-                <td>{{ l.reference or '—' }}</td>
+                <td><strong>{{ l.description }}</strong></td>
+                <td class="col-secondary muted" style="white-space:nowrap;">{{ t['po.from_catalogue'] if l.part else t['po.new_article'] }}</td>
+                <td>{% if l.reference %}{{ l.reference }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">{{ l.quantity | qty }}
-                    {% if l.buy_unit %}{{ unit_label(l.buy_unit) }} <span class="muted small">({{ l.stock_qty | qty }} {{ stock_unit }})</span>
-                    {% else %}{{ stock_unit }}{% endif %}</td>
+                    {% if l.buy_unit %}{{ unit_label(l.buy_unit) }}{% else %}{{ stock_unit }}{% endif %}</td>
+                {# The same quantity in the store's own unit, when it is asked in another. #}
+                <td class="col-secondary" style="text-align:right; white-space:nowrap;">
+                    {% if l.buy_unit %}{{ l.stock_qty | qty }} {{ stock_unit }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">{% if l.ordered_qty %}{{ l.ordered_qty | qty }} {{ stock_unit }}{% else %}<span class="muted">0</span>{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">
                     {% if l.remaining_qty > 0.000000001 %}<span class="badge badge--warning">{{ l.remaining_qty | qty }} {{ stock_unit }}</span>
                     {% else %}<span class="badge badge--active">{{ t['preq.done'] }}</span>{% endif %}</td>
-                <td>{% for vid in (l.vehicle_ids or '').split(',') if vid and vcodes.get(vid|int) %}<span class="chip">{{ vcodes[vid|int] }}</span> {% else %}<span class="muted">—</span>{% endfor %}</td>
+                {# The machines: the one, or how many -- their codes when the
+                   pointer rests on the cell. #}
+                <td style="white-space:nowrap;">
+                    {% if codes|length == 1 %}<span class="chip">{{ codes[0] }}</span>
+                    {% elif codes %}<span class="chip chip--more" title="{{ codes|join(', ') }}">{{ codes|length }} {{ t['po.machines']|lower }}</span>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

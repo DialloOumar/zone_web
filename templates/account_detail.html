@@ -79,11 +79,16 @@
     {% endif %}
 
     {% if rows %}
+    {# A transfer's bank fee is not repeated on its line: it is a bank charge
+       of its own, just beside it. #}
     <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['bank.date'] }}</th>
                 <th>{{ t['fund.what'] }}</th>
+                <th>{{ t['fund.who'] }}</th>
+                <th>{{ t['journal.label'] }}</th>
+                <th class="col-secondary">{{ t['bank.reference'] }}</th>
                 <th style="text-align:right;">{{ t['fund.in'] }}</th>
                 <th style="text-align:right;">{{ t['fund.out'] }}</th>
                 <th style="text-align:right;">{{ t['fund.balance'] }}</th>
@@ -93,19 +98,22 @@
         <tbody>
             {% for r in rows %}
             <tr>
-                <td style="white-space:nowrap;">{{ r.date }}</td>
-                <td>
-                    <span class="badge badge--{{ 'active' if r.amount_in else 'info' }}">{{ t['fund.kind.' + r.kind] }}</span>
+                <td style="white-space:nowrap;">{{ r.date|dmy }}</td>
+                {# What happened, and for money sent to the cash box whether the
+                   box has counted it yet -- on the same line. Money put on the
+                   account keeps its chart code on the pointer: a column for
+                   it alone did not fit. #}
+                <td style="white-space:nowrap;">
+                    <span class="badge badge--{{ 'active' if r.amount_in else 'info' }}"
+                          {% if r.kind == 'deposit' and r.row.ledger_code %}title="{{ r.row.ledger_code }} {{ code_labels.get(r.row.ledger_code, '') }}"{% endif %}>{{ t['fund.kind.' + r.kind] }}</span>
                     {% if r.kind == 'transfer' %}
                     {% if r.row.status == 'sent' %}<span class="badge badge--warning">{{ t['transfer.status.sent'] }}</span>
                     {% else %}<span class="badge badge--active">{{ t['transfer.status.received'] }}</span>{% endif %}
                     {% endif %}
-                    {% if r.who %}<strong>{{ r.who }}</strong>{% endif %}
-                    {% if r.label %}<div class="muted small">{{ r.label }}</div>{% endif %}
-                    {% if r.reference %}<div class="muted small">{{ t['bank.reference'] }} : {{ r.reference }}</div>{% endif %}
-                    {% if r.kind in ('move_out', 'transfer') and r.row.fee_charge %}<div class="muted small">{{ t['move.fee'] }} : {{ r.row.fee_charge.amount | num }} {{ currency }}</div>{% endif %}
-                    {% if r.kind == 'deposit' and r.row.ledger_code %}<div class="muted small"><code>{{ r.row.ledger_code }}</code> {{ code_labels.get(r.row.ledger_code, '') }}</div>{% endif %}
                 </td>
+                <td>{% if r.who %}<strong>{{ r.who }}</strong>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td>{% if r.label %}<span class="cell-clamp" title="{{ r.label }}">{{ r.label }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td class="col-secondary" style="white-space:nowrap;">{% if r.reference %}{{ r.reference }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">{% if r.amount_in %}{{ r.amount_in | num }}{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">{% if r.amount_out %}{{ r.amount_out | num }}{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;" {% if r.balance < 0 %}class="stock-negative"{% endif %}><strong>{{ r.balance | num }}</strong></td>

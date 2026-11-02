@@ -24,13 +24,12 @@
 
 <section class="card">
     <nav class="tabs" role="tablist">
-        {% set icons = {'file': 'badge', 'documents': 'description', 'money': 'payments'} %}
+        {% set icons = {'file': 'badge', 'documents': 'description'} %}
         {% for key in tabs %}
         <a href="{{ url_for('staff.profile', pid=p.id, tab=key if key != 'file' else None) }}" role="tab"
            aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
             <span class="material-symbols-outlined">{{ icons[key] }}</span> {{ t['person.tab.' + key] }}
             {%- if key == 'documents' and p.documents %} <span class="tab__count">{{ p.documents|length }}</span>{% endif %}
-            {%- if key == 'money' and money.count %} <span class="tab__count">{{ money.count }}</span>{% endif %}
         </a>
         {% endfor %}
     </nav>
@@ -52,6 +51,7 @@
             <h3>{{ t['staff.sec.work'] }}</h3>
             <dl class="detail-grid">
                 {{ fact(t['staff.position'], p.position.name if p.position else none) }}
+                {{ fact(t['staff.department'], p.department.name if p.department else none) }}
                 {{ fact(t['staff.site'], p.site.name if p.site else none) }}
                 {{ fact(t['staff.matricule'], p.matricule) }}
             </dl>
@@ -102,35 +102,6 @@
     <div class="empty-state empty-state--soft">
         <span class="material-symbols-outlined">description</span>
         <p>{{ t['person.no_documents'] }}</p>
-    </div>
-    {% endif %}
-
-    {% elif tab == 'money' %}
-    {% if money.rows %}
-    <div class="tab-bar">
-        <span class="muted small">{{ t['person.money_total'] }} <strong>{{ money.total | num }} {{ currency }}</strong></span>
-        <a href="{{ url_for('expenses.index', staff=p.id, date_from='', date_to='') }}" class="link-more">{{ t['person.see_all'] }}</a>
-    </div>
-    <div class="table-wrap"><table class="data-table">
-        <thead><tr>
-            <th>{{ t['maint.date'] }}</th>
-            <th>{{ t['person.what'] }}</th>
-            <th style="text-align:right;">{{ t['maint.cost'] }}</th>
-        </tr></thead>
-        <tbody>
-            {% for x in money.rows %}
-            <tr>
-                <td>{{ x.date|dmy }}</td>
-                <td>{{ x.label or x.description or category_label(x.category) }}</td>
-                <td style="text-align:right; white-space:nowrap;">{{ x.amount | num }} {{ currency }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table></div>
-    {% else %}
-    <div class="empty-state empty-state--soft">
-        <span class="material-symbols-outlined">payments</span>
-        <p>{{ t['person.no_money'] }}</p>
     </div>
     {% endif %}
 

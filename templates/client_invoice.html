@@ -82,6 +82,7 @@
                 <th>{{ t['cpay.date'] }}</th>
                 <th style="text-align:right;">{{ t['cpay.amount'] }}</th>
                 <th>{{ t['expense.payment_method'] }}</th>
+                <th>{{ t['cpay.reference'] }}</th>
                 <th>{{ t['cpay.received_on'] }}</th>
                 <th>{{ t['entry.note'] }}</th>
                 <th></th>
@@ -90,12 +91,12 @@
         <tbody>
             {% for p in inv.payments %}
             <tr>
-                <td style="white-space:nowrap;">{{ p.date }}</td>
+                <td style="white-space:nowrap;">{{ p.date|dmy }}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ p.amount | num }} {{ currency }}</td>
-                <td>{% if p.method %}{{ t['pay.' + p.method] }}{% else %}<span class="muted">&mdash;</span>{% endif %}
-                    {% if p.reference %}<div class="muted small">{{ p.reference }}</div>{% endif %}</td>
+                <td>{% if p.method %}{{ t['pay.' + p.method] }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td>{% if p.reference %}{{ p.reference }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td>{% if p.account %}{{ p.account.name }}{% else %}<span class="muted">{{ t['invoice.no_account'] }}</span>{% endif %}</td>
-                <td>{% if p.note %}{{ p.note }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td>{% if p.note %}<span class="cell-clamp" title="{{ p.note }}">{{ p.note }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td class="row-actions">
                     {% if has_perm('invoicing.manage') %}
                     <a href="{{ url_for('invoicing.payment_edit', iid=inv.id, pid=p.id) }}" class="btn btn--sm btn--tonal btn--icon"
@@ -124,13 +125,18 @@
         <h2>{{ t['cinv.lines'] }}</h2>
         <span class="muted small">{{ inv.lines | length }}</span>
     </div>
+    {# The description and discount columns only appear when a line has one. #}
+    {% set show_desc = inv.lines | selectattr('description') | list | length > 0 %}
+    {% set show_discount = inv.lines | selectattr('discount') | list | length > 0 %}
     <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
                 <th>{{ t['cinv.line_desc'] }}</th>
+                {% if show_desc %}<th>{{ t['cinv.free_description'] }}</th>{% endif %}
                 <th>{{ t['vehicle.category'] }}</th>
                 <th style="text-align:right;">{{ t['cinv.units'] }}</th>
                 <th style="text-align:right;">{{ t['cinv.rate'] }}</th>
+                {% if show_discount %}<th style="text-align:right;">{{ t['po.line_discount'] }}</th>{% endif %}
                 <th style="text-align:right;">{{ t['cinv.amount'] }}</th>
             </tr>
         </thead>
@@ -138,27 +144,30 @@
             {% for l in inv.lines %}
             {% if (l.kind or 'machine') == 'free' %}
             <tr>
-                <td colspan="2">{% if l.title %}<strong>{{ l.title }}</strong>{% endif %}
-                    {% if l.description %}<div class="small" style="white-space:pre-line;">{{ l.description }}</div>{% endif %}
-                    {% if l.discount %}<div class="muted small">{{ t['po.line_discount'] }} : {{ l.discount | num }}</div>{% endif %}</td>
+                <td>{% if l.title %}<strong>{{ l.title }}</strong>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                {% if show_desc %}<td>{% if l.description %}<span class="cell-clamp" title="{{ l.description }}">{{ l.description }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endif %}
+                <td><span class="muted">&mdash;</span></td>
                 <td style="text-align:right;">{{ l.units | qty }}</td>
-                <td style="text-align:right;">{{ l.rate | num }}</td>
-                <td style="text-align:right;"><strong>{{ l.amount | num }}</strong></td>
+                <td style="text-align:right; white-space:nowrap;">{{ l.rate | num }}</td>
+                {% if show_discount %}<td style="text-align:right; white-space:nowrap;">{% if l.discount %}{{ l.discount | num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endif %}
+                <td style="text-align:right; white-space:nowrap;"><strong>{{ l.amount | num }}</strong></td>
             </tr>
             {% else %}
             <tr>
                 <td>{% if l.vehicle %}<a href="{{ url_for('vehicles.detail', vid=l.vehicle.id) }}"><strong>{{ l.vehicle_code }}</strong></a>{% else %}<strong>{{ l.vehicle_code }}</strong>{% endif %}</td>
-                <td><span class="muted small">{{ l.category_label }}</span></td>
-                <td style="text-align:right;">{{ '%.0f'|format(l.units) }} {{ t['unit.' + l.unit_type] }}</td>
-                <td style="text-align:right;">{{ l.rate | num }}</td>
-                <td style="text-align:right;"><strong>{{ l.amount | num }}</strong></td>
+                {% if show_desc %}<td><span class="muted">&mdash;</span></td>{% endif %}
+                <td>{% if l.category_label %}{{ l.category_label }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ '%.0f'|format(l.units) }} {{ t['unit.' + l.unit_type] }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ l.rate | num }}</td>
+                {% if show_discount %}<td style="text-align:right; white-space:nowrap;">{% if l.discount %}{{ l.discount | num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endif %}
+                <td style="text-align:right; white-space:nowrap;"><strong>{{ l.amount | num }}</strong></td>
             </tr>
             {% endif %}
             {% endfor %}
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="4" style="text-align:right;"><strong>{{ t['cinv.total'] }}</strong></td>
+                <td colspan="{{ 4 + (1 if show_desc else 0) + (1 if show_discount else 0) }}" style="text-align:right;"><strong>{{ t['cinv.total'] }}</strong></td>
                 <td style="text-align:right;"><strong>{{ inv.total | num }} {{ currency }}</strong></td>
             </tr>
         </tfoot>

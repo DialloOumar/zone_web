@@ -44,6 +44,8 @@
                 <th>{{ t['client.name'] }}</th>
                 <th>{{ t['invoice.contact'] }}</th>
                 <th>{{ t['supplier.machines'] }}</th>
+                <th class="col-secondary">{{ t['entry.note'] }}</th>
+                <th class="col-secondary" style="text-align:right;">{{ t['invoicing.tab_invoices'] }}</th>
                 <th style="text-align:right;">{{ t['cpay.remaining'] }}</th>
                 <th></th>
             </tr>
@@ -56,26 +58,29 @@
                 <td>
                     <a href="{{ url_for('invoicing.client_detail', cid=c.id) }}"><strong {% if not c.is_active %}class="muted"{% endif %}>{{ c.name }}</strong></a>
                     {% if not c.is_active %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}
-                    {% if c.note %}<div class="muted small">{{ c.note }}</div>{% endif %}
                 </td>
                 <td>{% if c.contact %}{{ c.contact }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td style="white-space:nowrap;">
                     {% set n = c.live_machines | length %}
-                    {% if n %}
+                    {# The count opens its machines' daily entries. #}
+                    {% if n and has_perm('entry.view') %}
+                    <a href="{{ url_for('entries.client', cid=c.id) }}" class="badge badge--info"
+                       title="{{ t['supplier.entries_btn'] }}">{{ n }} {{ t['supplier.machines'] | lower }}</a>
+                    {% elif n %}
                     <span class="badge badge--info">{{ n }} {{ t['supplier.machines'] | lower }}</span>
-                    {% if has_perm('entry.view') %}
-                    <a href="{{ url_for('entries.client', cid=c.id) }}" class="btn btn--sm btn--tonal" style="margin-left:6px;">
-                        <span class="material-symbols-outlined">list_alt</span> {{ t['supplier.entries_btn'] }}
-                    </a>
-                    {% endif %}
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td class="col-secondary">
+                    {% if c.note %}<span class="cell-clamp" title="{{ c.note }}">{{ c.note }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td class="col-secondary" style="text-align:right;">
+                    {% if o %}{{ o.count }}{% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td style="text-align:right; white-space:nowrap;">
                     {% if o and o.remaining > 0 %}
                     <strong class="stock-negative">{{ o.remaining | num }} {{ currency }}</strong>
                     {% elif o %}<span class="muted">{{ t['invoice.all_settled'] }}</span>
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
-                    {% if o %}<div class="muted small">{{ o.count }} {{ t['cinv.count'] }}</div>{% endif %}
                 </td>
                 <td class="row-actions">
                     <a href="{{ url_for('invoicing.client_detail', cid=c.id) }}" class="btn btn--sm btn--tonal btn--icon"

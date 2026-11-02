@@ -24,8 +24,11 @@
             <tr>
                 <th>{{ t['vcat.code'] }}</th>
                 <th>{{ t['vcat.label_fr'] }}</th>
+                <th class="col-secondary">{{ t['vcat.label'] }}</th>
                 <th>{{ t['vcat.tracking'] }}</th>
                 <th style="text-align:right;">{{ t['vcat.usage'] }}</th>
+                <th style="text-align:right;">{{ t['admin.fleets'] }}</th>
+                <th style="text-align:right;">{{ t['maint.tab_rules'] }}</th>
                 <th></th>
             </tr>
         </thead>
@@ -37,17 +40,17 @@
                     {% if c.default_image %}<img src="{{ url_for('static', filename='images/vehicle-defaults/' ~ c.default_image) }}" alt=""
                          style="height:28px; width:auto; vertical-align:middle; margin-right:6px;">{% endif %}
                     <span class="chip chip--{{ c.code|lower }}">{{ c.code }}</span></td>
-                <td><strong>{{ c.label_fr }}</strong>{% if c.label != c.label_fr %}<div class="muted small">{{ c.label }}</div>{% endif %}</td>
+                <td><strong>{{ c.label_fr }}</strong></td>
+                <td class="col-secondary">{% if c.label %}{{ c.label }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td>{{ t['vcat.track.' + c.tracking] }}</td>
-                <td style="text-align:right;">{{ u.vehicles }}
-                    {# Why a category with no vehicle still can't be deleted. #}
-                    {% if u.fleets or u.rules %}
-                    <div class="muted small">
-                        {% if u.fleets %}{{ u.fleets|length }} {{ t['vcat.used_fleets'] }}{% endif %}
-                        {% if u.fleets and u.rules %} · {% endif %}
-                        {% if u.rules %}{{ u.rules }} {{ t['vcat.used_rules'] }}{% endif %}
-                    </div>
-                    {% endif %}
+                <td style="text-align:right;">{{ u.vehicles }}</td>
+                {# Why a category with no vehicle still can't be deleted: the
+                   fleets that list it, the rules written for it. #}
+                <td style="text-align:right;">
+                    {% if u.fleets %}<span title="{{ u.fleets | join(', ') }}">{{ u.fleets | length }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td style="text-align:right;">
+                    {% if u.rules %}{{ u.rules }}{% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td class="row-actions">
                     <a href="{{ url_for('admin.category_edit', cat_id=c.id) }}" class="btn btn--sm btn--tonal btn--icon"

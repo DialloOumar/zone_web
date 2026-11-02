@@ -87,21 +87,32 @@
     <div class="table-wrap"><table class="data-table">
         <thead><tr>
             <th>{{ t['cinv.number'] }}</th>
+            <th>{{ t['cinv.subject'] }}</th>
             <th>{{ t['bank.date'] }}</th>
             <th>{{ t['invoice.due_short'] }}</th>
             <th style="text-align:right;">{{ t['cinv.total'] }}</th>
             <th style="text-align:right;">{{ t['cpay.remaining'] }}</th>
+            <th>{{ t['cinv.status'] }}</th>
         </tr></thead>
         <tbody>
             {% for b in open_bills %}
             {% set late = (b.due_date or b.date) < today %}
             <tr>
-                <td><a href="{{ url_for('invoicing.invoice_detail', iid=b.id) }}"><strong>{{ b.number }}</strong></a>
-                    {% if b.is_opening %}<span class="badge badge--info">{{ t['opening.title'] }}</span>{% elif b.subject %}<div class="muted small">{{ b.subject }}</div>{% endif %}</td>
-                <td style="white-space:nowrap;">{{ b.date }}</td>
-                <td style="white-space:nowrap;">{{ b.due_date or '—' }}{% if late %} <span class="badge badge--critical">{{ t['cpay.status.overdue'] }}</span>{% endif %}</td>
+                <td><a href="{{ url_for('invoicing.invoice_detail', iid=b.id) }}"><strong>{{ b.number }}</strong></a></td>
+                <td>
+                    {% if b.is_opening %}<span class="badge badge--info">{{ t['opening.title'] }}</span>
+                    {% elif b.subject %}<span class="cell-clamp" title="{{ b.subject }}">{{ b.subject }}</span>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td style="white-space:nowrap;">{{ b.date|dmy }}</td>
+                <td style="white-space:nowrap;">{% if b.due_date %}{{ b.due_date|dmy }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">{{ b.total | num }}</td>
                 <td style="text-align:right; white-space:nowrap;"><strong class="stock-negative">{{ b.remaining | num }}</strong></td>
+                <td style="white-space:nowrap;">
+                    {% if late %}<span class="badge badge--critical">{{ t['cpay.status.overdue'] }}</span>
+                    {% elif b.pay_status == 'partial' %}<span class="badge badge--warning">{{ t['cpay.status.partial'] }}</span>
+                    {% else %}<span class="badge badge--inactive">{{ t['cpay.status.unpaid'] }}</span>{% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -116,6 +127,8 @@
         <thead><tr>
             <th>{{ t['bank.date'] }}</th>
             <th>{{ t['fund.what'] }}</th>
+            <th>{{ t['cinv.number'] }}</th>
+            <th>{{ t['audit.detail'] }}</th>
             <th style="text-align:right;">{{ t['supplier.col_bill'] }}</th>
             <th style="text-align:right;">{{ t['client.col_received'] }}</th>
             <th style="text-align:right;">{{ t['supplier.col_owed'] }}</th>
@@ -123,14 +136,21 @@
         <tbody>
             {% for r in rows %}
             <tr>
-                <td style="white-space:nowrap;">{{ r.date }}</td>
-                <td>
+                <td style="white-space:nowrap;">{{ r.date|dmy }}</td>
+                <td style="white-space:nowrap;">
                     {% if r.kind == 'payment' %}<span class="badge badge--active">{{ t['client.line.payment'] }}</span>
                     {% elif r.kind == 'opening' %}<span class="badge badge--info">{{ t['opening.title'] }}</span>
                     {% else %}<span class="badge badge--warning">{{ t['supplier.line.bill'] }}</span>{% endif %}
-                    <a href="{{ url_for('invoicing.invoice_detail', iid=r.bill.id) }}">{{ r.label }}</a>
-                    {% if r.detail %}<div class="muted small">{{ r.detail }}</div>{% endif %}
                 </td>
+                {# One transfer can settle several bills: the one, or how many --
+                   their numbers when the pointer rests on the chip. #}
+                {% set nums = r.label.split(', ') if r.label else [] %}
+                <td style="white-space:nowrap;">
+                    {% if nums | length > 1 %}<a href="{{ url_for('invoicing.invoice_detail', iid=r.bill.id) }}" class="chip chip--more" title="{{ r.label }}">{{ nums | length }} {{ t['cinv.count'] }}</a>
+                    {% elif nums %}<a href="{{ url_for('invoicing.invoice_detail', iid=r.bill.id) }}">{{ r.label }}</a>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td>{% if r.detail %}<span class="cell-clamp" title="{{ r.detail }}">{{ r.detail }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">{% if r.debit %}{{ r.debit | num }}{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;">{% if r.credit %}{{ r.credit | num }}{% endif %}</td>
                 <td style="text-align:right; white-space:nowrap;"><strong>{{ r.balance | num }}</strong></td>
@@ -164,18 +184,15 @@
                     {% if m.rate is not none %}<strong>{{ m.rate | num }}</strong> <span class="muted small">{{ currency }}/{{ unit }}</span>
                     {% else %}<span class="variance--danger">{{ t['invoicing.no_rate'] }}</span>{% endif %}
                 </td>
-                <td>{{ m.since or '—' }}</td>
-                <td>
+                <td style="white-space:nowrap;">{% if m.since %}{{ m.since|dmy }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                {# The successive prices: how many, each one with its date when
+                   the pointer rests on the chip. #}
+                <td style="white-space:nowrap;">
                     {% if m.history | length > 1 %}
-                    <details>
-                        <summary class="muted small" style="cursor:pointer;">{{ m.history | length }} {{ t['client.rate_changes'] }}</summary>
-                        <ul class="muted small" style="margin:4px 0 0 16px; padding:0;">
-                            {% for eff, rate in m.history %}
-                            <li>{{ eff }} : {{ rate | num }} {{ currency }}/{{ unit }}</li>
-                            {% endfor %}
-                        </ul>
-                    </details>
-                    {% elif m.history %}<span class="muted small">{{ t['client.rate_first'] }}</span>
+                    {% set ns = namespace(lines=[]) %}
+                    {% for eff, rate in m.history %}{% set ns.lines = ns.lines + [(eff|dmy) ~ ' : ' ~ (rate|num) ~ ' ' ~ currency ~ '/' ~ unit] %}{% endfor %}
+                    <span class="chip chip--more" title="{{ ns.lines | join('\n') }}">{{ m.history | length }} {{ t['client.rate_changes'] }}</span>
+                    {% elif m.history %}<span class="muted">{{ t['client.rate_first'] }}</span>
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
             </tr>

@@ -23,6 +23,7 @@
         <thead>
             <tr>
                 <th>{{ t['role.name'] }}</th>
+                <th class="col-secondary">{{ t['role.description'] }}</th>
                 <th>{{ t['role.permissions'] }}</th>
                 <th>{{ t['role.holders'] }}</th>
                 <th>{{ t['role.can_approve'] }}</th>
@@ -33,9 +34,9 @@
         <tbody>
             {% for r in roles %}
             <tr>
-                <td>
-                    <strong>{{ r.name }}</strong>
-                    {% if r.description %}<div class="muted small">{{ r.description }}</div>{% endif %}
+                <td><strong>{{ r.name }}</strong></td>
+                <td class="col-secondary">
+                    {% if r.description %}<span class="cell-clamp" title="{{ r.description }}">{{ r.description }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td>{{ counts[r.id] }}</td>
                 <td>{% if held[r.id] %}{{ held[r.id] }}{% else %}<span class="muted">—</span>{% endif %}</td>

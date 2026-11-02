@@ -3,14 +3,15 @@
 <table class="data-table">
     <thead><tr>
         <th>{{ t['invoice.supplier'] }}</th>
+        <th class="r" style="text-align:right;">{{ t['invoice.tab_invoices'] }}</th>
         {% for b in buckets %}<th class="r" style="text-align:right;">{{ t['aged.' + b] }}</th>{% endfor %}
         <th class="r" style="text-align:right;">{{ t['aged.total'] }}</th>
     </tr></thead>
     <tbody>
         {% for r in rows %}
         <tr>
-            <td>{% if link %}<a href="{{ url_for('supplier_reports.detail', sid=r.sup.id) }}">{% endif %}<strong>{{ r.sup.name }}</strong>{% if link %}</a>{% endif %}
-                <div class="muted small">{{ r.sup.code }} &middot; {{ r.bills }} {{ t['invoice.count'] }}</div></td>
+            <td>{% if link %}<a href="{{ url_for('supplier_reports.detail', sid=r.sup.id) }}">{% endif %}<strong>{{ r.sup.name }}</strong>{% if link %}</a>{% endif %}</td>
+            <td class="r" style="text-align:right;">{{ r.bills }}</td>
             {% for b in buckets %}
             <td class="r" style="text-align:right; white-space:nowrap;">
                 {% if r[b] %}<span {% if b != 'current' %}class="stock-negative"{% endif %}>{{ r[b] | num }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
@@ -19,7 +20,7 @@
         </tr>
         {% endfor %}
         <tr>
-            <td><strong>{{ t['aged.total'] }}</strong></td>
+            <td colspan="2"><strong>{{ t['aged.total'] }}</strong></td>
             {% for b in buckets %}<td class="r" style="text-align:right; white-space:nowrap;"><strong>{{ totals[b] | num }}</strong></td>{% endfor %}
             <td class="r" style="text-align:right; white-space:nowrap;"><strong>{{ totals.total | num }} {{ currency }}</strong></td>
         </tr>

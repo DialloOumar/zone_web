@@ -30,9 +30,14 @@
         {% for q in positions %}{% set _ = pos_opts.append((q.id, q.name)) %}{% endfor %}
         {{ filter_select('position', t['staff.position'], pos_opts, position_ids[0] if position_ids else '', t['filter.all_positions']) }}
         {% endif %}
+        {% if departments %}
+        {% set dep_opts = [] %}
+        {% for d in departments %}{% set _ = dep_opts.append((d.id, d.name)) %}{% endfor %}
+        {{ filter_select('department', t['staff.department'], dep_opts, department_ids[0] if department_ids else '', t['filter.all_departments']) }}
+        {% endif %}
         {{ filter_select('archived', t['filter.show'], [('', t['filter.active']), ('1', t['filter.archived'])], '1' if show_archived else '') }}
         {{ filter_search(search) }}
-        {{ filter_clear(show != 'all' or position_ids or show_archived or search, url_for('staff.index')) }}
+        {{ filter_clear(show != 'all' or position_ids or department_ids or show_archived or search, url_for('staff.index')) }}
     </form>
 
     {% if people %}
@@ -43,11 +48,11 @@
                 <th>{{ t['staff.name'] }}</th>
                 <th>{{ t['staff.kind'] }}</th>
                 <th>{{ t['staff.position_or_company'] }}</th>
+                <th class="col-secondary">{{ t['staff.department'] }}</th>
                 <th class="col-secondary">{{ t['staff.matricule'] }}</th>
                 <th>{{ t['staff.phone'] }}</th>
                 <th class="col-secondary">{{ t['staff.fleets'] }}</th>
                 <th class="col-secondary">{{ t['staff.login'] }}</th>
-                <th style="text-align:right;">{{ t['staff.spent_on'] }}</th>
                 <th></th>
             </tr>
         </thead>
@@ -73,6 +78,7 @@
                         {% if p.position %}<span class="chip">{{ p.position.name }}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}
                     {% else %}{{ p.company or '—' }}{% endif %}
                 </td>
+                <td class="col-secondary">{% if p.is_employee and p.department %}{{ p.department.name }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td class="col-secondary">{% if p.is_employee and p.matricule %}{{ p.matricule }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td>{% if p.phone %}{{ p.phone }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td class="col-secondary">
@@ -82,13 +88,6 @@
                 <td class="col-secondary">
                     {% if p.login %}<span class="material-symbols-outlined" style="font-size:16px; vertical-align:-3px; color:var(--c-green);">check_circle</span> {{ p.login.username }}
                     {%- else %}<span class="muted">&mdash;</span>{% endif %}
-                </td>
-                <td style="text-align:right; white-space:nowrap;">
-                    {% if sp %}
-                    <a href="{{ url_for('expenses.index', staff=p.id, date_from='', date_to='') }}" title="{{ sp.count }} {{ t['expense.count'] }}">
-                        <strong>{{ sp.total | num }} {{ currency }}</strong>
-                    </a>
-                    {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td class="row-actions">
                     {% if has_perm('staff.edit') %}

@@ -72,8 +72,10 @@
             <tr>
                 <th>{{ t['cinv.number'] }}</th>
                 <th>{{ t['invoice.supplier'] }}</th>
+                {% if stores_count > 1 %}<th>{{ t['po.deliver_to'] }}</th>{% endif %}
                 <th>{{ t['po.date'] }}</th>
                 <th>{{ t['po.requested_by'] }}</th>
+                <th class="col-secondary" style="text-align:right;">{{ t['po.lines'] }}</th>
                 <th style="text-align:right;">{{ t['cinv.total'] }}</th>
                 <th>{{ t['cinv.status'] }}</th>
                 <th></th>
@@ -82,12 +84,12 @@
         <tbody>
             {% for po in orders %}
             <tr>
-                <td style="white-space:nowrap;"><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a>
-                    <div class="muted small">{{ po.lines | length }} {{ t['po.lines_count'] }}</div></td>
-                <td><span class="muted small">{{ po.supplier.code }}</span> {{ po.supplier.name }}
-                    {% if po.store and stores_count > 1 %}<div class="muted small">→ {{ po.store.name }}</div>{% endif %}</td>
-                <td style="white-space:nowrap;">{{ po.date }}</td>
-                <td>{{ po.requester_name or '—' }}</td>
+                <td style="white-space:nowrap;"><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a></td>
+                <td>{{ po.supplier.name }}</td>
+                {% if stores_count > 1 %}<td>{% if po.store %}{{ po.store.name }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endif %}
+                <td style="white-space:nowrap;">{{ po.date|dmy }}</td>
+                <td>{% if po.requester_name %}{{ po.requester_name }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td class="col-secondary" style="text-align:right;">{{ po.lines | length }}</td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ po.total | num }} {{ currency }}</td>
                 <td>{{ status_chip(po) }}</td>
                 <td class="row-actions">

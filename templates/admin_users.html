@@ -23,8 +23,10 @@
         <thead>
             <tr>
                 <th>{{ t['user.username'] }}</th>
+                <th class="col-secondary">{{ t['auth.email'] }}</th>
                 <th>{{ t['user.full_name'] }}</th>
                 <th>{{ t['user.person'] }}</th>
+                <th class="col-secondary">{{ t['staff.position'] }}</th>
                 <th>{{ t['user.access'] }}</th>
                 <th>{{ t['user.active'] }}</th>
                 <th></th>
@@ -33,17 +35,20 @@
         <tbody>
             {% for u in users %}
             <tr>
-                <td><strong>{{ u.username }}</strong>{% if u.email %}<div class="muted small">{{ u.email }}</div>{% endif %}</td>
+                <td><strong>{{ u.username }}</strong></td>
+                <td class="col-secondary">{% if u.email %}{{ u.email }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td>{{ u.full_name }}</td>
                 {# Which employee the login belongs to; a login with no file is
                    somebody from outside, or one still to tie. #}
                 <td>
                     {% if u.person %}
                     <a href="{{ url_for('staff.profile', pid=u.person.id) }}" class="badge badge--active">{{ t['staff.kind.employee'] }}</a>
-                    {% if u.person.position %}<span class="muted small">{{ u.person.position.name }}</span>{% endif %}
                     {% else %}
                     <span class="badge badge--warning">{{ t['user.external'] }}</span>
                     {% endif %}
+                </td>
+                <td class="col-secondary">
+                    {% if u.person and u.person.position %}{{ u.person.position.name }}{% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
                 <td>
                     {% for fleet, role in assigns[u.id] %}

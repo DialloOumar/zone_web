@@ -29,7 +29,7 @@ from flask_login import current_user, login_required
 import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, require_any_perm, require_perm)
-from models import (DailyEntry, DriverNameIgnored, Expense, Fleet, FuelMovement,
+from models import (DailyEntry, Department, DriverNameIgnored, Expense, Fleet, FuelMovement,
                     MaintenanceRecord, Operator, PersonMatchDismissed, Site, Staff,
                     StaffDocument, StaffPosition, User, Vehicle, db)
 
@@ -72,6 +72,11 @@ def active_staff():
 def active_positions():
     return (StaffPosition.query.filter(StaffPosition.is_active.is_(True))
             .order_by(StaffPosition.sort_order, StaffPosition.name).all())
+
+
+def active_departments():
+    return (Department.query.filter(Department.is_active.is_(True))
+            .order_by(Department.sort_order, Department.name).all())
 
 
 def _active_sites():
@@ -292,9 +297,13 @@ def _read_staff_form(row):
         site_id = request.form.get("site_id", type=int) or None
         if site_id and not db.session.get(Site, site_id):
             site_id = None
+        department_id = request.form.get("department_id", type=int) or None
+        if department_id and not db.session.get(Department, department_id):
+            department_id = None
         sex = request.form.get("sex") or None
         data.update(
             position_id=position_id,
+            department_id=department_id,
             site_id=site_id,
             matricule=_txt("matricule", 40),
             hired_on=_txt("hired_on", 10),
@@ -331,7 +340,8 @@ def _render_staff_form(row, error=None):
         ticked = set()
     return render_template(
         tpl, row=row, error=error, positions=active_positions(),
-        sites=_active_sites(), fleets=_accessible_fleets(), ticked=ticked,
+        sites=_active_sites(), departments=active_departments(),
+        fleets=_accessible_fleets(), ticked=ticked,
         driver_position_id=driver_pos.id if driver_pos else None,
         preset_kind=request.args.get("kind"),
         preset_driver=request.args.get("driver") == "1",
@@ -355,6 +365,7 @@ def _back_url(row=None):
 def index():
     show = request.args.get("show") if request.args.get("show") in SHOW else "all"
     position_ids = _ids("position")
+    department_ids = _ids("department")
     search = (request.args.get("q") or "").strip()
     show_archived = request.args.get("archived") == "1"
 
@@ -367,6 +378,8 @@ def index():
         q = q.filter(Staff.drives.any(Operator.is_active.is_(True)))
     if position_ids:
         q = q.filter(Staff.position_id.in_(position_ids))
+    if department_ids:
+        q = q.filter(Staff.department_id.in_(department_ids))
     if search:
         like = "%" + search + "%"
         q = q.filter(db.or_(Staff.last_name.ilike(like), Staff.first_name.ilike(like),
@@ -379,8 +392,10 @@ def index():
 
     return render_template(
         "staff.html", people=pagination.items, pagination=pagination,
-        positions=active_positions(), spend=_spend_by_staff(), show=show,
-        position_ids=position_ids, search=search, show_archived=show_archived,
+        positions=active_positions(), departments=active_departments(),
+        spend=_spend_by_staff(), show=show,
+        position_ids=position_ids, department_ids=department_ids,
+        search=search, show_archived=show_archived,
         total_active=Staff.query.filter(Staff.is_active.is_(True),
                                         Staff.kind == "employee").count(),
     )
@@ -471,22 +486,12 @@ def profile(pid):
     row = db.session.get(Staff, pid)
     if not row:
         abort(404)
-    from app import has_perm
-    money = None
-    # What the company has paid out to the person -- an advance, a mission, a
-    # phone bill: the costs whose "spent for" names them. Later the advances
-    # among them come off the pay.
-    if has_perm("expense.view"):
-        q = Expense.query.filter(Expense.staff_id == row.id)
-        total = q.with_entities(db.func.coalesce(db.func.sum(Expense.amount), 0)).scalar()
-        money = {"count": q.count(), "total": int(total or 0),
-                 "rows": q.order_by(Expense.date.desc(), Expense.id.desc()).limit(10).all()}
+    # The cash box's costs for a person stay in the cash box: the RH side does
+    # not show them for now.
     tabs = ["file", "documents"]
-    if money is not None:
-        tabs.append("money")
     tab = request.args.get("tab") if request.args.get("tab") in tabs else "file"
     return render_template(
-        "staff_profile.html", p=row, money=money, tabs=tabs, tab=tab,
+        "staff_profile.html", p=row, tabs=tabs, tab=tab,
         age=_years_since(row.birth_date), seniority=_years_since(row.hired_on),
         licence=licence_state(row))
 
@@ -569,86 +574,141 @@ def delete(pid):
     return redirect(request.referrer or url_for("staff.index"))
 
 
-# ── Routes: the positions ────────────────────────────────────────────────────
+# ── Routes: the positions and the departments ────────────────────────────────
+#
+# Two short lists kept by hand, the same way: a name each, archived rather
+# than deleted once somebody holds it. `kind` says which ("position" or
+# "department"): the model, the column on the person that points at it, and
+# the endpoints all follow from it.
 
 
-def _positions_url():
-    return url_for("staff.positions")
+def _list_model(kind):
+    return {"position": (StaffPosition, Staff.position_id),
+            "department": (Department, Staff.department_id)}[kind]
+
+
+def _list_url(kind):
+    return url_for("staff.positions" if kind == "position" else "staff.departments")
+
+
+def _list_page(kind):
+    model, col = _list_model(kind)
+    # How many people hold each one, so one nothing points at can be told from
+    # one in use -- and only that one may be deleted outright.
+    held = {r[0]: int(r[1]) for r in db.session.query(col, db.func.count(Staff.id)).filter(
+        Staff.is_active.is_(True)).group_by(col).all()}
+    return render_template(
+        "staff_positions.html", kind=kind, held=held,
+        rows=model.query.order_by(model.sort_order, model.name).all())
 
 
 @staff_bp.route("/personnel/postes")
 @login_required
 @require_perm("staff.view")
 def positions():
-    # How many people hold each job, so one nothing points at can be told from
-    # one in use -- and only that one may be deleted outright.
-    held = {r[0]: int(r[1]) for r in db.session.query(
-        Staff.position_id, db.func.count(Staff.id)).filter(
-        Staff.is_active.is_(True)).group_by(Staff.position_id).all()}
-    return render_template(
-        "staff_positions.html", held=held,
-        positions=StaffPosition.query.order_by(
-            StaffPosition.sort_order, StaffPosition.name).all())
+    return _list_page("position")
 
 
-def _save_position(row):
+@staff_bp.route("/personnel/departements")
+@login_required
+@require_perm("staff.view")
+def departments():
+    return _list_page("department")
+
+
+def _save_list_row(kind, row):
     t = get_t()
+    model, _ = _list_model(kind)
     name = (request.form.get("name") or "").strip()
     if not name:
         return t.get("list.err.name_required", "Le nom est obligatoire.")
-    clash = StaffPosition.query.filter(
-        db.func.lower(StaffPosition.name) == name.lower())
+    clash = model.query.filter(db.func.lower(model.name) == name.lower())
     if row:
-        clash = clash.filter(StaffPosition.id != row.id)
+        clash = clash.filter(model.id != row.id)
     if clash.first():
         return t.get("list.err.name_taken", "Ce nom existe déjà.")
     creating = row is None
     if creating:
-        nxt = (db.session.query(db.func.max(StaffPosition.sort_order)).scalar() or 0) + 1
-        row = StaffPosition(sort_order=nxt)
+        nxt = (db.session.query(db.func.max(model.sort_order)).scalar() or 0) + 1
+        row = model(sort_order=nxt)
         db.session.add(row)
-    row.name = name
+    row.name = name[:80]
     db.session.flush()
-    log_action("CREATE" if creating else "UPDATE", "staff_position",
-               resource_id=row.id,
-               detail="%s position '%s'" % ("Created" if creating else "Updated", row.name))
+    log_action("CREATE" if creating else "UPDATE", "staff_" + kind, resource_id=row.id,
+               detail="%s %s '%s'" % ("Created" if creating else "Updated", kind, row.name))
     db.session.commit()
     return None
 
 
-def _render_position_form(row, error=None):
+def _render_list_form(kind, row, error=None):
     tpl = "_position_form.html" if is_modal_request() else "position_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    return render_template(tpl, row=row, error=error), status
+    return render_template(tpl, kind=kind, row=row, error=error), status
+
+
+def _list_new(kind):
+    if request.method == "POST":
+        error = _save_list_row(kind, None)
+        if error:
+            return _render_list_form(kind, None, error)
+        flash("success|" + get_t().get("list.created", "Ajouté."))
+        return modal_ok() if is_modal_request() else redirect(_list_url(kind))
+    return _render_list_form(kind, None)
+
+
+def _list_edit(kind, qid):
+    model, _ = _list_model(kind)
+    row = db.session.get(model, qid)
+    if not row:
+        abort(404)
+    if request.method == "POST":
+        error = _save_list_row(kind, row)
+        if error:
+            return _render_list_form(kind, row, error)
+        flash("success|" + get_t().get("list.updated", "Modifié."))
+        return modal_ok() if is_modal_request() else redirect(_list_url(kind))
+    return _render_list_form(kind, row)
+
+
+def _list_action(kind, qid, what):
+    model, col = _list_model(kind)
+    row = db.session.get(model, qid)
+    if not row:
+        abort(404)
+    t = get_t()
+    if what == "delete":
+        if Staff.query.filter(col == row.id).count():
+            flash("error|" + t.get("list.err.delete_blocked",
+                                   "Impossible de supprimer : cet élément est "
+                                   "utilisé. Archivez-le à la place."))
+            return redirect(_list_url(kind))
+        name = row.name
+        db.session.delete(row)
+        log_action("DELETE", "staff_" + kind, resource_id=qid,
+                   detail="Deleted %s '%s'" % (kind, name))
+        msg = "list.deleted"
+    else:
+        row.is_active = what == "reactivate"
+        log_action(what.upper(), "staff_" + kind, resource_id=qid,
+                   detail="%s %s '%s'" % (what.title(), kind, row.name))
+        msg = "list.archived" if what == "archive" else "list.reactivated"
+    db.session.commit()
+    flash("success|" + t.get(msg, "Fait."))
+    return redirect(_list_url(kind))
 
 
 @staff_bp.route("/personnel/postes/nouveau", methods=["GET", "POST"])
 @login_required
 @require_perm("staff.create")
 def position_new():
-    if request.method == "POST":
-        error = _save_position(None)
-        if error:
-            return _render_position_form(None, error)
-        flash("success|" + get_t().get("list.created", "Ajouté."))
-        return modal_ok() if is_modal_request() else redirect(_positions_url())
-    return _render_position_form(None)
+    return _list_new("position")
 
 
 @staff_bp.route("/personnel/postes/<int:qid>/modifier", methods=["GET", "POST"])
 @login_required
 @require_perm("staff.create")
 def position_edit(qid):
-    row = db.session.get(StaffPosition, qid)
-    if not row:
-        abort(404)
-    if request.method == "POST":
-        error = _save_position(row)
-        if error:
-            return _render_position_form(row, error)
-        flash("success|" + get_t().get("list.updated", "Modifié."))
-        return modal_ok() if is_modal_request() else redirect(_positions_url())
-    return _render_position_form(row)
+    return _list_edit("position", qid)
 
 
 @staff_bp.route("/personnel/postes/<int:qid>/<any(archive,reactivate,delete):what>",
@@ -656,29 +716,29 @@ def position_edit(qid):
 @login_required
 @require_perm("staff.create")
 def position_action(qid, what):
-    row = db.session.get(StaffPosition, qid)
-    if not row:
-        abort(404)
-    t = get_t()
-    if what == "delete":
-        if Staff.query.filter_by(position_id=row.id).count():
-            flash("error|" + t.get("list.err.delete_blocked",
-                                   "Impossible de supprimer : cet élément est "
-                                   "utilisé. Archivez-le à la place."))
-            return redirect(_positions_url())
-        name = row.name
-        db.session.delete(row)
-        log_action("DELETE", "staff_position", resource_id=qid,
-                   detail="Deleted position '%s'" % name)
-        msg = "list.deleted"
-    else:
-        row.is_active = what == "reactivate"
-        log_action(what.upper(), "staff_position", resource_id=qid,
-                   detail="%s position '%s'" % (what.title(), row.name))
-        msg = "list.archived" if what == "archive" else "list.reactivated"
-    db.session.commit()
-    flash("success|" + t.get(msg, "Fait."))
-    return redirect(_positions_url())
+    return _list_action("position", qid, what)
+
+
+@staff_bp.route("/personnel/departements/nouveau", methods=["GET", "POST"])
+@login_required
+@require_perm("staff.create")
+def department_new():
+    return _list_new("department")
+
+
+@staff_bp.route("/personnel/departements/<int:qid>/modifier", methods=["GET", "POST"])
+@login_required
+@require_perm("staff.create")
+def department_edit(qid):
+    return _list_edit("department", qid)
+
+
+@staff_bp.route("/personnel/departements/<int:qid>/<any(archive,reactivate,delete):what>",
+                methods=["POST"])
+@login_required
+@require_perm("staff.create")
+def department_action(qid, what):
+    return _list_action("department", qid, what)
 
 
 # ── The merge screen ─────────────────────────────────────────────────────────

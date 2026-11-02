@@ -2667,3 +2667,8 @@ a.person-cell:hover strong { text-decoration: underline; }
 .person-cell__sub { padding-left: 44px; }
 .vehicle-tab-bar { justify-content: flex-end; }
 .filter-total { align-self: flex-end; padding-bottom: 10px; color: var(--md-on-surface-variant); font-size: 0.88rem; }
+
+/* A long text in a table cell: two lines at most, the rest on the pointer. */
+.cell-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+              max-width: 220px; min-width: 140px; }
+.chip--more { background: var(--md-surface-container-high); color: var(--md-on-surface-variant); }

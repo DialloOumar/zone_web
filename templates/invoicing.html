@@ -134,9 +134,9 @@
         <thead>
             <tr>
                 <th>{{ t['cinv.number'] }}</th>
+                <th>{{ t['cinv.subject'] }}</th>
                 <th>{{ t['invoicing.client'] }}</th>
                 <th>{{ t['cinv.period'] }}</th>
-                <th>{{ t['cinv.date'] }}</th>
                 <th>{{ t['cinv.due_date'] }}</th>
                 <th style="text-align:right;">{{ t['cinv.total'] }}</th>
                 <th style="text-align:right;">{{ t['cpay.remaining'] }}</th>
@@ -147,21 +147,24 @@
         <tbody>
             {% for inv in invoices %}
             <tr {% if inv.is_cancelled %}class="muted" style="text-decoration: line-through;"{% endif %}>
-                <td style="white-space:nowrap;"><a href="{{ url_for('invoicing.invoice_detail', iid=inv.id) }}"><strong>{{ inv.number }}</strong></a>
-                    {% if inv.subject %}<div class="muted small">{{ inv.subject }}</div>{% endif %}</td>
-                <td><span class="muted small">{{ inv.client.code }}</span> {{ inv.client.name }}</td>
-                <td>{{ inv.period }}</td>
-                <td style="white-space:nowrap;">{{ inv.date }}</td>
-                <td style="white-space:nowrap;">{{ inv.due_date or '—' }}</td>
+                <td style="white-space:nowrap;"><a href="{{ url_for('invoicing.invoice_detail', iid=inv.id) }}"><strong>{{ inv.number }}</strong></a></td>
+                <td>
+                    {% if inv.is_opening %}<span class="badge badge--info">{{ t['opening.title'] }}</span>
+                    {% elif inv.subject %}<span class="cell-clamp" title="{{ inv.subject }}">{{ inv.subject }}</span>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td><span class="cell-clamp" title="{{ inv.client.name }}">{{ inv.client.name }}</span></td>
+                <td style="white-space:nowrap;">{{ inv.period }}</td>
+                <td style="white-space:nowrap;">
+                    {% if inv.due_date %}{{ inv.due_date|dmy }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
                 <td style="text-align:right; font-weight:600; white-space:nowrap;">{{ inv.total | num }} {{ currency }}</td>
                 <td style="text-align:right; white-space:nowrap;">
                     {% if inv.is_cancelled %}<span class="muted">&mdash;</span>
                     {% elif inv.remaining > 0 %}<strong class="stock-negative">{{ inv.remaining | num }}</strong>
                     {% else %}<span class="muted">{{ t['invoice.all_settled'] }}</span>{% endif %}
                 </td>
-                <td>{{ status_chip(inv) }}
-                    {% if inv.payments %}<div class="muted small">{{ inv.payments | length }} {{ t['cpay.count'] }}</div>{% endif %}
-                </td>
+                <td style="white-space:nowrap;">{{ status_chip(inv) }}</td>
                 <td class="row-actions">
                     <a href="{{ url_for('invoicing.invoice_detail', iid=inv.id) }}" class="btn btn--sm btn--tonal btn--icon"
                        title="{{ t['cinv.view'] }}" aria-label="{{ t['cinv.view'] }}"><span class="material-symbols-outlined">list_alt</span></a>
@@ -204,7 +207,7 @@
             <tr>
                 <td style="white-space:nowrap;"><a href="{{ po_url }}"><strong>{{ po.number }}</strong></a></td>
                 <td>{{ po.supplier.name if po.supplier else '' }}</td>
-                <td style="white-space:nowrap;">{{ po.date }}</td>
+                <td style="white-space:nowrap;">{{ po.date|dmy }}</td>
                 <td>{{ po.requester_name or '' }}</td>
                 <td style="text-align:right; white-space:nowrap;"><strong>{{ po.total | num }}</strong> {{ currency }}</td>
                 <td class="row-actions">

@@ -5,7 +5,7 @@ Schema overview (25 tables, grouped):
   Auth & access     User, Fleet, FleetRate, UserFleet, Role, Permission,
                     RolePermission
   Domain            VehicleCategory, Vehicle, Operator
-  People            Staff, StaffPosition, StaffDocument, PersonMatchDismissed
+  People            Staff, StaffPosition, Department, StaffDocument, PersonMatchDismissed
   Daily ops         DailyEntry
   Maintenance       MaintenanceRule, MaintenanceRecord, MaintenanceRecordType, Alert
   Money             Expense, CashMovement, CashAccount, Site
@@ -424,6 +424,19 @@ class StaffPosition(db.Model):
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
 
+class Department(db.Model):
+    """Where someone works in the company: Logistique, Finance, RH, HSSE. A
+    short list kept by hand, like the positions, so "all of Logistique" is a
+    filter rather than a search through text spelled three ways."""
+    __tablename__ = "departments"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    name       = db.Column(db.String(80),  nullable=False, unique=True)
+    sort_order = db.Column(db.Integer,     nullable=False, default=0)
+    is_active  = db.Column(db.Boolean,     nullable=False, default=True)
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+
+
 class Staff(db.Model):
     """A person: the one place anybody working on the ground exists.
 
@@ -475,6 +488,7 @@ class Staff(db.Model):
     emergency_phone   = db.Column(db.String(30))
     # Work (employees)
     site_id           = db.Column(db.Integer, db.ForeignKey("sites.id"), nullable=True)
+    department_id     = db.Column(db.Integer, db.ForeignKey("departments.id"), nullable=True)
     cnss_number       = db.Column(db.String(40))
     # External drivers: who they work for.
     company           = db.Column(db.String(120))
@@ -486,8 +500,9 @@ class Staff(db.Model):
     created_by  = db.Column(db.Integer,  db.ForeignKey("users.id"), nullable=True)
     created_at  = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    position  = db.relationship("StaffPosition")
-    site      = db.relationship("Site")
+    position   = db.relationship("StaffPosition")
+    department = db.relationship("Department")
+    site       = db.relationship("Site")
     drives    = db.relationship("Operator", back_populates="person")
     documents = db.relationship("StaffDocument", back_populates="person",
                                 order_by="StaffDocument.created_at",

@@ -15,6 +15,7 @@
             <div class="file-head__sub">
                 {%- if p.is_employee -%}
                     {{ p.position.name if p.position else t['staff.kind.employee'] }}
+                    {%- if p.department %} · {{ p.department.name }}{% endif %}
                     {%- if p.site %} · {{ p.site.name }}{% endif %}
                     {%- if p.matricule %} · {{ t['staff.matricule_short'] }} {{ p.matricule }}{% endif %}
                 {%- else -%}

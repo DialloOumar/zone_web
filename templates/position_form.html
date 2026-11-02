@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
 {% set is_edit = row is not none %}
-{% block title %}{{ t['staff.position_edit'] if is_edit else t['staff.position_new'] }}{% endblock %}
-{% block page_title %}{{ t['staff.position_edit'] if is_edit else t['staff.position_new'] }}{% endblock %}
+{% block title %}{{ t['staff.' ~ kind ~ '_edit'] if is_edit else t['staff.' ~ kind ~ '_new'] }}{% endblock %}
+{% block page_title %}{{ t['staff.' ~ kind ~ '_edit'] if is_edit else t['staff.' ~ kind ~ '_new'] }}{% endblock %}
 
 {% block content %}
 <section class="card" style="max-width: 720px;">
