@@ -26,6 +26,14 @@
                 {% if p.is_active %}<span class="badge badge--active">{{ t['person.active'] }}</span>
                 {%- else %}<span class="badge badge--inactive">{{ t['staff.archived_short'] }}</span>{% endif %}
                 {% if not p.is_employee %}<span class="badge badge--warning">{{ t['staff.kind.external'] }}</span>{% endif %}
+                {% if side == 'hr' and p.is_employee %}
+                {% set cc = p.current_contract %}
+                {% if cc is none %}<span class="badge badge--inactive">{{ t['contract.none_short'] }}</span>
+                {% elif cc.state() == 'expired' %}<span class="badge badge--critical">{{ t['contract.state.expired'] }}</span>
+                {% elif cc.days_left() is not none and cc.days_left() <= 30 %}<span class="badge badge--warning">{{ t['contract.ends_in'] % cc.days_left() }}</span>
+                {% elif cc.trial_days_left() is not none and 0 <= cc.trial_days_left() <= 15 %}<span class="badge badge--info">{{ t['contract.trial_ends_in'] % cc.trial_days_left() }}</span>
+                {% endif %}
+                {% endif %}
                 {% if licence == 'expired' %}<span class="badge badge--critical">{{ t['person.licence_expired'] }}</span>
                 {% elif licence == 'soon' %}<span class="badge badge--warning">{{ t['person.licence_soon'] }}</span>{% endif %}
             </div>

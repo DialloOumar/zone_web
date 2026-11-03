@@ -19,7 +19,7 @@ joined where the name was the same; the merge screen at the bottom of this
 file is where somebody who knows decides the near-matches.
 """
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
@@ -28,8 +28,9 @@ from flask_login import current_user, login_required
 
 import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
-                 modal_ok, require_any_perm, require_perm)
+                 modal_ok, parse_amount, require_any_perm, require_perm)
 from models import (DailyEntry, Department, DriverNameIgnored, Expense, Fleet, FuelMovement,
+                    StaffContract,
                     MaintenanceRecord, Operator, PersonMatchDismissed, Site, Staff,
                     StaffDocument, StaffPosition, User, Vehicle, db)
 
@@ -110,6 +111,24 @@ def _ids(name):
         except (TypeError, ValueError):
             pass
     return out
+
+
+# What the list can pick out about contracts: the ones ending within a month,
+# the ones whose end date passed without being closed, nobody under contract.
+CONTRACT_FILTERS = ("ending", "expired", "none")
+
+
+def _contract_filter(key):
+    today = date.today().isoformat()
+    soon = (date.today() + timedelta(days=30)).isoformat()
+    open_ = StaffContract.ended_on.is_(None)
+    if key == "ending":
+        return Staff.contracts.any(db.and_(open_, StaffContract.end_date.isnot(None),
+                                           StaffContract.end_date >= today,
+                                           StaffContract.end_date <= soon))
+    if key == "expired":
+        return Staff.contracts.any(db.and_(open_, StaffContract.end_date < today))
+    return ~Staff.contracts.any(open_)
 
 
 def _spend_by_staff():
@@ -366,6 +385,7 @@ def index():
     show = request.args.get("show") if request.args.get("show") in SHOW else "all"
     position_ids = _ids("position")
     department_ids = _ids("department")
+    contract = request.args.get("contract") if request.args.get("contract") in CONTRACT_FILTERS else ""
     search = (request.args.get("q") or "").strip()
     show_archived = request.args.get("archived") == "1"
 
@@ -380,6 +400,8 @@ def index():
         q = q.filter(Staff.position_id.in_(position_ids))
     if department_ids:
         q = q.filter(Staff.department_id.in_(department_ids))
+    if contract:
+        q = q.filter(Staff.kind == "employee", _contract_filter(contract))
     if search:
         like = "%" + search + "%"
         q = q.filter(db.or_(Staff.last_name.ilike(like), Staff.first_name.ilike(like),
@@ -394,7 +416,7 @@ def index():
         "staff.html", people=pagination.items, pagination=pagination,
         positions=active_positions(), departments=active_departments(),
         spend=_spend_by_staff(), show=show,
-        position_ids=position_ids, department_ids=department_ids,
+        position_ids=position_ids, department_ids=department_ids, contract=contract,
         search=search, show_archived=show_archived,
         total_active=Staff.query.filter(Staff.is_active.is_(True),
                                         Staff.kind == "employee").count(),
@@ -488,7 +510,7 @@ def profile(pid):
         abort(404)
     # The cash box's costs for a person stay in the cash box: the RH side does
     # not show them for now.
-    tabs = ["file", "documents"]
+    tabs = ["file", "contracts", "documents"] if row.is_employee else ["file", "documents"]
     tab = request.args.get("tab") if request.args.get("tab") in tabs else "file"
     return render_template(
         "staff_profile.html", p=row, tabs=tabs, tab=tab,
@@ -572,6 +594,219 @@ def delete(pid):
         s3_storage.delete_photo(key)
     flash("success|" + t["staff.deleted"])
     return redirect(request.referrer or url_for("staff.index"))
+
+
+# ── Routes: contracts ────────────────────────────────────────────────────────
+#
+# One in force at a time. A new one -- a renewal, a raise -- closes the one
+# before it the day before it starts, so the person's list of contracts is the
+# history of his terms. Ending one early says when and why.
+
+
+def _get_contract_or_404(cid):
+    c = db.session.get(StaffContract, cid)
+    if not c:
+        abort(404)
+    return c
+
+
+def _day_before(ymd):
+    return (datetime.strptime(ymd, "%Y-%m-%d").date() - timedelta(days=1)).isoformat()
+
+
+def _day_after(ymd):
+    return (datetime.strptime(ymd, "%Y-%m-%d").date() + timedelta(days=1)).isoformat()
+
+
+def _read_contract_form(person, contract):
+    """Returns (data, None) or (None, error)."""
+    t = get_t()
+    kind = request.form.get("kind")
+    if kind not in StaffContract.KINDS:
+        return None, t["contract.err.kind"]
+    start = (request.form.get("start_date") or "").strip()
+    if not _valid_date(start):
+        return None, t["contract.err.start"]
+    end = (request.form.get("end_date") or "").strip() or None
+    if kind in StaffContract.DATED and not end:
+        return None, t["contract.err.end_required"]
+    if end and (not _valid_date(end) or end < start):
+        return None, t["contract.err.end"]
+    trial = (request.form.get("trial_end") or "").strip() or None
+    if trial and (not _valid_date(trial) or trial < start):
+        return None, t["contract.err.trial"]
+    raw = (request.form.get("base_salary") or "").strip()
+    salary = parse_amount(raw) if raw else None
+    if raw and (salary is None or salary < 0):
+        return None, t["contract.err.salary"]
+    # A new contract follows the last one; it cannot start before it.
+    if contract is None and person.contracts:
+        last = person.contracts[0]
+        if start <= last.start_date:
+            return None, t["contract.err.overlap"] % _fmt(last.start_date)
+    return dict(kind=kind, start_date=start, end_date=end if kind != "cdi" else None,
+                trial_end=trial, base_salary=salary,
+                note=(request.form.get("note") or "").strip()[:255] or None), None
+
+
+def _fmt(ymd):
+    return "%s/%s/%s" % (ymd[8:], ymd[5:7], ymd[:4])
+
+
+def _save_contract_file(contract):
+    """The signed paper, when one is sent. Returns an error string or None."""
+    old = contract.file_key
+    if request.form.get("file_remove") == "1":
+        contract.file_key = contract.file_type = None
+    f = request.files.get("file")
+    if f and f.filename:
+        key, err = s3_storage.upload_person_document(f, contract.person.name)
+        if err:
+            return _upload_error(err)
+        contract.file_key, contract.file_type = key, f.mimetype
+    if old and old != contract.file_key:
+        s3_storage.delete_photo(old)
+    return None
+
+
+def _render_contract_form(person, contract, error=None, preset=None):
+    tpl = "_contract_form.html" if is_modal_request() else "contract_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, p=person, c=contract, error=error, preset=preset or {},
+                           kinds=StaffContract.KINDS), status
+
+
+@staff_bp.route("/personnel/<int:pid>/contrats/nouveau", methods=["GET", "POST"])
+@login_required
+@require_perm("staff.edit")
+def contract_new(pid):
+    person = db.session.get(Staff, pid)
+    if not person or not person.is_employee:
+        abort(404)
+    t = get_t()
+    # The new one follows the last contract entered, even one not started yet.
+    cur = person.contracts[0] if person.contracts else None
+    # Renewing: the same terms, starting the day after it ends.
+    preset = {}
+    if request.args.get("renew") and cur is not None:
+        start = _day_after(cur.end_date) if cur.end_date else date.today().isoformat()
+        preset = {"kind": cur.kind, "base_salary": cur.base_salary, "start_date": start}
+        # A fixed-term contract renewed for as long as the last one ran.
+        if cur.end_date:
+            length = (datetime.strptime(cur.end_date, "%Y-%m-%d")
+                      - datetime.strptime(cur.start_date, "%Y-%m-%d"))
+            preset["end_date"] = (datetime.strptime(start, "%Y-%m-%d") + length).strftime("%Y-%m-%d")
+    if request.method == "POST":
+        data, error = _read_contract_form(person, None)
+        if error:
+            return _render_contract_form(person, None, error, preset)
+        c = StaffContract(staff_id=person.id, created_by=current_user.id, **data)
+        db.session.add(c)
+        db.session.flush()
+        db.session.refresh(person)
+        ferr = _save_contract_file(c)
+        if ferr:
+            db.session.rollback()
+            return _render_contract_form(person, None, ferr, preset)
+        if cur is not None and not cur.ended_on:
+            cur.ended_on = _day_before(c.start_date)
+            cur.end_reason = "renouvele"
+        log_action("CREATE", "staff_contract", resource_id=c.id,
+                   detail="Contract %s from %s for '%s'" % (c.kind, c.start_date, person.name))
+        db.session.commit()
+        flash("success|" + t["contract.created"])
+        return modal_ok() if is_modal_request() else redirect(
+            url_for("staff.profile", pid=person.id, tab="contracts"))
+    return _render_contract_form(person, None, preset=preset)
+
+
+@staff_bp.route("/personnel/contrats/<int:cid>/modifier", methods=["GET", "POST"])
+@login_required
+@require_perm("staff.edit")
+def contract_edit(cid):
+    c = _get_contract_or_404(cid)
+    t = get_t()
+    if request.method == "POST":
+        data, error = _read_contract_form(c.person, c)
+        if error:
+            return _render_contract_form(c.person, c, error)
+        for k, v in data.items():
+            setattr(c, k, v)
+        ferr = _save_contract_file(c)
+        if ferr:
+            db.session.rollback()
+            return _render_contract_form(c.person, _get_contract_or_404(cid), ferr)
+        log_action("UPDATE", "staff_contract", resource_id=c.id,
+                   detail="Edited contract %s from %s of '%s'" % (c.kind, c.start_date, c.person.name))
+        db.session.commit()
+        flash("success|" + t["contract.updated"])
+        return modal_ok() if is_modal_request() else redirect(
+            url_for("staff.profile", pid=c.staff_id, tab="contracts"))
+    return _render_contract_form(c.person, c)
+
+
+@staff_bp.route("/personnel/contrats/<int:cid>/terminer", methods=["GET", "POST"])
+@login_required
+@require_perm("staff.edit")
+def contract_end(cid):
+    """When and why a contract stopped: on its planned end, or early."""
+    c = _get_contract_or_404(cid)
+    t = get_t()
+    error = None
+    if request.method == "POST":
+        ended = (request.form.get("ended_on") or "").strip()
+        reason = request.form.get("end_reason")
+        if not _valid_date(ended) or ended < c.start_date:
+            error = t["contract.err.ended_on"]
+        elif reason not in StaffContract.END_REASONS:
+            error = t["contract.err.reason"]
+        else:
+            c.ended_on, c.end_reason = ended, reason
+            log_action("UPDATE", "staff_contract", resource_id=c.id,
+                       detail="Ended contract of '%s' on %s (%s)" % (c.person.name, ended, reason))
+            db.session.commit()
+            flash("success|" + t["contract.ended"])
+            return modal_ok() if is_modal_request() else redirect(
+                url_for("staff.profile", pid=c.staff_id, tab="contracts"))
+    tpl = "_contract_end_form.html" if is_modal_request() else "contract_end_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, c=c, error=error, reasons=StaffContract.END_REASONS,
+                           today=date.today().isoformat()), status
+
+
+@staff_bp.route("/personnel/contrats/<int:cid>/supprimer", methods=["POST"])
+@login_required
+@require_perm("staff.delete")
+def contract_delete(cid):
+    """For a contract typed by mistake. The one it closed opens again."""
+    c = _get_contract_or_404(cid)
+    pid, key = c.staff_id, c.file_key
+    before = (StaffContract.query.filter(StaffContract.staff_id == pid,
+                                         StaffContract.id != c.id,
+                                         StaffContract.end_reason == "renouvele",
+                                         StaffContract.ended_on == _day_before(c.start_date))
+              .first())
+    if before is not None:
+        before.ended_on = before.end_reason = None
+    log_action("DELETE", "staff_contract", resource_id=cid,
+               detail="Deleted contract %s from %s of '%s'" % (c.kind, c.start_date, c.person.name))
+    db.session.delete(c)
+    db.session.commit()
+    if key:
+        s3_storage.delete_photo(key)
+    flash("success|" + get_t()["contract.deleted"])
+    return redirect(url_for("staff.profile", pid=pid, tab="contracts"))
+
+
+@staff_bp.route("/personnel/contrats/<int:cid>/document")
+@login_required
+@require_perm("staff.view")
+def contract_file(cid):
+    c = _get_contract_or_404(cid)
+    url = s3_storage.signed_url(c.file_key) if c.file_key else None
+    if not url:
+        abort(404)
+    return redirect(url)
 
 
 # ── Routes: the positions and the departments ────────────────────────────────

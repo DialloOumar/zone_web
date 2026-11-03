@@ -5,7 +5,8 @@ Schema overview (25 tables, grouped):
   Auth & access     User, Fleet, FleetRate, UserFleet, Role, Permission,
                     RolePermission
   Domain            VehicleCategory, Vehicle, Operator
-  People            Staff, StaffPosition, Department, StaffDocument, PersonMatchDismissed
+  People            Staff, StaffPosition, Department, StaffContract, StaffDocument,
+                    PersonMatchDismissed
   Daily ops         DailyEntry
   Maintenance       MaintenanceRule, MaintenanceRecord, MaintenanceRecordType, Alert
   Money             Expense, CashMovement, CashAccount, Site
@@ -507,12 +508,26 @@ class Staff(db.Model):
     documents = db.relationship("StaffDocument", back_populates="person",
                                 order_by="StaffDocument.created_at",
                                 cascade="all, delete-orphan")
+    contracts = db.relationship("StaffContract", back_populates="person",
+                                order_by="StaffContract.start_date.desc()",
+                                cascade="all, delete-orphan")
     login     = db.relationship("User", back_populates="person", uselist=False,
                                 foreign_keys="User.staff_id")
 
     @property
     def is_employee(self):
         return self.kind != "external"
+
+    @property
+    def current_contract(self):
+        """The contract in force (or whose end passed without being closed),
+        else the next one to start. Contracts come newest first."""
+        states = [(c, c.state()) for c in self.contracts]
+        for c, st in states:
+            if st in ("active", "expired"):
+                return c
+        upcoming = [c for c, st in states if st == "upcoming"]
+        return upcoming[-1] if upcoming else None
 
     @property
     def initials(self):
@@ -539,6 +554,68 @@ class Staff(db.Model):
         in here. Everything on screen asks for this rather than the two halves,
         so how a person is written stays decided in one place."""
         return " ".join(part for part in (self.last_name, self.first_name) if part)
+
+
+class StaffContract(db.Model):
+    """An employee's contract: its kind, its dates and the base salary.
+
+    One is in force at a time. A new one (a renewal, a raise) closes the one
+    before it the day before it starts, so the list is the history of the
+    person's terms. The position stays on the person's file, not here: two
+    copies of it would drift. Bonuses come with the pay, not here.
+    """
+    __tablename__ = "staff_contracts"
+
+    KINDS = ("cdi", "cdd", "stage", "freelance")
+    # Kinds that end on a date of their own.
+    DATED = ("cdd", "stage")
+    END_REASONS = ("fin", "renouvele", "demission", "licenciement", "fin_essai", "autre")
+
+    id           = db.Column(db.Integer, primary_key=True)
+    staff_id     = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=False, index=True)
+    kind         = db.Column(db.String(12), nullable=False)
+    start_date   = db.Column(db.String(10), nullable=False)    # YYYY-MM-DD
+    end_date     = db.Column(db.String(10))                    # planned end (CDD, stage)
+    trial_end    = db.Column(db.String(10))                    # end of the trial period
+    base_salary  = db.Column(db.Integer)                       # GNF a month
+    # Set when the contract stopped: on its planned end, early, or replaced.
+    ended_on     = db.Column(db.String(10))
+    end_reason   = db.Column(db.String(20))
+    file_key     = db.Column(db.String(200))                   # the signed contract, scanned
+    file_type    = db.Column(db.String(60))
+    note         = db.Column(db.String(255))
+    created_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at   = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    person = db.relationship("Staff", back_populates="contracts")
+
+    def state(self, today=None):
+        """upcoming | active | expired (its end date passed, not closed) | ended.
+
+        A contract closed on a day still to come -- renewed ahead of its end --
+        is in force until that day."""
+        today = (today or date.today()).isoformat()
+        if self.start_date > today:
+            return "upcoming"
+        if self.ended_on:
+            return "ended" if self.ended_on < today else "active"
+        if self.end_date and self.end_date < today:
+            return "expired"
+        return "active"
+
+    def days_left(self, today=None):
+        """Days until its planned end, for a dated contract nobody has closed
+        or renewed yet -- the one worth a warning."""
+        if not self.end_date or self.ended_on:
+            return None
+        end = datetime.strptime(self.end_date, "%Y-%m-%d").date()
+        return (end - (today or date.today())).days
+
+    def trial_days_left(self, today=None):
+        if not self.trial_end or self.ended_on:
+            return None
+        end = datetime.strptime(self.trial_end, "%Y-%m-%d").date()
+        return (end - (today or date.today())).days
 
 
 class StaffDocument(db.Model):

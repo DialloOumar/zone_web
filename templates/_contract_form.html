@@ -1,0 +1,65 @@
+{% from "_hint.html" import hint with context %}
+{% set is_edit = c is not none %}
+{% set posted = request.method == 'POST' %}
+{# A contract: its kind, its dates, the base salary and the signed paper. The
+   end date shows for the kinds that end on one (main.js). #}
+{% macro v(name, default='') -%}
+{%- if request.method == 'POST' -%}{{ request.form.get(name, '') }}
+{%- elif c is not none and c[name] is not none -%}{{ c[name] }}
+{%- elif preset.get(name) is not none -%}{{ preset.get(name) }}
+{%- else -%}{{ default }}{%- endif -%}
+{%- endmacro %}
+{% set kind = v('kind', 'cdi') %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form data-contract-form enctype="multipart/form-data"
+      action="{{ url_for('staff.contract_edit', cid=c.id) if is_edit else url_for('staff.contract_new', pid=p.id, renew=request.args.get('renew')) }}">
+    <div class="field">
+        <div class="choice" role="radiogroup" aria-label="{{ t['contract.kind'] }}">
+            {% for k in kinds %}
+            <label class="choice__opt"><input type="radio" name="kind" value="{{ k }}" {% if k == kind %}checked{% endif %}><span>{{ t['contract.kind.' + k] }}</span></label>
+            {% endfor %}
+        </div>
+        <label>{{ t['contract.kind'] }}</label>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="start_date" name="start_date" required value="{{ v('start_date') }}">
+            <label for="start_date">{{ t['contract.start'] }}</label>
+        </div>
+        <div class="field" data-contract-end {% if kind == 'cdi' %}hidden{% endif %}>
+            <input type="date" id="end_date" name="end_date" value="{{ v('end_date') }}">
+            <label for="end_date">{{ t['contract.end_date'] }}</label>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="trial_end" name="trial_end" value="{{ v('trial_end') }}">
+            <label for="trial_end">{{ t['contract.trial_end'] }}</label>
+        </div>
+        <div class="field">
+            {% set sal = v('base_salary') %}
+            <input data-money type="text" inputmode="numeric" id="base_salary" name="base_salary" placeholder=" "
+                   value="{{ (sal|int(0) | num) if sal and not posted else sal }}">
+            <label for="base_salary">{{ t['contract.salary'] }} ({{ currency }})</label>
+        </div>
+    </div>
+    <div class="field">
+        {% if is_edit and c.file_key %}
+        <div class="doc-line">
+            <span class="material-symbols-outlined">description</span>
+            <a href="{{ url_for('staff.contract_file', cid=c.id) }}" target="_blank" rel="noopener">{{ t['contract.open_paper'] }}</a>
+            <label class="checkbox-item"><input type="checkbox" name="file_remove" value="1"><span>{{ t['btn.delete'] }}</span></label>
+        </div>
+        {% endif %}
+        <input type="file" id="file" name="file" accept="image/*,application/pdf">
+        <label for="file">{{ t['contract.paper'] }}</label>
+    </div>
+    <div class="field">
+        <textarea id="note" name="note" placeholder=" " rows="2">{{ v('note') }}</textarea>
+        <label for="note">{{ t['entry.note'] }}</label>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('staff.profile', pid=p.id, tab='contracts') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

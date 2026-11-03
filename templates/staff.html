@@ -35,9 +35,12 @@
         {% for d in departments %}{% set _ = dep_opts.append((d.id, d.name)) %}{% endfor %}
         {{ filter_select('department', t['staff.department'], dep_opts, department_ids[0] if department_ids else '', t['filter.all_departments']) }}
         {% endif %}
+        {% set ct_opts = [] %}
+        {% for key in ('ending', 'expired', 'none') %}{% set _ = ct_opts.append((key, t['contract.filter.' + key])) %}{% endfor %}
+        {{ filter_select('contract', t['contract.title'], ct_opts, contract, t['contract.filter.all']) }}
         {{ filter_select('archived', t['filter.show'], [('', t['filter.active']), ('1', t['filter.archived'])], '1' if show_archived else '') }}
         {{ filter_search(search) }}
-        {{ filter_clear(show != 'all' or position_ids or department_ids or show_archived or search, url_for('staff.index')) }}
+        {{ filter_clear(show != 'all' or position_ids or department_ids or contract or show_archived or search, url_for('staff.index')) }}
     </form>
 
     {% if people %}
@@ -49,6 +52,7 @@
                 <th>{{ t['staff.kind'] }}</th>
                 <th>{{ t['staff.position_or_company'] }}</th>
                 <th class="col-secondary">{{ t['staff.department'] }}</th>
+                <th>{{ t['contract.title'] }}</th>
                 <th class="col-secondary">{{ t['staff.matricule'] }}</th>
                 <th>{{ t['staff.phone'] }}</th>
                 <th class="col-secondary">{{ t['staff.fleets'] }}</th>
@@ -79,6 +83,19 @@
                     {% else %}{{ p.company or '—' }}{% endif %}
                 </td>
                 <td class="col-secondary">{% if p.is_employee and p.department %}{{ p.department.name }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                {# The contract in force: its kind, and its end when it has one --
+                   orange within a month, red once passed and not closed. #}
+                <td style="white-space:nowrap;">
+                    {% if p.is_employee %}
+                    {% set cc = p.current_contract %}
+                    {% if cc is none %}<span class="muted">{{ t['contract.none_short'] }}</span>
+                    {% else %}
+                    {% set dl = cc.days_left() %}
+                    <span class="{% if cc.state() == 'expired' %}badge badge--critical{% elif dl is not none and dl <= 30 %}badge badge--warning{% endif %}">
+                        {{ t['contract.kind.' + cc.kind] }}{% if cc.end_date %} → {{ cc.end_date|dmy }}{% endif %}</span>
+                    {% endif %}
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
                 <td class="col-secondary">{% if p.is_employee and p.matricule %}{{ p.matricule }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td>{% if p.phone %}{{ p.phone }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 <td class="col-secondary">

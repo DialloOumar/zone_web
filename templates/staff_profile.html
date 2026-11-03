@@ -24,11 +24,12 @@
 
 <section class="card">
     <nav class="tabs" role="tablist">
-        {% set icons = {'file': 'badge', 'documents': 'description'} %}
+        {% set icons = {'file': 'badge', 'contracts': 'request_quote', 'documents': 'description'} %}
         {% for key in tabs %}
         <a href="{{ url_for('staff.profile', pid=p.id, tab=key if key != 'file' else None) }}" role="tab"
            aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
             <span class="material-symbols-outlined">{{ icons[key] }}</span> {{ t['person.tab.' + key] }}
+            {%- if key == 'contracts' and p.contracts %} <span class="tab__count">{{ p.contracts|length }}</span>{% endif %}
             {%- if key == 'documents' and p.documents %} <span class="tab__count">{{ p.documents|length }}</span>{% endif %}
         </a>
         {% endfor %}
@@ -86,6 +87,107 @@
         </div>
         {% endif %}
     </div>
+
+    {% elif tab == 'contracts' %}
+    {# The contract in force on top, the history under it: each new contract
+       closed the one before, so this is the story of the person's terms. #}
+    {% set cur = p.current_contract %}
+    {% if has_perm('staff.edit') %}
+    <div class="tab-bar">
+        <div class="tab-bar__actions">
+            {% if cur %}
+            <a href="{{ url_for('staff.contract_end', cid=cur.id) }}" class="btn btn--sm btn--outlined"
+               data-modal-url="{{ url_for('staff.contract_end', cid=cur.id) }}" data-modal-title="{{ t['contract.end'] }}">
+                <span class="material-symbols-outlined">done</span> {{ t['contract.end'] }}</a>
+            <a href="{{ url_for('staff.contract_new', pid=p.id, renew=1) }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('staff.contract_new', pid=p.id, renew=1) }}" data-modal-title="{{ t['contract.renew'] }}">
+                <span class="material-symbols-outlined">refresh</span> {{ t['contract.renew'] }}</a>
+            {% endif %}
+            <a href="{{ url_for('staff.contract_new', pid=p.id) }}" class="btn btn--sm btn--primary"
+               data-modal-url="{{ url_for('staff.contract_new', pid=p.id) }}" data-modal-title="{{ t['contract.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['contract.new'] }}</a>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if cur %}
+    <div class="file-section">
+        <h3>{{ t['contract.current'] }}</h3>
+        <dl class="detail-grid">
+            {{ fact(t['contract.kind'], t['contract.kind.' + cur.kind]) }}
+            {{ fact(t['contract.start'], cur.start_date|dmy) }}
+            <div><dt>{{ t['contract.end_date'] }}</dt><dd>
+                {% if cur.end_date %}{{ cur.end_date|dmy }}
+                {% set dl = cur.days_left() %}
+                {% if cur.state() == 'expired' %} <span class="badge badge--critical">{{ t['contract.state.expired'] }}</span>
+                {% elif dl is not none and dl <= 30 %} <span class="badge badge--warning">{{ t['contract.in_days'] % dl }}</span>{% endif %}
+                {% else %}<span class="muted">&mdash;</span>{% endif %}</dd></div>
+            <div><dt>{{ t['contract.trial_end'] }}</dt><dd>
+                {% if cur.trial_end %}{{ cur.trial_end|dmy }}
+                {% set tl = cur.trial_days_left() %}
+                {% if tl is not none and 0 <= tl <= 15 %} <span class="badge badge--info">{{ t['contract.in_days'] % tl }}</span>{% endif %}
+                {% else %}<span class="muted">&mdash;</span>{% endif %}</dd></div>
+            {{ fact(t['contract.salary'], ((cur.base_salary | num) ~ ' ' ~ currency) if cur.base_salary is not none else none) }}
+            <div><dt>{{ t['contract.paper'] }}</dt><dd>
+                {% if cur.file_key %}<a href="{{ url_for('staff.contract_file', cid=cur.id) }}" target="_blank" rel="noopener">{{ t['contract.open_paper'] }}</a>
+                {% else %}<span class="muted">&mdash;</span>{% endif %}</dd></div>
+        </dl>
+    </div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">request_quote</span>
+        <p>{{ t['contract.none'] }}</p>
+    </div>
+    {% endif %}
+
+    {% if p.contracts %}
+    <div class="file-section">
+        <h3>{{ t['contract.history'] }}</h3>
+        <div class="table-wrap"><table class="data-table">
+            <thead><tr>
+                <th>{{ t['contract.kind'] }}</th>
+                <th>{{ t['contract.start'] }}</th>
+                <th>{{ t['contract.end_date'] }}</th>
+                <th style="text-align:right;">{{ t['contract.salary'] }}</th>
+                <th>{{ t['contract.state'] }}</th>
+                <th class="col-secondary">{{ t['contract.ended_on'] }}</th>
+                <th class="col-secondary">{{ t['contract.reason'] }}</th>
+                <th></th>
+            </tr></thead>
+            <tbody>
+                {% for c in p.contracts %}
+                {% set st = c.state() %}
+                <tr>
+                    <td><strong>{{ t['contract.kind.' + c.kind] }}</strong></td>
+                    <td style="white-space:nowrap;">{{ c.start_date|dmy }}</td>
+                    <td style="white-space:nowrap;">{% if c.end_date %}{{ c.end_date|dmy }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                    <td style="text-align:right; white-space:nowrap;">{% if c.base_salary is not none %}{{ c.base_salary | num }} {{ currency }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                    <td><span class="badge {{ {'active': 'badge--active', 'upcoming': 'badge--info', 'expired': 'badge--critical', 'ended': 'badge--inactive'}[st] }}">{{ t['contract.state.' + st] }}</span></td>
+                    <td class="col-secondary" style="white-space:nowrap;">{% if c.ended_on %}{{ c.ended_on|dmy }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                    <td class="col-secondary">{% if c.end_reason %}{{ t['contract.reason.' + c.end_reason] }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                    <td class="row-actions">
+                        {% if c.file_key %}
+                        <a href="{{ url_for('staff.contract_file', cid=c.id) }}" target="_blank" rel="noopener" class="btn btn--sm btn--tonal btn--icon"
+                           title="{{ t['contract.open_paper'] }}" aria-label="{{ t['contract.open_paper'] }}"><span class="material-symbols-outlined">description</span></a>
+                        {% endif %}
+                        {% if has_perm('staff.edit') %}
+                        <a href="{{ url_for('staff.contract_edit', cid=c.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                           data-modal-url="{{ url_for('staff.contract_edit', cid=c.id) }}" data-modal-title="{{ t['contract.edit'] }}"
+                           title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                        {% endif %}
+                        {% if has_perm('staff.delete') %}
+                        <form method="post" action="{{ url_for('staff.contract_delete', cid=c.id) }}"
+                              data-confirm="{{ t['contract.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                            <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+    {% endif %}
 
     {% elif tab == 'documents' %}
     {% if p.documents %}

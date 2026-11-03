@@ -811,3 +811,12 @@ console.log("Zone Web booted");
     buildToc();
     window.formPageRefresh = function () { buildToc(); };
 })();
+
+
+// A contract's end date shows for the kinds that end on one (not a CDI).
+document.addEventListener("change", function (e) {
+    var el = e.target;
+    if (!el.form || !el.form.matches("[data-contract-form]") || el.name !== "kind") return;
+    var end = el.form.querySelector("[data-contract-end]");
+    if (end) end.hidden = el.value === "cdi";
+});
