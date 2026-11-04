@@ -47,7 +47,9 @@
                 <span class="material-symbols-outlined">group</span> {{ t['person.to_hr'] }}</a>
             {% endif %}
             {% if side == 'hr' and has_perm('staff.edit') %}
-            <a href="{{ url_for('staff.edit', pid=p.id) }}" class="btn btn--sm btn--tonal">
+            {# The head's own fields: photo, name, kind. The rest is edited in its part of the file. #}
+            <a href="{{ url_for('staff.edit_section', pid=p.id, section='head') }}" class="btn btn--sm btn--tonal"
+               data-modal-url="{{ url_for('staff.edit_section', pid=p.id, section='head') }}" data-modal-title="{{ t['btn.edit'] }} · {{ p.name }}">
                 <span class="material-symbols-outlined">edit</span> {{ t['btn.edit'] }}</a>
             {% endif %}
         </div>

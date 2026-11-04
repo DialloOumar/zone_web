@@ -108,8 +108,6 @@
                 </td>
                 <td class="row-actions">
                     {% if has_perm('staff.edit') %}
-                    <a href="{{ url_for('staff.edit', pid=p.id, next=request.full_path) }}" class="btn btn--sm btn--tonal btn--icon"
-                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
                     {% if not p.is_active %}
                     <form method="post" action="{{ url_for('staff.action', pid=p.id, what='reactivate') }}" style="display:inline">
                         <button type="submit" class="btn btn--sm btn--primary btn--icon" title="{{ t['btn.reactivate'] }}" aria-label="{{ t['btn.reactivate'] }}"><span class="material-symbols-outlined">unarchive</span></button>

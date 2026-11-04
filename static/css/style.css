@@ -2567,6 +2567,9 @@ label.merge-col:has(input:checked) { border-color: var(--md-primary); background
 .file-section + .file-section { border-top: 1px solid var(--md-outline-variant); }
 .file-section h3 { margin: 0 0 12px; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em;
                    text-transform: uppercase; color: var(--md-on-surface-variant); }
+/* A part of the file with its own edit button beside its title. */
+.file-section__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.file-section__head h3 { margin: 0; }
 .person-stats { margin-bottom: 16px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 @media (max-width: 1100px) { .person-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .person-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

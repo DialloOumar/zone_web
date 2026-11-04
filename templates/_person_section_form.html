@@ -1,0 +1,201 @@
+{% from "_hint.html" import hint with context %}
+{# One part of a person's file, on its own: only its fields are sent and
+   saved (staff.edit_section). #}
+{% set posted = request.method == 'POST' %}
+{% macro v(name) -%}
+{%- if posted -%}{{ request.form.get(name, '') }}
+{%- elif row[name] is not none -%}{{ row[name] }}
+{%- endif -%}
+{%- endmacro %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form data-person-form data-driver-position="{{ driver_position_id or '' }}"
+      {% if section == 'head' %}enctype="multipart/form-data"{% endif %}
+      action="{{ url_for('staff.edit_section', pid=row.id, section=section) }}">
+
+{% if section == 'head' %}
+    {% set kind = request.form.get('kind') if posted else row.kind %}
+    {% set ext = kind == 'external' %}
+    <div class="field">
+        <div class="choice" role="radiogroup" aria-label="{{ t['staff.kind'] }}">
+            <label class="choice__opt"><input type="radio" name="kind" value="employee" {% if not ext %}checked{% endif %}><span>{{ t['staff.kind.employee'] }}</span></label>
+            <label class="choice__opt"><input type="radio" name="kind" value="external" {% if ext %}checked{% endif %}><span>{{ t['staff.kind.external'] }}</span></label>
+        </div>
+        <label>{{ t['staff.kind'] }}</label>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="last_name" name="last_name" placeholder=" " required value="{{ v('last_name') }}">
+            <label for="last_name">{{ t['staff.last_name'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="first_name" name="first_name" placeholder=" " value="{{ v('first_name') }}">
+            <label for="first_name">{{ t['staff.first_name'] }}</label>
+        </div>
+    </div>
+    <div class="field" data-kind="external" {% if not ext %}hidden{% endif %}>
+        <input type="text" id="company" name="company" placeholder=" " value="{{ v('company') }}">
+        <label for="company">{{ t['staff.company'] }}</label>
+    </div>
+    <div class="field">
+        {% if row.photo_key %}
+        <div class="doc-line">
+            <span class="avatar avatar--sm"><img src="{{ photo_url(row.photo_key) }}" alt=""></span>
+            <label class="checkbox-item"><input type="checkbox" name="photo_remove" value="1"><span>{{ t['photo.remove'] }}</span></label>
+        </div>
+        {% endif %}
+        <input type="file" id="photo" name="photo" accept="image/*">
+        <label for="photo">{{ t['photo.change'] if row.photo_key else t['photo.add'] }}</label>
+    </div>
+
+{% elif section == 'identity' %}
+    <div class="form-row">
+        <div class="field">
+            {% set sex = v('sex') %}
+            <div class="choice" role="radiogroup" aria-label="{{ t['staff.sex'] }}">
+                <label class="choice__opt"><input type="radio" name="sex" value="M" {% if sex == 'M' %}checked{% endif %}><span>{{ t['staff.sex.M'] }}</span></label>
+                <label class="choice__opt"><input type="radio" name="sex" value="F" {% if sex == 'F' %}checked{% endif %}><span>{{ t['staff.sex.F'] }}</span></label>
+            </div>
+            <label>{{ t['staff.sex'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="birth_date" name="birth_date" max="{{ today }}" value="{{ v('birth_date') }}">
+            <label for="birth_date">{{ t['staff.birth_date'] }}</label>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="birth_place" name="birth_place" placeholder=" " value="{{ v('birth_place') }}">
+            <label for="birth_place">{{ t['staff.birth_place'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="nationality" name="nationality" placeholder=" " value="{{ v('nationality') }}">
+            <label for="nationality">{{ t['staff.nationality'] }}</label>
+        </div>
+    </div>
+    <div class="field">
+        <input type="text" id="id_number" name="id_number" placeholder=" " value="{{ v('id_number') }}">
+        <label for="id_number">{{ t['staff.id_number'] }}</label>
+    </div>
+
+{% elif section == 'work' %}
+    {% set sel_pos = (request.form.get('position_id')|int(0)) if posted else (row.position_id or 0) %}
+    <div class="form-row">
+        <div class="field field--select">
+            <select id="position_id" name="position_id" required>
+                <option value=""></option>
+                {% for q in positions %}
+                <option value="{{ q.id }}" {% if q.id == sel_pos %}selected{% endif %}>{{ q.name }}</option>
+                {% endfor %}
+                {% if row.position and not row.position.is_active %}
+                <option value="{{ row.position.id }}" {% if row.position.id == sel_pos %}selected{% endif %}>{{ row.position.name }}</option>
+                {% endif %}
+            </select>
+            <label for="position_id">{{ t['staff.position'] }}</label>
+        </div>
+        <div class="field field--select">
+            {% set sel_dep = v('department_id')|int(0) %}
+            <select id="department_id" name="department_id">
+                <option value=""></option>
+                {% for d in departments %}
+                <option value="{{ d.id }}" {% if d.id == sel_dep %}selected{% endif %}>{{ d.name }}</option>
+                {% endfor %}
+                {% if row.department and not row.department.is_active %}
+                <option value="{{ row.department.id }}" {% if row.department.id == sel_dep %}selected{% endif %}>{{ row.department.name }}</option>
+                {% endif %}
+            </select>
+            <label for="department_id">{{ t['staff.department'] }}</label>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="field field--select">
+            {% set sel_site = v('site_id')|int(0) %}
+            <select id="site_id" name="site_id">
+                <option value=""></option>
+                {% for st in sites %}
+                <option value="{{ st.id }}" {% if st.id == sel_site %}selected{% endif %}>{{ st.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="site_id">{{ t['staff.site'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="hired_on" name="hired_on" value="{{ v('hired_on') }}">
+            <label for="hired_on">{{ t['staff.hired_on'] }}</label>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="matricule" name="matricule" placeholder=" " value="{{ v('matricule') }}">
+            <label for="matricule">{{ t['staff.matricule'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="cnss_number" name="cnss_number" placeholder=" " value="{{ v('cnss_number') }}">
+            <label for="cnss_number">{{ t['staff.cnss'] }}</label>
+        </div>
+    </div>
+
+{% elif section == 'contact' %}
+    <div class="form-row">
+        <div class="field">
+            <input type="tel" id="phone" name="phone" placeholder=" " value="{{ v('phone') }}">
+            <label for="phone">{{ t['staff.phone'] }}</label>
+        </div>
+        {% if row.is_employee %}
+        <div class="field">
+            <input type="text" id="address" name="address" placeholder=" " value="{{ v('address') }}">
+            <label for="address">{{ t['staff.address'] }}</label>
+        </div>
+        {% endif %}
+    </div>
+    {% if row.is_employee %}
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="emergency_name" name="emergency_name" placeholder=" " value="{{ v('emergency_name') }}">
+            <label for="emergency_name">{{ t['staff.emergency_name'] }}</label>
+        </div>
+        <div class="field">
+            <input type="tel" id="emergency_phone" name="emergency_phone" placeholder=" " value="{{ v('emergency_phone') }}">
+            <label for="emergency_phone">{{ t['staff.emergency_phone'] }}</label>
+        </div>
+    </div>
+    {% endif %}
+
+{% elif section == 'driving' %}
+    <div class="form-row form-row--3">
+        <div class="field">
+            <input type="text" id="license_number" name="license_number" placeholder=" " value="{{ v('license_number') }}">
+            <label for="license_number">{{ t['staff.license_number'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" id="license_categories" name="license_categories" placeholder=" " value="{{ v('license_categories') }}">
+            <label for="license_categories">{{ t['staff.license_categories'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="license_expires" name="license_expires" value="{{ v('license_expires') }}">
+            <label for="license_expires">{{ t['staff.license_expires'] }}</label>
+        </div>
+    </div>
+    {% if fleets %}
+    <div>
+        <span class="field-label">{{ t['staff.fleets'] }} {{ hint('', t['staff.fleets_hint']) }}</span>
+        <div class="checkbox-grid">
+            {% for fl in fleets %}
+            <label class="checkbox-item">
+                <input type="checkbox" name="fleets" value="{{ fl.id }}" {% if fl.id in ticked %}checked{% endif %}>
+                <span>{{ fl.name }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+{% else %}
+    <div class="field">
+        <textarea id="note" name="note" placeholder=" " rows="4" aria-label="{{ t['entry.note'] }}">{{ v('note') }}</textarea>
+    </div>
+{% endif %}
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('staff.profile', pid=row.id) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

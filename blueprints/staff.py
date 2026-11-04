@@ -267,6 +267,69 @@ def _txt(name, size):
     return (request.form.get(name) or "").strip()[:size] or None
 
 
+def _name_taken(last_name, first_name, row):
+    """Somebody else already has this surname and given name."""
+    clash = Staff.query.filter(
+        db.func.lower(Staff.last_name) == last_name.lower(),
+        db.func.lower(db.func.coalesce(Staff.first_name, "")) == first_name.lower())
+    if row:
+        clash = clash.filter(Staff.id != row.id)
+    return clash.first() is not None
+
+
+def _identity_fields():
+    sex = request.form.get("sex") or None
+    return dict(sex=sex if sex in ("M", "F") else None,
+                birth_date=_txt("birth_date", 10),
+                birth_place=_txt("birth_place", 80),
+                nationality=_txt("nationality", 60),
+                id_number=_txt("id_number", 60))
+
+
+def _contact_fields(employee):
+    data = dict(phone=_txt("phone", 30))
+    if employee:
+        data.update(address=_txt("address", 200),
+                    emergency_name=_txt("emergency_name", 120),
+                    emergency_phone=_txt("emergency_phone", 30))
+    return data
+
+
+def _work_fields(row):
+    """(data, None) or (None, error): an employee has a position -- an archived
+    one only if it is the one he already had."""
+    position_id = request.form.get("position_id", type=int) or None
+    if not position_id or not StaffPosition.query.filter_by(
+            id=position_id, is_active=True).first():
+        if not (row and position_id and position_id == row.position_id):
+            return None, get_t()["staff.err.position"]
+    site_id = request.form.get("site_id", type=int) or None
+    if site_id and not db.session.get(Site, site_id):
+        site_id = None
+    department_id = request.form.get("department_id", type=int) or None
+    if department_id and not db.session.get(Department, department_id):
+        department_id = None
+    return dict(position_id=position_id, department_id=department_id, site_id=site_id,
+                matricule=_txt("matricule", 40), hired_on=_txt("hired_on", 10),
+                cnss_number=_txt("cnss_number", 40)), None
+
+
+def _driving_fields():
+    return dict(license_number=_txt("license_number", 40),
+                license_categories=_txt("license_categories", 40),
+                license_expires=_txt("license_expires", 10))
+
+
+def _ticked_fleets():
+    chosen = set()
+    for raw in request.form.getlist("fleets"):
+        try:
+            chosen.add(int(raw))
+        except (TypeError, ValueError):
+            pass
+    return chosen
+
+
 def _read_staff_form(row):
     """Returns (data, fleet ids ticked, None) or (None, None, error)."""
     t = get_t()
@@ -278,12 +341,7 @@ def _read_staff_form(row):
     if not last_name:
         return None, None, t["staff.err.name_required"]
 
-    clash = Staff.query.filter(
-        db.func.lower(Staff.last_name) == last_name.lower(),
-        db.func.lower(db.func.coalesce(Staff.first_name, "")) == first_name.lower())
-    if row:
-        clash = clash.filter(Staff.id != row.id)
-    if clash.first():
+    if _name_taken(last_name, first_name, row):
         return None, None, t["staff.err.name_taken"]
 
     if kind == "external" and row is not None and row.login is not None:
@@ -300,50 +358,20 @@ def _read_staff_form(row):
         first_name=first_name[:80] or None,
         phone=_txt("phone", 30),
         note=_txt("note", 255),
-        license_number=_txt("license_number", 40),
-        license_categories=_txt("license_categories", 40),
-        license_expires=_txt("license_expires", 10),
+        **_driving_fields()
     )
 
     if kind == "external":
         data["company"] = _txt("company", 120)
     else:
-        position_id = request.form.get("position_id", type=int) or None
-        if not position_id or not StaffPosition.query.filter_by(
-                id=position_id, is_active=True).first():
-            if not (row and position_id and position_id == row.position_id):
-                return None, None, t["staff.err.position"]
-        site_id = request.form.get("site_id", type=int) or None
-        if site_id and not db.session.get(Site, site_id):
-            site_id = None
-        department_id = request.form.get("department_id", type=int) or None
-        if department_id and not db.session.get(Department, department_id):
-            department_id = None
-        sex = request.form.get("sex") or None
-        data.update(
-            position_id=position_id,
-            department_id=department_id,
-            site_id=site_id,
-            matricule=_txt("matricule", 40),
-            hired_on=_txt("hired_on", 10),
-            cnss_number=_txt("cnss_number", 40),
-            sex=sex if sex in ("M", "F") else None,
-            birth_date=_txt("birth_date", 10),
-            birth_place=_txt("birth_place", 80),
-            nationality=_txt("nationality", 60),
-            id_number=_txt("id_number", 60),
-            address=_txt("address", 200),
-            emergency_name=_txt("emergency_name", 120),
-            emergency_phone=_txt("emergency_phone", 30),
-        )
+        work, error = _work_fields(row)
+        if error:
+            return None, None, error
+        data.update(work)
+        data.update(_identity_fields())
+        data.update(_contact_fields(True))
 
-    chosen = set()
-    for raw in request.form.getlist("fleets"):
-        try:
-            chosen.add(int(raw))
-        except (TypeError, ValueError):
-            pass
-    return data, chosen, None
+    return data, _ticked_fleets(), None
 
 
 def _render_staff_form(row, error=None):
@@ -488,6 +516,143 @@ def edit(pid):
         flash("success|" + t["staff.updated"])
         return redirect(_back_url(row))
     return _render_staff_form(row)
+
+
+# ── Routes: one part of the file at a time ───────────────────────────────────
+#
+# Each part of the file (the head, identity, work, contact, driving, note)
+# has its own small form: it reads and saves its own fields and nothing else.
+# The full page form is for a new person only.
+
+SECTIONS = ("head", "identity", "work", "contact", "driving", "note")
+# The parts only an employee's file has.
+EMPLOYEE_SECTIONS = ("identity", "work")
+_SECTION_DATES = {"identity": ("birth_date",), "work": ("hired_on",), "driving": ("license_expires",)}
+
+
+def _read_section(row, section):
+    """(data, None) or (None, error) for one part of the file."""
+    t = get_t()
+    for field in _SECTION_DATES.get(section, ()):
+        v = (request.form.get(field) or "").strip()
+        if v and not _valid_date(v):
+            return None, t["staff.err.date"]
+    if section == "head":
+        kind = request.form.get("kind") if request.form.get("kind") in KINDS else row.kind
+        last_name = (request.form.get("last_name") or "").strip()
+        first_name = (request.form.get("first_name") or "").strip()
+        if not last_name:
+            return None, t["staff.err.name_required"]
+        if _name_taken(last_name, first_name, row):
+            return None, t["staff.err.name_taken"]
+        if kind == "external" and row.login is not None:
+            return None, t["staff.err.external_login"]
+        data = dict(kind=kind, last_name=last_name[:80], first_name=first_name[:80] or None)
+        if kind == "external":
+            data["company"] = _txt("company", 120)
+        return data, None
+    if section == "identity":
+        return _identity_fields(), None
+    if section == "work":
+        return _work_fields(row)
+    if section == "contact":
+        return _contact_fields(row.is_employee), None
+    if section == "driving":
+        return _driving_fields(), None
+    return dict(note=_txt("note", 255)), None
+
+
+def _render_section_form(row, section, error=None):
+    tpl = "_person_section_form.html" if is_modal_request() else "person_section_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    driver_pos = StaffPosition.query.filter(
+        db.func.lower(StaffPosition.name) == "chauffeur").first()
+    if request.method == "POST":
+        ticked = _ticked_fleets()
+    else:
+        ticked = {o.fleet_id for o in row.drives if o.is_active}
+    return render_template(
+        tpl, row=row, section=section, error=error, positions=active_positions(),
+        sites=_active_sites(), departments=active_departments(),
+        fleets=_accessible_fleets(), ticked=ticked,
+        driver_position_id=driver_pos.id if driver_pos else None,
+        today=date.today().isoformat()), status
+
+
+@staff_bp.route("/personnel/<int:pid>/modifier/<section>", methods=["GET", "POST"])
+@login_required
+@require_perm("staff.edit")
+def edit_section(pid, section):
+    row = db.session.get(Staff, pid)
+    if not row or section not in SECTIONS:
+        abort(404)
+    if section in EMPLOYEE_SECTIONS and not row.is_employee:
+        abort(404)
+    if request.method == "POST":
+        data, error = _read_section(row, section)
+        if error:
+            return _render_section_form(row, section, error)
+        old_name = row.name
+        for k, val in data.items():
+            setattr(row, k, val)
+        if section == "driving":
+            _apply_fleets(row, _ticked_fleets())
+        if section == "head":
+            ferr = _apply_files(row)
+            if ferr:
+                db.session.rollback()
+                return _render_section_form(db.session.get(Staff, pid), section, ferr)
+        sync_login(row)
+        log_action("UPDATE", "staff", resource_id=row.id,
+                   detail="Edited %s of '%s'" % (section, row.name)
+                   + (" (was '%s')" % old_name if old_name != row.name else ""))
+        db.session.commit()
+        flash("success|" + get_t()["staff.updated"])
+        return modal_ok() if is_modal_request() else redirect(url_for("staff.profile", pid=row.id))
+    return _render_section_form(row, section)
+
+
+@staff_bp.route("/personnel/<int:pid>/documents/ajouter", methods=["GET", "POST"])
+@login_required
+@require_perm("staff.edit")
+def document_add(pid):
+    row = db.session.get(Staff, pid)
+    if not row:
+        abort(404)
+    error = None
+    if request.method == "POST":
+        if not any(f and f.filename for f in request.files.getlist("documents")):
+            error = get_t()["staff.err.no_document"]
+        else:
+            error = _apply_files(row)
+            if error:
+                db.session.rollback()
+            else:
+                log_action("UPDATE", "staff", resource_id=row.id,
+                           detail="Added papers to '%s'" % row.name)
+                db.session.commit()
+                flash("success|" + get_t()["staff.updated"])
+                return modal_ok() if is_modal_request() else redirect(
+                    url_for("staff.profile", pid=row.id, tab="documents"))
+    tpl = "_person_documents_form.html" if is_modal_request() else "person_documents_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, row=row, error=error), status
+
+
+@staff_bp.route("/personnel/document/<int:did>/supprimer", methods=["POST"])
+@login_required
+@require_perm("staff.edit")
+def document_delete(did):
+    doc = db.session.get(StaffDocument, did)
+    if not doc:
+        abort(404)
+    pid, key, name = doc.staff_id, doc.file_key, doc.name
+    log_action("UPDATE", "staff", resource_id=pid, detail="Removed paper '%s'" % name)
+    db.session.delete(doc)
+    db.session.commit()
+    s3_storage.delete_photo(key)
+    flash("success|" + get_t()["staff.updated"])
+    return redirect(url_for("staff.profile", pid=pid, tab="documents"))
 
 
 def _years_since(ymd, today=None):

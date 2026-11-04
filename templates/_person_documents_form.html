@@ -1,0 +1,13 @@
+{# New papers for a person's file: ID card, licence, diploma. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form enctype="multipart/form-data"
+      action="{{ url_for('staff.document_add', pid=row.id) }}">
+    <div class="field">
+        <input type="file" id="documents" name="documents" multiple required accept="image/*,application/pdf">
+        <label for="documents">{{ t['staff.add_documents'] }}</label>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('staff.profile', pid=row.id, tab='documents') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

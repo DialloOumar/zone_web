@@ -6,7 +6,20 @@
 
 {# The RH door to a person: who they are and on what terms they work. The
    head carries what is read first; the rest sits in tabs, where contracts,
-   leave and pay will join. #}
+   leave and pay will join. Each part of the file has its own edit button,
+   which changes that part only. #}
+
+{% macro sec_head(title, section) -%}
+<div class="file-section__head">
+    <h3>{{ title }}</h3>
+    {% if has_perm('staff.edit') %}
+    <a href="{{ url_for('staff.edit_section', pid=p.id, section=section) }}" class="btn btn--sm btn--tonal btn--icon"
+       data-modal-url="{{ url_for('staff.edit_section', pid=p.id, section=section) }}" data-modal-title="{{ title }}"
+       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }} · {{ title }}"><span class="material-symbols-outlined">edit</span></a>
+    {% endif %}
+</div>
+{%- endmacro %}
+
 {% block content %}
 {% call person_head(p, 'hr', licence) %}
     {{ fact(t['staff.phone'], p.phone) }}
@@ -39,27 +52,29 @@
     <div class="file-sections">
         {% if p.is_employee %}
         <div class="file-section">
-            <h3>{{ t['staff.sec.identity'] }}</h3>
+            {{ sec_head(t['staff.sec.identity'], 'identity') }}
             <dl class="detail-grid">
-                {{ fact(t['staff.last_name'], p.last_name) }}
-                {{ fact(t['staff.first_name'], p.first_name) }}
                 {{ fact(t['staff.sex'], t['staff.sex.' + p.sex] if p.sex else none) }}
+                {{ fact(t['staff.birth_date'], p.birth_date|dmy if p.birth_date else none) }}
                 {{ fact(t['staff.birth_place'], p.birth_place) }}
                 {{ fact(t['staff.nationality'], p.nationality) }}
+                {{ fact(t['staff.id_number'], p.id_number) }}
             </dl>
         </div>
         <div class="file-section">
-            <h3>{{ t['staff.sec.work'] }}</h3>
+            {{ sec_head(t['staff.sec.work'], 'work') }}
             <dl class="detail-grid">
                 {{ fact(t['staff.position'], p.position.name if p.position else none) }}
                 {{ fact(t['staff.department'], p.department.name if p.department else none) }}
                 {{ fact(t['staff.site'], p.site.name if p.site else none) }}
+                {{ fact(t['staff.hired_on'], p.hired_on|dmy if p.hired_on else none) }}
                 {{ fact(t['staff.matricule'], p.matricule) }}
+                {{ fact(t['staff.cnss'], p.cnss_number) }}
             </dl>
         </div>
         {% endif %}
         <div class="file-section">
-            <h3>{{ t['staff.sec.contact'] }}</h3>
+            {{ sec_head(t['staff.sec.contact'], 'contact') }}
             <dl class="detail-grid">
                 {{ fact(t['staff.phone'], p.phone) }}
                 {% if p.is_employee %}
@@ -69,9 +84,12 @@
                 {% endif %}
             </dl>
         </div>
-        {% if p.license_number or p.license_expires or p.drives %}
+        {# Shown for whoever drives or may: an external driver, a "Chauffeur",
+           anybody with a licence or a fleet -- even empty, to be filled in. #}
+        {% if not p.is_employee or p.license_number or p.license_expires or p.drives
+              or (p.position and p.position.name|lower == 'chauffeur') %}
         <div class="file-section">
-            <h3>{{ t['staff.sec.driving'] }}</h3>
+            {{ sec_head(t['staff.sec.driving'], 'driving') }}
             <dl class="detail-grid">
                 {{ fact(t['staff.license_number'], p.license_number) }}
                 {{ fact(t['staff.license_categories'], p.license_categories) }}
@@ -80,12 +98,11 @@
             </dl>
         </div>
         {% endif %}
-        {% if p.note %}
         <div class="file-section">
-            <h3>{{ t['entry.note'] }}</h3>
-            <p style="margin:0; white-space:pre-line;">{{ p.note }}</p>
+            {{ sec_head(t['entry.note'], 'note') }}
+            {% if p.note %}<p style="margin:0; white-space:pre-line;">{{ p.note }}</p>
+            {% else %}<span class="muted">&mdash;</span>{% endif %}
         </div>
-        {% endif %}
     </div>
 
     {% elif tab == 'contracts' %}
@@ -275,14 +292,29 @@
     {% endif %}
 
     {% elif tab == 'documents' %}
+    {% if has_perm('staff.edit') %}
+    <div class="tab-bar">
+        <div class="tab-bar__actions">
+            <a href="{{ url_for('staff.document_add', pid=p.id) }}" class="btn btn--sm btn--primary"
+               data-modal-url="{{ url_for('staff.document_add', pid=p.id) }}" data-modal-title="{{ t['staff.add_documents'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['staff.add_documents'] }}</a>
+        </div>
+    </div>
+    {% endif %}
     {% if p.documents %}
     <div class="person-docs">
         {% for d in p.documents %}
-        <a class="doc-line" href="{{ url_for('staff.document', did=d.id) }}" target="_blank" rel="noopener">
+        <div class="doc-line">
             <span class="material-symbols-outlined">{{ 'picture_as_pdf' if d.content_type == 'application/pdf' else 'description' }}</span>
-            <span>{{ d.name }}</span>
+            <a href="{{ url_for('staff.document', did=d.id) }}" target="_blank" rel="noopener">{{ d.name }}</a>
             <span class="muted small">{{ d.created_at.strftime('%d/%m/%Y') }}</span>
-        </a>
+            {% if has_perm('staff.edit') %}
+            <form method="post" action="{{ url_for('staff.document_delete', did=d.id) }}" style="margin-left:auto;"
+                  data-confirm="{{ t['staff.document_delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger>
+                <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+            </form>
+            {% endif %}
+        </div>
         {% endfor %}
     </div>
     {% else %}
