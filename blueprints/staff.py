@@ -30,7 +30,7 @@ import s3_storage
 from payroll import active_allowances, payslip
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, parse_amount, require_any_perm, require_perm)
-from models import (DailyEntry, Department, DriverNameIgnored, Expense, Fleet, FuelMovement,
+from models import (Bank, CashMovement, DailyEntry, Department, DriverNameIgnored, Expense, Fleet, FuelMovement,
                     StaffContract, StaffSalary, StaffSalaryAllowance,
                     MaintenanceRecord, Operator, PersonMatchDismissed, Site, Staff,
                     StaffDocument, StaffPosition, User, Vehicle, db)
@@ -329,6 +329,41 @@ def _driving_fields():
                 license_expires=_txt("license_expires", 10))
 
 
+def _digits(name, size):
+    """Digits only (spaces dropped), or None; False when anything else was typed."""
+    raw = (request.form.get(name) or "").replace(" ", "").strip()
+    if not raw:
+        return None
+    return raw[:size] if raw.isdigit() else False
+
+
+def _payment_fields():
+    """(data, None) or (None, error): how the pay reaches the person. Only the
+    parts of the chosen way are kept, so a file never holds a stale account."""
+    t = get_t()
+    method = request.form.get("pay_method") or None
+    if method not in PAY_METHODS:
+        method = None
+    data = dict(pay_method=method, bank_id=None, bank_branch=None, bank_account=None,
+                bank_key=None, mobile_money=None)
+    if method == "transfer":
+        bank_id = request.form.get("bank_id", type=int) or None
+        if not bank_id or not db.session.get(Bank, bank_id):
+            return None, t["pay.err.bank"]
+        branch, account, key = _digits("bank_branch", 10), _digits("bank_account", 30), _digits("bank_key", 4)
+        if branch is False or account is False or key is False:
+            return None, t["pay.err.digits"]
+        if not account:
+            return None, t["pay.err.account"]
+        data.update(bank_id=bank_id, bank_branch=branch, bank_account=account, bank_key=key)
+    elif method == "mobile":
+        number = _txt("mobile_money", 30)
+        if not number:
+            return None, t["pay.err.mobile"]
+        data["mobile_money"] = number
+    return data, None
+
+
 def _ticked_fleets():
     chosen = set()
     for raw in request.form.getlist("fleets"):
@@ -533,9 +568,10 @@ def edit(pid):
 # has its own small form: it reads and saves its own fields and nothing else.
 # The full page form is for a new person only.
 
-SECTIONS = ("head", "identity", "work", "contact", "driving", "note")
+SECTIONS = ("head", "identity", "work", "payment", "contact", "driving", "note")
 # The parts only an employee's file has.
-EMPLOYEE_SECTIONS = ("identity", "work")
+EMPLOYEE_SECTIONS = ("identity", "work", "payment")
+PAY_METHODS = ("transfer", "mobile", "cash")
 _SECTION_DATES = {"identity": ("birth_date",), "work": ("hired_on",), "driving": ("license_expires",)}
 
 
@@ -564,6 +600,8 @@ def _read_section(row, section):
         return _identity_fields(), None
     if section == "work":
         return _work_fields(row)
+    if section == "payment":
+        return _payment_fields()
     if section == "contact":
         return _contact_fields(row.is_employee), None
     if section == "driving":
@@ -584,6 +622,7 @@ def _render_section_form(row, section, error=None):
         tpl, row=row, section=section, error=error, positions=active_positions(),
         sites=_active_sites(), departments=active_departments(),
         fleets=_accessible_fleets(), ticked=ticked,
+        banks=Bank.query.filter_by(is_active=True).order_by(Bank.sort_order, Bank.name).all(),
         driver_position_id=driver_pos.id if driver_pos else None,
         today=date.today().isoformat()), status
 
@@ -769,16 +808,21 @@ def profile(pid):
     tabs = (["file", "contracts", "salary"] + (["payslip"] if row.declared else []) + ["documents"]
             if row.is_employee else ["file", "documents"])
     tab = request.args.get("tab") if request.args.get("tab") in tabs else "file"
-    salary_rows = salary_chart = salary_cols = None
+    salary_rows = salary_chart = salary_cols = advances = None
     if tab == "salary":
         salary_rows, salary_chart = _salary_history(row)
         salary_cols = _salary_columns(row)
+        # The advances the cash box handed him -- only those, never its costs.
+        advances = [(a, _month_label(int(a.advance_month[:4]), int(a.advance_month[5:])))
+                    for a in CashMovement.query.filter_by(kind="avance", staff_id=row.id)
+                    .order_by(CashMovement.date.desc(), CashMovement.id.desc()).all()]
     slip = slip_error = month_options = None
     if tab == "payslip":
         slip, slip_error, month_options = _payslip_for_tab(row)
     return render_template(
         "staff_profile.html", p=row, tabs=tabs, tab=tab,
         salary_rows=salary_rows, salary_chart=salary_chart, salary_cols=salary_cols,
+        advances=advances,
         slip=slip, slip_error=slip_error, month_options=month_options,
         co=_company() if tab == "payslip" else None,
         age=_years_since(row.birth_date), seniority=_years_since(row.hired_on),

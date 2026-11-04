@@ -8,7 +8,7 @@
 {% block content %}
 <section class="card">
     <nav class="tabs" role="tablist">
-        {% for key, icon in (('versions', 'history'), ('allowances', 'payments')) %}
+        {% for key, icon in (('versions', 'history'), ('allowances', 'payments'), ('banks', 'account_balance')) %}
         <a href="{{ url_for('payroll.settings', tab=key if key != 'versions' else None) }}" role="tab"
            aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
             <span class="material-symbols-outlined">{{ icon }}</span> {{ t['payset.tab.' + key] }}</a>
@@ -70,6 +70,46 @@
     <div class="empty-state empty-state--soft">
         <span class="material-symbols-outlined">tune</span>
         <p>{{ t['payset.none'] }}</p>
+    </div>
+    {% endif %}
+
+    {% elif tab == 'banks' %}
+    <div class="tab-bar">
+        <div class="tab-bar__actions">
+            <a href="{{ url_for('payroll.bank_new') }}" class="btn btn--sm btn--primary"
+               data-modal-url="{{ url_for('payroll.bank_new') }}" data-modal-title="{{ t['pay.bank_new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['pay.bank_new'] }}</a>
+        </div>
+    </div>
+    {% if banks %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['pay.bank'] }}</th>
+            <th>{{ t['pay.bank_code'] }}</th>
+            <th style="text-align:right;">{{ t['pay.bank_people'] }}</th>
+            <th>{{ t['contract.state'] }}</th>
+            <th></th>
+        </tr></thead>
+        <tbody>
+            {% for b in banks %}
+            <tr>
+                <td><strong {% if not b.is_active %}class="muted"{% endif %}>{{ b.name }}</strong></td>
+                <td>{% if b.code %}{{ b.code }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right;">{{ bank_people.get(b.id, 0) }}</td>
+                <td>{% if b.is_active %}<span class="badge badge--active">{{ t['person.active'] }}</span>{% else %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}</td>
+                <td class="row-actions">
+                    <a href="{{ url_for('payroll.bank_edit', bid=b.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('payroll.bank_edit', bid=b.id) }}" data-modal-title="{{ b.name }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">account_balance</span>
+        <p>{{ t['pay.bank_none'] }}</p>
     </div>
     {% endif %}
 

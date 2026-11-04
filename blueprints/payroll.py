@@ -1,12 +1,14 @@
 """Pay settings -- what the law says, dated, kept by the super admin.
 
-Two lists on one page:
+Three lists on one page:
 - the versions of the legal figures (CNSS rates, ceiling and floor, RTS
   scale, employer's taxes), each in force from its own day: a change of law
   is a new version, so a month is always worked out with the figures of its
   time (payroll.payslip);
 - the kinds of allowance paid on top of the base salary, with whether each is
-  taxed and whether the CNSS is due on it.
+  taxed and whether the CNSS is due on it;
+- the banks employees are paid into, one spelling each, with the bank code
+  that opens a RIB.
 """
 from decimal import Decimal, InvalidOperation
 
@@ -14,11 +16,11 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from flask_login import current_user, login_required
 
 from app import get_t, is_modal_request, log_action, modal_ok, parse_amount, super_admin_required
-from models import PayAllowance, PayRtsBracket, PaySetting, StaffSalaryAllowance, db
+from models import Bank, PayAllowance, PayRtsBracket, PaySetting, Staff, StaffSalaryAllowance, db
 
 payroll_bp = Blueprint("payroll", __name__)
 
-TABS = ("versions", "allowances")
+TABS = ("versions", "allowances", "banks")
 
 
 def _valid_day(s):
@@ -62,7 +64,10 @@ def settings():
         versions=PaySetting.query.order_by(PaySetting.effective_on.desc()).all(),
         current=PaySetting.on(_today()), today_iso=_today(),
         allowances=PayAllowance.query.order_by(PayAllowance.sort_order, PayAllowance.name).all(),
-        used=used)
+        used=used,
+        banks=Bank.query.order_by(Bank.sort_order, Bank.name).all(),
+        bank_people={bid: n for bid, n in db.session.query(Staff.bank_id, db.func.count(Staff.id))
+                     .filter(Staff.bank_id.isnot(None)).group_by(Staff.bank_id).all()})
 
 
 def _today():
@@ -229,3 +234,55 @@ def allowance_edit(aid):
     if not row:
         abort(404)
     return _allowance_form(row)
+
+
+# ── The banks ───────────────────────────────────────────────────────────────
+
+
+def _bank_form(row):
+    t = get_t()
+    error = None
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()[:80]
+        code = (request.form.get("code") or "").replace(" ", "").strip()[:10] or None
+        clash = Bank.query.filter(db.func.lower(Bank.name) == name.lower())
+        if row is not None:
+            clash = clash.filter(Bank.id != row.id)
+        if not name:
+            error = t["list.err.name_required"]
+        elif clash.first():
+            error = t["list.err.name_taken"]
+        elif code and not code.isdigit():
+            error = t["pay.err.digits"]
+        else:
+            if row is None:
+                nxt = (db.session.query(db.func.max(Bank.sort_order)).scalar() or 0) + 1
+                row = Bank(sort_order=nxt, is_active=True)
+                db.session.add(row)
+            else:
+                row.is_active = request.form.get("is_active") == "1"
+            row.name, row.code = name, code
+            log_action("UPDATE", "bank", detail="Bank '%s' (%s)" % (name, code or "-"))
+            db.session.commit()
+            flash("success|" + t["pay.bank_saved"])
+            return modal_ok() if is_modal_request() else redirect(url_for("payroll.settings", tab="banks"))
+    tpl = "_bank_form.html" if is_modal_request() else "bank_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, row=row, error=error), status
+
+
+@payroll_bp.route("/paie/banques/nouvelle", methods=["GET", "POST"])
+@login_required
+@super_admin_required
+def bank_new():
+    return _bank_form(None)
+
+
+@payroll_bp.route("/paie/banques/<int:bid>/modifier", methods=["GET", "POST"])
+@login_required
+@super_admin_required
+def bank_edit(bid):
+    row = db.session.get(Bank, bid)
+    if not row:
+        abort(404)
+    return _bank_form(row)

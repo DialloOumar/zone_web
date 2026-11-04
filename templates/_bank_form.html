@@ -1,0 +1,24 @@
+{# A bank: its name, written once for everybody, and its bank code. #}
+{% set posted = request.method == 'POST' %}
+{% set active = (request.form.get('is_active') == '1') if posted else (row.is_active if row else true) %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('payroll.bank_edit', bid=row.id) if row else url_for('payroll.bank_new') }}">
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="name" name="name" placeholder=" " required value="{{ request.form.get('name', '') if posted else (row.name if row else '') }}">
+            <label for="name">{{ t['pay.bank'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" inputmode="numeric" id="code" name="code" placeholder=" " value="{{ request.form.get('code', '') if posted else (row.code or '' if row else '') }}">
+            <label for="code">{{ t['pay.bank_code'] }}</label>
+        </div>
+    </div>
+    {% if row %}
+    <label class="checkbox-item"><input type="checkbox" name="is_active" value="1" {% if active %}checked{% endif %}><span>{{ t['person.active'] }}</span></label>
+    {% endif %}
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('payroll.settings', tab='banks') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

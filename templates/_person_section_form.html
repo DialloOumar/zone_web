@@ -135,6 +135,51 @@
     </div>
     {% include "_person_pay_fields.html" %}
 
+{% elif section == 'payment' %}
+    {# How the pay reaches him; the parts of the other ways hide (main.js). #}
+    {% set pm = v('pay_method') %}
+    <div class="field">
+        <div class="choice" role="radiogroup" aria-label="{{ t['pay.method'] }}">
+            {% for m in ('transfer', 'mobile', 'cash') %}
+            <label class="choice__opt"><input type="radio" name="pay_method" value="{{ m }}" data-pay-method {% if m == pm %}checked{% endif %}><span>{{ t['pay.method.' + m] }}</span></label>
+            {% endfor %}
+        </div>
+        <label>{{ t['pay.method'] }}</label>
+    </div>
+    <div data-pay-part="transfer" class="entry-form" {% if pm != 'transfer' %}hidden{% endif %}>
+        <div class="field field--select">
+            {% set sel_bank = v('bank_id')|int(0) %}
+            <select id="bank_id" name="bank_id">
+                <option value=""></option>
+                {% for b in banks %}
+                <option value="{{ b.id }}" {% if b.id == sel_bank %}selected{% endif %}>{{ b.name }}{% if b.code %} ({{ b.code }}){% endif %}</option>
+                {% endfor %}
+                {% if row.bank and not row.bank.is_active %}
+                <option value="{{ row.bank.id }}" {% if row.bank.id == sel_bank %}selected{% endif %}>{{ row.bank.name }}</option>
+                {% endif %}
+            </select>
+            <label for="bank_id">{{ t['pay.bank'] }}</label>
+        </div>
+        <div class="form-row form-row--3">
+            <div class="field">
+                <input type="text" inputmode="numeric" id="bank_branch" name="bank_branch" placeholder=" " value="{{ v('bank_branch') }}">
+                <label for="bank_branch">{{ t['pay.branch'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" inputmode="numeric" id="bank_account" name="bank_account" placeholder=" " value="{{ v('bank_account') }}">
+                <label for="bank_account">{{ t['pay.account'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" inputmode="numeric" id="bank_key" name="bank_key" placeholder=" " maxlength="4" value="{{ v('bank_key') }}">
+                <label for="bank_key">{{ t['pay.key'] }}</label>
+            </div>
+        </div>
+    </div>
+    <div class="field" data-pay-part="mobile" {% if pm != 'mobile' %}hidden{% endif %}>
+        <input type="tel" id="mobile_money" name="mobile_money" placeholder=" " value="{{ v('mobile_money') or (row.phone if not posted and not row.mobile_money else '') }}">
+        <label for="mobile_money">{{ t['pay.mobile'] }}</label>
+    </div>
+
 {% elif section == 'contact' %}
     <div class="form-row">
         <div class="field">

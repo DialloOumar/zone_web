@@ -76,6 +76,18 @@
                 {{ fact(t['staff.declared_short'], t['staff.declared.yes'] if p.declared else t['staff.declared.no']) }}
             </dl>
         </div>
+        <div class="file-section">
+            {{ sec_head(t['pay.section'], 'payment') }}
+            <dl class="detail-grid">
+                {{ fact(t['pay.method'], t['pay.method.' + p.pay_method] if p.pay_method else none) }}
+                {% if p.pay_method == 'transfer' %}
+                {{ fact(t['pay.bank'], p.bank.name if p.bank else none) }}
+                {{ fact(t['pay.rib'], p.rib) }}
+                {% elif p.pay_method == 'mobile' %}
+                {{ fact(t['pay.mobile'], p.mobile_money) }}
+                {% endif %}
+            </dl>
+        </div>
         {% endif %}
         <div class="file-section">
             {{ sec_head(t['staff.sec.contact'], 'contact') }}
@@ -297,6 +309,34 @@
     <div class="empty-state empty-state--soft">
         <span class="material-symbols-outlined">payments</span>
         <p>{{ t['salary.none'] }}</p>
+    </div>
+    {% endif %}
+
+    {# Advances on salary: handed out by the cash box, taken back in full from
+       the salary of the month named. Recorded in the Caisse, read here. #}
+    {% if advances %}
+    <div class="file-section">
+        <h3>{{ t['advance.title'] }}</h3>
+        <div class="table-wrap"><table class="data-table">
+            <thead><tr>
+                <th>{{ t['expense.date'] }}</th>
+                <th style="text-align:right;">{{ t['expense.amount'] }}</th>
+                <th>{{ t['advance.month'] }}</th>
+                <th class="col-secondary">{{ t['expense.payment_method'] }}</th>
+                <th class="col-secondary">{{ t['entry.note'] }}</th>
+            </tr></thead>
+            <tbody>
+                {% for a, label in advances %}
+                <tr>
+                    <td style="white-space:nowrap;">{{ a.date|dmy }}</td>
+                    <td style="text-align:right; white-space:nowrap;"><strong>{{ a.amount|num }} {{ currency }}</strong></td>
+                    <td style="white-space:nowrap;">{{ label }}</td>
+                    <td class="col-secondary">{% if a.method %}{{ t['pay.' + a.method] }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                    <td class="col-secondary"><span class="cell-clamp" title="{{ a.note or '' }}">{{ a.note or '' }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table></div>
     </div>
     {% endif %}
 

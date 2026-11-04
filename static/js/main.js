@@ -820,3 +820,13 @@ document.addEventListener("change", function (e) {
     var end = el.form.querySelector("[data-contract-end]");
     if (end) end.hidden = el.value === "cdi";
 });
+
+// How a person is paid: only the parts of the chosen way show -- the bank
+// account for a transfer, the number for Orange Money, nothing for cash.
+document.addEventListener("change", function (e) {
+    var el = e.target;
+    if (!el.matches || !el.matches("[data-pay-method]") || !el.form) return;
+    el.form.querySelectorAll("[data-pay-part]").forEach(function (part) {
+        part.hidden = part.getAttribute("data-pay-part") !== el.value;
+    });
+});

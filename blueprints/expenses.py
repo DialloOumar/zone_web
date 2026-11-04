@@ -520,8 +520,14 @@ def set_till_opening(amount, day, user_id=None):
         row.updated_by = user_id
 
 
+# What leaves the box without being a cost: money given back to an account,
+# and advances lent to staff (paid back from their salary).
+OUT_KINDS = ("retrait", "avance")
+
+
 def _movement_total(kind, since=None):
-    q = db.session.query(db.func.coalesce(db.func.sum(CashMovement.amount), 0)).filter(CashMovement.kind == kind)
+    kinds = OUT_KINDS if kind == "out" else (kind,)
+    q = db.session.query(db.func.coalesce(db.func.sum(CashMovement.amount), 0)).filter(CashMovement.kind.in_(kinds))
     if since:
         q = q.filter(CashMovement.date >= since)
     return q.scalar() or 0
@@ -537,7 +543,7 @@ def cash_balance():
     if since:
         sq = sq.filter(Expense.date >= since)
     spent = sq.scalar() or 0
-    return opening + _movement_total("depot", since) - _movement_total("retrait", since) - spent
+    return opening + _movement_total("depot", since) - _movement_total("out", since) - spent
 
 
 def account_balances():
@@ -649,12 +655,13 @@ def index():
     # instead would empty the other tab for a reason not visible from it.
     # Summed by the database, so the figures stay right once this list is paged.
     def _moved(kind):
-        sub = mq.filter(CashMovement.kind == kind).with_entities(
+        kinds = OUT_KINDS if kind == "out" else (kind,)
+        sub = mq.filter(CashMovement.kind.in_(kinds)).with_entities(
             CashMovement.amount.label("v")).subquery()
         return int(db.session.query(
             db.func.coalesce(db.func.sum(sub.c.v), 0)).scalar() or 0)
 
-    deposited, withdrawn = _moved("depot"), _moved("retrait")
+    deposited, withdrawn = _moved("depot"), _moved("out")
     mpagination = (mq.order_by(CashMovement.date.desc(), CashMovement.id.desc())
                    .paginate(page=request.args.get("page", 1, type=int),
                              per_page=PER_PAGE, error_out=False))
@@ -967,7 +974,7 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids,
         base, since = till_opening()
         paid = db.session.query(db.func.coalesce(db.func.sum(CashMovement.amount), 0))
         dep = paid.filter(CashMovement.kind == "depot", CashMovement.date < start)
-        wd = paid.filter(CashMovement.kind == "retrait", CashMovement.date < start)
+        wd = paid.filter(CashMovement.kind.in_(OUT_KINDS), CashMovement.date < start)
         sp = (db.session.query(db.func.coalesce(db.func.sum(Expense.amount), 0))
               .filter(Expense.category.notin_(SYSTEM_CATEGORIES), Expense.date < start))
         if since:
@@ -989,11 +996,12 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids,
     # is stated in the summary instead.
     t = get_t()
     moves = [{"date": m.date,
-              "account": m.account.name if m.account else t["caisse.deposit"],
+              "account": (m.staff.name if m.kind == "avance" and m.staff
+                          else m.account.name if m.account else t["caisse.deposit"]),
               "kind": m.kind, "note": m.note, "reference": m.reference,
               "method": m.method,
               "in": m.amount if m.kind == "depot" else 0,
-              "out": m.amount if m.kind == "retrait" else 0,
+              "out": m.amount if m.kind in OUT_KINDS else 0,
               "from_expense": m.expense_id is not None}
              for m in mq.all()]
     costs = [{"date": x.date, "label": x.label or category_label(x.category),
@@ -1025,7 +1033,7 @@ def _caisse_report(start, end, site_ids, vehicle_ids, account_ids,
 
     total_spent = _sum_of(cq, Expense.amount)
     total_in = _sum_of(mq.filter(CashMovement.kind == "depot"), CashMovement.amount)
-    total_withdrawn = _sum_of(mq.filter(CashMovement.kind == "retrait"),
+    total_withdrawn = _sum_of(mq.filter(CashMovement.kind.in_(OUT_KINDS)),
                               CashMovement.amount)
     return dict(
         moves=moves, costs=costs, opening=opening, filtered=filtered,
@@ -1333,6 +1341,8 @@ def withdrawal_new():
 @require_perm("expense.edit")
 def deposit_edit(did):
     m = _get_movement_or_404(did)
+    if m.kind == "avance":
+        return redirect(url_for("expenses.advance_edit", aid=m.id))
     if m.transfer_id:
         flash("error|" + get_t()["caisse.err.from_transfer"])
         return redirect(url_for("expenses.index", tab="mouvements"))
@@ -1362,3 +1372,83 @@ def deposit_delete(did):
     db.session.commit()
     flash("success|" + get_t().get("caisse.movement_deleted", "Mouvement supprimé."))
     return redirect(request.referrer or url_for("expenses.index"))
+
+
+# ── Advances on salary ───────────────────────────────────────────────────────
+#
+# The cash box hands an employee part of his salary early, once RH has said
+# yes (by word of mouth for now). Lent, not spent: it leaves the box like a
+# withdrawal and is no cost of the company's; the month's pay takes it back
+# in full (payroll.payslip, and the person's Salaire tab on the RH side).
+
+
+def _employees():
+    return (Staff.query.filter(Staff.is_active.is_(True), Staff.kind == "employee")
+            .order_by(Staff.last_name, Staff.first_name).all())
+
+
+def _read_advance_form(row):
+    """(data, None) or (None, error)."""
+    t = get_t()
+    staff_id = request.form.get("staff_id", type=int)
+    person = db.session.get(Staff, staff_id) if staff_id else None
+    if person is None or not person.is_employee:
+        return None, t["advance.err.person"]
+    day = (request.form.get("date") or "").strip()
+    if not _valid_date(day):
+        return None, t["expense.err.date_required"]
+    amount = parse_amount(request.form.get("amount"))
+    if amount is None or amount <= 0:
+        return None, t["expense.err.amount_required"]
+    method = request.form.get("method")
+    if method not in ("cash", "mobile_money"):
+        return None, t["expense.err.payment_required"]
+    month = (request.form.get("advance_month") or "").strip()
+    if not (len(month) == 7 and month[4] == "-" and month[:4].isdigit() and month[5:].isdigit()
+            and 1 <= int(month[5:]) <= 12) or month < day[:7]:
+        return None, t["advance.err.month"]
+    return dict(kind="avance", staff_id=person.id, date=day, amount=amount, currency="GNF",
+                method=method, advance_month=month, account_id=None,
+                reference=(request.form.get("reference") or "").strip()[:60] or None,
+                note=(request.form.get("note") or "").strip()[:255] or None), None
+
+
+def _advance_route(row):
+    t = get_t()
+    error = None
+    if request.method == "POST":
+        data, error = _read_advance_form(row)
+        if not error:
+            if row is None:
+                row = CashMovement(created_by=current_user.id, **data)
+                db.session.add(row)
+                db.session.flush()
+                action = "CREATE"
+            else:
+                for k, v in data.items():
+                    setattr(row, k, v)
+                action = "UPDATE"
+            log_action(action, "cash_movement", resource_id=row.id,
+                       detail="Advance %d GNF to '%s', paid back %s" % (row.amount, row.staff.name, row.advance_month))
+            db.session.commit()
+            flash("success|" + t["advance.saved"])
+            return modal_ok() if is_modal_request() else redirect(url_for("expenses.index", tab="mouvements"))
+    tpl = "_advance_form.html" if is_modal_request() else "advance_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    today = date.today().isoformat()
+    return render_template(tpl, row=row, error=error, people=_employees(),
+                           today=today, this_month=today[:7]), status
+
+
+@expenses_bp.route("/caisse/avances/new", methods=["GET", "POST"])
+@login_required
+@require_perm("expense.create")
+def advance_new():
+    return _advance_route(None)
+
+
+@expenses_bp.route("/caisse/avances/<int:aid>/edit", methods=["GET", "POST"])
+@login_required
+@require_perm("expense.edit")
+def advance_edit(aid):
+    return _advance_route(_get_movement_or_404(aid, "avance"))

@@ -497,6 +497,15 @@ class Staff(db.Model):
     category          = db.Column(db.String(20))     # the pay grade on the payslip
     marital_status    = db.Column(db.String(12))     # celibataire | marie | divorce | veuf
     children          = db.Column(db.Integer)
+    # How the pay reaches him: a transfer to his bank account, Orange Money,
+    # or cash in hand. The account is kept in the parts the bank's transfer
+    # file asks for (bank code from the bank, then branch, number, key).
+    pay_method        = db.Column(db.String(12))     # transfer | mobile | cash
+    bank_id           = db.Column(db.Integer, db.ForeignKey("banks.id"), nullable=True)
+    bank_branch       = db.Column(db.String(10))     # code agence
+    bank_account      = db.Column(db.String(30))     # n° de compte
+    bank_key          = db.Column(db.String(4))      # clé RIB
+    mobile_money      = db.Column(db.String(30))     # the Orange Money number
     # External drivers: who they work for.
     company           = db.Column(db.String(120))
     # Driving
@@ -509,6 +518,7 @@ class Staff(db.Model):
 
     position   = db.relationship("StaffPosition")
     department = db.relationship("Department")
+    bank       = db.relationship("Bank")
     site       = db.relationship("Site")
     drives    = db.relationship("Operator", back_populates="person")
     documents = db.relationship("StaffDocument", back_populates="person",
@@ -553,6 +563,16 @@ class Staff(db.Model):
     @property
     def current_salary(self):
         return self.salary_on()
+
+    @property
+    def rib(self):
+        """The bank account written whole, as on a RIB: bank code, branch,
+        number, key. None until the number is known."""
+        if not self.bank_account:
+            return None
+        parts = [self.bank.code if self.bank and self.bank.code else None,
+                 self.bank_branch, self.bank_account, self.bank_key]
+        return " ".join(p for p in parts if p)
 
     @property
     def initials(self):
@@ -690,6 +710,19 @@ class StaffSalary(db.Model):
             return "upcoming"
         cur = self.person.salary_on(today)
         return "current" if cur is not None and cur.id == self.id else "past"
+
+
+class Bank(db.Model):
+    """A bank the employees are paid into, written one way only: the salary
+    list once had "VISTA-GUI" and "VISTAGUI" side by side. Its code is the
+    first part of a RIB and of the transfer file sent to the company's bank."""
+    __tablename__ = "banks"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(80), nullable=False, unique=True)
+    code       = db.Column(db.String(10))                # code banque
+    is_active  = db.Column(db.Boolean, nullable=False, default=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
 
 
 class PayAllowance(db.Model):
@@ -1373,10 +1406,12 @@ class AccountTransfer(db.Model):
 
 
 class CashMovement(db.Model):
-    """Money moving between the cash box and an account.
+    """Money moving between the cash box and an account, or lent to staff.
 
         depot   — money paid in, from an account (+)
         retrait — money taken back out to one (−)
+        avance  — an advance on salary handed to an employee (−), taken back
+                  in full from the salary of `advance_month`
 
     A withdrawal is not a cost: the boss taking his own money back spends
     nothing on the company's behalf, and filing it as an expense would inflate
@@ -1386,7 +1421,7 @@ class CashMovement(db.Model):
     __tablename__ = "cash_movements"
 
     id         = db.Column(db.Integer,     primary_key=True)
-    kind       = db.Column(db.String(20),  nullable=False, default="depot")  # depot | retrait
+    kind       = db.Column(db.String(20),  nullable=False, default="depot")  # depot | retrait | avance
     date       = db.Column(db.String(10),  nullable=False)              # YYYY-MM-DD
     amount     = db.Column(db.Integer,     nullable=False)              # GNF
     currency   = db.Column(db.String(5),   nullable=False, default="GNF")
@@ -1402,10 +1437,15 @@ class CashMovement(db.Model):
     # sent from a company account. Like the line above, it mirrors the
     # sending and is not the cashier's to edit.
     transfer_id = db.Column(db.Integer,    db.ForeignKey("cash_transfers.id"), nullable=True, unique=True)
+    # An advance: who got it, and the month whose salary pays it back. Lent,
+    # not spent -- like a withdrawal it is no cost of the company's.
+    staff_id      = db.Column(db.Integer,  db.ForeignKey("staff.id"), nullable=True, index=True)
+    advance_month = db.Column(db.String(7))     # YYYY-MM
     created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
     account = db.relationship("CashAccount")
+    staff   = db.relationship("Staff")
     expense = db.relationship("Expense", back_populates="cash_movement",
                               foreign_keys=[expense_id])
 

@@ -11,11 +11,14 @@ The way the bases are taken follows the client's own payslip:
 - RTS on the taxable gross less the employee's CNSS, by the scale's steps;
 - versement forfaitaire and taxe d'apprentissage on the whole gross, paid by
   the employer.
+
+The advances the cash box handed out against the month (CashMovement "avance")
+are taken back in full from the net; they change neither the CNSS nor the RTS.
 """
 import calendar
 from decimal import ROUND_HALF_UP, Decimal
 
-from models import PayAllowance, PaySetting
+from models import CashMovement, PayAllowance, PaySetting
 
 
 def _pct(amount, rate):
@@ -35,6 +38,13 @@ def rts_on(base, brackets):
         top = base if upper is None else min(base, upper)
         total += Decimal(top - step.lower) * Decimal(step.rate) / 100
     return int(total.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def advances_for(person, year, month):
+    """The advances to take back from this month's salary."""
+    return (CashMovement.query
+            .filter_by(kind="avance", staff_id=person.id, advance_month="%04d-%02d" % (year, month))
+            .order_by(CashMovement.date, CashMovement.id).all())
 
 
 def month_bounds(year, month):
@@ -78,7 +88,9 @@ def payslip(person, year, month):
     vf = _pct(gross, setting.vf_rate)
     ta = _pct(gross, setting.ta_rate)
 
-    withheld = cnss_employee + rts
+    advances = advances_for(person, year, month)
+    advances_total = sum(a.amount for a in advances)
+    withheld = cnss_employee + rts + advances_total
     employer = cnss_employer + vf + ta
     return dict(
         person=person, year=year, month=month, first=first, last=last,
@@ -89,6 +101,7 @@ def payslip(person, year, month):
         gross_taxable=gross_taxable, gross=gross,
         cnss_base=cnss_base, cnss_employee=cnss_employee, cnss_employer=cnss_employer,
         rts_base=rts_base, rts=rts, vf=vf, ta=ta,
+        advances=advances, advances_total=advances_total,
         withheld=withheld, employer=employer,
         net=gross - withheld, cost=gross + employer,
     ), None

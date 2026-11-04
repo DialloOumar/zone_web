@@ -39,6 +39,12 @@
                 <dt>{{ t['staff.marital'] }}</dt><dd>{{ t['staff.marital.' + p.marital_status] if p.marital_status else '—' }}</dd>
                 <dt>{{ t['staff.children'] }}</dt><dd>{{ p.children if p.children is not none else '—' }}</dd>
                 <dt>{{ t['staff.nationality'] }}</dt><dd>{{ p.nationality or '—' }}</dd>
+                <dt>{{ t['pay.method'] }}</dt><dd>{% if p.pay_method %}{{ t['pay.method.' + p.pay_method] }}{% if p.pay_method == 'transfer' and p.bank %} · {{ p.bank.name }}{% endif %}{% else %}—{% endif %}</dd>
+                {% if p.pay_method == 'transfer' and p.bank_account %}
+                {# The account shown with its middle hidden: the paper may travel. #}
+                {% set acc = p.bank_account %}
+                <dt>{{ t['pay.account'] }}</dt><dd>{{ acc[:3] ~ '•' * ([acc|length - 7, 0]|max) ~ acc[-4:] if acc|length > 7 else acc }}</dd>
+                {% endif %}
             </dl>
         </div>
     </div>
@@ -79,6 +85,14 @@
             {% if st.ta_rate %}
             <tr><td>{{ t['payset.ta'] }}</td><td class="r">{{ slip.gross|num }}</td><td></td><td></td><td></td>
                 <td class="r">{{ st.ta_rate|qty }} %</td><td class="r">{{ slip.ta|num }}</td></tr>
+            {% endif %}
+
+            {% if slip.advances %}
+            <tr class="slip__group"><td colspan="7">{{ t['payslip.other'] }}</td></tr>
+            {% for a in slip.advances %}
+            <tr><td>{{ t['payslip.advance'] % (a.date|dmy) }}</td><td></td><td></td><td></td>
+                <td class="r">{{ a.amount|num }}</td><td></td><td></td></tr>
+            {% endfor %}
             {% endif %}
 
             <tr class="slip__sub"><td>{{ t['payslip.totals'] }}</td><td></td><td></td><td class="r">{{ slip.gross|num }}</td>

@@ -1,0 +1,64 @@
+{# An advance on salary handed out by the cash box: who, how much, how, and
+   the month whose salary takes it back. #}
+{% set posted = request.method == 'POST' %}
+{% macro v(name, default='') -%}
+{%- if posted -%}{{ request.form.get(name, '') }}
+{%- elif row is not none and row[name] is not none -%}{{ row[name] }}
+{%- else -%}{{ default }}{%- endif -%}
+{%- endmacro %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('expenses.advance_edit', aid=row.id) if row else url_for('expenses.advance_new') }}">
+    <div class="field field--select">
+        {% set sel = v('staff_id')|int(0) %}
+        <select id="staff_id" name="staff_id" required>
+            <option value=""></option>
+            {% for p in people %}
+            <option value="{{ p.id }}" {% if p.id == sel %}selected{% endif %}>{{ p.name }}{% if p.matricule %} · {{ p.matricule }}{% endif %}</option>
+            {% endfor %}
+            {% if row and row.staff and row.staff not in people %}
+            <option value="{{ row.staff.id }}" selected>{{ row.staff.name }}</option>
+            {% endif %}
+        </select>
+        <label for="staff_id">{{ t['advance.person'] }}</label>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="date" name="date" required value="{{ v('date', today) }}">
+            <label for="date">{{ t['expense.date'] }}</label>
+        </div>
+        <div class="field">
+            {% set amt = v('amount') %}
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder=" " required
+                   value="{{ (amt|int(0) | num) if amt and not posted else amt }}">
+            <label for="amount">{{ t['expense.amount'] }}</label>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            {% set mth = v('method', 'cash') %}
+            <div class="choice" role="radiogroup" aria-label="{{ t['expense.payment_method'] }}">
+                {% for m in ('cash', 'mobile_money') %}
+                <label class="choice__opt"><input type="radio" name="method" value="{{ m }}" {% if m == mth %}checked{% endif %}><span>{{ t['pay.' + m] }}</span></label>
+                {% endfor %}
+            </div>
+            <label>{{ t['expense.payment_method'] }}</label>
+        </div>
+        <div class="field">
+            <input type="month" id="advance_month" name="advance_month" required value="{{ v('advance_month', this_month) }}">
+            <label for="advance_month">{{ t['advance.month'] }}</label>
+        </div>
+    </div>
+    <div class="field">
+        <input type="text" id="reference" name="reference" placeholder=" " value="{{ v('reference') }}">
+        <label for="reference">{{ t['bank.reference'] }}</label>
+    </div>
+    <div class="field">
+        <textarea id="note" name="note" placeholder=" " rows="2">{{ v('note') }}</textarea>
+        <label for="note">{{ t['entry.note'] }}</label>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('expenses.index', tab='mouvements') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

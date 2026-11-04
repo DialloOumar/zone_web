@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ t['advance.new'] }}{% endblock %}
+{% block page_title %}{{ t['nav.expenses'] }}{% endblock %}
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_advance_form.html" %}
+</section>
+{% endblock %}
