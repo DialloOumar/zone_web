@@ -76,6 +76,7 @@
         <input type="text" id="id_number" name="id_number" placeholder=" " value="{{ v('id_number') }}">
         <label for="id_number">{{ t['staff.id_number'] }}</label>
     </div>
+    {% include "_person_family_fields.html" %}
 
 {% elif section == 'work' %}
     {% set sel_pos = (request.form.get('position_id')|int(0)) if posted else (row.position_id or 0) %}
@@ -132,6 +133,7 @@
             <label for="cnss_number">{{ t['staff.cnss'] }}</label>
         </div>
     </div>
+    {% include "_person_pay_fields.html" %}
 
 {% elif section == 'contact' %}
     <div class="form-row">

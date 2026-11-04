@@ -1,0 +1,15 @@
+{# The pay facts of an employee's work: his grade, and whether he is declared
+   to the CNSS and the tax office (only then a payslip). Needs v(name). #}
+{% set decl = (request.form.get('declared') == '1') if request.method == 'POST' else (row is not none and row.declared) %}
+<div class="form-row">
+    <div class="field">
+        <input type="text" id="category" name="category" placeholder=" " value="{{ v('category') }}">
+        <label for="category">{{ t['staff.category'] }}</label>
+    </div>
+    <div class="field">
+        <label class="checkbox-item" style="margin-top:10px;">
+            <input type="checkbox" name="declared" value="1" {% if decl %}checked{% endif %}>
+            <span>{{ t['staff.declared'] }}</span>
+        </label>
+    </div>
+</div>

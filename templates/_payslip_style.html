@@ -1,0 +1,32 @@
+{# The payslip's look, the same on screen and on paper. #}
+<style>
+    .slip { font-family: Roboto, Arial, Helvetica, sans-serif; color: #1b1b1f; font-size: 12px; line-height: 1.4; background: #fff; }
+    .slip .r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .slip__muted { color: #666; font-size: 11px; }
+    .slip__pre { white-space: pre-line; }
+    .slip__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;
+                 border-bottom: 2px solid #1a4fa0; padding-bottom: 10px; }
+    .slip__brand img { height: 46px; display: block; margin-bottom: 6px; }
+    .slip__brand b { font-size: 15px; color: #1a4fa0; display: block; }
+    .slip__title { text-align: right; }
+    .slip__title h2 { margin: 0 0 2px; font-size: 19px; letter-spacing: .06em; }
+    .slip__boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+    .slip__box { border: 1px solid #d5d8e0; border-radius: 6px; padding: 8px 10px; }
+    .slip__box h4 { margin: 0 0 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #555; }
+    .slip__box dl { display: grid; grid-template-columns: 130px 1fr; row-gap: 2px; margin: 0; }
+    .slip__box dt { color: #666; }
+    .slip__box dd { margin: 0; }
+    .slip__lines { width: 100%; border-collapse: collapse; }
+    .slip__lines th, .slip__lines td { padding: 5px 7px; border-bottom: 1px solid #e3e5ea; }
+    .slip__lines th { background: #f1f3f8; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #444; text-align: left; }
+    .slip__lines th.r { text-align: right; }
+    .slip__sub td { font-weight: 600; background: #fafbfd; }
+    .slip__group td { font-weight: 700; color: #1a4fa0; border-bottom: none; padding-top: 10px; }
+    .slip__net { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding: 11px 14px;
+                 background: #1a4fa0; color: #fff; border-radius: 6px; font-size: 14px; }
+    .slip__net b { font-size: 19px; }
+    .slip__signs { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 34px; }
+    .slip__signs div { border-top: 1px solid #999; padding-top: 6px; text-align: center; color: #555; }
+    .slip__foot { margin: 14px 0 0; font-size: 10px; color: #888; }
+    .slip__net, .slip__lines th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+</style>

@@ -37,7 +37,7 @@
 
 <section class="card">
     <nav class="tabs" role="tablist">
-        {% set icons = {'file': 'badge', 'contracts': 'request_quote', 'salary': 'payments', 'documents': 'description'} %}
+        {% set icons = {'file': 'badge', 'contracts': 'request_quote', 'salary': 'payments', 'payslip': 'receipt_long', 'documents': 'description'} %}
         {% for key in tabs %}
         <a href="{{ url_for('staff.profile', pid=p.id, tab=key if key != 'file' else None) }}" role="tab"
            aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
@@ -59,6 +59,8 @@
                 {{ fact(t['staff.birth_place'], p.birth_place) }}
                 {{ fact(t['staff.nationality'], p.nationality) }}
                 {{ fact(t['staff.id_number'], p.id_number) }}
+                {{ fact(t['staff.marital'], t['staff.marital.' + p.marital_status] if p.marital_status else none) }}
+                {{ fact(t['staff.children'], p.children|string if p.children is not none else none) }}
             </dl>
         </div>
         <div class="file-section">
@@ -70,6 +72,8 @@
                 {{ fact(t['staff.hired_on'], p.hired_on|dmy if p.hired_on else none) }}
                 {{ fact(t['staff.matricule'], p.matricule) }}
                 {{ fact(t['staff.cnss'], p.cnss_number) }}
+                {{ fact(t['staff.category'], p.category) }}
+                {{ fact(t['staff.declared_short'], t['staff.declared.yes'] if p.declared else t['staff.declared.no']) }}
             </dl>
         </div>
         {% endif %}
@@ -225,9 +229,10 @@
         <dl class="detail-grid">
             {{ fact(t['salary.amount'], ((cur.amount | num) ~ ' ' ~ currency) if cur else none) }}
             {{ fact(t['salary.since'], cur.effective_on|dmy if cur else none) }}
+            {% if cur and cur.allowances %}{{ fact(t['salary.gross'], (cur.gross | num) ~ ' ' ~ currency) }}{% endif %}
             {% if next_rows %}
             {% set nx = next_rows[-1].line %}
-            {{ fact(t['salary.next'], (nx.amount | num) ~ ' ' ~ currency) }}
+            {{ fact(t['salary.next'], (nx.gross | num) ~ ' ' ~ currency) }}
             {{ fact(t['salary.next_on'], nx.effective_on|dmy) }}
             {% endif %}
         </dl>
@@ -246,6 +251,8 @@
             <thead><tr>
                 <th>{{ t['salary.effective_on'] }}</th>
                 <th style="text-align:right;">{{ t['salary.amount'] }}</th>
+                {% for a in salary_cols %}<th style="text-align:right;">{{ a.name }}</th>{% endfor %}
+                {% if salary_cols %}<th style="text-align:right;">{{ t['salary.gross'] }}</th>{% endif %}
                 <th style="text-align:right;">{{ t['salary.change'] }}</th>
                 <th style="text-align:right;">%</th>
                 <th>{{ t['salary.reason'] }}</th>
@@ -258,7 +265,9 @@
                 {% set s = r.line %}
                 <tr>
                     <td style="white-space:nowrap;">{{ s.effective_on|dmy }}</td>
-                    <td style="text-align:right; white-space:nowrap;"><strong>{{ s.amount | num }} {{ currency }}</strong></td>
+                    <td style="text-align:right; white-space:nowrap;">{% if salary_cols %}{{ s.amount | num }}{% else %}<strong>{{ s.amount | num }} {{ currency }}</strong>{% endif %}</td>
+                    {% for a in salary_cols %}<td style="text-align:right; white-space:nowrap;">{% set av = s.allowance(a.id) %}{% if av %}{{ av | num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endfor %}
+                    {% if salary_cols %}<td style="text-align:right; white-space:nowrap;"><strong>{{ s.gross | num }} {{ currency }}</strong></td>{% endif %}
                     <td style="text-align:right; white-space:nowrap;">{% if r.change is not none %}{{ '+' if r.change > 0 else '' }}{{ r.change | num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                     <td style="text-align:right; white-space:nowrap;">{% if r.pct is not none %}{{ '+' if r.pct > 0 else '' }}{{ r.pct|qty }} %{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                     <td>{{ t['salary.reason.' + s.reason] }}</td>
@@ -288,6 +297,29 @@
     <div class="empty-state empty-state--soft">
         <span class="material-symbols-outlined">payments</span>
         <p>{{ t['salary.none'] }}</p>
+    </div>
+    {% endif %}
+
+    {% elif tab == 'payslip' %}
+    {# The payslip of a month, worked out from the salary line and the pay
+       settings in force then. A preview until the month's pay is closed. #}
+    {% from "_filters.html" import nav_select with context %}
+    <div class="tab-bar">
+        <div class="tab-bar__filters">{{ nav_select('slip_month', t['payslip.month'], month_options) }}</div>
+        {% if slip %}
+        <div class="tab-bar__actions">
+            <a href="{{ url_for('staff.payslip_print', pid=p.id, year=slip.year, month=slip.month) }}" target="_blank" rel="noopener" class="btn btn--sm btn--primary">
+                <span class="material-symbols-outlined">print</span> {{ t['payslip.print'] }}</a>
+        </div>
+        {% endif %}
+    </div>
+    {% if slip %}
+    {% include "_payslip_style.html" %}
+    <div class="slip-frame">{% include "_payslip_sheet.html" %}</div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">receipt_long</span>
+        <p>{{ slip_error }}</p>
     </div>
     {% endif %}
 

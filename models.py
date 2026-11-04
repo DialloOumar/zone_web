@@ -491,6 +491,12 @@ class Staff(db.Model):
     site_id           = db.Column(db.Integer, db.ForeignKey("sites.id"), nullable=True)
     department_id     = db.Column(db.Integer, db.ForeignKey("departments.id"), nullable=True)
     cnss_number       = db.Column(db.String(40))
+    # Declared to the CNSS and the tax office: only they get a payslip with
+    # CNSS and RTS worked out; the others are paid on the salary list alone.
+    declared          = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    category          = db.Column(db.String(20))     # the pay grade on the payslip
+    marital_status    = db.Column(db.String(12))     # celibataire | marie | divorce | veuf
+    children          = db.Column(db.Integer)
     # External drivers: who they work for.
     company           = db.Column(db.String(120))
     # Driving
@@ -665,6 +671,17 @@ class StaffSalary(db.Model):
     created_at   = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     person = db.relationship("Staff", back_populates="salaries")
+    allowances = db.relationship("StaffSalaryAllowance", back_populates="salary",
+                                 cascade="all, delete-orphan")
+
+    def allowance(self, allowance_id):
+        """This line's amount for one allowance, 0 when it has none."""
+        return next((a.amount for a in self.allowances if a.allowance_id == allowance_id), 0)
+
+    @property
+    def gross(self):
+        """Base salary plus every allowance on the line."""
+        return self.amount + sum(a.amount for a in self.allowances)
 
     def state(self, today=None):
         """current | upcoming | past."""
@@ -673,6 +690,84 @@ class StaffSalary(db.Model):
             return "upcoming"
         cur = self.person.salary_on(today)
         return "current" if cur is not None and cur.id == self.id else "past"
+
+
+class PayAllowance(db.Model):
+    """A kind of allowance paid on top of the base salary: transport, housing,
+    cost of living... Kept by the super admin, with what the law does with it:
+    whether it is taxed (RTS) and whether the CNSS is due on it."""
+    __tablename__ = "pay_allowances"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(80), nullable=False, unique=True)
+    taxable    = db.Column(db.Boolean, nullable=False, default=False)
+    cnss       = db.Column(db.Boolean, nullable=False, default=True)
+    is_active  = db.Column(db.Boolean, nullable=False, default=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+
+class StaffSalaryAllowance(db.Model):
+    """One allowance on a salary line: dated with it, so a change of
+    allowance is a new line too and the months before it stay as paid."""
+    __tablename__ = "staff_salary_allowances"
+    __table_args__ = (
+        db.UniqueConstraint("salary_id", "allowance_id", name="uq_salary_allowance"),
+    )
+
+    id           = db.Column(db.Integer, primary_key=True)
+    salary_id    = db.Column(db.Integer, db.ForeignKey("staff_salaries.id"), nullable=False, index=True)
+    allowance_id = db.Column(db.Integer, db.ForeignKey("pay_allowances.id"), nullable=False)
+    amount       = db.Column(db.Integer, nullable=False)        # GNF a month
+
+    salary    = db.relationship("StaffSalary", back_populates="allowances")
+    allowance = db.relationship("PayAllowance")
+
+
+class PaySetting(db.Model):
+    """The law's figures for pay, from a day on: CNSS rates, ceiling and
+    floor, the RTS scale, the employer's taxes.
+
+    A change of law is a new version dated when it applies, never an edit of
+    the old one, so a month is always worked out with the figures of its own
+    time (PaySetting.on).
+    """
+    __tablename__ = "pay_settings"
+
+    id                  = db.Column(db.Integer, primary_key=True)
+    effective_on        = db.Column(db.String(10), nullable=False, unique=True)   # YYYY-MM-DD
+    # Rates in percent: 5 means 5 %.
+    cnss_employee_rate  = db.Column(db.Numeric(6, 3), nullable=False)
+    cnss_employer_rate  = db.Column(db.Numeric(6, 3), nullable=False)
+    cnss_ceiling        = db.Column(db.Integer)          # GNF a month, none = no ceiling
+    cnss_floor          = db.Column(db.Integer)          # GNF a month, none = no floor
+    vf_rate             = db.Column(db.Numeric(6, 3), nullable=False, default=0)   # versement forfaitaire
+    ta_rate             = db.Column(db.Numeric(6, 3), nullable=False, default=0)   # taxe d'apprentissage
+    note                = db.Column(db.String(255))
+    created_by          = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at          = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    brackets = db.relationship("PayRtsBracket", back_populates="setting",
+                               order_by="PayRtsBracket.lower",
+                               cascade="all, delete-orphan")
+
+    @classmethod
+    def on(cls, day):
+        """The version in force on a day (YYYY-MM-DD), or None."""
+        return (cls.query.filter(cls.effective_on <= day)
+                .order_by(cls.effective_on.desc()).first())
+
+
+class PayRtsBracket(db.Model):
+    """One step of the RTS scale: from this monthly amount up to the next
+    step's, this rate."""
+    __tablename__ = "pay_rts_brackets"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    setting_id = db.Column(db.Integer, db.ForeignKey("pay_settings.id"), nullable=False, index=True)
+    lower      = db.Column(db.Integer, nullable=False)      # GNF a month
+    rate       = db.Column(db.Numeric(6, 3), nullable=False)  # percent
+
+    setting = db.relationship("PaySetting", back_populates="brackets")
 
 
 class StaffDocument(db.Model):

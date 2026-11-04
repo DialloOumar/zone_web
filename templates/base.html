@@ -210,6 +210,9 @@
             <li><a href="{{ url_for('expenses.cash_lists') }}" class="sidebar-sub {% if (request.endpoint or '').startswith('expenses.cash_list') %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">home</span> {{ t['list.sites'] }}
             </a></li>
+            <li><a href="{{ url_for('payroll.settings') }}" class="sidebar-sub {% if request.blueprint == 'payroll' %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">tune</span> {{ t['payset.title'] }}
+            </a></li>
             <li><a href="{{ url_for('stores.index') }}" class="sidebar-sub {% if request.blueprint == 'stores' or request.endpoint in ('stock.units', 'stock.conversions') %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">store</span> {{ t['admin.stock_setup'] }}
             </a></li>

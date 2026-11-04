@@ -112,6 +112,7 @@
                     <label for="id_number">{{ t['staff.id_number'] }}</label>
                 </div>
             </div>
+            <div data-kind="employee" {{ hide_emp }}>{% include "_person_family_fields.html" %}</div>
             {% endcall %}
 
             {% call section('contact', 'home', t['staff.sec.contact']) %}
@@ -191,6 +192,7 @@
                     <label for="cnss_number">{{ t['staff.cnss'] }}</label>
                 </div>
             </div>
+            {% include "_person_pay_fields.html" %}
             {% endcall %}
 
             {% call section('driving', 'directions_bus', t['staff.sec.driving'], 'data-driver-part ' ~ ('' if driving else 'hidden')) %}

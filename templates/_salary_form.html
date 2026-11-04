@@ -21,6 +21,20 @@
             <label for="amount">{{ t['salary.amount'] }} ({{ currency }})</label>
         </div>
     </div>
+    {# The allowances paid with it, dated with the base salary. #}
+    {% if allowances %}
+    <div class="form-row form-row--3">
+        {% for a in allowances %}
+        {% set fname = 'allow_' ~ a.id %}
+        {% set av = request.form.get(fname, '') if posted else (allow_values.get(a.id) or '') %}
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="{{ fname }}" name="{{ fname }}" placeholder=" "
+                   value="{{ (av|int(0) | num) if av and not posted else av }}">
+            <label for="{{ fname }}">{{ a.name }} ({{ currency }})</label>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
     <div class="field field--select">
         {% set sel = v('reason') %}
         <select id="reason" name="reason" required>

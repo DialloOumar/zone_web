@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{{ t['payset.title'] }}{% endblock %}
+{% block page_title %}{{ t['payset.title'] }}{% endblock %}
+
+{# What the law says about pay, dated, and the kinds of allowance. A change
+   of law is a new version from the day it applies; the older ones stay, so
+   each month is worked out with the figures of its own time. #}
+{% block content %}
+<section class="card">
+    <nav class="tabs" role="tablist">
+        {% for key, icon in (('versions', 'history'), ('allowances', 'payments')) %}
+        <a href="{{ url_for('payroll.settings', tab=key if key != 'versions' else None) }}" role="tab"
+           aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
+            <span class="material-symbols-outlined">{{ icon }}</span> {{ t['payset.tab.' + key] }}</a>
+        {% endfor %}
+    </nav>
+
+    {% if tab == 'versions' %}
+    <div class="tab-bar">
+        <div class="tab-bar__actions">
+            <a href="{{ url_for('payroll.version_new') }}" class="btn btn--sm btn--primary">
+                <span class="material-symbols-outlined">add</span> {{ t['payset.new'] }}</a>
+        </div>
+    </div>
+    {% if versions %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['payset.effective_on'] }}</th>
+            <th>{{ t['contract.state'] }}</th>
+            <th style="text-align:right;">{{ t['payset.cnss_employee'] }}</th>
+            <th style="text-align:right;">{{ t['payset.cnss_employer'] }}</th>
+            <th style="text-align:right;">{{ t['payset.cnss_ceiling'] }}</th>
+            <th style="text-align:right;">{{ t['payset.cnss_floor'] }}</th>
+            <th style="text-align:right;">{{ t['payset.vf'] }}</th>
+            <th style="text-align:right;">{{ t['payset.ta'] }}</th>
+            <th>{{ t['payset.rts'] }}</th>
+            <th></th>
+        </tr></thead>
+        <tbody>
+            {% for r in versions %}
+            <tr>
+                <td style="white-space:nowrap;"><a href="{{ url_for('payroll.version_edit', vid=r.id) }}"><strong>{{ r.effective_on|dmy }}</strong></a></td>
+                <td style="white-space:nowrap;">{% if current and r.id == current.id %}<span class="badge badge--active">{{ t['salary.state.current'] }}</span>
+                    {% elif r.effective_on > today_iso %}<span class="badge badge--info">{{ t['salary.state.upcoming'] }}</span>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right;">{{ r.cnss_employee_rate|qty }} %</td>
+                <td style="text-align:right;">{{ r.cnss_employer_rate|qty }} %</td>
+                <td style="text-align:right; white-space:nowrap;">{% if r.cnss_ceiling %}{{ r.cnss_ceiling|num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if r.cnss_floor %}{{ r.cnss_floor|num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right;">{{ r.vf_rate|qty }} %</td>
+                <td style="text-align:right;">{{ r.ta_rate|qty }} %</td>
+                <td>
+                    {% set steps = [] %}
+                    {% for b in r.brackets %}{% set _ = steps.append((b.lower|num) ~ ' → ' ~ (b.rate|qty) ~ ' %') %}{% endfor %}
+                    <span class="chip chip--more" title="{{ steps|join(' · ') }}">{{ t['payset.steps'] % (r.brackets|length) }}</span>
+                </td>
+                <td class="row-actions">
+                    <a href="{{ url_for('payroll.version_edit', vid=r.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    <form method="post" action="{{ url_for('payroll.version_delete', vid=r.id) }}"
+                          data-confirm="{{ t['payset.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">tune</span>
+        <p>{{ t['payset.none'] }}</p>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="tab-bar">
+        <div class="tab-bar__actions">
+            <a href="{{ url_for('payroll.allowance_new') }}" class="btn btn--sm btn--primary"
+               data-modal-url="{{ url_for('payroll.allowance_new') }}" data-modal-title="{{ t['payset.allowance_new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['payset.allowance_new'] }}</a>
+        </div>
+    </div>
+    {% if allowances %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['payset.allowance'] }}</th>
+            <th>{{ t['payset.taxable'] }}</th>
+            <th>{{ t['payset.cnss_due'] }}</th>
+            <th>{{ t['contract.state'] }}</th>
+            <th></th>
+        </tr></thead>
+        <tbody>
+            {% for a in allowances %}
+            <tr>
+                <td><strong {% if not a.is_active %}class="muted"{% endif %}>{{ a.name }}</strong></td>
+                <td>{{ t['staff.declared.yes'] if a.taxable else t['staff.declared.no'] }}</td>
+                <td>{{ t['staff.declared.yes'] if a.cnss else t['staff.declared.no'] }}</td>
+                <td>{% if a.is_active %}<span class="badge badge--active">{{ t['person.active'] }}</span>{% else %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}</td>
+                <td class="row-actions">
+                    <a href="{{ url_for('payroll.allowance_edit', aid=a.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('payroll.allowance_edit', aid=a.id) }}" data-modal-title="{{ a.name }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">payments</span>
+        <p>{{ t['payset.allowance_none'] }}</p>
+    </div>
+    {% endif %}
+    {% endif %}
+</section>
+{% endblock %}

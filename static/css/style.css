@@ -2570,6 +2570,14 @@ label.merge-col:has(input:checked) { border-color: var(--md-primary); background
 /* A part of the file with its own edit button beside its title. */
 .file-section__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
 .file-section__head h3 { margin: 0; }
+/* The pay settings form: a small title per group, the RTS steps as a table of inputs. */
+.form-subtitle { margin: 18px 0 8px; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em;
+                 text-transform: uppercase; color: var(--md-on-surface-variant); }
+.rts-steps td { padding: 4px 6px; }
+.rts-steps input { width: 100%; padding: 8px 10px; border: 1px solid var(--md-outline-variant); border-radius: var(--shape-sm);
+                   background: var(--md-surface); color: var(--md-on-surface); font: inherit; text-align: right; }
+/* A payslip shown inside the person's file, as the sheet it prints as. */
+.slip-frame { max-width: 21cm; margin: 4px auto 0; padding: 22px 24px; border: 1px solid var(--md-outline-variant); border-radius: 10px; background: #fff; overflow-x: auto; }
 .person-stats { margin-bottom: 16px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 @media (max-width: 1100px) { .person-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .person-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

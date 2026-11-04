@@ -27,10 +27,11 @@ from flask import (Blueprint, abort, flash, redirect, render_template,
 from flask_login import current_user, login_required
 
 import s3_storage
+from payroll import active_allowances, payslip
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, parse_amount, require_any_perm, require_perm)
 from models import (DailyEntry, Department, DriverNameIgnored, Expense, Fleet, FuelMovement,
-                    StaffContract, StaffSalary,
+                    StaffContract, StaffSalary, StaffSalaryAllowance,
                     MaintenanceRecord, Operator, PersonMatchDismissed, Site, Staff,
                     StaffDocument, StaffPosition, User, Vehicle, db)
 
@@ -277,13 +278,20 @@ def _name_taken(last_name, first_name, row):
     return clash.first() is not None
 
 
+MARITAL = ("celibataire", "marie", "divorce", "veuf")
+
+
 def _identity_fields():
     sex = request.form.get("sex") or None
+    marital = request.form.get("marital_status") or None
+    children = request.form.get("children", type=int)
     return dict(sex=sex if sex in ("M", "F") else None,
                 birth_date=_txt("birth_date", 10),
                 birth_place=_txt("birth_place", 80),
                 nationality=_txt("nationality", 60),
-                id_number=_txt("id_number", 60))
+                id_number=_txt("id_number", 60),
+                marital_status=marital if marital in MARITAL else None,
+                children=children if children is not None and 0 <= children <= 30 else None)
 
 
 def _contact_fields(employee):
@@ -311,7 +319,8 @@ def _work_fields(row):
         department_id = None
     return dict(position_id=position_id, department_id=department_id, site_id=site_id,
                 matricule=_txt("matricule", 40), hired_on=_txt("hired_on", 10),
-                cnss_number=_txt("cnss_number", 40)), None
+                cnss_number=_txt("cnss_number", 40), category=_txt("category", 20),
+                declared=request.form.get("declared") == "1"), None
 
 
 def _driving_fields():
@@ -672,15 +681,78 @@ def _salary_history(person):
     lines = list(reversed(person.salaries))
     rows, prev = [], None
     for s in lines:
-        change = s.amount - prev.amount if prev is not None else None
-        pct = round(change * 100.0 / prev.amount, 1) if change is not None and prev.amount else None
+        change = s.gross - prev.gross if prev is not None else None
+        pct = round(change * 100.0 / prev.gross, 1) if change is not None and prev.gross else None
         rows.append({"line": s, "change": change, "pct": pct, "state": s.state()})
         prev = s
     rows.reverse()
-    points = [{"x": s.effective_on, "y": s.amount} for s in lines]
+    points = [{"x": s.effective_on, "y": s.gross} for s in lines]
     if len(points) >= 2:
-        points.append({"x": max(today, lines[-1].effective_on), "y": lines[-1].amount})
+        points.append({"x": max(today, lines[-1].effective_on), "y": lines[-1].gross})
     return rows, {"points": points if len(lines) >= 2 else []}
+
+
+def _month_label(year, month):
+    from app import MONTH_NAMES, current_lang
+    names = MONTH_NAMES.get(current_lang(), MONTH_NAMES["en"])
+    return "%s %d" % (names[month - 1].capitalize(), year)
+
+
+def _payslip_for_tab(person):
+    """The payslip of the month asked (?mois=YYYY-MM, this month by default),
+    the error when there is none, and the months to pick from: back to the
+    first salary line, at most two years."""
+    today = date.today()
+    raw = request.args.get("mois") or ""
+    try:
+        year, month = int(raw[:4]), int(raw[5:7])
+        if not 1 <= month <= 12:
+            raise ValueError
+    except ValueError:
+        year, month = today.year, today.month
+    first = person.salaries[-1].effective_on[:7] if person.salaries else today.strftime("%Y-%m")
+    options, y, m = [], today.year, today.month
+    for _ in range(24):
+        key = "%04d-%02d" % (y, m)
+        if key < first:
+            break
+        options.append((url_for("staff.profile", pid=person.id, tab="payslip", mois=key),
+                        _month_label(y, m), (y, m) == (year, month)))
+        y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+    slip, err = payslip(person, year, month)
+    if slip is not None:
+        slip["label"] = _month_label(year, month)
+    return slip, (get_t()[err] if err else None), options
+
+
+@staff_bp.route("/personnel/<int:pid>/bulletin/<int:year>-<int:month>")
+@login_required
+@require_perm("staff.view")
+def payslip_print(pid, year, month):
+    """The payslip alone on its page, to print or save as PDF."""
+    person = db.session.get(Staff, pid)
+    if not person or not 1 <= month <= 12:
+        abort(404)
+    slip, err = payslip(person, year, month)
+    if slip is None:
+        abort(404)
+    slip["label"] = _month_label(year, month)
+    from blueprints.invoicing import invoice_settings
+    return render_template("payslip_print.html", slip=slip, co=invoice_settings())
+
+
+def _company():
+    from blueprints.invoicing import invoice_settings
+    return invoice_settings()
+
+
+def _salary_columns(person):
+    """The allowances that appear on any of the person's lines, one column each."""
+    seen = {}
+    for s in person.salaries:
+        for a in s.allowances:
+            seen[a.allowance_id] = a.allowance
+    return sorted(seen.values(), key=lambda a: (a.sort_order, a.name))
 
 
 @staff_bp.route("/personnel/<int:pid>")
@@ -694,15 +766,21 @@ def profile(pid):
         abort(404)
     # The cash box's costs for a person stay in the cash box: the RH side does
     # not show them for now.
-    tabs = (["file", "contracts", "salary", "documents"] if row.is_employee
-            else ["file", "documents"])
+    tabs = (["file", "contracts", "salary"] + (["payslip"] if row.declared else []) + ["documents"]
+            if row.is_employee else ["file", "documents"])
     tab = request.args.get("tab") if request.args.get("tab") in tabs else "file"
-    salary_rows = salary_chart = None
+    salary_rows = salary_chart = salary_cols = None
     if tab == "salary":
         salary_rows, salary_chart = _salary_history(row)
+        salary_cols = _salary_columns(row)
+    slip = slip_error = month_options = None
+    if tab == "payslip":
+        slip, slip_error, month_options = _payslip_for_tab(row)
     return render_template(
         "staff_profile.html", p=row, tabs=tabs, tab=tab,
-        salary_rows=salary_rows, salary_chart=salary_chart,
+        salary_rows=salary_rows, salary_chart=salary_chart, salary_cols=salary_cols,
+        slip=slip, slip_error=slip_error, month_options=month_options,
+        co=_company() if tab == "payslip" else None,
         age=_years_since(row.birth_date), seniority=_years_since(row.hired_on),
         licence=licence_state(row))
 
@@ -1043,10 +1121,15 @@ def _salary_with_contract(person, contract, amount):
     before = person.salary_on(contract.start_date)
     if before is not None and before.amount == amount:
         return
-    db.session.add(StaffSalary(
+    line = StaffSalary(
         staff_id=person.id, effective_on=contract.start_date, amount=amount,
         reason="renouvellement" if person.salaries else "embauche",
-        contract_id=contract.id, created_by=current_user.id))
+        contract_id=contract.id, created_by=current_user.id)
+    # The allowances go on as they were: only the base salary was typed.
+    if before is not None:
+        for a in before.allowances:
+            line.allowances.append(StaffSalaryAllowance(allowance_id=a.allowance_id, amount=a.amount))
+    db.session.add(line)
 
 
 def _get_salary_or_404(sid):
@@ -1078,21 +1161,49 @@ def _salary_form(person, line):
                   if s.effective_on == day and (line is None or s.id != line.id)), None)
     if clash is not None:
         return t["salary.err.day_taken"] % _fmt(day)
+    # Each allowance in use: an amount, or nothing.
+    allowances = active_allowances()
+    amounts = {}
+    for a in allowances:
+        raw = (request.form.get("allow_%d" % a.id) or "").strip()
+        if not raw:
+            continue
+        value = parse_amount(raw)
+        if value is None or value < 0:
+            return t["salary.err.allowance"] % a.name
+        if value:
+            amounts[a.id] = value
     if line is None:
         line = StaffSalary(staff_id=person.id, created_by=current_user.id)
         db.session.add(line)
     line.effective_on, line.amount, line.reason = day, amount, reason
     line.note = (request.form.get("note") or "").strip()[:255] or None
+    # An allowance no longer in use is left as it was on the line.
+    have = {x.allowance_id: x for x in line.allowances}
+    for a in allowances:
+        if a.id in amounts:
+            if a.id in have:
+                have[a.id].amount = amounts[a.id]
+            else:
+                line.allowances.append(StaffSalaryAllowance(allowance_id=a.id, amount=amounts[a.id]))
+        elif a.id in have:
+            line.allowances.remove(have[a.id])
     return None
 
 
 def _render_salary_form(person, line, error=None):
     tpl = "_salary_form.html" if is_modal_request() else "salary_form.html"
     status = 422 if (error and is_modal_request()) else 200
+    # A new line starts from the last one: only what moves is changed.
+    last = person.salaries[0] if person.salaries else None
     preset = {"effective_on": _first_of_next_month(),
-              "reason": "augmentation" if person.salaries else "embauche"}
+              "reason": "augmentation" if person.salaries else "embauche",
+              "amount": last.amount if last is not None else None}
+    source = line if line is not None else last
+    allow_values = {a.allowance_id: a.amount for a in source.allowances} if source is not None else {}
     return render_template(tpl, p=person, s=line, error=error, preset=preset,
-                           reasons=StaffSalary.REASONS), status
+                           reasons=StaffSalary.REASONS, allowances=active_allowances(),
+                           allow_values=allow_values), status
 
 
 @staff_bp.route("/personnel/<int:pid>/salaire/nouveau", methods=["GET", "POST"])

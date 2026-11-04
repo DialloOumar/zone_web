@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}{{ t['payset.title'] }}{% endblock %}
+{% block page_title %}{{ t['payset.title'] }}{% endblock %}
+
+{# One version of the law's figures for pay, in force from its day. A new
+   one starts as a copy of the latest (source): only what changed is typed.
+   The RTS scale is one row per step: from this monthly amount, this rate. #}
+{% set posted = request.method == 'POST' %}
+{% macro v(name) -%}
+{%- if posted -%}{{ request.form.get(name, '') }}
+{%- elif row is not none and row[name] is not none -%}{{ row[name] }}
+{%- elif row is none and source is not none and name != 'effective_on' and name != 'note' and source[name] is not none -%}{{ source[name] }}
+{%- endif -%}
+{%- endmacro %}
+{% macro rate_v(name) -%}{% set x = v(name) %}{{ x|qty if x and not posted else x }}{%- endmacro %}
+{% macro money_v(name) -%}{% set x = v(name) %}{{ (x|int(0)|num) if x and not posted else x }}{%- endmacro %}
+
+{% block content %}
+<section class="card" style="max-width: 860px;">
+    <div class="card-header"><div><h2>{{ t['payset.edit'] if row else t['payset.new'] }}</h2></div></div>
+    {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+    <form method="post" class="entry-form"
+          action="{{ url_for('payroll.version_edit', vid=row.id) if row else url_for('payroll.version_new') }}">
+        <div class="form-row">
+            <div class="field">
+                <input type="date" id="effective_on" name="effective_on" required value="{{ v('effective_on') }}">
+                <label for="effective_on">{{ t['payset.effective_on'] }}</label>
+            </div>
+            <div class="field">
+                <input type="text" id="note" name="note" placeholder=" " value="{{ v('note') }}">
+                <label for="note">{{ t['entry.note'] }}</label>
+            </div>
+        </div>
+
+        <h3 class="form-subtitle">CNSS</h3>
+        <div class="form-row">
+            <div class="field">
+                <input type="text" inputmode="decimal" id="cnss_employee_rate" name="cnss_employee_rate" placeholder=" " required value="{{ rate_v('cnss_employee_rate') }}">
+                <label for="cnss_employee_rate">{{ t['payset.cnss_employee'] }} (%)</label>
+            </div>
+            <div class="field">
+                <input type="text" inputmode="decimal" id="cnss_employer_rate" name="cnss_employer_rate" placeholder=" " required value="{{ rate_v('cnss_employer_rate') }}">
+                <label for="cnss_employer_rate">{{ t['payset.cnss_employer'] }} (%)</label>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="field">
+                <input data-money type="text" inputmode="numeric" id="cnss_ceiling" name="cnss_ceiling" placeholder=" " value="{{ money_v('cnss_ceiling') }}">
+                <label for="cnss_ceiling">{{ t['payset.cnss_ceiling'] }} ({{ currency }})</label>
+            </div>
+            <div class="field">
+                <input data-money type="text" inputmode="numeric" id="cnss_floor" name="cnss_floor" placeholder=" " value="{{ money_v('cnss_floor') }}">
+                <label for="cnss_floor">{{ t['payset.cnss_floor'] }} ({{ currency }})</label>
+            </div>
+        </div>
+
+        <h3 class="form-subtitle">{{ t['payset.employer_taxes'] }}</h3>
+        <div class="form-row">
+            <div class="field">
+                <input type="text" inputmode="decimal" id="vf_rate" name="vf_rate" placeholder=" " value="{{ rate_v('vf_rate') }}">
+                <label for="vf_rate">{{ t['payset.vf'] }} (%)</label>
+            </div>
+            <div class="field">
+                <input type="text" inputmode="decimal" id="ta_rate" name="ta_rate" placeholder=" " value="{{ rate_v('ta_rate') }}">
+                <label for="ta_rate">{{ t['payset.ta'] }} (%)</label>
+            </div>
+        </div>
+
+        <h3 class="form-subtitle">{{ t['payset.rts'] }}</h3>
+        {% if posted %}
+        {% set lowers = request.form.getlist('rts_lower') %}
+        {% set rates = request.form.getlist('rts_rate') %}
+        {% else %}
+        {% set from_row = row if row is not none else source %}
+        {% set lowers = [] %}{% set rates = [] %}
+        {% if from_row is not none %}
+        {% for b in from_row.brackets %}{% set _ = lowers.append(b.lower|num) %}{% set _ = rates.append(b.rate|qty) %}{% endfor %}
+        {% endif %}
+        {% endif %}
+        <table class="data-table rts-steps">
+            <thead><tr><th>{{ t['payset.rts_from'] }} ({{ currency }})</th><th>{{ t['payset.rts_rate'] }} (%)</th><th></th></tr></thead>
+            <tbody data-rts-body>
+                {% for i in range([lowers|length, 1]|max) %}
+                <tr>
+                    <td><input data-money type="text" inputmode="numeric" name="rts_lower" value="{{ lowers[i] if i < lowers|length else '' }}" aria-label="{{ t['payset.rts_from'] }}"></td>
+                    <td><input type="text" inputmode="decimal" name="rts_rate" value="{{ rates[i] if i < rates|length else '' }}" aria-label="{{ t['payset.rts_rate'] }}"></td>
+                    <td class="row-actions"><button type="button" class="btn btn--sm btn--tonal btn--icon" data-rts-remove title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn--sm btn--outlined" data-rts-add style="margin-top:8px; width:auto; align-self:flex-start;">
+            <span class="material-symbols-outlined">add</span> {{ t['payset.rts_add'] }}</button>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+            <a href="{{ url_for('payroll.settings') }}" class="btn btn--outlined">{{ t['btn.cancel'] }}</a>
+        </div>
+    </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    // A step of the scale added or taken away; one row always stays.
+    var body = document.querySelector("[data-rts-body]");
+    if (!body) return;
+    document.querySelector("[data-rts-add]").addEventListener("click", function () {
+        var row = body.lastElementChild.cloneNode(true);
+        row.querySelectorAll("input").forEach(function (i) { i.value = ""; });
+        body.appendChild(row);
+        row.querySelector("input").focus();
+    });
+    body.addEventListener("click", function (e) {
+        var btn = e.target.closest("[data-rts-remove]");
+        if (!btn) return;
+        var row = btn.closest("tr");
+        if (body.children.length > 1) row.remove();
+        else row.querySelectorAll("input").forEach(function (i) { i.value = ""; });
+    });
+})();
+</script>
+{% endblock %}

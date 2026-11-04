@@ -1,0 +1,17 @@
+{# Family situation, printed on the payslip. Needs a v(name) macro in the including form. #}
+<div class="form-row">
+    <div class="field field--select">
+        {% set ms = v('marital_status') %}
+        <select id="marital_status" name="marital_status">
+            <option value=""></option>
+            {% for m in ('celibataire', 'marie', 'divorce', 'veuf') %}
+            <option value="{{ m }}" {% if m == ms %}selected{% endif %}>{{ t['staff.marital.' + m] }}</option>
+            {% endfor %}
+        </select>
+        <label for="marital_status">{{ t['staff.marital'] }}</label>
+    </div>
+    <div class="field">
+        <input type="number" id="children" name="children" min="0" max="30" placeholder=" " value="{{ v('children') }}">
+        <label for="children">{{ t['staff.children'] }}</label>
+    </div>
+</div>
