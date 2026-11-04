@@ -511,6 +511,9 @@ class Staff(db.Model):
     contracts = db.relationship("StaffContract", back_populates="person",
                                 order_by="StaffContract.start_date.desc()",
                                 cascade="all, delete-orphan")
+    salaries  = db.relationship("StaffSalary", back_populates="person",
+                                order_by="StaffSalary.effective_on.desc()",
+                                cascade="all, delete-orphan")
     login     = db.relationship("User", back_populates="person", uselist=False,
                                 foreign_keys="User.staff_id")
 
@@ -528,6 +531,22 @@ class Staff(db.Model):
                 return c
         upcoming = [c for c, st in states if st == "upcoming"]
         return upcoming[-1] if upcoming else None
+
+    def salary_on(self, day=None):
+        """The salary line in force on a day (today by default): the last one
+        dated on or before it. A month is always paid on the salary of its own
+        time, so a raise never rewrites the months before it."""
+        day = day or date.today()
+        if not isinstance(day, str):
+            day = day.isoformat()
+        for s in self.salaries:          # newest first
+            if s.effective_on <= day:
+                return s
+        return None
+
+    @property
+    def current_salary(self):
+        return self.salary_on()
 
     @property
     def initials(self):
@@ -557,12 +576,13 @@ class Staff(db.Model):
 
 
 class StaffContract(db.Model):
-    """An employee's contract: its kind, its dates and the base salary.
+    """An employee's contract: its kind and its dates.
 
-    One is in force at a time. A new one (a renewal, a raise) closes the one
-    before it the day before it starts, so the list is the history of the
-    person's terms. The position stays on the person's file, not here: two
-    copies of it would drift. Bonuses come with the pay, not here.
+    One is in force at a time. A new one (a renewal) closes the one before it
+    the day before it starts, so the list is the history of the person's
+    contracts. Neither the position nor the salary is kept here: the position
+    stays on the person's file and the salary in its own dated history
+    (StaffSalary), so each is written in one place only.
     """
     __tablename__ = "staff_contracts"
 
@@ -577,7 +597,6 @@ class StaffContract(db.Model):
     start_date   = db.Column(db.String(10), nullable=False)    # YYYY-MM-DD
     end_date     = db.Column(db.String(10))                    # planned end (CDD, stage)
     trial_end    = db.Column(db.String(10))                    # end of the trial period
-    base_salary  = db.Column(db.Integer)                       # GNF a month
     # Set when the contract stopped: on its planned end, early, or replaced.
     ended_on     = db.Column(db.String(10))
     end_reason   = db.Column(db.String(20))
@@ -616,6 +635,44 @@ class StaffContract(db.Model):
             return None
         end = datetime.strptime(self.trial_end, "%Y-%m-%d").date()
         return (end - (today or date.today())).days
+
+
+class StaffSalary(db.Model):
+    """From this day on, this person's base salary is this much.
+
+    The lines are the salary's progression; the salary of any day is the last
+    line dated on or before it (Staff.salary_on). A raise is a new line dated
+    when it applies -- never an edit of the old figure -- so the months behind
+    it keep the salary they were paid on.
+    """
+    __tablename__ = "staff_salaries"
+    __table_args__ = (
+        db.UniqueConstraint("staff_id", "effective_on", name="uq_staff_salary_day"),
+    )
+
+    REASONS = ("embauche", "augmentation", "promotion", "renouvellement", "correction", "autre")
+
+    id           = db.Column(db.Integer, primary_key=True)
+    staff_id     = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=False, index=True)
+    effective_on = db.Column(db.String(10), nullable=False)    # YYYY-MM-DD
+    amount       = db.Column(db.Integer, nullable=False)       # GNF a month
+    reason       = db.Column(db.String(20), nullable=False)
+    # The contract it was given with, when typed on a new contract's form: a
+    # contract deleted as a mistake takes its salary line with it.
+    contract_id  = db.Column(db.Integer, db.ForeignKey("staff_contracts.id"), nullable=True)
+    note         = db.Column(db.String(255))
+    created_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at   = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    person = db.relationship("Staff", back_populates="salaries")
+
+    def state(self, today=None):
+        """current | upcoming | past."""
+        today = (today or date.today()).isoformat()
+        if self.effective_on > today:
+            return "upcoming"
+        cur = self.person.salary_on(today)
+        return "current" if cur is not None and cur.id == self.id else "past"
 
 
 class StaffDocument(db.Model):

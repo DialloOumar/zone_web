@@ -30,7 +30,7 @@ import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, parse_amount, require_any_perm, require_perm)
 from models import (DailyEntry, Department, DriverNameIgnored, Expense, Fleet, FuelMovement,
-                    StaffContract,
+                    StaffContract, StaffSalary,
                     MaintenanceRecord, Operator, PersonMatchDismissed, Site, Staff,
                     StaffDocument, StaffPosition, User, Vehicle, db)
 
@@ -499,6 +499,25 @@ def _years_since(ymd, today=None):
     return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
+def _salary_history(person):
+    """The salary tab: each line with its change from the one before (newest
+    first), and the points of the progression chart (oldest first, carried on
+    to today so the last step shows)."""
+    today = date.today().isoformat()
+    lines = list(reversed(person.salaries))
+    rows, prev = [], None
+    for s in lines:
+        change = s.amount - prev.amount if prev is not None else None
+        pct = round(change * 100.0 / prev.amount, 1) if change is not None and prev.amount else None
+        rows.append({"line": s, "change": change, "pct": pct, "state": s.state()})
+        prev = s
+    rows.reverse()
+    points = [{"x": s.effective_on, "y": s.amount} for s in lines]
+    if len(points) >= 2:
+        points.append({"x": max(today, lines[-1].effective_on), "y": lines[-1].amount})
+    return rows, {"points": points if len(lines) >= 2 else []}
+
+
 @staff_bp.route("/personnel/<int:pid>")
 @login_required
 @require_perm("staff.view")
@@ -510,10 +529,15 @@ def profile(pid):
         abort(404)
     # The cash box's costs for a person stay in the cash box: the RH side does
     # not show them for now.
-    tabs = ["file", "contracts", "documents"] if row.is_employee else ["file", "documents"]
+    tabs = (["file", "contracts", "salary", "documents"] if row.is_employee
+            else ["file", "documents"])
     tab = request.args.get("tab") if request.args.get("tab") in tabs else "file"
+    salary_rows = salary_chart = None
+    if tab == "salary":
+        salary_rows, salary_chart = _salary_history(row)
     return render_template(
         "staff_profile.html", p=row, tabs=tabs, tab=tab,
+        salary_rows=salary_rows, salary_chart=salary_chart,
         age=_years_since(row.birth_date), seniority=_years_since(row.hired_on),
         licence=licence_state(row))
 
@@ -635,17 +659,21 @@ def _read_contract_form(person, contract):
     trial = (request.form.get("trial_end") or "").strip() or None
     if trial and (not _valid_date(trial) or trial < start):
         return None, t["contract.err.trial"]
-    raw = (request.form.get("base_salary") or "").strip()
-    salary = parse_amount(raw) if raw else None
-    if raw and (salary is None or salary < 0):
-        return None, t["contract.err.salary"]
     # A new contract follows the last one; it cannot start before it.
     if contract is None and person.contracts:
         last = person.contracts[0]
         if start <= last.start_date:
             return None, t["contract.err.overlap"] % _fmt(last.start_date)
+    # The salary line given with this contract moves with its start, unless
+    # another line already sits on the new day.
+    if contract is not None and start != contract.start_date:
+        clash = StaffSalary.query.filter(StaffSalary.staff_id == person.id,
+                                         StaffSalary.effective_on == start,
+                                         StaffSalary.contract_id != contract.id).first()
+        if clash is not None and any(s.contract_id == contract.id for s in person.salaries):
+            return None, t["salary.err.day_taken"] % _fmt(start)
     return dict(kind=kind, start_date=start, end_date=end if kind != "cdi" else None,
-                trial_end=trial, base_salary=salary,
+                trial_end=trial,
                 note=(request.form.get("note") or "").strip()[:255] or None), None
 
 
@@ -690,7 +718,9 @@ def contract_new(pid):
     preset = {}
     if request.args.get("renew") and cur is not None:
         start = _day_after(cur.end_date) if cur.end_date else date.today().isoformat()
-        preset = {"kind": cur.kind, "base_salary": cur.base_salary, "start_date": start}
+        paid = person.salary_on(start)
+        preset = {"kind": cur.kind, "start_date": start,
+                  "base_salary": paid.amount if paid is not None else None}
         # A fixed-term contract renewed for as long as the last one ran.
         if cur.end_date:
             length = (datetime.strptime(cur.end_date, "%Y-%m-%d")
@@ -698,6 +728,8 @@ def contract_new(pid):
             preset["end_date"] = (datetime.strptime(start, "%Y-%m-%d") + length).strftime("%Y-%m-%d")
     if request.method == "POST":
         data, error = _read_contract_form(person, None)
+        salary, serr = _read_amount("base_salary", required=False)
+        error = error or serr
         if error:
             return _render_contract_form(person, None, error, preset)
         c = StaffContract(staff_id=person.id, created_by=current_user.id, **data)
@@ -708,6 +740,7 @@ def contract_new(pid):
         if ferr:
             db.session.rollback()
             return _render_contract_form(person, None, ferr, preset)
+        _salary_with_contract(person, c, salary)
         if cur is not None and not cur.ended_on:
             cur.ended_on = _day_before(c.start_date)
             cur.end_reason = "renouvele"
@@ -730,6 +763,9 @@ def contract_edit(cid):
         data, error = _read_contract_form(c.person, c)
         if error:
             return _render_contract_form(c.person, c, error)
+        for s in c.person.salaries:
+            if s.contract_id == c.id:
+                s.effective_on = data["start_date"]
         for k, v in data.items():
             setattr(c, k, v)
         ferr = _save_contract_file(c)
@@ -778,9 +814,11 @@ def contract_end(cid):
 @login_required
 @require_perm("staff.delete")
 def contract_delete(cid):
-    """For a contract typed by mistake. The one it closed opens again."""
+    """For a contract typed by mistake. The one it closed opens again, and the
+    salary line given with it goes too."""
     c = _get_contract_or_404(cid)
     pid, key = c.staff_id, c.file_key
+    StaffSalary.query.filter_by(contract_id=c.id).delete()
     before = (StaffContract.query.filter(StaffContract.staff_id == pid,
                                          StaffContract.id != c.id,
                                          StaffContract.end_reason == "renouvele",
@@ -807,6 +845,143 @@ def contract_file(cid):
     if not url:
         abort(404)
     return redirect(url)
+
+
+# ── Routes: the salary ───────────────────────────────────────────────────────
+#
+# A dated history: each line says "from this day, the base salary is this
+# much". A raise is a new line dated when it applies, never an edit of the old
+# figure, so the months behind it keep the salary they were paid on.
+
+
+def _read_amount(field, required=True):
+    """(amount, None) or (None, error); (None, None) when left empty and not
+    required."""
+    raw = (request.form.get(field) or "").strip()
+    if not raw:
+        return None, (get_t()["salary.err.amount"] if required else None)
+    amount = parse_amount(raw)
+    if amount is None or amount <= 0:
+        return None, get_t()["salary.err.amount"]
+    return amount, None
+
+
+def _salary_with_contract(person, contract, amount):
+    """The salary typed on a new contract's form: a line on its first day,
+    unless it is the salary already in force then."""
+    if amount is None:
+        return
+    same_day = next((s for s in person.salaries if s.effective_on == contract.start_date), None)
+    if same_day is not None:
+        same_day.amount, same_day.contract_id = amount, contract.id
+        return
+    before = person.salary_on(contract.start_date)
+    if before is not None and before.amount == amount:
+        return
+    db.session.add(StaffSalary(
+        staff_id=person.id, effective_on=contract.start_date, amount=amount,
+        reason="renouvellement" if person.salaries else "embauche",
+        contract_id=contract.id, created_by=current_user.id))
+
+
+def _get_salary_or_404(sid):
+    s = db.session.get(StaffSalary, sid)
+    if not s:
+        abort(404)
+    return s
+
+
+def _first_of_next_month():
+    d = date.today().replace(day=1) + timedelta(days=32)
+    return d.replace(day=1).isoformat()
+
+
+def _salary_form(person, line):
+    """Saves the form into a line (a new one when line is None). Returns the
+    error, or None once saved."""
+    t = get_t()
+    day = (request.form.get("effective_on") or "").strip()
+    if not _valid_date(day):
+        return t["salary.err.day"]
+    amount, error = _read_amount("amount")
+    if error:
+        return error
+    reason = request.form.get("reason")
+    if reason not in StaffSalary.REASONS:
+        return t["salary.err.reason"]
+    clash = next((s for s in person.salaries
+                  if s.effective_on == day and (line is None or s.id != line.id)), None)
+    if clash is not None:
+        return t["salary.err.day_taken"] % _fmt(day)
+    if line is None:
+        line = StaffSalary(staff_id=person.id, created_by=current_user.id)
+        db.session.add(line)
+    line.effective_on, line.amount, line.reason = day, amount, reason
+    line.note = (request.form.get("note") or "").strip()[:255] or None
+    return None
+
+
+def _render_salary_form(person, line, error=None):
+    tpl = "_salary_form.html" if is_modal_request() else "salary_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    preset = {"effective_on": _first_of_next_month(),
+              "reason": "augmentation" if person.salaries else "embauche"}
+    return render_template(tpl, p=person, s=line, error=error, preset=preset,
+                           reasons=StaffSalary.REASONS), status
+
+
+@staff_bp.route("/personnel/<int:pid>/salaire/nouveau", methods=["GET", "POST"])
+@login_required
+@require_perm("staff.edit")
+def salary_new(pid):
+    person = db.session.get(Staff, pid)
+    if not person or not person.is_employee:
+        abort(404)
+    if request.method == "POST":
+        error = _salary_form(person, None)
+        if error:
+            return _render_salary_form(person, None, error)
+        log_action("CREATE", "staff_salary", resource_id=person.id,
+                   detail="Salary of '%s' from %s: %s" % (person.name, request.form.get("effective_on"),
+                                                           request.form.get("amount")))
+        db.session.commit()
+        flash("success|" + get_t()["salary.created"])
+        return modal_ok() if is_modal_request() else redirect(
+            url_for("staff.profile", pid=person.id, tab="salary"))
+    return _render_salary_form(person, None)
+
+
+@staff_bp.route("/personnel/salaire/<int:sid>/modifier", methods=["GET", "POST"])
+@login_required
+@require_perm("staff.edit")
+def salary_edit(sid):
+    """To correct a line typed wrong -- a raise is a new line, not this."""
+    line = _get_salary_or_404(sid)
+    if request.method == "POST":
+        error = _salary_form(line.person, line)
+        if error:
+            return _render_salary_form(line.person, line, error)
+        log_action("UPDATE", "staff_salary", resource_id=line.id,
+                   detail="Edited salary of '%s' from %s: %s" % (line.person.name, line.effective_on, line.amount))
+        db.session.commit()
+        flash("success|" + get_t()["salary.updated"])
+        return modal_ok() if is_modal_request() else redirect(
+            url_for("staff.profile", pid=line.staff_id, tab="salary"))
+    return _render_salary_form(line.person, line)
+
+
+@staff_bp.route("/personnel/salaire/<int:sid>/supprimer", methods=["POST"])
+@login_required
+@require_perm("staff.delete")
+def salary_delete(sid):
+    line = _get_salary_or_404(sid)
+    pid = line.staff_id
+    log_action("DELETE", "staff_salary", resource_id=sid,
+               detail="Deleted salary of '%s' from %s: %s" % (line.person.name, line.effective_on, line.amount))
+    db.session.delete(line)
+    db.session.commit()
+    flash("success|" + get_t()["salary.deleted"])
+    return redirect(url_for("staff.profile", pid=pid, tab="salary"))
 
 
 # ── Routes: the positions and the departments ────────────────────────────────

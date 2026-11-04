@@ -1,0 +1,41 @@
+{# A salary line: from this day, the base salary is this much. #}
+{% set is_edit = s is not none %}
+{% set posted = request.method == 'POST' %}
+{% macro v(name) -%}
+{%- if posted -%}{{ request.form.get(name, '') }}
+{%- elif is_edit and s[name] is not none -%}{{ s[name] }}
+{%- else -%}{{ preset.get(name) or '' }}{%- endif -%}
+{%- endmacro %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('staff.salary_edit', sid=s.id) if is_edit else url_for('staff.salary_new', pid=p.id) }}">
+    <div class="form-row">
+        <div class="field">
+            <input type="date" id="effective_on" name="effective_on" required value="{{ v('effective_on') }}">
+            <label for="effective_on">{{ t['salary.effective_on'] }}</label>
+        </div>
+        <div class="field">
+            {% set amt = v('amount') %}
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder=" " required
+                   value="{{ (amt|int(0) | num) if amt and not posted else amt }}">
+            <label for="amount">{{ t['salary.amount'] }} ({{ currency }})</label>
+        </div>
+    </div>
+    <div class="field field--select">
+        {% set sel = v('reason') %}
+        <select id="reason" name="reason" required>
+            {% for r in reasons %}
+            <option value="{{ r }}" {% if r == sel %}selected{% endif %}>{{ t['salary.reason.' + r] }}</option>
+            {% endfor %}
+        </select>
+        <label for="reason">{{ t['salary.reason'] }}</label>
+    </div>
+    <div class="field">
+        <textarea id="note" name="note" placeholder=" " rows="2">{{ v('note') }}</textarea>
+        <label for="note">{{ t['entry.note'] }}</label>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('staff.profile', pid=p.id, tab='salary') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

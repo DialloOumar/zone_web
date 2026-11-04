@@ -24,7 +24,7 @@
 
 <section class="card">
     <nav class="tabs" role="tablist">
-        {% set icons = {'file': 'badge', 'contracts': 'request_quote', 'documents': 'description'} %}
+        {% set icons = {'file': 'badge', 'contracts': 'request_quote', 'salary': 'payments', 'documents': 'description'} %}
         {% for key in tabs %}
         <a href="{{ url_for('staff.profile', pid=p.id, tab=key if key != 'file' else None) }}" role="tab"
            aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
@@ -127,7 +127,6 @@
                 {% set tl = cur.trial_days_left() %}
                 {% if tl is not none and 0 <= tl <= 15 %} <span class="badge badge--info">{{ t['contract.in_days'] % tl }}</span>{% endif %}
                 {% else %}<span class="muted">&mdash;</span>{% endif %}</dd></div>
-            {{ fact(t['contract.salary'], ((cur.base_salary | num) ~ ' ' ~ currency) if cur.base_salary is not none else none) }}
             <div><dt>{{ t['contract.paper'] }}</dt><dd>
                 {% if cur.file_key %}<a href="{{ url_for('staff.contract_file', cid=cur.id) }}" target="_blank" rel="noopener">{{ t['contract.open_paper'] }}</a>
                 {% else %}<span class="muted">&mdash;</span>{% endif %}</dd></div>
@@ -148,7 +147,6 @@
                 <th>{{ t['contract.kind'] }}</th>
                 <th>{{ t['contract.start'] }}</th>
                 <th>{{ t['contract.end_date'] }}</th>
-                <th style="text-align:right;">{{ t['contract.salary'] }}</th>
                 <th>{{ t['contract.state'] }}</th>
                 <th class="col-secondary">{{ t['contract.ended_on'] }}</th>
                 <th class="col-secondary">{{ t['contract.reason'] }}</th>
@@ -161,7 +159,6 @@
                     <td><strong>{{ t['contract.kind.' + c.kind] }}</strong></td>
                     <td style="white-space:nowrap;">{{ c.start_date|dmy }}</td>
                     <td style="white-space:nowrap;">{% if c.end_date %}{{ c.end_date|dmy }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
-                    <td style="text-align:right; white-space:nowrap;">{% if c.base_salary is not none %}{{ c.base_salary | num }} {{ currency }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                     <td><span class="badge {{ {'active': 'badge--active', 'upcoming': 'badge--info', 'expired': 'badge--critical', 'ended': 'badge--inactive'}[st] }}">{{ t['contract.state.' + st] }}</span></td>
                     <td class="col-secondary" style="white-space:nowrap;">{% if c.ended_on %}{{ c.ended_on|dmy }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                     <td class="col-secondary">{% if c.end_reason %}{{ t['contract.reason.' + c.end_reason] }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
@@ -189,6 +186,94 @@
     </div>
     {% endif %}
 
+    {% elif tab == 'salary' %}
+    {# The salary's dated history: the line in force on top, the progression
+       under it. A raise is a new line dated when it applies, so the months
+       behind it keep the salary they were paid on. #}
+    {% set cur = p.current_salary %}
+    {% set next_rows = salary_rows|selectattr('state', 'equalto', 'upcoming')|list %}
+    {% if has_perm('staff.edit') %}
+    <div class="tab-bar">
+        <div class="tab-bar__actions">
+            <a href="{{ url_for('staff.salary_new', pid=p.id) }}" class="btn btn--sm btn--primary"
+               data-modal-url="{{ url_for('staff.salary_new', pid=p.id) }}" data-modal-title="{{ t['salary.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['salary.new'] }}</a>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if salary_rows %}
+    <div class="file-section">
+        <h3>{{ t['salary.current'] }}</h3>
+        <dl class="detail-grid">
+            {{ fact(t['salary.amount'], ((cur.amount | num) ~ ' ' ~ currency) if cur else none) }}
+            {{ fact(t['salary.since'], cur.effective_on|dmy if cur else none) }}
+            {% if next_rows %}
+            {% set nx = next_rows[-1].line %}
+            {{ fact(t['salary.next'], (nx.amount | num) ~ ' ' ~ currency) }}
+            {{ fact(t['salary.next_on'], nx.effective_on|dmy) }}
+            {% endif %}
+        </dl>
+    </div>
+
+    {% if salary_chart.points %}
+    <div class="file-section">
+        <h3>{{ t['salary.progression'] }}</h3>
+        <div class="chart-box" style="height:220px;"><canvas id="chart-salary" role="img" aria-label="{{ t['salary.progression'] }}"></canvas></div>
+    </div>
+    {% endif %}
+
+    <div class="file-section">
+        <h3>{{ t['contract.history'] }}</h3>
+        <div class="table-wrap"><table class="data-table">
+            <thead><tr>
+                <th>{{ t['salary.effective_on'] }}</th>
+                <th style="text-align:right;">{{ t['salary.amount'] }}</th>
+                <th style="text-align:right;">{{ t['salary.change'] }}</th>
+                <th style="text-align:right;">%</th>
+                <th>{{ t['salary.reason'] }}</th>
+                <th>{{ t['contract.state'] }}</th>
+                <th class="col-secondary">{{ t['entry.note'] }}</th>
+                <th></th>
+            </tr></thead>
+            <tbody>
+                {% for r in salary_rows %}
+                {% set s = r.line %}
+                <tr>
+                    <td style="white-space:nowrap;">{{ s.effective_on|dmy }}</td>
+                    <td style="text-align:right; white-space:nowrap;"><strong>{{ s.amount | num }} {{ currency }}</strong></td>
+                    <td style="text-align:right; white-space:nowrap;">{% if r.change is not none %}{{ '+' if r.change > 0 else '' }}{{ r.change | num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                    <td style="text-align:right; white-space:nowrap;">{% if r.pct is not none %}{{ '+' if r.pct > 0 else '' }}{{ r.pct|qty }} %{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                    <td>{{ t['salary.reason.' + s.reason] }}</td>
+                    <td>{% if r.state == 'current' %}<span class="badge badge--active">{{ t['salary.state.current'] }}</span>
+                        {% elif r.state == 'upcoming' %}<span class="badge badge--info">{{ t['salary.state.upcoming'] }}</span>
+                        {% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                    <td class="col-secondary"><span class="cell-clamp" title="{{ s.note or '' }}">{{ s.note or '' }}</span></td>
+                    <td class="row-actions">
+                        {% if has_perm('staff.edit') %}
+                        <a href="{{ url_for('staff.salary_edit', sid=s.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                           data-modal-url="{{ url_for('staff.salary_edit', sid=s.id) }}" data-modal-title="{{ t['salary.edit'] }}"
+                           title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                        {% endif %}
+                        {% if has_perm('staff.delete') %}
+                        <form method="post" action="{{ url_for('staff.salary_delete', sid=s.id) }}"
+                              data-confirm="{{ t['salary.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger style="display:inline">
+                            <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">payments</span>
+        <p>{{ t['salary.none'] }}</p>
+    </div>
+    {% endif %}
+
     {% elif tab == 'documents' %}
     {% if p.documents %}
     <div class="person-docs">
@@ -209,4 +294,64 @@
 
     {% endif %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+{% if tab == 'salary' and salary_chart and salary_chart.points %}
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}?v={{ v }}"></script>
+<script type="application/json" id="salary-chart-data">{{ salary_chart|tojson }}</script>
+<script>
+(function () {
+    // One line, in steps: a salary holds until the next line replaces it.
+    if (typeof Chart === "undefined") return;
+    var el = document.getElementById("chart-salary");
+    if (!el) return;
+    var css = getComputedStyle(document.documentElement);
+    var v = function (n) { return css.getPropertyValue(n).trim(); };
+    var data = JSON.parse(document.getElementById("salary-chart-data").textContent);
+    var day = function (iso) { var p = iso.split("-"); return Date.UTC(+p[0], +p[1] - 1, +p[2]); };
+    var dmy = function (ms) { var d = new Date(ms); return ("0" + d.getUTCDate()).slice(-2) + "/" + ("0" + (d.getUTCMonth() + 1)).slice(-2) + "/" + d.getUTCFullYear(); };
+    var my = function (ms) { var d = new Date(ms); return ("0" + (d.getUTCMonth() + 1)).slice(-2) + "/" + d.getUTCFullYear(); };
+    var currency = {{ currency|tojson }};
+    var textColor = v("--md-on-surface-variant") || "#666";
+    var gridColor = v("--md-outline-variant") || "#ddd";
+    var line = v("--c-blue") || "#1a73e8";
+    var points = data.points.map(function (p) { return { x: day(p.x), y: p.y }; });
+    var last = points.length - 1;
+    Chart.defaults.font.family = "Roboto, sans-serif";
+    Chart.defaults.color = textColor;
+    new Chart(el, {
+        type: "line",
+        data: { datasets: [{
+            data: points, stepped: "before", borderColor: line, borderWidth: 2,
+            backgroundColor: line, fill: false,
+            // A dot where the salary changed; none on the "today" end point.
+            pointRadius: points.map(function (_, i) { return i === last ? 0 : 4; }),
+            pointHoverRadius: points.map(function (_, i) { return i === last ? 0 : 6; }),
+        }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: "nearest", intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    filter: function (c) { return c.dataIndex !== last; },
+                    callbacks: {
+                        title: function (items) { return dmy(items[0].parsed.x); },
+                        label: function (c) { return Number(c.parsed.y).toLocaleString() + " " + currency; },
+                    },
+                },
+            },
+            scales: {
+                x: { type: "linear", grid: { display: false }, min: points[0].x, max: points[last].x,
+                     ticks: { color: textColor, maxTicksLimit: 6, callback: function (x) { return my(x); } } },
+                y: { grid: { color: gridColor }, beginAtZero: false,
+                     ticks: { color: textColor,
+                              callback: function (x) { if (x >= 1e6) return (x / 1e6) + "M"; if (x >= 1e3) return (x / 1e3) + "k"; return x; } } },
+            },
+        },
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

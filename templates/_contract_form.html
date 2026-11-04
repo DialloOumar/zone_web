@@ -36,12 +36,16 @@
             <input type="date" id="trial_end" name="trial_end" value="{{ v('trial_end') }}">
             <label for="trial_end">{{ t['contract.trial_end'] }}</label>
         </div>
+        {# Given on a new contract only; afterwards the salary changes on its own
+           dated tab. #}
+        {% if not is_edit %}
         <div class="field">
             {% set sal = v('base_salary') %}
             <input data-money type="text" inputmode="numeric" id="base_salary" name="base_salary" placeholder=" "
                    value="{{ (sal|int(0) | num) if sal and not posted else sal }}">
             <label for="base_salary">{{ t['contract.salary'] }} ({{ currency }})</label>
         </div>
+        {% endif %}
     </div>
     <div class="field">
         {% if is_edit and c.file_key %}
