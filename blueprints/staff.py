@@ -812,9 +812,11 @@ def profile(pid):
     if tab == "salary":
         salary_rows, salary_chart = _salary_history(row)
         salary_cols = _salary_columns(row)
-        # The advances the cash box handed him -- only those, never its costs.
+        # What the cash box handed him against his salary -- advances and
+        # bonuses, never its costs.
         advances = [(a, _month_label(int(a.advance_month[:4]), int(a.advance_month[5:])))
-                    for a in CashMovement.query.filter_by(kind="avance", staff_id=row.id)
+                    for a in CashMovement.query.filter(CashMovement.kind.in_(("avance", "prime")),
+                                                       CashMovement.staff_id == row.id)
                     .order_by(CashMovement.date.desc(), CashMovement.id.desc()).all()]
     slip = slip_error = month_options = None
     if tab == "payslip":
@@ -1053,6 +1055,16 @@ def contract_edit(cid):
         for s in c.person.salaries:
             if s.contract_id == c.id:
                 s.effective_on = data["start_date"]
+        # The contract this one replaced ends the day before it starts: moving
+        # the start moves that end too, so the two never leave a gap or overlap.
+        if data["start_date"] != c.start_date:
+            before = (StaffContract.query.filter(StaffContract.staff_id == c.staff_id,
+                                                 StaffContract.id != c.id,
+                                                 StaffContract.end_reason == "renouvele",
+                                                 StaffContract.ended_on == _day_before(c.start_date))
+                      .first())
+            if before is not None:
+                before.ended_on = _day_before(data["start_date"])
         for k, v in data.items():
             setattr(c, k, v)
         ferr = _save_contract_file(c)

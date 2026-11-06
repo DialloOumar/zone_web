@@ -218,6 +218,9 @@ def _inject_globals():
         "orders_to_sign": _orders_to_sign(),
         "sees_orders": _sees_orders(),
         "cashier_only": cashier_only(),
+        # Whoever holds the "approves_payroll" box reaches the month's pay to
+        # validate it, even without the payroll permissions.
+        "user_approves_payroll": _user_approves_payroll,
         "can_approve_any": can_approve_any,
         "pending_approvals": pending_approvals,
         "my_pending": my_pending,
@@ -255,6 +258,23 @@ def _vehicle_image(v):
                                v=drawing_tag(cat.default_image, v.code)),
                 "drawing": True}
     return None
+
+
+def _user_approves_payroll():
+    """Whether the current user holds the "validates the pay" box on one of
+    their roles. The super admin validates anything."""
+    if not current_user.is_authenticated:
+        return False
+    if current_user.is_super_admin:
+        return True
+    return any(uf.role and uf.role.approves_payroll for uf in current_user.user_fleets)
+
+
+def payroll_approver_exists():
+    """Whether any active role holds the box. While none does, whoever
+    prepares the pay closes the month alone."""
+    from models import Role
+    return Role.query.filter_by(approves_payroll=True, is_active=True).first() is not None
 
 
 def cashier_only():
@@ -1525,6 +1545,11 @@ PERMISSIONS_CATALOG = [
     ("staff.create", "Add staff",    "Staff", "staff", "create"),
     ("staff.edit",   "Edit staff",   "Staff", "staff", "edit"),
     ("staff.delete", "Delete staff", "Staff", "staff", "delete"),
+    # The month's pay: view reads the salary lists and payslips of everyone;
+    # manage prepares a month and closes it (or submits it, once a role holds
+    # the "approves_payroll" box).
+    ("payroll.view",   "View payroll",    "Payroll", "payroll", "view"),
+    ("payroll.manage", "Prepare payroll", "Payroll", "payroll", "manage"),
     # Factures fournisseurs (bills the company owes). Managing the supplier
     # list rides on "create": whoever files a bill is whoever names who sent it.
     ("supplier_invoice.view",   "View supplier invoices",   "Supplier invoices", "supplier_invoice", "view"),

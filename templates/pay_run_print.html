@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+{# The month's salary list on paper (payroll.run_print), the way RH kept it in
+   Excel: by department, each with its sub-total, the month's total, what
+   goes by transfer and what the cash box pays, and who prepared and who
+   validated it. A month not yet validated says so across the page. #}
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ t['run.list_title'] % label }} — {{ co.company_name or t['app.title'] }}</title>
+<style>
+    @page { size: A4 landscape; margin: 1.1cm 1.2cm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5px; color: #111; margin: 0; line-height: 1.35; }
+    .r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1a4fa0; padding-bottom: 8px; margin-bottom: 12px; }
+    .head img { height: 42px; display: block; margin-bottom: 4px; }
+    .head h1 { margin: 0; font-size: 18px; letter-spacing: .05em; text-transform: uppercase; }
+    .muted { color: #666; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 4px 6px; border: 1px solid #ccd; vertical-align: top; }
+    th { background: #e8eef8; font-size: 9.5px; text-transform: uppercase; text-align: left; }
+    .grp td { background: #f2f4f7; font-weight: 700; color: #1a4fa0; }
+    .sub td { font-weight: 700; background: #fafbfd; }
+    .tot td { font-weight: 800; background: #dfe8f6; font-size: 11.5px; }
+    .split { display: flex; gap: 16px; margin-top: 12px; }
+    .split div { border: 1px solid #ccd; border-radius: 6px; padding: 8px 12px; min-width: 180px; }
+    .split b { display: block; font-size: 13px; margin-top: 2px; }
+    .signs { display: flex; justify-content: space-between; gap: 40px; margin-top: 30px; }
+    .signs div { flex: 1; max-width: 300px; border-top: 1px solid #333; padding-top: 4px; }
+    .draft { position: fixed; top: 40%; left: 0; right: 0; text-align: center; transform: rotate(-20deg);
+             font-size: 80px; font-weight: 900; color: rgba(200, 30, 30, .08); pointer-events: none; }
+    th, .grp td, .sub td, .tot td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @media screen {
+        html { background: #eef1f6; }
+        body { max-width: 29.7cm; margin: 16px auto 40px; padding: 1.1cm 1.2cm; background: #fff; border-radius: 12px;
+               box-shadow: 0 1px 2px rgba(0,0,0,.28), 0 1px 3px 1px rgba(0,0,0,.10); }
+        .print-toolbar { position: sticky; top: 0; z-index: 10; display: flex; gap: 10px; align-items: center; justify-content: flex-end;
+                         margin: -1.1cm -1.2cm 18px; padding: 12px 1.2cm; border-radius: 12px 12px 0 0;
+                         background: #0F74BC; color: #fff; font-size: 13px; font-family: Roboto, system-ui, "Segoe UI", sans-serif; }
+        .print-toolbar__hint { margin-right: auto; font-size: 12px; color: #d4e9fb; }
+        .print-toolbar a, .print-toolbar button { font: inherit; font-weight: 500; cursor: pointer; border-radius: 999px; padding: 7px 16px;
+                         border: 1px solid rgba(255,255,255,.55); background: transparent; color: #fff; text-decoration: none; }
+        .print-toolbar button { background: #fff; border-color: #fff; color: #0F74BC; font-weight: 700; }
+    }
+    @media print { .print-toolbar { display: none !important; } }
+</style>
+</head>
+<body>
+<div class="print-toolbar">
+    <span class="print-toolbar__hint">{{ t['export.print_hint'] }}</span>
+    <a href="{{ url_for('payroll.run', month=run.month) }}">{{ t['btn.cancel'] }}</a>
+    <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
+</div>
+{% if run.status != 'validated' %}<div class="draft">{{ t['run.state.' + run.status]|upper }}</div>{% endif %}
+
+<div class="head">
+    <div>
+        <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ co.company_name or t['app.title'] }}">
+        <b>{{ co.company_name or t['app.title'] }}</b>
+    </div>
+    <div style="text-align:right;">
+        <h1>{{ t['run.list_title'] % label }}</h1>
+        <div class="muted">{{ t['run.people'] }} : {{ summary.people }}</div>
+    </div>
+</div>
+
+<table>
+    <thead><tr>
+        <th style="width:28px;">N°</th>
+        <th>{{ t['staff.name'] }}</th>
+        <th>{{ t['staff.position'] }}</th>
+        <th>{{ t['pay.method'] }}</th>
+        <th>{{ t['pay.rib'] }} / {{ t['pay.mobile'] }}</th>
+        <th class="r">{{ t['payslip.gross'] }}</th>
+        <th class="r">{{ t['run.taxes'] }}</th>
+        <th class="r">{{ t['run.taken'] }}</th>
+        <th class="r">{{ t['payslip.net'] }}</th>
+    </tr></thead>
+    <tbody>
+        {% set n = namespace(i=0) %}
+        {% for g in groups %}
+        <tr class="grp"><td colspan="9">{{ g.name or t['run.no_department'] }}</td></tr>
+        {% for person, s, err in g.rows %}
+        {% set n.i = n.i + 1 %}
+        <tr>
+            <td>{{ n.i }}</td>
+            <td>{{ person.name }}</td>
+            {% if s %}
+            {% set w = s.who %}
+            <td>{{ w.position or '' }}</td>
+            <td>{% if w.pay_method %}{{ t['pay.method.' + w.pay_method] }}{% if w.pay_method == 'transfer' and w.bank %} · {{ w.bank }}{% endif %}{% else %}—{% endif %}</td>
+            <td>{% if w.pay_method == 'transfer' %}{{ [w.bank_code, w.bank_branch, w.bank_account, w.bank_key]|select|join(' ') }}{% elif w.pay_method == 'mobile' %}{{ w.mobile_money or '' }}{% endif %}</td>
+            <td class="r">{{ s.gross|num }}</td>
+            <td class="r">{% if s.declared %}{{ (s.cnss_employee + s.rts)|num }}{% endif %}</td>
+            <td class="r">{% set taken = s.advances_total + s.prepaid_total + s.other_total %}{% if taken %}{{ taken|num }}{% endif %}</td>
+            <td class="r"><b>{{ s.net|num }}</b></td>
+            {% else %}
+            <td colspan="7">{{ t[err] }}</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        <tr class="sub">
+            <td colspan="5">{{ t['run.subtotal'] }}</td>
+            <td class="r">{{ g.gross|num }}</td>
+            <td class="r">{{ g.taxes|num }}</td>
+            <td class="r">{{ g.taken|num }}</td>
+            <td class="r">{{ g.net|num }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="tot">
+            <td colspan="5">{{ t['run.total'] }}</td>
+            <td class="r">{{ summary.gross|num }}</td>
+            <td></td><td></td>
+            <td class="r">{{ summary.net|num }} {{ currency }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="split">
+    <div>{{ t['run.by_transfer'] }}<b>{{ summary.by.transfer|num }} {{ currency }}</b></div>
+    <div>{{ t['run.by_box'] }}<b>{{ summary.by.box|num }} {{ currency }}</b></div>
+    {% if summary.by.none %}<div>{{ t['run.no_way'] }}<b>{{ summary.by.none|num }} {{ currency }}</b></div>{% endif %}
+</div>
+
+<div class="signs">
+    <div>{{ t['run.prepared_by'] }}{% if run.preparer %} : {{ run.preparer.full_name }}{% endif %}</div>
+    <div>{{ t['run.validated_by'] }}{% if run.validator %} : {{ run.validator.full_name }} · {{ run.validated_at.strftime('%d/%m/%Y') }}{% endif %}</div>
+</div>
+</body>
+</html>

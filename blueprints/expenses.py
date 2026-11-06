@@ -522,7 +522,9 @@ def set_till_opening(amount, day, user_id=None):
 
 # What leaves the box without being a cost: money given back to an account,
 # and advances lent to staff (paid back from their salary).
-OUT_KINDS = ("retrait", "avance")
+OUT_KINDS = ("retrait", "avance", "prime")
+# What the Paie button records: money to staff that their salary settles.
+PAY_KINDS = ("avance", "prime")
 
 
 def _movement_total(kind, since=None):
@@ -1341,7 +1343,7 @@ def withdrawal_new():
 @require_perm("expense.edit")
 def deposit_edit(did):
     m = _get_movement_or_404(did)
-    if m.kind == "avance":
+    if m.kind in PAY_KINDS:
         return redirect(url_for("expenses.advance_edit", aid=m.id))
     if m.transfer_id:
         flash("error|" + get_t()["caisse.err.from_transfer"])
@@ -1365,6 +1367,9 @@ def deposit_delete(did):
     if d.expense_id:
         flash("error|" + get_t()["caisse.err.from_expense"])
         return redirect(url_for("expenses.index", tab="mouvements"))
+    if d.kind in PAY_KINDS and _pay_locked(d.advance_month):
+        flash("error|" + get_t()["advance.err.locked"])
+        return redirect(url_for("expenses.index", tab="mouvements"))
     kind, amount = d.kind, d.amount
     db.session.delete(d)
     log_action("DELETE", "cash_movement", resource_id=did,
@@ -1382,14 +1387,29 @@ def deposit_delete(did):
 # in full (payroll.payslip, and the person's Salaire tab on the RH side).
 
 
+def _pay_locked(month):
+    """Whether the pay of a month (YYYY-MM) is submitted or validated: what
+    it takes back can no longer change."""
+    from models import PayRun
+    run = PayRun.query.filter_by(month=month).first() if month else None
+    return run is not None and run.locked
+
+
 def _employees():
     return (Staff.query.filter(Staff.is_active.is_(True), Staff.kind == "employee")
             .order_by(Staff.last_name, Staff.first_name).all())
 
 
-def _read_advance_form(row):
-    """(data, None) or (None, error)."""
+def _read_advance_form(kind):
+    """(data, None) or (None, error) -- an advance, or a bonus (kind "prime")
+    which also names its kind of bonus."""
+    from payroll import active_allowances
     t = get_t()
+    item_id = None
+    if kind == "prime":
+        item_id = request.form.get("pay_item_id", type=int)
+        if item_id not in {b.id for b in active_allowances("bonus")}:
+            return None, t["bonus.err.item"]
     staff_id = request.form.get("staff_id", type=int)
     person = db.session.get(Staff, staff_id) if staff_id else None
     if person is None or not person.is_employee:
@@ -1407,17 +1427,24 @@ def _read_advance_form(row):
     if not (len(month) == 7 and month[4] == "-" and month[:4].isdigit() and month[5:].isdigit()
             and 1 <= int(month[5:]) <= 12) or month < day[:7]:
         return None, t["advance.err.month"]
-    return dict(kind="avance", staff_id=person.id, date=day, amount=amount, currency="GNF",
-                method=method, advance_month=month, account_id=None,
+    if _pay_locked(month):
+        return None, t["advance.err.locked"]
+    return dict(kind=kind, staff_id=person.id, date=day, amount=amount, currency="GNF",
+                method=method, advance_month=month, account_id=None, pay_item_id=item_id,
                 reference=(request.form.get("reference") or "").strip()[:60] or None,
                 note=(request.form.get("note") or "").strip()[:255] or None), None
 
 
-def _advance_route(row):
+def _advance_route(row, kind="avance"):
+    from payroll import active_allowances
     t = get_t()
+    kind = row.kind if row is not None else kind
     error = None
     if request.method == "POST":
-        data, error = _read_advance_form(row)
+        data, error = _read_advance_form(kind)
+        # Already on a locked month's pay: it stays as that pay counted it.
+        if not error and row is not None and _pay_locked(row.advance_month):
+            error = t["advance.err.locked"]
         if not error:
             if row is None:
                 row = CashMovement(created_by=current_user.id, **data)
@@ -1429,14 +1456,15 @@ def _advance_route(row):
                     setattr(row, k, v)
                 action = "UPDATE"
             log_action(action, "cash_movement", resource_id=row.id,
-                       detail="Advance %d GNF to '%s', paid back %s" % (row.amount, row.staff.name, row.advance_month))
+                       detail="%s %d GNF to '%s' for the pay of %s" % (kind.title(), row.amount, row.staff.name, row.advance_month))
             db.session.commit()
-            flash("success|" + t["advance.saved"])
+            flash("success|" + t["advance.saved" if kind == "avance" else "bonus.saved"])
             return modal_ok() if is_modal_request() else redirect(url_for("expenses.index", tab="mouvements"))
     tpl = "_advance_form.html" if is_modal_request() else "advance_form.html"
     status = 422 if (error and is_modal_request()) else 200
     today = date.today().isoformat()
-    return render_template(tpl, row=row, error=error, people=_employees(),
+    return render_template(tpl, row=row, kind=kind, error=error, people=_employees(),
+                           bonus_items=active_allowances("bonus") if kind == "prime" else [],
                            today=today, this_month=today[:7]), status
 
 
@@ -1447,8 +1475,19 @@ def advance_new():
     return _advance_route(None)
 
 
+@expenses_bp.route("/caisse/primes/new", methods=["GET", "POST"])
+@login_required
+@require_perm("expense.create")
+def bonus_new():
+    return _advance_route(None, "prime")
+
+
 @expenses_bp.route("/caisse/avances/<int:aid>/edit", methods=["GET", "POST"])
 @login_required
 @require_perm("expense.edit")
 def advance_edit(aid):
-    return _advance_route(_get_movement_or_404(aid, "avance"))
+    """An advance or a bonus: both are kept and corrected the same way."""
+    m = _get_movement_or_404(aid)
+    if m.kind not in PAY_KINDS:
+        abort(404)
+    return _advance_route(m)

@@ -125,6 +125,8 @@
     <div class="table-wrap"><table class="data-table">
         <thead><tr>
             <th>{{ t['payset.allowance'] }}</th>
+            <th>{{ t['payset.kind'] }}</th>
+            <th>{{ t['payset.ledger_code'] }}</th>
             <th>{{ t['payset.taxable'] }}</th>
             <th>{{ t['payset.cnss_due'] }}</th>
             <th>{{ t['contract.state'] }}</th>
@@ -134,6 +136,8 @@
             {% for a in allowances %}
             <tr>
                 <td><strong {% if not a.is_active %}class="muted"{% endif %}>{{ a.name }}</strong></td>
+                <td>{{ t['payset.kind.' + a.kind] }}</td>
+                <td>{% if a.ledger_code %}{{ a.ledger_code }}{% else %}<span class="muted">{{ default_codes[a.kind] }}</span>{% endif %}</td>
                 <td>{{ t['staff.declared.yes'] if a.taxable else t['staff.declared.no'] }}</td>
                 <td>{{ t['staff.declared.yes'] if a.cnss else t['staff.declared.no'] }}</td>
                 <td>{% if a.is_active %}<span class="badge badge--active">{{ t['person.active'] }}</span>{% else %}<span class="badge badge--inactive">{{ t['vehicle.inactive'] }}</span>{% endif %}</td>

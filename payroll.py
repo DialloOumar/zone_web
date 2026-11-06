@@ -1,4 +1,5 @@
-"""A payslip, worked out for one declared employee and one month.
+"""Pay, worked out for one employee and one month -- the payslip of a declared
+employee, the line of anybody on the month's salary list.
 
 Everything the law decides comes from the dated pay settings (PaySetting) in
 force at the end of the month, and the pay from the salary line in force then
@@ -11,14 +12,23 @@ The way the bases are taken follows the client's own payslip:
 - RTS on the taxable gross less the employee's CNSS, by the scale's steps;
 - versement forfaitaire and taxe d'apprentissage on the whole gross, paid by
   the employer.
+Somebody not declared to the CNSS has none of these: his gross is his pay.
 
 The advances the cash box handed out against the month (CashMovement "avance")
 are taken back in full from the net; they change neither the CNSS nor the RTS.
+A bonus the box paid for the month (CashMovement "prime") is pay: it counts in
+the gross like an allowance of its kind (taxed, CNSS due, or not), then comes
+off the net as already paid. The month's adjustments (PayRunAdjustment) add to
+the gross, take off the gross, or take off the net.
+
+compute() returns plain numbers, strings and lists only, so a validated
+month keeps it as it is (PayRunLine.slip) and prints from it for ever.
 """
 import calendar
+import json
 from decimal import ROUND_HALF_UP, Decimal
 
-from models import CashMovement, PayAllowance, PaySetting
+from models import CashMovement, PayAllowance, PayRun, PayRunLine, PaySetting, Staff
 
 
 def _pct(amount, rate):
@@ -40,10 +50,11 @@ def rts_on(base, brackets):
     return int(total.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
-def advances_for(person, year, month):
-    """The advances to take back from this month's salary."""
+def advances_for(person, year, month, kind="avance"):
+    """The advances to take back from this month's salary -- or, with kind
+    "prime", the bonuses the cash box paid for it."""
     return (CashMovement.query
-            .filter_by(kind="avance", staff_id=person.id, advance_month="%04d-%02d" % (year, month))
+            .filter_by(kind=kind, staff_id=person.id, advance_month="%04d-%02d" % (year, month))
             .order_by(CashMovement.date, CashMovement.id).all())
 
 
@@ -52,59 +63,124 @@ def month_bounds(year, month):
     return "%04d-%02d-01" % (year, month), "%04d-%02d-%02d" % (year, month, last)
 
 
-def payslip(person, year, month):
-    """(slip, None) or (None, error key). The slip holds every line and total
-    the printed payslip shows."""
+def _who(person, contract):
+    """The person as the payslip prints him, kept with the month."""
+    return dict(
+        id=person.id, name=person.name, matricule=person.matricule,
+        position=person.position.name if person.position else None,
+        category=person.category,
+        department=person.department.name if person.department else None,
+        site=person.site.name if person.site else None,
+        cnss_number=person.cnss_number, hired_on=person.hired_on,
+        marital_status=person.marital_status, children=person.children,
+        nationality=person.nationality, declared=bool(person.declared),
+        pay_method=person.pay_method,
+        bank=person.bank.name if person.bank else None,
+        bank_code=person.bank.code if person.bank else None,
+        bank_branch=person.bank_branch, bank_account=person.bank_account,
+        bank_key=person.bank_key, mobile_money=person.mobile_money or person.phone,
+        contract_kind=contract.kind if contract else None,
+        contract_start=contract.start_date if contract else None,
+    )
+
+
+def compute(person, year, month, adjustments=()):
+    """(slip, None) or (None, error key) -- one employee's pay for a month.
+    `adjustments` are the month's PayRunAdjustment rows for him."""
     first, last = month_bounds(year, month)
-    if not person.is_employee or not person.declared:
-        return None, "payslip.err.not_declared"
     salary = person.salary_on(last)
     if salary is None:
         return None, "payslip.err.no_salary"
-    setting = PaySetting.on(last)
-    if setting is None:
+    declared = bool(person.declared)
+    setting = PaySetting.on(last) if declared else None
+    if declared and setting is None:
         return None, "payslip.err.no_setting"
 
-    allowances = sorted((a for a in salary.allowances if a.amount),
-                        key=lambda a: (a.allowance.sort_order, a.allowance.name))
+    # What is paid on top of the base: the month's allowances from the salary
+    # line, the bonuses the cash box paid for the month, the adjustments.
+    gains = [dict(name=a.allowance.name, amount=a.amount, taxable=a.allowance.taxable,
+                  cnss=a.allowance.cnss, code=a.allowance.ledger_code, kind="allowance")
+             for a in sorted((a for a in salary.allowances if a.amount),
+                             key=lambda a: (a.allowance.sort_order, a.allowance.name))]
+    bonuses = advances_for(person, year, month, "prime")
+    for b in bonuses:
+        item = b.pay_item
+        gains.append(dict(name=item.name if item else "Prime", amount=b.amount,
+                          taxable=bool(item and item.taxable), cnss=bool(item and item.cnss),
+                          code=item.ledger_code if item else None, kind="bonus"))
+    for a in adjustments:
+        if a.kind in ("plus", "minus"):
+            gains.append(dict(name=a.label, amount=a.amount if a.kind == "plus" else -a.amount,
+                              taxable=a.taxable, cnss=a.cnss, code=None, kind="adjustment"))
     base = salary.amount
-    taxable_allow = sum(a.amount for a in allowances if a.allowance.taxable)
-    free_allow = sum(a.amount for a in allowances if not a.allowance.taxable)
-    gross_taxable = base + taxable_allow
-    gross = gross_taxable + free_allow
+    gross_taxable = base + sum(g["amount"] for g in gains if g["taxable"])
+    gross = gross_taxable + sum(g["amount"] for g in gains if not g["taxable"])
 
-    cnss_gross = base + sum(a.amount for a in allowances if a.allowance.cnss)
-    cnss_base = cnss_gross
-    if setting.cnss_ceiling:
-        cnss_base = min(cnss_base, setting.cnss_ceiling)
-    if setting.cnss_floor:
-        cnss_base = max(cnss_base, setting.cnss_floor)
-    cnss_employee = _pct(cnss_base, setting.cnss_employee_rate)
-    cnss_employer = _pct(cnss_base, setting.cnss_employer_rate)
+    cnss_base = cnss_employee = cnss_employer = rts_base = rts = vf = ta = 0
+    rates = None
+    if declared:
+        cnss_base = base + sum(g["amount"] for g in gains if g["cnss"])
+        if setting.cnss_ceiling:
+            cnss_base = min(cnss_base, setting.cnss_ceiling)
+        if setting.cnss_floor:
+            cnss_base = max(cnss_base, setting.cnss_floor)
+        cnss_employee = _pct(cnss_base, setting.cnss_employee_rate)
+        cnss_employer = _pct(cnss_base, setting.cnss_employer_rate)
+        rts_base = max(gross_taxable - cnss_employee, 0)
+        rts = rts_on(rts_base, setting.brackets)
+        vf = _pct(gross, setting.vf_rate)
+        ta = _pct(gross, setting.ta_rate)
+        rates = dict(effective_on=setting.effective_on,
+                     cnss_employee_rate=str(setting.cnss_employee_rate),
+                     cnss_employer_rate=str(setting.cnss_employer_rate),
+                     vf_rate=str(setting.vf_rate), ta_rate=str(setting.ta_rate))
 
-    rts_base = max(gross_taxable - cnss_employee, 0)
-    rts = rts_on(rts_base, setting.brackets)
-
-    vf = _pct(gross, setting.vf_rate)
-    ta = _pct(gross, setting.ta_rate)
-
-    advances = advances_for(person, year, month)
-    advances_total = sum(a.amount for a in advances)
-    withheld = cnss_employee + rts + advances_total
+    advances = [dict(date=a.date, amount=a.amount) for a in advances_for(person, year, month)]
+    prepaid = [dict(name=b.pay_item.name if b.pay_item else "Prime", date=b.date, amount=b.amount)
+               for b in bonuses]
+    other = [dict(label=a.label, amount=a.amount) for a in adjustments if a.kind == "net"]
+    advances_total = sum(a["amount"] for a in advances)
+    prepaid_total = sum(b["amount"] for b in prepaid)
+    other_total = sum(o["amount"] for o in other)
+    withheld = cnss_employee + rts + advances_total + prepaid_total + other_total
     employer = cnss_employer + vf + ta
+    contract = _contract_on(person, last)
     return dict(
-        person=person, year=year, month=month, first=first, last=last,
-        salary=salary, setting=setting, contract=_contract_on(person, last),
-        base=base, allowances=allowances,
-        taxable_allowances=[a for a in allowances if a.allowance.taxable],
-        free_allowances=[a for a in allowances if not a.allowance.taxable],
+        year=year, month=month, first=first, last=last,
+        who=_who(person, contract), declared=declared, setting=rates,
+        base=base, gains=gains,
+        taxable_allowances=[g for g in gains if g["taxable"]],
+        free_allowances=[g for g in gains if not g["taxable"]],
         gross_taxable=gross_taxable, gross=gross,
         cnss_base=cnss_base, cnss_employee=cnss_employee, cnss_employer=cnss_employer,
         rts_base=rts_base, rts=rts, vf=vf, ta=ta,
         advances=advances, advances_total=advances_total,
+        bonuses=prepaid, prepaid_total=prepaid_total,
+        other=other, other_total=other_total,
         withheld=withheld, employer=employer,
         net=gross - withheld, cost=gross + employer,
     ), None
+
+
+def payslip(person, year, month):
+    """The payslip of a declared employee: the frozen one once the month is
+    validated, else worked out now with the month's adjustments."""
+    line = frozen_line(person, year, month)
+    if line is not None:
+        if not line.declared:
+            return None, "payslip.err.not_declared"
+        return json.loads(line.slip), None
+    if not person.is_employee or not person.declared:
+        return None, "payslip.err.not_declared"
+    run = PayRun.query.filter_by(month="%04d-%02d" % (year, month)).first()
+    adjustments = [a for a in run.adjustments if a.staff_id == person.id] if run else ()
+    return compute(person, year, month, adjustments)
+
+
+def frozen_line(person, year, month):
+    return (PayRunLine.query.join(PayRun)
+            .filter(PayRun.month == "%04d-%02d" % (year, month), PayRun.status == "validated",
+                    PayRunLine.staff_id == person.id).first())
 
 
 def _contract_on(person, day):
@@ -115,6 +191,61 @@ def _contract_on(person, day):
     return None
 
 
-def active_allowances():
-    return (PayAllowance.query.filter_by(is_active=True)
+def paid_this_month(person, first, last):
+    """Whether an employee is on the month's salary list: a salary line in
+    force at the end of the month, and -- for somebody with contracts -- one
+    running at some point in the month."""
+    if not person.is_employee or person.salary_on(last) is None:
+        return False
+    if not person.contracts:
+        return True
+    return any(c.start_date <= last and not (c.ended_on and c.ended_on < first)
+               and not (c.end_date and not c.ended_on and c.end_date < first)
+               for c in person.contracts)
+
+
+def run_lines(run):
+    """[(person, slip, error)] for every employee of the month, by department
+    then name. A validated month reads its frozen lines; a draft is worked
+    out now."""
+    year, month = int(run.month[:4]), int(run.month[5:])
+    if run.status == "validated":
+        out = [(l.person, json.loads(l.slip), None) for l in run.lines]
+    else:
+        first, last = month_bounds(year, month)
+        by_person = {}
+        for a in run.adjustments:
+            by_person.setdefault(a.staff_id, []).append(a)
+        people = Staff.query.filter(Staff.is_active.is_(True), Staff.kind == "employee").all()
+        # Somebody with an adjustment stays on the list even if archived since.
+        extra = {a.staff_id for a in run.adjustments} - {p.id for p in people}
+        if extra:
+            people += Staff.query.filter(Staff.id.in_(extra)).all()
+        out = []
+        for p in people:
+            if not paid_this_month(p, first, last) and p.id not in by_person:
+                continue
+            slip, err = compute(p, year, month, by_person.get(p.id, ()))
+            out.append((p, slip, err))
+    out.sort(key=lambda r: ((r[1] or {}).get("who", {}).get("department") or "￿", r[0].name))
+    return out
+
+
+def freeze(run):
+    """Validating the month: each employee's figures written down for good."""
+    run.lines = []
+    for person, slip, err in run_lines(run):
+        if slip is None:
+            continue
+        run.lines.append(PayRunLine(
+            staff_id=person.id, declared=slip["declared"], pay_method=slip["who"]["pay_method"],
+            gross=slip["gross"], cnss_employee=slip["cnss_employee"], cnss_employer=slip["cnss_employer"],
+            rts=slip["rts"], vf=slip["vf"], ta=slip["ta"], advances=slip["advances_total"],
+            prepaid=slip["prepaid_total"], other=slip["other_total"], net=slip["net"],
+            cost=slip["cost"], slip=json.dumps(slip)))
+
+
+def active_allowances(kind="allowance"):
+    """The monthly allowances in use -- or, with kind "bonus", the bonuses."""
+    return (PayAllowance.query.filter_by(is_active=True, kind=kind)
             .order_by(PayAllowance.sort_order, PayAllowance.name).all())

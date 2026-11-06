@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ t['adj.new'] }}{% endblock %}
+{% block page_title %}{{ t['nav.payroll'] }}{% endblock %}
+{% block content %}
+<section class="card" style="max-width: 720px;">
+    {% include "_pay_adjustment_form.html" %}
+</section>
+{% endblock %}

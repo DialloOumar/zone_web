@@ -1,5 +1,6 @@
-{# An advance on salary handed out by the cash box: who, how much, how, and
-   the month whose salary takes it back. #}
+{# Money the cash box hands an employee against his salary: an advance,
+   taken back in full from the month named, or a bonus (kind "prime"), paid
+   now and put on that month's payslip as pay already received. #}
 {% set posted = request.method == 'POST' %}
 {% macro v(name, default='') -%}
 {%- if posted -%}{{ request.form.get(name, '') }}
@@ -8,7 +9,7 @@
 {%- endmacro %}
 {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 <form method="post" class="entry-form" data-modal-form
-      action="{{ url_for('expenses.advance_edit', aid=row.id) if row else url_for('expenses.advance_new') }}">
+      action="{{ url_for('expenses.advance_edit', aid=row.id) if row else url_for('expenses.bonus_new' if kind == 'prime' else 'expenses.advance_new') }}">
     <div class="field field--select">
         {% set sel = v('staff_id')|int(0) %}
         <select id="staff_id" name="staff_id" required>
@@ -22,6 +23,21 @@
         </select>
         <label for="staff_id">{{ t['advance.person'] }}</label>
     </div>
+    {% if kind == 'prime' %}
+    <div class="field field--select">
+        {% set sel_item = v('pay_item_id')|int(0) %}
+        <select id="pay_item_id" name="pay_item_id" required>
+            <option value=""></option>
+            {% for b in bonus_items %}
+            <option value="{{ b.id }}" {% if b.id == sel_item %}selected{% endif %}>{{ b.name }}</option>
+            {% endfor %}
+            {% if row and row.pay_item and row.pay_item not in bonus_items %}
+            <option value="{{ row.pay_item.id }}" selected>{{ row.pay_item.name }}</option>
+            {% endif %}
+        </select>
+        <label for="pay_item_id">{{ t['bonus.item'] }}</label>
+    </div>
+    {% endif %}
     <div class="form-row">
         <div class="field">
             <input type="date" id="date" name="date" required value="{{ v('date', today) }}">
@@ -46,7 +62,7 @@
         </div>
         <div class="field">
             <input type="month" id="advance_month" name="advance_month" required value="{{ v('advance_month', this_month) }}">
-            <label for="advance_month">{{ t['advance.month'] }}</label>
+            <label for="advance_month">{{ t['bonus.month'] if kind == 'prime' else t['advance.month'] }}</label>
         </div>
     </div>
     <div class="field">

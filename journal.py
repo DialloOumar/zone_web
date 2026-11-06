@@ -29,6 +29,11 @@ from models import (AccountDeposit, AccountTransfer, BankCharge, CashMovement, C
 
 JOURNALS = ("caisse", "banque", "achats", "ventes")
 
+# Money the cash box hands staff against their salary, by the account of the
+# plan it sits in until the month's pay settles it: SYSCOHADA 4211
+# "Personnel, avances" and 4212 "Personnel, acomptes".
+STAFF_KINDS = {"avance": "4211", "prime": "4212"}
+
 # Which sources may have their code set from the journal page: the line's
 # own charge or revenue, never a settlement's (that one is the tiers').
 CODABLE = {"expense", "supplier_invoice", "bank_charge", "client_invoice_line"}
@@ -84,7 +89,17 @@ def lines(date_from=None, date_to=None, journal=None):
         # that money is the cost above.
         for m in within(CashMovement.query.filter(CashMovement.expense_id.is_(None)), CashMovement.date).all():
             purse = _purse_code(m.account)
-            if m.kind == "depot":
+            if m.kind in STAFF_KINDS:
+                # Lent to an employee, or paid ahead of his salary: his own
+                # account until the month's pay settles it.
+                label = m.note or ("%s %s" % ("Avance sur salaire" if m.kind == "avance"
+                                              else (m.pay_item.name if m.pay_item else "Prime"),
+                                              m.staff.name if m.staff else "")).strip()
+                out.append(_line("caisse", "cash_movement", m, m.date, label, m.amount,
+                                 debit=STAFF_KINDS[m.kind], credit=till,
+                                 who=m.staff.name if m.staff else None,
+                                 method=m.method, reference=m.reference))
+            elif m.kind == "depot":
                 out.append(_line("caisse", "cash_movement", m, m.date, m.note or m.source or "Entrée en caisse",
                                  m.amount, debit=till, credit=purse, who=m.account.name if m.account else None,
                                  method=m.method, reference=m.reference))

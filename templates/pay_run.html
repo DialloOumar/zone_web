@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}{{ t['run.title'] % label }}{% endblock %}
+{% block page_title %}{{ t['nav.payroll'] }}{% endblock %}
+
+{# One month's pay. A draft is worked out afresh each time it is opened, so
+   what is shown is what the files say now; once validated, every line is
+   the frozen one. Its tabs: the salary list by department, what changed
+   since the month before, and the month's adjustments. #}
+{% block content %}
+<section class="card">
+    <div class="file-head" style="align-items:center;">
+        <div class="file-head__main">
+            <div class="file-head__title">{{ t['run.title'] % label }}</div>
+            <div class="file-head__badges">
+                <span class="badge {{ {'draft': 'badge--info', 'submitted': 'badge--warning', 'validated': 'badge--active'}[run.status] }}">{{ t['run.state.' + run.status] }}</span>
+                {% if run.status == 'submitted' and run.submitter %}<span class="muted small">{{ t['run.submitted_by'] % (run.submitter.full_name, run.submitted_at.strftime('%d/%m/%Y')) }}</span>{% endif %}
+                {% if run.status == 'validated' and run.validator %}<span class="muted small">{{ t['run.validated_by_on'] % (run.validator.full_name, run.validated_at.strftime('%d/%m/%Y')) }}</span>{% endif %}
+            </div>
+        </div>
+        <div class="file-head__actions">
+            <a href="{{ url_for('payroll.run_print', month=run.month) }}" target="_blank" rel="noopener" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">print</span> {{ t['run.print'] }}</a>
+            {% if run.status == 'draft' and can_manage %}
+            <form method="post" action="{{ url_for('payroll.run_action', month=run.month, what='supprimer') }}" style="display:inline"
+                  data-confirm="{{ t['run.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger>
+                <button type="submit" class="btn btn--sm btn--outlined"><span class="material-symbols-outlined">delete</span> {{ t['btn.delete'] }}</button>
+            </form>
+            {% if approver_exists %}
+            <form method="post" action="{{ url_for('payroll.run_action', month=run.month, what='soumettre') }}" style="display:inline"
+                  data-confirm="{{ t['run.submit_confirm'] }}" data-confirm-title="{{ t['run.submit'] }}" data-confirm-ok="{{ t['run.submit'] }}">
+                <button type="submit" class="btn btn--sm btn--primary"><span class="material-symbols-outlined">approval</span> {{ t['run.submit'] }}</button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('payroll.run_action', month=run.month, what='valider') }}" style="display:inline"
+                  data-confirm="{{ t['run.close_confirm'] }}" data-confirm-title="{{ t['run.close'] }}" data-confirm-ok="{{ t['run.close'] }}">
+                <button type="submit" class="btn btn--sm btn--primary"><span class="material-symbols-outlined">task_alt</span> {{ t['run.close'] }}</button>
+            </form>
+            {% endif %}
+            {% endif %}
+            {% if run.status == 'submitted' and approves %}
+            <details class="po-reject">
+                <summary class="btn btn--sm btn--outlined">{{ t['run.send_back'] }}</summary>
+                <form method="post" action="{{ url_for('payroll.run_action', month=run.month, what='renvoyer') }}" class="po-reject__panel">
+                    <textarea name="note" rows="2" placeholder="{{ t['run.send_back_why'] }}" aria-label="{{ t['run.send_back_why'] }}"></textarea>
+                    <button type="submit" class="btn btn--sm btn--danger">{{ t['run.send_back'] }}</button>
+                </form>
+            </details>
+            <form method="post" action="{{ url_for('payroll.run_action', month=run.month, what='valider') }}" style="display:inline"
+                  data-confirm="{{ t['run.close_confirm'] }}" data-confirm-title="{{ t['run.validate'] }}" data-confirm-ok="{{ t['run.validate'] }}">
+                <button type="submit" class="btn btn--sm btn--primary"><span class="material-symbols-outlined">task_alt</span> {{ t['run.validate'] }}</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% if run.note and run.status == 'draft' %}
+    <div class="alert alert--warning" style="margin-top:12px;">{{ t['run.sent_back_note'] % run.note }}</div>
+    {% endif %}
+</section>
+
+<div class="stat-grid person-stats">
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--teal material-symbols-outlined">group</span>
+        <div><div class="stat-value">{{ summary.people }}</div><div class="stat-label">{{ t['run.people'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--blue material-symbols-outlined">payments</span>
+        <div><div class="stat-value">{{ summary.net|num }}</div><div class="stat-label">{{ t['run.net_total'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--blue material-symbols-outlined">account_balance</span>
+        <div><div class="stat-value">{{ summary.by.transfer|num }}</div><div class="stat-label">{{ t['run.by_transfer'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--amber material-symbols-outlined">point_of_sale</span>
+        <div><div class="stat-value">{{ summary.by.box|num }}</div><div class="stat-label">{{ t['run.by_box'] }}</div></div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon stat-icon--green material-symbols-outlined">price_check</span>
+        <div><div class="stat-value">{{ summary.cost|num }}</div><div class="stat-label">{{ t['payslip.cost_total'] }}</div></div>
+    </div>
+</div>
+
+<section class="card">
+    <nav class="tabs" role="tablist">
+        {% for key, icon in (('list', 'list_alt'), ('changes', 'history'), ('adjustments', 'tune')) %}
+        <a href="{{ url_for('payroll.run', month=run.month, tab=key if key != 'list' else None) }}" role="tab"
+           aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
+            <span class="material-symbols-outlined">{{ icon }}</span> {{ t['run.tab.' + key] }}
+            {%- if key == 'adjustments' and run.adjustments %} <span class="tab__count">{{ run.adjustments|length }}</span>{% endif %}
+        </a>
+        {% endfor %}
+    </nav>
+
+    {% if tab == 'list' %}
+    {% if summary.errors %}<div class="alert alert--error">{{ t['run.err.lines'] }}</div>{% endif %}
+    {% if summary.by.none %}<div class="alert alert--warning">{{ t['run.no_way_total'] % (summary.by.none|num) }}</div>{% endif %}
+    {% if groups %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['staff.name'] }}</th>
+            <th>{{ t['staff.position'] }}</th>
+            <th>{{ t['pay.method'] }}</th>
+            <th style="text-align:right;">{{ t['payslip.gross'] }}</th>
+            <th style="text-align:right;">{{ t['run.taxes'] }}</th>
+            <th style="text-align:right;">{{ t['run.taken'] }}</th>
+            <th style="text-align:right;">{{ t['payslip.net'] }}</th>
+            <th></th>
+        </tr></thead>
+        <tbody>
+            {% for g in groups %}
+            <tr class="group-row"><td colspan="8"><strong>{{ g.name or t['run.no_department'] }}</strong></td></tr>
+            {% for person, s, err in g.rows %}
+            <tr>
+                <td><a href="{{ url_for('staff.profile', pid=person.id, tab='salary') }}"><strong>{{ person.name }}</strong></a></td>
+                {% if s %}
+                <td>{{ s.who.position or '' }}</td>
+                <td style="white-space:nowrap;">{% if s.who.pay_method %}{{ t['pay.method.' + s.who.pay_method] }}{% if s.who.pay_method == 'transfer' and s.who.bank %} · {{ s.who.bank }}{% endif %}{% else %}<span class="badge badge--warning">{{ t['run.no_way'] }}</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ s.gross|num }}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if s.declared %}{{ (s.cnss_employee + s.rts)|num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% set taken = s.advances_total + s.prepaid_total + s.other_total %}{% if taken %}{{ taken|num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;"><strong>{{ s.net|num }}</strong></td>
+                <td class="row-actions">{% if s.declared %}<a href="{{ url_for('staff.payslip_print', pid=person.id, year=s.year, month=s.month) }}" target="_blank" rel="noopener" class="btn btn--sm btn--tonal btn--icon" title="{{ t['person.tab.payslip'] }}" aria-label="{{ t['person.tab.payslip'] }}"><span class="material-symbols-outlined">receipt_long</span></a>{% endif %}</td>
+                {% else %}
+                <td colspan="6"><span class="badge badge--critical">{{ t[err] }}</span></td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+            <tr class="subtotal-row">
+                <td colspan="3">{{ t['run.subtotal'] }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ g.gross|num }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ g.taxes|num }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ g.taken|num }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ g.net|num }}</td>
+                <td></td>
+            </tr>
+            {% endfor %}
+            <tr class="subtotal-row subtotal-row--grand">
+                <td colspan="3">{{ t['run.total'] }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ summary.gross|num }}</td>
+                <td></td><td></td>
+                <td style="text-align:right; white-space:nowrap;">{{ summary.net|num }} {{ currency }}</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">group</span><p>{{ t['run.empty'] }}</p></div>
+    {% endif %}
+
+    {% elif tab == 'changes' %}
+    {% if not compared %}<div class="alert alert--info">{{ t['run.no_previous'] }}</div>{% endif %}
+    {% if changes %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['staff.name'] }}</th>
+            <th>{{ t['run.change'] }}</th>
+            <th style="text-align:right;">{{ t['run.before'] }}</th>
+            <th style="text-align:right;">{{ t['run.after'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for c in changes %}
+            <tr>
+                <td>{% if c.person %}<a href="{{ url_for('staff.profile', pid=c.person.id) }}">{{ c.person.name }}</a>{% endif %}</td>
+                <td><span class="badge {{ {'new': 'badge--active', 'gone': 'badge--inactive', 'gross': 'badge--info', 'advance': 'badge--warning', 'bonus': 'badge--warning', 'no_way': 'badge--critical', 'error': 'badge--critical'}[c.what] }}">{{ t['run.change.' + c.what] }}</span></td>
+                <td style="text-align:right; white-space:nowrap;">{% if c.before is not none %}{{ c.before|num }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if c.after is not none %}{{ c.after|num }}{% elif c.error %}{{ t[c.error] }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">task_alt</span><p>{{ t['run.no_changes'] }}</p></div>
+    {% endif %}
+
+    {% else %}
+    {% if run.status == 'draft' and can_manage %}
+    <div class="tab-bar">
+        <div class="tab-bar__actions">
+            <a href="{{ url_for('payroll.run_adjustment_new', month=run.month) }}" class="btn btn--sm btn--primary"
+               data-modal-url="{{ url_for('payroll.run_adjustment_new', month=run.month) }}" data-modal-title="{{ t['adj.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['adj.new'] }}</a>
+        </div>
+    </div>
+    {% endif %}
+    {% if run.adjustments %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['staff.name'] }}</th>
+            <th>{{ t['payset.kind'] }}</th>
+            <th>{{ t['adj.label'] }}</th>
+            <th style="text-align:right;">{{ t['expense.amount'] }}</th>
+            <th>{{ t['payset.taxable'] }}</th>
+            <th>{{ t['payset.cnss_due'] }}</th>
+            <th></th>
+        </tr></thead>
+        <tbody>
+            {% for a in run.adjustments %}
+            <tr>
+                <td>{{ a.person.name }}</td>
+                <td>{{ t['adj.kind.' + a.kind] }}</td>
+                <td>{{ a.label }}</td>
+                <td style="text-align:right; white-space:nowrap;">{{ '−' if a.kind != 'plus' else '+' }} {{ a.amount|num }}</td>
+                <td>{% if a.kind == 'net' %}<span class="muted">&mdash;</span>{% else %}{{ t['staff.declared.yes'] if a.taxable else t['staff.declared.no'] }}{% endif %}</td>
+                <td>{% if a.kind == 'net' %}<span class="muted">&mdash;</span>{% else %}{{ t['staff.declared.yes'] if a.cnss else t['staff.declared.no'] }}{% endif %}</td>
+                <td class="row-actions">
+                    {% if run.status == 'draft' and can_manage %}
+                    <a href="{{ url_for('payroll.run_adjustment_edit', aid=a.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('payroll.run_adjustment_edit', aid=a.id) }}" data-modal-title="{{ t['adj.edit'] }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    <form method="post" action="{{ url_for('payroll.run_adjustment_delete', aid=a.id) }}" style="display:inline"
+                          data-confirm="{{ t['adj.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger>
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">tune</span><p>{{ t['adj.none'] }}</p></div>
+    {% endif %}
+    {% endif %}
+</section>
+{% endblock %}

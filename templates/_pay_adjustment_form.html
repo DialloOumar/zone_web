@@ -1,0 +1,53 @@
+{# One change to one employee's pay for the month, with its reason: added to
+   the gross, taken off the gross, or taken off the net. #}
+{% set posted = request.method == 'POST' %}
+{% macro v(name, default='') -%}
+{%- if posted -%}{{ request.form.get(name, '') }}
+{%- elif row is not none and row[name] is not none -%}{{ row[name] }}
+{%- else -%}{{ default }}{%- endif -%}
+{%- endmacro %}
+{% set kind = v('kind', 'plus') %}
+{% set taxable = (request.form.get('taxable') == '1') if posted else (row.taxable if row else true) %}
+{% set cnss = (request.form.get('cnss') == '1') if posted else (row.cnss if row else true) %}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form data-adjust-form
+      action="{{ url_for('payroll.run_adjustment_edit', aid=row.id) if row else url_for('payroll.run_adjustment_new', month=run.month) }}">
+    <div class="field field--select">
+        {% set sel = v('staff_id')|int(0) %}
+        <select id="staff_id" name="staff_id" required>
+            <option value=""></option>
+            {% for p in people %}
+            <option value="{{ p.id }}" {% if p.id == sel %}selected{% endif %}>{{ p.name }}{% if p.matricule %} · {{ p.matricule }}{% endif %}</option>
+            {% endfor %}
+        </select>
+        <label for="staff_id">{{ t['advance.person'] }}</label>
+    </div>
+    <div class="field">
+        <div class="choice" role="radiogroup" aria-label="{{ t['payset.kind'] }}">
+            {% for k in ('plus', 'minus', 'net') %}
+            <label class="choice__opt"><input type="radio" name="kind" value="{{ k }}" data-adjust-kind {% if k == kind %}checked{% endif %}><span>{{ t['adj.kind.' + k] }}</span></label>
+            {% endfor %}
+        </div>
+        <label>{{ t['payset.kind'] }}</label>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="label" name="label" placeholder=" " required maxlength="120" value="{{ v('label') }}">
+            <label for="label">{{ t['adj.label'] }}</label>
+        </div>
+        <div class="field">
+            {% set amt = v('amount') %}
+            <input data-money type="text" inputmode="numeric" id="amount" name="amount" placeholder=" " required
+                   value="{{ (amt|int(0) | num) if amt and not posted else amt }}">
+            <label for="amount">{{ t['expense.amount'] }}</label>
+        </div>
+    </div>
+    <div data-adjust-gross {% if kind == 'net' %}hidden{% endif %}>
+        <label class="checkbox-item"><input type="checkbox" name="taxable" value="1" {% if taxable %}checked{% endif %}><span>{{ t['payset.taxable'] }}</span></label>
+        <label class="checkbox-item"><input type="checkbox" name="cnss" value="1" {% if cnss %}checked{% endif %}><span>{{ t['payset.cnss_due'] }}</span></label>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('payroll.run', month=run.month, tab='adjustments') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

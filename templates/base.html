@@ -54,6 +54,12 @@
                 <span class="nav-icon material-symbols-outlined">group</span> {{ t['nav.staff'] }}
             </a></li>
             {% endif %}
+            {% if has_perm('payroll.view') or user_approves_payroll() %}
+            {% if not has_perm('staff.view') %}<li class="sidebar-section">{{ t['nav.hr'] }}</li>{% endif %}
+            <li><a href="{{ url_for('payroll.runs') }}" class="sidebar-sub {% if (request.endpoint or '').startswith('payroll.run') %}active{% endif %}">
+                <span class="nav-icon material-symbols-outlined">payments</span> {{ t['nav.payroll'] }}
+            </a></li>
+            {% endif %}
 
             {% if has_perm('carburant.view') or has_perm('stock.view') or has_perm('insights.view') %}
             <li class="sidebar-section">{{ t['nav.management'] }}</li>
@@ -210,7 +216,7 @@
             <li><a href="{{ url_for('expenses.cash_lists') }}" class="sidebar-sub {% if (request.endpoint or '').startswith('expenses.cash_list') %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">home</span> {{ t['list.sites'] }}
             </a></li>
-            <li><a href="{{ url_for('payroll.settings') }}" class="sidebar-sub {% if request.blueprint == 'payroll' %}active{% endif %}">
+            <li><a href="{{ url_for('payroll.settings') }}" class="sidebar-sub {% if request.blueprint == 'payroll' and not (request.endpoint or '').startswith('payroll.run') %}active{% endif %}">
                 <span class="nav-icon material-symbols-outlined">tune</span> {{ t['payset.title'] }}
             </a></li>
             <li><a href="{{ url_for('stores.index') }}" class="sidebar-sub {% if request.blueprint == 'stores' or request.endpoint in ('stock.units', 'stock.conversions') %}active{% endif %}">

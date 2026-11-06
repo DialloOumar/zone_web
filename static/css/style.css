@@ -2683,3 +2683,20 @@ a.person-cell:hover strong { text-decoration: underline; }
 .cell-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
               max-width: 220px; min-width: 140px; }
 .chip--more { background: var(--md-surface-container-high); color: var(--md-on-surface-variant); }
+
+/* ── The month's pay ──
+   The salary list reads by department: a title row per group, a sub-total
+   under it, the month's total at the bottom. */
+.data-table .group-row td { background: var(--md-surface-container); padding-top: 10px; padding-bottom: 6px;
+                            font-size: 0.82rem; letter-spacing: 0.02em; }
+.data-table .subtotal-row td { font-weight: 600; background: var(--md-surface-container-low);
+                               border-bottom: 2px solid var(--md-outline-variant); }
+.data-table .subtotal-row--grand td { background: var(--md-secondary-container); font-size: 0.95rem; }
+/* Sending a month back asks why, in a panel under its button. */
+.po-reject { position: relative; display: inline-block; }
+.po-reject__panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 300px;
+                    display: flex; flex-direction: column; gap: 8px; padding: 12px;
+                    background: var(--md-surface); border: 1px solid var(--md-outline-variant);
+                    border-radius: var(--shape-md); box-shadow: var(--elev-2); }
+.po-reject__panel textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--md-outline);
+                             border-radius: 8px; font: inherit; background: var(--md-surface); color: var(--md-on-surface); }

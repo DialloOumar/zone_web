@@ -150,6 +150,9 @@ class Role(db.Model):
     # bon de commande. A holder of a role with the box gives that approval.
     approves_logistics = db.Column(db.Boolean, nullable=False, default=False)
     approves_finance   = db.Column(db.Boolean, nullable=False, default=False)
+    # Who validates the month's pay. While no role has the box, whoever
+    # prepares the pay closes it alone.
+    approves_payroll   = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     is_active   = db.Column(db.Boolean,     nullable=False, default=True)  # soft delete = archive
     created_by  = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at  = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
@@ -726,15 +729,23 @@ class Bank(db.Model):
 
 
 class PayAllowance(db.Model):
-    """A kind of allowance paid on top of the base salary: transport, housing,
-    cost of living... Kept by the super admin, with what the law does with it:
-    whether it is taxed (RTS) and whether the CNSS is due on it."""
+    """Something paid on top of the base salary, kept by the super admin with
+    what the law does with it -- whether it is taxed (RTS), whether the CNSS
+    is due on it -- and the account of the plan it is charged to.
+
+    Two kinds: an allowance is paid every month and dated with the salary
+    line (transport, housing...); a bonus is paid once, by the cash box,
+    and goes on the payslip of the month it is given for."""
     __tablename__ = "pay_allowances"
+
+    KINDS = ("allowance", "bonus")
 
     id         = db.Column(db.Integer, primary_key=True)
     name       = db.Column(db.String(80), nullable=False, unique=True)
+    kind       = db.Column(db.String(10), nullable=False, default="allowance", server_default="allowance")
     taxable    = db.Column(db.Boolean, nullable=False, default=False)
     cnss       = db.Column(db.Boolean, nullable=False, default=True)
+    ledger_code = db.Column(db.String(12))
     is_active  = db.Column(db.Boolean, nullable=False, default=True)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
 
@@ -801,6 +812,111 @@ class PayRtsBracket(db.Model):
     rate       = db.Column(db.Numeric(6, 3), nullable=False)  # percent
 
     setting = db.relationship("PaySetting", back_populates="brackets")
+
+
+class PayRun(db.Model):
+    """The pay of one month, for every employee paid that month.
+
+        draft      -- being prepared: worked out afresh from the files, the
+                      salary lines, the cash box's advances and bonuses, and
+                      the month's adjustments, every time it is opened
+        submitted  -- handed to whoever validates the pay (a role with the
+                      "approves_payroll" box); nothing can change meanwhile
+        validated  -- locked: each employee's figures are frozen in a
+                      PayRunLine, and the payslips, the salary list and the
+                      profitability read those, never a fresh reckoning
+
+    Sent back, a submitted month is a draft again.
+    """
+    __tablename__ = "pay_runs"
+
+    STATES = ("draft", "submitted", "validated")
+
+    id           = db.Column(db.Integer, primary_key=True)
+    month        = db.Column(db.String(7), nullable=False, unique=True)     # YYYY-MM
+    status       = db.Column(db.String(12), nullable=False, default="draft", index=True)
+    note         = db.Column(db.String(255))      # why it was sent back, last time
+    created_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at   = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    submitted_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    submitted_at = db.Column(db.DateTime)
+    validated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    validated_at = db.Column(db.DateTime)
+
+    adjustments = db.relationship("PayRunAdjustment", back_populates="run",
+                                  cascade="all, delete-orphan",
+                                  order_by="PayRunAdjustment.id")
+    lines       = db.relationship("PayRunLine", back_populates="run",
+                                  cascade="all, delete-orphan")
+    preparer    = db.relationship("User", foreign_keys=[created_by])
+    submitter   = db.relationship("User", foreign_keys=[submitted_by])
+    validator   = db.relationship("User", foreign_keys=[validated_by])
+
+    @property
+    def locked(self):
+        return self.status != "draft"
+
+
+class PayRunAdjustment(db.Model):
+    """One change to one employee's pay for the month, with its reason:
+
+        plus   -- added to the gross: a bonus, overtime, a raise paid late
+        minus  -- taken off the gross: days of absence
+        net    -- taken off the net after the taxes: anything else owed
+
+    A gross change follows the law as said (taxable, CNSS due) like any pay.
+    """
+    __tablename__ = "pay_run_adjustments"
+
+    KINDS = ("plus", "minus", "net")
+
+    id         = db.Column(db.Integer, primary_key=True)
+    run_id     = db.Column(db.Integer, db.ForeignKey("pay_runs.id"), nullable=False, index=True)
+    staff_id   = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=False, index=True)
+    kind       = db.Column(db.String(6), nullable=False)
+    label      = db.Column(db.String(120), nullable=False)
+    amount     = db.Column(db.Integer, nullable=False)       # GNF, always positive
+    taxable    = db.Column(db.Boolean, nullable=False, default=True)
+    cnss       = db.Column(db.Boolean, nullable=False, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    run    = db.relationship("PayRun", back_populates="adjustments")
+    person = db.relationship("Staff")
+
+
+class PayRunLine(db.Model):
+    """One employee's pay for a validated month, frozen.
+
+    The figures the list and the documents add up sit in columns; the whole
+    payslip -- every line, the rates of the time, who he was then -- sits in
+    `slip` as JSON, so it prints the same in ten years whatever changed since.
+    """
+    __tablename__ = "pay_run_lines"
+    __table_args__ = (
+        db.UniqueConstraint("run_id", "staff_id", name="uq_pay_run_line"),
+    )
+
+    id           = db.Column(db.Integer, primary_key=True)
+    run_id       = db.Column(db.Integer, db.ForeignKey("pay_runs.id"), nullable=False, index=True)
+    staff_id     = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=False, index=True)
+    declared     = db.Column(db.Boolean, nullable=False, default=False)
+    pay_method   = db.Column(db.String(12))
+    gross        = db.Column(db.Integer, nullable=False)
+    cnss_employee = db.Column(db.Integer, nullable=False, default=0)
+    cnss_employer = db.Column(db.Integer, nullable=False, default=0)
+    rts          = db.Column(db.Integer, nullable=False, default=0)
+    vf           = db.Column(db.Integer, nullable=False, default=0)
+    ta           = db.Column(db.Integer, nullable=False, default=0)
+    advances     = db.Column(db.Integer, nullable=False, default=0)    # advances taken back
+    prepaid      = db.Column(db.Integer, nullable=False, default=0)    # bonuses the box already paid
+    other        = db.Column(db.Integer, nullable=False, default=0)    # adjustments off the net
+    net          = db.Column(db.Integer, nullable=False)
+    cost         = db.Column(db.Integer, nullable=False)                # gross + employer's charges
+    slip         = db.Column(db.Text, nullable=False)                   # JSON, see payroll.compute
+
+    run    = db.relationship("PayRun", back_populates="lines")
+    person = db.relationship("Staff")
 
 
 class StaffDocument(db.Model):
@@ -1412,6 +1528,8 @@ class CashMovement(db.Model):
         retrait — money taken back out to one (−)
         avance  — an advance on salary handed to an employee (−), taken back
                   in full from the salary of `advance_month`
+        prime   — a bonus the box pays an employee (−): it goes on the payslip
+                  of `advance_month` as pay, already paid
 
     A withdrawal is not a cost: the boss taking his own money back spends
     nothing on the company's behalf, and filing it as an expense would inflate
@@ -1421,7 +1539,7 @@ class CashMovement(db.Model):
     __tablename__ = "cash_movements"
 
     id         = db.Column(db.Integer,     primary_key=True)
-    kind       = db.Column(db.String(20),  nullable=False, default="depot")  # depot | retrait | avance
+    kind       = db.Column(db.String(20),  nullable=False, default="depot")  # depot | retrait | avance | prime
     date       = db.Column(db.String(10),  nullable=False)              # YYYY-MM-DD
     amount     = db.Column(db.Integer,     nullable=False)              # GNF
     currency   = db.Column(db.String(5),   nullable=False, default="GNF")
@@ -1441,11 +1559,14 @@ class CashMovement(db.Model):
     # not spent -- like a withdrawal it is no cost of the company's.
     staff_id      = db.Column(db.Integer,  db.ForeignKey("staff.id"), nullable=True, index=True)
     advance_month = db.Column(db.String(7))     # YYYY-MM
+    # A bonus: which kind (a PayAllowance of kind "bonus").
+    pay_item_id   = db.Column(db.Integer,  db.ForeignKey("pay_allowances.id"), nullable=True)
     created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
     account = db.relationship("CashAccount")
     staff   = db.relationship("Staff")
+    pay_item = db.relationship("PayAllowance")
     expense = db.relationship("Expense", back_populates="cash_movement",
                               foreign_keys=[expense_id])
 

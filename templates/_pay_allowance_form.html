@@ -1,5 +1,8 @@
-{# A kind of allowance: its name, and what the law does with it. #}
+{# Something paid on top of the base salary: its name, its kind (paid every
+   month with the salary, or once by the cash box), what the law does with
+   it, and the account of the plan it is charged to. #}
 {% set posted = request.method == 'POST' %}
+{% set kind = request.form.get('kind') if posted else (row.kind if row else 'allowance') %}
 {% set taxable = (request.form.get('taxable') == '1') if posted else (row.taxable if row else false) %}
 {% set cnss = (request.form.get('cnss') == '1') if posted else (row.cnss if row else true) %}
 {% set active = (request.form.get('is_active') == '1') if posted else (row.is_active if row else true) %}
@@ -7,8 +10,22 @@
 <form method="post" class="entry-form" data-modal-form
       action="{{ url_for('payroll.allowance_edit', aid=row.id) if row else url_for('payroll.allowance_new') }}">
     <div class="field">
-        <input type="text" id="name" name="name" placeholder=" " required value="{{ request.form.get('name', '') if posted else (row.name if row else '') }}">
-        <label for="name">{{ t['payset.allowance'] }}</label>
+        <div class="choice" role="radiogroup" aria-label="{{ t['payset.kind'] }}">
+            {% for k in ('allowance', 'bonus') %}
+            <label class="choice__opt"><input type="radio" name="kind" value="{{ k }}" {% if k == kind %}checked{% endif %}><span>{{ t['payset.kind.' + k] }}</span></label>
+            {% endfor %}
+        </div>
+        <label>{{ t['payset.kind'] }}</label>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input type="text" id="name" name="name" placeholder=" " required value="{{ request.form.get('name', '') if posted else (row.name if row else '') }}">
+            <label for="name">{{ t['payset.allowance'] }}</label>
+        </div>
+        <div class="field">
+            <input type="text" inputmode="numeric" id="ledger_code" name="ledger_code" placeholder=" " value="{{ request.form.get('ledger_code', '') if posted else ((row.ledger_code or '') if row else '') }}">
+            <label for="ledger_code">{{ t['payset.ledger_code'] }}</label>
+        </div>
     </div>
     <label class="checkbox-item"><input type="checkbox" name="taxable" value="1" {% if taxable %}checked{% endif %}><span>{{ t['payset.taxable'] }}</span></label>
     <label class="checkbox-item"><input type="checkbox" name="cnss" value="1" {% if cnss %}checked{% endif %}><span>{{ t['payset.cnss_due'] }}</span></label>

@@ -36,6 +36,12 @@
                    {% if (is_edit and role.approves_finance) or (request.method == 'POST' and request.form.get('approves_finance')) %}checked{% endif %}>
             <span>{{ t['role.approves_finance'] }}</span>
         </label>
+        {# Who validates the month's pay; while no role has it, RH closes alone. #}
+        <label class="checkbox-item" style="max-width: 420px; margin-top: 8px;">
+            <input type="checkbox" name="approves_payroll"
+                   {% if (is_edit and role.approves_payroll) or (request.method == 'POST' and request.form.get('approves_payroll')) %}checked{% endif %}>
+            <span>{{ t['role.approves_payroll'] }}</span>
+        </label>
         {% endif %}
     </section>
 

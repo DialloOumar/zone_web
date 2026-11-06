@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ t['nav.payroll'] }}{% endblock %}
+{% block page_title %}{{ t['nav.payroll'] }}{% endblock %}
+
+{# The months' pay, newest first: being prepared, waiting for validation, or
+   validated and locked. A new month is opened from here. #}
+{% block content %}
+<section class="card">
+    {% if can_manage %}
+    <form method="post" action="{{ url_for('payroll.run_new') }}" class="tab-bar">
+        <div class="tab-bar__actions">
+            <div class="field" style="margin:0;">
+                <input type="month" id="month" name="month" required value="{{ next_month }}" style="height:34px;">
+                <label for="month">{{ t['payslip.month'] }}</label>
+            </div>
+            <button type="submit" class="btn btn--sm btn--primary"><span class="material-symbols-outlined">add</span> {{ t['run.new'] }}</button>
+        </div>
+    </form>
+    {% endif %}
+    {% if runs %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['payslip.month'] }}</th>
+            <th>{{ t['contract.state'] }}</th>
+            <th style="text-align:right;">{{ t['run.people'] }}</th>
+            <th style="text-align:right;">{{ t['run.net_total'] }}</th>
+            <th style="text-align:right;">{{ t['payslip.cost_total'] }}</th>
+            <th class="col-secondary">{{ t['run.validated_by'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for r in runs %}
+            {% set tot = totals.get(r.id) %}
+            <tr>
+                <td><a href="{{ url_for('payroll.run', month=r.month) }}"><strong>{{ labels[r.month] }}</strong></a></td>
+                <td><span class="badge {{ {'draft': 'badge--info', 'submitted': 'badge--warning', 'validated': 'badge--active'}[r.status] }}">{{ t['run.state.' + r.status] }}</span></td>
+                <td style="text-align:right;">{% if tot %}{{ tot.people }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if tot %}{{ tot.net|num }} {{ currency }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;">{% if tot %}{{ tot.cost|num }} {{ currency }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td class="col-secondary">{% if r.validator %}{{ r.validator.full_name }} · {{ r.validated_at.strftime('%d/%m/%Y') }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">payments</span>
+        <p>{{ t['run.none'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

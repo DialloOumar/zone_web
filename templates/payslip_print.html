@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ t['payslip.title'] }} {{ slip.label }} — {{ slip.person.name }}</title>
+<title>{{ t['payslip.title'] }} {{ slip.label }} — {{ slip.who.name }}</title>
 {% include "_payslip_style.html" %}
 <style>
     @page { size: A4; margin: 1.2cm 1.3cm; }
@@ -28,7 +28,7 @@
 <body>
 <div class="print-toolbar">
     <span class="print-toolbar__hint">{{ t['export.print_hint'] }}</span>
-    <a href="{{ url_for('staff.profile', pid=slip.person.id, tab='payslip', mois='%04d-%02d' % (slip.year, slip.month)) }}">{{ t['btn.cancel'] }}</a>
+    <a href="{{ url_for('staff.profile', pid=slip.who.id, tab='payslip', mois='%04d-%02d' % (slip.year, slip.month)) }}">{{ t['btn.cancel'] }}</a>
     <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
 </div>
 {% include "_payslip_sheet.html" %}

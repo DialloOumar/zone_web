@@ -312,16 +312,18 @@
     </div>
     {% endif %}
 
-    {# Advances on salary: handed out by the cash box, taken back in full from
-       the salary of the month named. Recorded in the Caisse, read here. #}
+    {# What the cash box paid him against his salary: advances, taken back in
+       full from the month named, and bonuses, on that month's payslip.
+       Recorded in the Caisse, read here. #}
     {% if advances %}
     <div class="file-section">
-        <h3>{{ t['advance.title'] }}</h3>
+        <h3>{{ t['advance.title_all'] }}</h3>
         <div class="table-wrap"><table class="data-table">
             <thead><tr>
                 <th>{{ t['expense.date'] }}</th>
+                <th>{{ t['caisse.type_col'] }}</th>
                 <th style="text-align:right;">{{ t['expense.amount'] }}</th>
-                <th>{{ t['advance.month'] }}</th>
+                <th>{{ t['advance.pay_month'] }}</th>
                 <th class="col-secondary">{{ t['expense.payment_method'] }}</th>
                 <th class="col-secondary">{{ t['entry.note'] }}</th>
             </tr></thead>
@@ -329,6 +331,7 @@
                 {% for a, label in advances %}
                 <tr>
                     <td style="white-space:nowrap;">{{ a.date|dmy }}</td>
+                    <td>{% if a.kind == 'prime' %}{{ a.pay_item.name if a.pay_item else t['caisse.kind.prime'] }}{% else %}{{ t['caisse.kind.avance'] }}{% endif %}</td>
                     <td style="text-align:right; white-space:nowrap;"><strong>{{ a.amount|num }} {{ currency }}</strong></td>
                     <td style="white-space:nowrap;">{{ label }}</td>
                     <td class="col-secondary">{% if a.method %}{{ t['pay.' + a.method] }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>

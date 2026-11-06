@@ -830,3 +830,11 @@ document.addEventListener("change", function (e) {
         part.hidden = part.getAttribute("data-pay-part") !== el.value;
     });
 });
+
+// A pay adjustment off the net is no pay: the taxable / CNSS boxes go.
+document.addEventListener("change", function (e) {
+    var el = e.target;
+    if (!el.matches || !el.matches("[data-adjust-kind]") || !el.form) return;
+    var gross = el.form.querySelector("[data-adjust-gross]");
+    if (gross) gross.hidden = el.value === "net";
+});

@@ -1,8 +1,9 @@
-{# One payslip (payroll.payslip): the company with its logo, the employee,
-   every line of the reckoning, the net, the employer's cost, the
-   signatures. Shown in the person's Bulletin tab and on its own page to
-   print (payslip_print.html). Needs slip, co. #}
-{% set p = slip.person %}
+{# One payslip (payroll.compute, or a validated month's frozen copy): the
+   company with its logo, the employee as he was that month, every line of
+   the reckoning, the net, the employer's cost, the signatures. Shown in the
+   person's Bulletin tab and on its own page to print (payslip_print.html).
+   Needs slip, co. #}
+{% set p = slip.who %}
 {% set st = slip.setting %}
 <div class="slip">
     <div class="slip__top">
@@ -25,21 +26,21 @@
             <dl>
                 <dt>{{ t['staff.name'] }}</dt><dd><b>{{ p.name }}</b></dd>
                 <dt>{{ t['staff.matricule'] }}</dt><dd>{{ p.matricule or '—' }}</dd>
-                <dt>{{ t['staff.position'] }}</dt><dd>{{ p.position.name if p.position else '—' }}</dd>
+                <dt>{{ t['staff.position'] }}</dt><dd>{{ p.position or '—' }}</dd>
                 <dt>{{ t['staff.category'] }}</dt><dd>{{ p.category or '—' }}</dd>
-                <dt>{{ t['staff.department'] }}</dt><dd>{{ p.department.name if p.department else '—' }}{% if p.site %} · {{ p.site.name }}{% endif %}</dd>
+                <dt>{{ t['staff.department'] }}</dt><dd>{{ p.department or '—' }}{% if p.site %} · {{ p.site }}{% endif %}</dd>
                 <dt>{{ t['staff.cnss'] }}</dt><dd>{{ p.cnss_number or '—' }}</dd>
             </dl>
         </div>
         <div class="slip__box">
             <h4>{{ t['payslip.contract'] }}</h4>
             <dl>
-                <dt>{{ t['contract.kind'] }}</dt><dd>{% if slip.contract %}{{ t['contract.kind.' + slip.contract.kind] }} · {{ t['payslip.since'] }} {{ slip.contract.start_date|dmy }}{% else %}—{% endif %}</dd>
+                <dt>{{ t['contract.kind'] }}</dt><dd>{% if p.contract_kind %}{{ t['contract.kind.' + p.contract_kind] }} · {{ t['payslip.since'] }} {{ p.contract_start|dmy }}{% else %}—{% endif %}</dd>
                 <dt>{{ t['staff.hired_on'] }}</dt><dd>{{ p.hired_on|dmy if p.hired_on else '—' }}</dd>
                 <dt>{{ t['staff.marital'] }}</dt><dd>{{ t['staff.marital.' + p.marital_status] if p.marital_status else '—' }}</dd>
                 <dt>{{ t['staff.children'] }}</dt><dd>{{ p.children if p.children is not none else '—' }}</dd>
                 <dt>{{ t['staff.nationality'] }}</dt><dd>{{ p.nationality or '—' }}</dd>
-                <dt>{{ t['pay.method'] }}</dt><dd>{% if p.pay_method %}{{ t['pay.method.' + p.pay_method] }}{% if p.pay_method == 'transfer' and p.bank %} · {{ p.bank.name }}{% endif %}{% else %}—{% endif %}</dd>
+                <dt>{{ t['pay.method'] }}</dt><dd>{% if p.pay_method %}{{ t['pay.method.' + p.pay_method] }}{% if p.pay_method == 'transfer' and p.bank %} · {{ p.bank }}{% endif %}{% else %}—{% endif %}</dd>
                 {% if p.pay_method == 'transfer' and p.bank_account %}
                 {# The account shown with its middle hidden: the paper may travel. #}
                 {% set acc = p.bank_account %}
@@ -63,14 +64,15 @@
             <tr class="slip__group"><td colspan="7">{{ t['payslip.pay'] }}</td></tr>
             <tr><td>{{ t['salary.amount'] }}</td><td></td><td></td><td class="r">{{ slip.base|num }}</td><td></td><td></td><td></td></tr>
             {% for a in slip.taxable_allowances %}
-            <tr><td>{{ a.allowance.name }}</td><td></td><td></td><td class="r">{{ a.amount|num }}</td><td></td><td></td><td></td></tr>
+            <tr><td>{{ a.name }}</td><td></td><td></td><td class="r">{{ a.amount|num }}</td><td></td><td></td><td></td></tr>
             {% endfor %}
             <tr class="slip__sub"><td>{{ t['payslip.gross_taxable'] }}</td><td></td><td></td><td class="r">{{ slip.gross_taxable|num }}</td><td></td><td></td><td></td></tr>
             {% for a in slip.free_allowances %}
-            <tr><td>{{ a.allowance.name }}</td><td></td><td></td><td class="r">{{ a.amount|num }}</td><td></td><td></td><td></td></tr>
+            <tr><td>{{ a.name }}</td><td></td><td></td><td class="r">{{ a.amount|num }}</td><td></td><td></td><td></td></tr>
             {% endfor %}
             <tr class="slip__sub"><td>{{ t['payslip.gross'] }}</td><td></td><td></td><td class="r">{{ slip.gross|num }}</td><td></td><td></td><td></td></tr>
 
+            {% if st %}
             <tr class="slip__group"><td colspan="7">{{ t['payslip.social'] }}</td></tr>
             <tr><td>CNSS</td><td class="r">{{ slip.cnss_base|num }}</td><td class="r">{{ st.cnss_employee_rate|qty }} %</td><td></td>
                 <td class="r">{{ slip.cnss_employee|num }}</td><td class="r">{{ st.cnss_employer_rate|qty }} %</td><td class="r">{{ slip.cnss_employer|num }}</td></tr>
@@ -78,20 +80,29 @@
             <tr class="slip__group"><td colspan="7">{{ t['payslip.taxes'] }}</td></tr>
             <tr><td>{{ t['payslip.rts'] }}</td><td class="r">{{ slip.rts_base|num }}</td><td class="r">{{ t['payslip.scale'] }}</td><td></td>
                 <td class="r">{{ slip.rts|num }}</td><td></td><td></td></tr>
-            {% if st.vf_rate %}
+            {% if st.vf_rate|float %}
             <tr><td>{{ t['payset.vf'] }}</td><td class="r">{{ slip.gross|num }}</td><td></td><td></td><td></td>
                 <td class="r">{{ st.vf_rate|qty }} %</td><td class="r">{{ slip.vf|num }}</td></tr>
             {% endif %}
-            {% if st.ta_rate %}
+            {% if st.ta_rate|float %}
             <tr><td>{{ t['payset.ta'] }}</td><td class="r">{{ slip.gross|num }}</td><td></td><td></td><td></td>
                 <td class="r">{{ st.ta_rate|qty }} %</td><td class="r">{{ slip.ta|num }}</td></tr>
             {% endif %}
+            {% endif %}
 
-            {% if slip.advances %}
+            {% if slip.advances or slip.bonuses or slip.other %}
             <tr class="slip__group"><td colspan="7">{{ t['payslip.other'] }}</td></tr>
             {% for a in slip.advances %}
             <tr><td>{{ t['payslip.advance'] % (a.date|dmy) }}</td><td></td><td></td><td></td>
                 <td class="r">{{ a.amount|num }}</td><td></td><td></td></tr>
+            {% endfor %}
+            {% for b in slip.bonuses %}
+            <tr><td>{{ t['payslip.prepaid'] % (b.name, b.date|dmy) }}</td><td></td><td></td><td></td>
+                <td class="r">{{ b.amount|num }}</td><td></td><td></td></tr>
+            {% endfor %}
+            {% for o in slip.other %}
+            <tr><td>{{ o.label }}</td><td></td><td></td><td></td>
+                <td class="r">{{ o.amount|num }}</td><td></td><td></td></tr>
             {% endfor %}
             {% endif %}
 
@@ -125,5 +136,5 @@
         <div>{{ t['payslip.sign_employer'] }}</div>
         <div>{{ t['payslip.sign_employee'] }}</div>
     </div>
-    <p class="slip__foot">{{ t['payslip.reckoned_with'] % (st.effective_on|dmy) }}</p>
+    {% if st %}<p class="slip__foot">{{ t['payslip.reckoned_with'] % (st.effective_on|dmy) }}</p>{% endif %}
 </div>
