@@ -188,6 +188,8 @@
             <div class="tab-bar__actions">
                 <a href="{{ url_for('payroll.run_transfer_file', month=run.month) }}" class="btn btn--sm btn--outlined">
                     <span class="material-symbols-outlined">description</span> {{ t['run.transfer_file'] }}</a>
+                <a href="{{ url_for('payroll.run_letter', month=run.month, liste=1) }}" target="_blank" rel="noopener" class="btn btn--sm btn--outlined">
+                    <span class="material-symbols-outlined">picture_as_pdf</span> {{ t['run.transfer_list_pdf'] }}</a>
                 <a href="{{ url_for('payroll.run_letter', month=run.month) }}" target="_blank" rel="noopener" class="btn btn--sm btn--outlined">
                     <span class="material-symbols-outlined">print</span> {{ t['run.letter'] }}</a>
             </div>

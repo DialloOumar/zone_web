@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 {# The transfer order to the company's bank for a validated month, the way
    the company writes it today: the letter, the total in words and figures,
-   then the list of employees with their accounts on the next page. #}
+   then the list of employees with their accounts on the next page. With
+   only_list, the list alone -- for a bank that wants it on its own. #}
 <html lang="{{ lang }}">
 <head>
 <meta charset="utf-8">
@@ -20,6 +21,7 @@
     .sign { margin-top: 50px; margin-left: 55%; text-align: center; }
     .sign .line { margin-top: 70px; border-top: 1px solid #333; padding-top: 4px; }
     .list { page-break-before: always; }
+    .list--alone { page-break-before: auto; margin-top: 24px !important; padding-top: 0 !important; border-top: 0 !important; }
     .list h2 { font-size: 14px; margin: 0 0 10px; text-transform: uppercase; }
     table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
     th, td { padding: 4px 6px; border: 1px solid #ccd; }
@@ -46,7 +48,7 @@
 <body>
 <div class="print-toolbar">
     <span class="print-toolbar__hint">{{ t['export.print_hint'] }}</span>
-    <form method="get"><input type="date" name="date" value="{{ today }}" aria-label="{{ t['expense.date'] }}" onchange="this.form.submit()"></form>
+    {% if not only_list %}<form method="get"><input type="date" name="date" value="{{ today }}" aria-label="{{ t['expense.date'] }}" onchange="this.form.submit()"></form>{% endif %}
     <a href="{{ url_for('payroll.run', month=run.month, tab='payment') }}">{{ t['btn.cancel'] }}</a>
     <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
 </div>
@@ -57,6 +59,7 @@
     {% if co.company_address %}<div style="white-space:pre-line; color:#555; font-size:11px;">{{ co.company_address }}</div>{% endif %}
 </div>
 
+{% if not only_list %}
 <div class="place">{{ t['letter.place'] % (today|dmy) }}</div>
 
 <div class="to">
@@ -74,8 +77,9 @@
 <div class="sign">
     <div class="line">{{ t['letter.signer'] }}</div>
 </div>
+{% endif %}
 
-<div class="list">
+<div class="list{% if only_list %} list--alone{% endif %}">
     <h2>{{ t['letter.list'] % label }}</h2>
     <table>
         <thead><tr>

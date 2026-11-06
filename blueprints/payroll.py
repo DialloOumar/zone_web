@@ -734,7 +734,8 @@ def run_letter(month):
                            account=_pay_account(r),
                            total=total, words=amount_in_words(total, current_lang()),
                            co=invoice_settings(), libelle=_libelle(month),
-                           today=request.args.get("date") or date.today().isoformat())
+                           today=request.args.get("date") or date.today().isoformat(),
+                           only_list=request.args.get("liste") == "1")
 
 
 @payroll_bp.route("/paie/<month>/virement-effectue", methods=["POST"])
