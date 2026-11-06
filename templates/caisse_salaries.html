@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_filters.html" import nav_select with context %}
+{% block title %}{{ t['salary_pay.title'] }}{% endblock %}
+{% block page_title %}{{ t['nav.expenses'] }}{% endblock %}
+
+{# The salaries the cash box pays: the Orange Money and cash people of a
+   validated month, each paid on his own -- his net leaves the box in his
+   name. A payment made by mistake is deleted from Entrées et retraits. #}
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <div><h2>{{ t['salary_pay.title'] }}</h2></div>
+        <a href="{{ url_for('expenses.index', tab='mouvements') }}" class="btn btn--sm btn--outlined">
+            <span class="material-symbols-outlined">arrow_back</span> {{ t['nav.expenses'] }}</a>
+    </div>
+    {% if run %}
+    {% set opts = [] %}
+    {% for r in runs %}{% set _ = opts.append((url_for('expenses.salaries', month=r.month), labels[r.month], r.month == run.month)) %}{% endfor %}
+    <div class="tab-bar">
+        <div class="tab-bar__filters">{{ nav_select('pay_month', t['payslip.month'], opts) }}</div>
+    </div>
+    <div class="stat-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom:16px;">
+        <div class="stat-card">
+            <span class="stat-icon stat-icon--amber material-symbols-outlined">pending_actions</span>
+            <div><div class="stat-value">{{ to_pay|num }}</div><div class="stat-label">{{ t['salary_pay.to_pay'] }}</div></div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon stat-icon--green material-symbols-outlined">task_alt</span>
+            <div><div class="stat-value">{{ paid|num }}</div><div class="stat-label">{{ t['salary_pay.paid'] }}</div></div>
+        </div>
+    </div>
+    {% if rows %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['staff.name'] }}</th>
+            <th>{{ t['pay.method'] }}</th>
+            <th>{{ t['pay.mobile'] }}</th>
+            <th style="text-align:right;">{{ t['payslip.net'] }}</th>
+            <th>{{ t['contract.state'] }}</th>
+            <th></th>
+        </tr></thead>
+        <tbody>
+            {% for x in rows %}
+            <tr>
+                <td><strong>{{ x.who.name }}</strong>{% if x.who.matricule %} <span class="muted small">· {{ x.who.matricule }}</span>{% endif %}</td>
+                <td>{{ t['pay.method.' + x.who.pay_method] }}</td>
+                <td style="white-space:nowrap;">{% if x.who.pay_method == 'mobile' %}{{ x.who.mobile_money or '' }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                <td style="text-align:right; white-space:nowrap;"><strong>{{ x.net|num }} {{ currency }}</strong></td>
+                <td>{% if x.paid %}<span class="badge badge--active">{{ t['salary_pay.paid_on'] % (x.paid.date|dmy) }}</span>{% else %}<span class="badge badge--warning">{{ t['salary_pay.to_pay'] }}</span>{% endif %}</td>
+                <td class="row-actions">
+                    {% if not x.paid and has_perm('expense.create') %}
+                    <form method="post" action="{{ url_for('expenses.salary_pay', month=run.month, pid=x.person.id) }}" style="display:inline-flex; gap:6px; align-items:center;"
+                          data-confirm="{{ t['salary_pay.confirm'] % (x.net|num, x.who.name) }}" data-confirm-title="{{ t['salary_pay.pay'] }}" data-confirm-ok="{{ t['salary_pay.pay'] }}">
+                        <label class="filter-date"><input type="date" name="date" value="{{ today }}" aria-label="{{ t['expense.date'] }}"></label>
+                        <button type="submit" class="btn btn--sm btn--primary"><span class="material-symbols-outlined">payments</span> {{ t['salary_pay.pay'] }}</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">point_of_sale</span><p>{{ t['run.no_box'] }}</p></div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">point_of_sale</span><p>{{ t['salary_pay.none'] }}</p></div>
+    {% endif %}
+</section>
+{% endblock %}

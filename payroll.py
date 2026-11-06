@@ -249,3 +249,87 @@ def active_allowances(kind="allowance"):
     """The monthly allowances in use -- or, with kind "bonus", the bonuses."""
     return (PayAllowance.query.filter_by(is_active=True, kind=kind)
             .order_by(PayAllowance.sort_order, PayAllowance.name).all())
+
+
+# ── The month in the books ───────────────────────────────────────────────────
+#
+# A validated month as the comptable writes it, SYSCOHADA: each charge owed to
+# the staff (422), then out of what is owed, what goes to the CNSS (431), to
+# the State (4472 the RTS) and what settles their advances (4211) and the
+# bonuses the cash box paid ahead (4212); the employer's own charges beside.
+# The net left in 422 is cleared when the bank or the cash box pays it.
+
+PAY_CODES = {
+    "base": "6611",            # appointements, salaires
+    "allowance": "6638",       # autres indemnités (when the item names none)
+    "bonus": "6612",           # primes et gratifications (idem)
+    "adjustment": "6611",
+    "owed": "422",             # personnel, rémunérations dues
+    "cnss": "431",             # sécurité sociale
+    "rts": "4472",             # impôts sur salaires
+    "advance": "4211",         # personnel, avances
+    "prepaid": "4212",         # personnel, acomptes
+    "cnss_employer": "6641",   # charges sociales
+    "payroll_taxes": "6413",   # taxes sur appointements et salaires (VF, TA)
+    "payroll_taxes_due": "4478",
+}
+
+
+def journal_entries(run):
+    """[(debit, credit, amount, what)] -- the month's pay summed by account.
+    `what` names the line: "gross", "cnss", "rts", "advance", "prepaid",
+    "other", "cnss_employer", "payroll_taxes"."""
+    charges = {}
+    totals = dict(cnss=0, rts=0, advance=0, prepaid=0, other=0, cnss_employer=0, payroll_taxes=0)
+    for line in run.lines:
+        s = json.loads(line.slip)
+        charges[PAY_CODES["base"]] = charges.get(PAY_CODES["base"], 0) + s["base"]
+        for g in s["gains"]:
+            code = g.get("code") or PAY_CODES[g.get("kind") or "allowance"]
+            charges[code] = charges.get(code, 0) + g["amount"]
+        totals["cnss"] += s["cnss_employee"] + s["cnss_employer"]
+        totals["cnss_employer"] += s["cnss_employer"]
+        totals["rts"] += s["rts"]
+        totals["advance"] += s["advances_total"]
+        totals["prepaid"] += s["prepaid_total"]
+        totals["other"] += s["other_total"]
+        totals["payroll_taxes"] += s["vf"] + s["ta"]
+    owed = PAY_CODES["owed"]
+    out = [(code, owed, amount, "gross") for code, amount in sorted(charges.items()) if amount]
+    employee_cnss = totals["cnss"] - totals["cnss_employer"]
+    out += [(owed, PAY_CODES["cnss"], employee_cnss, "cnss"),
+            (owed, PAY_CODES["rts"], totals["rts"], "rts"),
+            (owed, PAY_CODES["advance"], totals["advance"], "advance"),
+            (owed, PAY_CODES["prepaid"], totals["prepaid"], "prepaid"),
+            # What else came off the net -- a refund owed, a fine -- depends
+            # on what it was: left for the comptable to code, never guessed.
+            (owed, None, totals["other"], "other"),
+            (PAY_CODES["cnss_employer"], PAY_CODES["cnss"], totals["cnss_employer"], "cnss_employer"),
+            (PAY_CODES["payroll_taxes"], PAY_CODES["payroll_taxes_due"], totals["payroll_taxes"], "payroll_taxes")]
+    return [e for e in out if e[2]]
+
+
+def transfer_lines(run):
+    """The validated month's employees paid by bank transfer, with the parts
+    of their account the bank's file asks for."""
+    out = []
+    for line in run.lines:
+        if line.pay_method != "transfer":
+            continue
+        s = json.loads(line.slip)
+        out.append(dict(person=line.person, who=s["who"], net=line.net))
+    return sorted(out, key=lambda r: r["who"]["name"])
+
+
+def box_lines(run):
+    """The validated month's employees the cash box pays (Orange Money, cash),
+    each with the movement that paid him, if any."""
+    paid = {m.staff_id: m for m in CashMovement.query.filter_by(kind="salaire", advance_month=run.month).all()}
+    out = []
+    for line in run.lines:
+        if line.pay_method not in ("mobile", "cash"):
+            continue
+        s = json.loads(line.slip)
+        out.append(dict(line=line, person=line.person, who=s["who"], net=line.net,
+                        paid=paid.get(line.staff_id)))
+    return sorted(out, key=lambda r: r["who"]["name"])

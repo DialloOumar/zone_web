@@ -8,6 +8,7 @@ the plan it moves, in the four books the comptable keeps.
              moved from one company account to another
     achats   the supplier bills, as received
     ventes   the client invoices, as issued, and the receipts on them
+    paie     each validated month's pay, summed by account (payroll.journal_entries)
 
 Nothing is written here. Each line is read from where it was entered and
 its two sides are worked out from what is already attached: the code on
@@ -25,14 +26,15 @@ import io
 from decimal import Decimal
 from ledger import labels_for, till_code
 from models import (AccountDeposit, AccountTransfer, BankCharge, CashMovement, ClientInvoice, ClientInvoiceLine, ClientPayment,
-                    Expense, SupplierInvoice, SupplierPayment, db)
+                    Expense, PayRun, SupplierInvoice, SupplierPayment, db)
+from payroll import PAY_CODES, journal_entries, month_bounds
 
-JOURNALS = ("caisse", "banque", "achats", "ventes")
+JOURNALS = ("caisse", "banque", "achats", "ventes", "paie")
 
 # Money the cash box hands staff against their salary, by the account of the
 # plan it sits in until the month's pay settles it: SYSCOHADA 4211
 # "Personnel, avances" and 4212 "Personnel, acomptes".
-STAFF_KINDS = {"avance": "4211", "prime": "4212"}
+STAFF_KINDS = {"avance": "4211", "prime": "4212", "salaire": "422"}
 
 # Which sources may have their code set from the journal page: the line's
 # own charge or revenue, never a settlement's (that one is the tiers').
@@ -92,9 +94,10 @@ def lines(date_from=None, date_to=None, journal=None):
             if m.kind in STAFF_KINDS:
                 # Lent to an employee, or paid ahead of his salary: his own
                 # account until the month's pay settles it.
-                label = m.note or ("%s %s" % ("Avance sur salaire" if m.kind == "avance"
-                                              else (m.pay_item.name if m.pay_item else "Prime"),
-                                              m.staff.name if m.staff else "")).strip()
+                what = {"avance": "Avance sur salaire",
+                        "salaire": "Salaire %s" % (m.advance_month or "")}.get(
+                    m.kind, m.pay_item.name if m.pay_item else "Prime")
+                label = m.note or ("%s %s" % (what, m.staff.name if m.staff else "")).strip()
                 out.append(_line("caisse", "cash_movement", m, m.date, label, m.amount,
                                  debit=STAFF_KINDS[m.kind], credit=till,
                                  who=m.staff.name if m.staff else None,
@@ -109,6 +112,13 @@ def lines(date_from=None, date_to=None, journal=None):
                                  method=m.method, reference=m.reference))
 
     if journal in (None, "banque"):
+        # A month's salaries wired from a company account: what the staff
+        # were owed (422) against the bank's account, on the day it left.
+        for r in within(PayRun.query.filter(PayRun.transfer_on.isnot(None)), PayRun.transfer_on).all():
+            out.append(_line("banque", "pay_run", r, r.transfer_on, "Salaires %s (virements)" % r.month,
+                             r.transfer_total or 0, debit=PAY_CODES["owed"],
+                             credit=_purse_code(r.pay_account), who=r.pay_account.name if r.pay_account else None,
+                             reference=r.transfer_reference))
         # A bill's instalment from a bank account: the supplier's account
         # against the bank's.
         for p in within(SupplierPayment.query.filter(SupplierPayment.expense_id.is_(None)), SupplierPayment.date).all():
@@ -171,6 +181,22 @@ def lines(date_from=None, date_to=None, journal=None):
                              credit=p.ledger_code, piece=inv.number if inv else None,
                              who=inv.client.name if inv and inv.client else None,
                              method=p.method, reference=p.reference))
+
+    if journal in (None, "paie"):
+        # Each validated month on its last day, summed by account: the gross
+        # owed to the staff, what of it goes to the CNSS, the State and their
+        # advances, and the employer's own charges.
+        what_label = {"gross": "Salaires bruts", "cnss": "CNSS part salariale", "rts": "RTS retenue",
+                      "advance": "Avances retenues", "prepaid": "Primes déjà payées par la caisse",
+                      "other": "Autres retenues", "cnss_employer": "CNSS part patronale",
+                      "payroll_taxes": "Versement forfaitaire et taxe d'apprentissage"}
+        for r in PayRun.query.filter_by(status="validated").all():
+            day = month_bounds(int(r.month[:4]), int(r.month[5:]))[1]
+            if (date_from and day < date_from) or (date_to and day > date_to):
+                continue
+            for debit, credit, amount, what in journal_entries(r):
+                out.append(_line("paie", "pay_run", r, day, "Paie %s : %s" % (r.month, what_label[what]),
+                                 amount, debit=debit, credit=credit))
 
     out.sort(key=lambda r: (r["date"], r["journal"], r["id"]), reverse=True)
     return out

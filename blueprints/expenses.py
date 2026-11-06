@@ -522,7 +522,7 @@ def set_till_opening(amount, day, user_id=None):
 
 # What leaves the box without being a cost: money given back to an account,
 # and advances lent to staff (paid back from their salary).
-OUT_KINDS = ("retrait", "avance", "prime")
+OUT_KINDS = ("retrait", "avance", "prime", "salaire")
 # What the Paie button records: money to staff that their salary settles.
 PAY_KINDS = ("avance", "prime")
 
@@ -1345,6 +1345,9 @@ def deposit_edit(did):
     m = _get_movement_or_404(did)
     if m.kind in PAY_KINDS:
         return redirect(url_for("expenses.advance_edit", aid=m.id))
+    if m.kind == "salaire":
+        # A salary paid is the month's net, nothing to edit: undone, or kept.
+        return redirect(url_for("expenses.salaries", month=m.advance_month))
     if m.transfer_id:
         flash("error|" + get_t()["caisse.err.from_transfer"])
         return redirect(url_for("expenses.index", tab="mouvements"))
@@ -1491,3 +1494,62 @@ def advance_edit(aid):
     if m.kind not in PAY_KINDS:
         abort(404)
     return _advance_route(m)
+
+
+# ── Salaries the cash box pays ───────────────────────────────────────────────
+#
+# Once a month's pay is validated, the people paid by Orange Money or in cash
+# are paid here, one by one: each payment is the month's net leaving the box
+# in his name. Like an advance it is no cost of the box -- the salary was
+# counted once, when the month was validated.
+
+
+@expenses_bp.route("/caisse/salaires")
+@login_required
+@require_perm("expense.view")
+def salaries():
+    from models import PayRun
+    from payroll import box_lines
+    from blueprints.payroll import _month_label
+    runs = PayRun.query.filter_by(status="validated").order_by(PayRun.month.desc()).all()
+    month = request.args.get("month")
+    run = next((r for r in runs if r.month == month), None)
+    if run is None:
+        # The latest month with someone still to pay, else the latest.
+        run = next((r for r in runs if any(x["paid"] is None for x in box_lines(r))), runs[0] if runs else None)
+    rows = box_lines(run) if run else []
+    return render_template("caisse_salaries.html", runs=runs, run=run, rows=rows,
+                           labels={r.month: _month_label(r.month) for r in runs},
+                           to_pay=sum(x["net"] for x in rows if x["paid"] is None),
+                           paid=sum(x["net"] for x in rows if x["paid"] is not None),
+                           today=date.today().isoformat())
+
+
+@expenses_bp.route("/caisse/salaires/<month>/<int:pid>/payer", methods=["POST"])
+@login_required
+@require_perm("expense.create")
+def salary_pay(month, pid):
+    from models import PayRun
+    from payroll import box_lines
+    t = get_t()
+    run = PayRun.query.filter_by(month=month, status="validated").first()
+    row = next((x for x in box_lines(run) if x["person"].id == pid), None) if run else None
+    if row is None:
+        abort(404)
+    day = (request.form.get("date") or "").strip() or date.today().isoformat()
+    if row["paid"] is not None:
+        flash("error|" + t["salary_pay.err.paid"])
+    elif not _valid_date(day) or day < month + "-01":
+        flash("error|" + t["expense.err.date_required"])
+    else:
+        how = "mobile_money" if row["who"]["pay_method"] == "mobile" else "cash"
+        m = CashMovement(kind="salaire", staff_id=pid, advance_month=month, date=day, amount=row["net"],
+                         currency="GNF", method=how, account_id=None, created_by=current_user.id,
+                         reference=(request.form.get("reference") or "").strip()[:60] or None)
+        db.session.add(m)
+        db.session.flush()
+        log_action("CREATE", "cash_movement", resource_id=m.id,
+                   detail="Salary of %s paid to '%s': %d GNF" % (month, row["person"].name, m.amount))
+        db.session.commit()
+        flash("success|" + t["salary_pay.saved"] % row["person"].name)
+    return redirect(url_for("expenses.salaries", month=month))

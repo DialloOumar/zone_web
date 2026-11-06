@@ -22,7 +22,7 @@ from blueprints.expenses import _save_list_row, method_error, methods_of
 from blueprints.supplier_invoices import _amount, _apply_photo_change, _valid_date, bank_transactions, payment_batch
 from ledger import ensure_till_code, labels_for, read_code, set_till_code, till_code, used_accounts_in
 from models import (AccountDeposit, AccountTransfer, BankCharge, CashAccount, CashMovement, CashTransfer,
-                    ClientPayment, Expense, SupplierPayment, db)
+                    ClientPayment, Expense, PayRun, SupplierPayment, db)
 
 accounts_bp = Blueprint("accounts", __name__)
 
@@ -306,6 +306,12 @@ def account_lines(acc):
     for c in q(BankCharge):
         rows.append(dict(kind="bank_charge", row=c, date=c.date, label=c.description or "",
                          who=c.payee, reference=c.reference, amount_in=0, amount_out=c.amount))
+    # A month's salaries wired from the account, on the day the bank did it.
+    for r in PayRun.query.filter(PayRun.pay_account_id == acc.id, PayRun.transfer_on.isnot(None)).all():
+        if since and r.transfer_on < since:
+            continue
+        rows.append(dict(kind="payroll", row=r, date=r.transfer_on, label=r.month, who="",
+                         reference=r.transfer_reference, amount_in=0, amount_out=r.transfer_total or 0))
 
     rows.sort(key=lambda r: (r["date"], r["row"].created_at))
     running = acc.opening_balance or 0

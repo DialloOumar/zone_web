@@ -198,6 +198,7 @@
                        data-modal-url="{{ url_for('expenses.advance_new') }}" data-modal-title="{{ t['advance.new'] }}">{{ t['advance.new'] }}</a>
                     <a class="filter-dd__opt" href="{{ url_for('expenses.bonus_new') }}"
                        data-modal-url="{{ url_for('expenses.bonus_new') }}" data-modal-title="{{ t['bonus.new'] }}">{{ t['bonus.new'] }}</a>
+                    <a class="filter-dd__opt" href="{{ url_for('expenses.salaries') }}">{{ t['salary_pay.title'] }}</a>
                 </div>
             </details>
             <a href="{{ url_for('expenses.withdrawal_new') }}" class="btn btn--sm btn--tonal"
@@ -338,7 +339,7 @@
             <tr>
                 <td style="white-space:nowrap;">{{ m.date|dmy }}</td>
                 {# An advance names who got it; the rest, the account. #}
-                <td><strong>{{ m.staff.name if m.kind in ('avance', 'prime') and m.staff else (m.account.name if m.account else t['caisse.deposit']) }}</strong></td>
+                <td><strong>{{ m.staff.name if m.kind in ('avance', 'prime', 'salaire') and m.staff else (m.account.name if m.account else t['caisse.deposit']) }}</strong></td>
                 <td><span class="mv-chip {{ 'mv-chip--in' if m.kind == 'depot' else 'mv-chip--out' }}">{{ t['caisse.kind.' + m.kind] }}</span></td>
                 {# The money-in a cost wrote for itself carries no note of its
                    own; it says where it came from instead. #}
@@ -354,7 +355,7 @@
                     {% if m.expense_id %}
                     <span class="muted small">&mdash;</span>
                     {% else %}
-                    {% if has_perm('expense.edit') %}
+                    {% if has_perm('expense.edit') and m.kind != 'salaire' %}
                     {% set edit_url = url_for('expenses.advance_edit', aid=m.id) if m.kind in ('avance', 'prime') else url_for('expenses.deposit_edit', did=m.id) %}
                     <a href="{{ edit_url }}" class="btn btn--sm btn--tonal btn--icon"
                        data-modal-url="{{ edit_url }}" data-modal-title="{{ t['caisse.movement'] }}"

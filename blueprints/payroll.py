@@ -11,7 +11,7 @@ Three lists on one page:
   that opens a RIB.
 """
 import json
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
@@ -19,8 +19,8 @@ from flask_login import current_user, login_required
 
 from app import (_user_approves_payroll, get_t, has_perm, is_modal_request, log_action, modal_ok,
                  parse_amount, payroll_approver_exists, require_perm, super_admin_required)
-from payroll import freeze, run_lines
-from models import Bank, LedgerAccount, PayAllowance, PayRun, PayRunAdjustment, PayRtsBracket, PaySetting, Staff, StaffSalaryAllowance, db
+from payroll import box_lines, freeze, run_lines, transfer_lines
+from models import Bank, CashAccount, LedgerAccount, PayAllowance, PayRun, PayRunAdjustment, PayRtsBracket, PaySetting, Staff, StaffSalaryAllowance, db
 
 payroll_bp = Blueprint("payroll", __name__)
 
@@ -324,7 +324,7 @@ def bank_edit(bid):
 # freezes every employee's figures (payroll.freeze); from then on the list,
 # the payslips and the profitability read those.
 
-RUN_TABS = ("list", "changes", "adjustments")
+RUN_TABS = ("list", "changes", "adjustments", "payment")
 
 
 def _may_view_runs():
@@ -449,11 +449,18 @@ def run(month):
     tab = request.args.get("tab") if request.args.get("tab") in RUN_TABS else "list"
     rows = run_lines(r)
     changes, compared = _changes(r, rows) if tab == "changes" else ([], False)
+    # Paying a validated month: by the bank, and by the cash box.
+    transfers = box = accounts = None
+    if r.status == "validated":
+        transfers, box = transfer_lines(r), box_lines(r)
+        accounts = _company_bank_accounts()
     return render_template(
         "pay_run.html", run=r, tab=tab, label=_month_label(month), rows=rows,
         groups=_groups(rows), summary=_summary(rows), changes=changes, compared=compared,
         approver_exists=payroll_approver_exists(), approves=_user_approves_payroll(),
-        can_manage=has_perm("payroll.manage"))
+        can_manage=has_perm("payroll.manage"), may_pay=_may_pay(),
+        transfers=transfers, box=box, accounts=accounts, pay_account=_pay_account(r) if accounts else None,
+        today=date.today().isoformat())
 
 
 @payroll_bp.route("/paie/<month>/etat")
@@ -600,3 +607,173 @@ def run_action(month, what):
         db.session.commit()
         flash("success|" + t["run.done." + what])
     return redirect(url_for("payroll.run", month=month))
+
+
+# ── Paying the month ────────────────────────────────────────────────────────
+#
+# A validated month leaves in two ways. By bank: the transfer file and the
+# letter for the company's bank, then "virement effectué" once the bank has
+# carried it out -- the total leaves the company account in Comptes that day.
+# By the cash box: the Orange Money and cash people, ticked one by one in the
+# Caisse as they are paid (expenses.salaries).
+
+def _may_pay():
+    return has_perm("payroll.manage") or _user_approves_payroll() or has_perm("accounting.manage")
+
+
+def _validated_or_404(month):
+    r = _get_run_or_404(month)
+    if r.status != "validated" or not _may_pay():
+        abort(404)
+    return r
+
+
+def _company_bank_accounts():
+    return (CashAccount.query.filter_by(is_active=True, is_repayable=False, kind="bank")
+            .order_by(CashAccount.sort_order, CashAccount.name).all())
+
+
+def _pay_account(r):
+    """The account the month is paid from: the one chosen, else the BSIC
+    account, else the first company bank account."""
+    if r.pay_account is not None:
+        return r.pay_account
+    accounts = _company_bank_accounts()
+    return next((a for a in accounts if "bsic" in a.name.lower()), accounts[0] if accounts else None)
+
+
+def _libelle(month):
+    """The transfer's wording as the bank's file carries it: SALAIREOCTOBRE2026."""
+    import unicodedata
+    word = unicodedata.normalize("NFKD", _month_label(month).split()[0]).encode("ascii", "ignore").decode()
+    return ("SALAIRE" + word + month[:4]).upper()
+
+
+@payroll_bp.route("/paie/<month>/compte", methods=["POST"])
+@login_required
+def run_account(month):
+    """The company account the month's transfers leave from."""
+    r = _validated_or_404(month)
+    if r.transfer_on:
+        abort(403)
+    acc = db.session.get(CashAccount, request.form.get("account_id", type=int) or 0)
+    if acc is None or acc not in _company_bank_accounts():
+        flash("error|" + get_t()["run.err.account"])
+    else:
+        r.pay_account_id = acc.id
+        log_action("UPDATE", "pay_run", resource_id=r.id, detail="Pay of %s paid from '%s'" % (month, acc.name))
+        db.session.commit()
+    return redirect(url_for("payroll.run", month=month, tab="payment"))
+
+
+@payroll_bp.route("/paie/<month>/virements.xlsx")
+@login_required
+def run_transfer_file(month):
+    """The list for the bank, laid out like the file sent today: who, bank,
+    bank code, branch, account, key, amount, the transfer's wording."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from flask import send_file
+    r = _validated_or_404(month)
+    rows = transfer_lines(r)
+    from blueprints.invoicing import invoice_settings
+    co = invoice_settings()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = _libelle(month)[:31]
+    acc = _pay_account(r)
+    ws["A1"] = co.get("company_name") or ""
+    ws["A1"].font = Font(bold=True, size=12)
+    ws["A2"] = "%s%s" % (get_t()["letter.list"] % _month_label(month),
+                         (" — %s %s" % (acc.name, acc.number or "")) if acc else "")
+    head = ["N°", "NOMS ET PRENOMS", "BANQUE", "CODE BANQUE", "CODE AGENCE", "N° COMPTE", "CLE RIB", "SALAIRE", "LIBELLE"]
+    ws.append([])
+    ws.append(head)
+    for cell in ws[4]:
+        cell.font = Font(bold=True)
+        cell.fill = PatternFill("solid", fgColor="E8EEF8")
+        cell.alignment = Alignment(horizontal="center")
+    for i, row in enumerate(rows, 1):
+        w = row["who"]
+        ws.append([i, w["name"], w["bank"] or "", w["bank_code"] or "", w["bank_branch"] or "",
+                   w["bank_account"] or "", w["bank_key"] or "", row["net"], _libelle(month)])
+    last = ws.max_row
+    ws.append(["", "TOTAL", "", "", "", "", "", "=SUM(H5:H%d)" % last if rows else 0, ""])
+    for cell in ws[ws.max_row]:
+        cell.font = Font(bold=True)
+    for col, width in zip("ABCDEFGHI", (5, 34, 16, 12, 12, 18, 8, 16, 22)):
+        ws.column_dimensions[col].width = width
+    for row in ws.iter_rows(min_row=5, min_col=8, max_col=8):
+        for cell in row:
+            cell.number_format = "#,##0"
+    # Codes stay text: a leading zero (002) is part of a bank code.
+    for row in ws.iter_rows(min_row=5, min_col=4, max_col=7):
+        for cell in row:
+            cell.number_format = "@"
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    log_action("EXPORT", "pay_run", resource_id=r.id, detail="Transfer file of %s" % month)
+    db.session.commit()
+    return send_file(buf, as_attachment=True, download_name="virements-%s.xlsx" % month,
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@payroll_bp.route("/paie/<month>/lettre")
+@login_required
+def run_letter(month):
+    """The letter to the company's bank, with the list after it."""
+    from amount_words import amount_in_words
+    from app import current_lang
+    from blueprints.invoicing import invoice_settings
+    r = _validated_or_404(month)
+    rows = transfer_lines(r)
+    total = sum(x["net"] for x in rows)
+    return render_template("pay_letter_print.html", run=r, label=_month_label(month), rows=rows,
+                           account=_pay_account(r),
+                           total=total, words=amount_in_words(total, current_lang()),
+                           co=invoice_settings(), libelle=_libelle(month),
+                           today=request.args.get("date") or date.today().isoformat())
+
+
+@payroll_bp.route("/paie/<month>/virement-effectue", methods=["POST"])
+@login_required
+def run_transfer_done(month):
+    """The bank has carried the transfers out: their total leaves the company
+    account in Comptes on that day."""
+    r = _validated_or_404(month)
+    t = get_t()
+    day = (request.form.get("transfer_on") or "").strip()
+    if r.transfer_on:
+        abort(403)
+    acc = _pay_account(r)
+    if acc is None:
+        flash("error|" + t["run.err.account"])
+    elif not _valid_day(day) or day < r.month + "-01":
+        flash("error|" + t["run.err.transfer_day"])
+    else:
+        r.pay_account_id = acc.id
+        r.transfer_on = day
+        r.transfer_total = sum(x["net"] for x in transfer_lines(r))
+        r.transfer_reference = (request.form.get("reference") or "").strip()[:60] or None
+        r.transfer_by = current_user.id
+        log_action("UPDATE", "pay_run", resource_id=r.id,
+                   detail="Transfers of %s done on %s from '%s': %d GNF" % (month, day, acc.name, r.transfer_total))
+        db.session.commit()
+        flash("success|" + t["run.transfer_saved"])
+    return redirect(url_for("payroll.run", month=month, tab="payment"))
+
+
+@payroll_bp.route("/paie/<month>/virement-annuler", methods=["POST"])
+@login_required
+def run_transfer_undo(month):
+    """Typed by mistake: the transfer is no longer recorded as done."""
+    r = _validated_or_404(month)
+    if not r.transfer_on:
+        abort(404)
+    r.transfer_on = r.transfer_total = r.transfer_reference = r.transfer_by = None
+    log_action("UPDATE", "pay_run", resource_id=r.id, detail="Transfers of %s marked not done" % month)
+    db.session.commit()
+    flash("success|" + get_t()["run.transfer_undone"])
+    return redirect(url_for("payroll.run", month=month, tab="payment"))

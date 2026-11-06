@@ -82,7 +82,8 @@
 
 <section class="card">
     <nav class="tabs" role="tablist">
-        {% for key, icon in (('list', 'list_alt'), ('changes', 'history'), ('adjustments', 'tune')) %}
+        {% set run_tabs = (('list', 'list_alt'), ('changes', 'history'), ('adjustments', 'tune')) + ((('payment', 'payments'),) if run.status == 'validated' else ()) %}
+        {% for key, icon in run_tabs %}
         <a href="{{ url_for('payroll.run', month=run.month, tab=key if key != 'list' else None) }}" role="tab"
            aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
             <span class="material-symbols-outlined">{{ icon }}</span> {{ t['run.tab.' + key] }}
@@ -111,7 +112,8 @@
             <tr class="group-row"><td colspan="8"><strong>{{ g.name or t['run.no_department'] }}</strong></td></tr>
             {% for person, s, err in g.rows %}
             <tr>
-                <td><a href="{{ url_for('staff.profile', pid=person.id, tab='salary') }}"><strong>{{ person.name }}</strong></a></td>
+                {# A declared employee opens on that month's payslip, which explains the figures; the others on their salary. #}
+                <td><a href="{{ url_for('staff.profile', pid=person.id, tab='payslip', mois=run.month) if s and s.declared else url_for('staff.profile', pid=person.id, tab='salary') }}"><strong>{{ person.name }}</strong></a></td>
                 {% if s %}
                 <td>{{ s.who.position or '' }}</td>
                 <td style="white-space:nowrap;">{% if s.who.pay_method %}{{ t['pay.method.' + s.who.pay_method] }}{% if s.who.pay_method == 'transfer' and s.who.bank %} · {{ s.who.bank }}{% endif %}{% else %}<span class="badge badge--warning">{{ t['run.no_way'] }}</span>{% endif %}</td>
@@ -170,6 +172,109 @@
     </table></div>
     {% else %}
     <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">task_alt</span><p>{{ t['run.no_changes'] }}</p></div>
+    {% endif %}
+
+    {% elif tab == 'payment' %}
+    {# Paying the validated month: the transfers, from the company account to
+       the bank with its file and letter, then marked done the day the bank
+       carried them out; and the people the cash box pays, ticked there. #}
+    {% if run.status != 'validated' %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">task_alt</span><p>{{ t['run.pay_after_validation'] }}</p></div>
+    {% else %}
+    <div class="file-section">
+        <div class="file-section__head">
+            <h3>{{ t['run.by_transfer'] }} · {{ (transfers|sum(attribute='net'))|num }} {{ currency }}</h3>
+            {% if transfers and may_pay %}
+            <div class="tab-bar__actions">
+                <a href="{{ url_for('payroll.run_transfer_file', month=run.month) }}" class="btn btn--sm btn--outlined">
+                    <span class="material-symbols-outlined">description</span> {{ t['run.transfer_file'] }}</a>
+                <a href="{{ url_for('payroll.run_letter', month=run.month) }}" target="_blank" rel="noopener" class="btn btn--sm btn--outlined">
+                    <span class="material-symbols-outlined">print</span> {{ t['run.letter'] }}</a>
+            </div>
+            {% endif %}
+        </div>
+        {% if transfers %}
+        {% if run.transfer_on %}
+        <div class="alert alert--success">{{ t['run.transfer_done'] % (run.transfer_on|dmy, run.transfer_total|num, run.pay_account.name if run.pay_account else '') }}{% if run.transfer_reference %} · {{ run.transfer_reference }}{% endif %}</div>
+        {% if may_pay %}
+        <form method="post" action="{{ url_for('payroll.run_transfer_undo', month=run.month) }}" style="margin-bottom:12px;"
+              data-confirm="{{ t['run.transfer_undo_confirm'] }}" data-confirm-title="{{ t['run.transfer_undo'] }}" data-confirm-ok="{{ t['run.transfer_undo'] }}" data-confirm-danger>
+            <button type="submit" class="btn btn--sm btn--outlined">{{ t['run.transfer_undo'] }}</button>
+        </form>
+        {% endif %}
+        {% elif may_pay %}
+        <div class="filter-bar filter-bar--live" style="margin-bottom:12px; flex-wrap:wrap;">
+            <form method="post" action="{{ url_for('payroll.run_account', month=run.month) }}" class="filter-bar filter-bar--live" style="margin:0;">
+                <label class="filter-date"><span>{{ t['run.pay_account'] }}</span>
+                    <select name="account_id" onchange="this.form.submit()">
+                        {% for a in accounts %}<option value="{{ a.id }}" {% if pay_account and a.id == pay_account.id %}selected{% endif %}>{{ a.name }}{% if a.number %} · {{ a.number }}{% endif %}</option>{% endfor %}
+                    </select></label>
+            </form>
+            <form method="post" action="{{ url_for('payroll.run_transfer_done', month=run.month) }}" class="filter-bar filter-bar--live" style="margin:0;"
+                  data-confirm="{{ t['run.transfer_confirm'] }}" data-confirm-title="{{ t['run.transfer_mark'] }}" data-confirm-ok="{{ t['run.transfer_mark'] }}">
+                <label class="filter-date"><span>{{ t['run.transfer_on'] }}</span><input type="date" name="transfer_on" required value="{{ today }}"></label>
+                <label class="filter-date"><span>{{ t['bank.reference'] }}</span><input type="text" name="reference" style="width:120px;"></label>
+                <button type="submit" class="btn btn--sm btn--primary"><span class="material-symbols-outlined">task_alt</span> {{ t['run.transfer_mark'] }}</button>
+            </form>
+        </div>
+        {% if not accounts %}<div class="alert alert--warning">{{ t['run.err.account'] }}</div>{% endif %}
+        {% endif %}
+        <div class="table-wrap"><table class="data-table">
+            <thead><tr>
+                <th>{{ t['staff.name'] }}</th>
+                <th>{{ t['pay.bank'] }}</th>
+                <th>{{ t['pay.rib'] }}</th>
+                <th style="text-align:right;">{{ t['payslip.net'] }}</th>
+            </tr></thead>
+            <tbody>
+                {% for x in transfers %}
+                <tr>
+                    <td>{{ x.who.name }}</td>
+                    <td>{{ x.who.bank or '' }}</td>
+                    <td style="white-space:nowrap;">{{ [x.who.bank_code, x.who.bank_branch, x.who.bank_account, x.who.bank_key]|select|join(' ') }}</td>
+                    <td style="text-align:right; white-space:nowrap;"><strong>{{ x.net|num }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table></div>
+        {% else %}
+        <p class="muted">{{ t['run.no_transfers'] }}</p>
+        {% endif %}
+    </div>
+
+    <div class="file-section">
+        {% set box_paid = box|selectattr('paid')|list %}
+        <div class="file-section__head">
+            <h3>{{ t['run.by_box'] }} · {{ (box|sum(attribute='net'))|num }} {{ currency }}</h3>
+            {% if box and has_perm('expense.view') %}
+            <a href="{{ url_for('expenses.salaries', month=run.month) }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">point_of_sale</span> {{ t['salary_pay.title'] }}</a>
+            {% endif %}
+        </div>
+        {% if box %}
+        <p class="muted small" style="margin-top:0;">{{ t['run.box_progress'] % (box_paid|length, box|length) }}</p>
+        <div class="table-wrap"><table class="data-table">
+            <thead><tr>
+                <th>{{ t['staff.name'] }}</th>
+                <th>{{ t['pay.method'] }}</th>
+                <th style="text-align:right;">{{ t['payslip.net'] }}</th>
+                <th>{{ t['contract.state'] }}</th>
+            </tr></thead>
+            <tbody>
+                {% for x in box %}
+                <tr>
+                    <td>{{ x.who.name }}</td>
+                    <td>{{ t['pay.method.' + x.who.pay_method] }}{% if x.who.pay_method == 'mobile' and x.who.mobile_money %} · {{ x.who.mobile_money }}{% endif %}</td>
+                    <td style="text-align:right; white-space:nowrap;"><strong>{{ x.net|num }}</strong></td>
+                    <td>{% if x.paid %}<span class="badge badge--active">{{ t['salary_pay.paid_on'] % (x.paid.date|dmy) }}</span>{% else %}<span class="badge badge--warning">{{ t['salary_pay.to_pay'] }}</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table></div>
+        {% else %}
+        <p class="muted">{{ t['run.no_box'] }}</p>
+        {% endif %}
+    </div>
     {% endif %}
 
     {% else %}

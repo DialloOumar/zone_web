@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+{# The transfer order to the company's bank for a validated month, the way
+   the company writes it today: the letter, the total in words and figures,
+   then the list of employees with their accounts on the next page. #}
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ t['letter.title'] % label }} — {{ co.company_name or t['app.title'] }}</title>
+<style>
+    @page { size: A4; margin: 1.6cm 1.8cm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; margin: 0; line-height: 1.55; }
+    .r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .brand img { height: 46px; display: block; }
+    .brand b { display: block; margin-top: 4px; }
+    .place { text-align: right; margin: 18px 0 26px; }
+    .to { margin-left: 50%; margin-bottom: 26px; }
+    .subject { font-weight: 700; margin-bottom: 18px; }
+    .sign { margin-top: 50px; margin-left: 55%; text-align: center; }
+    .sign .line { margin-top: 70px; border-top: 1px solid #333; padding-top: 4px; }
+    .list { page-break-before: always; }
+    .list h2 { font-size: 14px; margin: 0 0 10px; text-transform: uppercase; }
+    table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    th, td { padding: 4px 6px; border: 1px solid #ccd; }
+    th { background: #e8eef8; text-transform: uppercase; font-size: 9.5px; text-align: left; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .tot td { font-weight: 800; background: #dfe8f6; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @media screen {
+        html { background: #eef1f6; }
+        body { max-width: 21cm; margin: 16px auto 40px; padding: 1.6cm 1.8cm; background: #fff; border-radius: 12px;
+               box-shadow: 0 1px 2px rgba(0,0,0,.28), 0 1px 3px 1px rgba(0,0,0,.10); }
+        .list { margin-top: 40px; padding-top: 30px; border-top: 2px dashed #ccd; }
+        .print-toolbar { position: sticky; top: 0; z-index: 10; display: flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap;
+                         margin: -1.6cm -1.8cm 18px; padding: 12px 1.8cm; border-radius: 12px 12px 0 0;
+                         background: #0F74BC; color: #fff; font-size: 13px; font-family: Roboto, system-ui, "Segoe UI", sans-serif; }
+        .print-toolbar__hint { margin-right: auto; font-size: 12px; color: #d4e9fb; }
+        .print-toolbar a, .print-toolbar button { font: inherit; font-weight: 500; cursor: pointer; border-radius: 999px; padding: 7px 16px;
+                         border: 1px solid rgba(255,255,255,.55); background: transparent; color: #fff; text-decoration: none; }
+        .print-toolbar button { background: #fff; border-color: #fff; color: #0F74BC; font-weight: 700; }
+        .print-toolbar form { display: inline-flex; gap: 6px; align-items: center; margin: 0; }
+        .print-toolbar input { border-radius: 999px; border: 0; padding: 6px 10px; font: inherit; }
+    }
+    @media print { .print-toolbar { display: none !important; } }
+</style>
+</head>
+<body>
+<div class="print-toolbar">
+    <span class="print-toolbar__hint">{{ t['export.print_hint'] }}</span>
+    <form method="get"><input type="date" name="date" value="{{ today }}" aria-label="{{ t['expense.date'] }}" onchange="this.form.submit()"></form>
+    <a href="{{ url_for('payroll.run', month=run.month, tab='payment') }}">{{ t['btn.cancel'] }}</a>
+    <button type="button" onclick="window.print()">{{ t['help.print'] }}</button>
+</div>
+
+<div class="brand">
+    <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="{{ co.company_name or t['app.title'] }}">
+    <b>{{ co.company_name or t['app.title'] }}</b>
+    {% if co.company_address %}<div style="white-space:pre-line; color:#555; font-size:11px;">{{ co.company_address }}</div>{% endif %}
+</div>
+
+<div class="place">{{ t['letter.place'] % (today|dmy) }}</div>
+
+<div class="to">
+    {{ t['letter.to'] }}<br>
+    <b>{{ t['letter.to_whom'] % (account.name if account else '') }}</b>
+</div>
+
+<div class="subject">{{ t['letter.subject'] % label|upper }}</div>
+
+<p>{{ t['letter.salutation'] }}</p>
+<p>{{ t['letter.body'] % (co.company_name or t['app.title'], account.number if account and account.number else '…', words, total|num) }}</p>
+<p><b>{{ t['letter.motive'] % label|upper }}</b></p>
+<p>{{ t['letter.closing'] }}</p>
+
+<div class="sign">
+    <div class="line">{{ t['letter.signer'] }}</div>
+</div>
+
+<div class="list">
+    <h2>{{ t['letter.list'] % label }}</h2>
+    <table>
+        <thead><tr>
+            <th style="width:28px;">N°</th>
+            <th>{{ t['staff.name'] }}</th>
+            <th>{{ t['pay.bank'] }}</th>
+            <th>{{ t['pay.bank_code'] }}</th>
+            <th>{{ t['pay.branch'] }}</th>
+            <th>{{ t['pay.account'] }}</th>
+            <th>{{ t['pay.key'] }}</th>
+            <th class="r">{{ t['payslip.net'] }}</th>
+            <th>{{ t['letter.wording'] }}</th>
+        </tr></thead>
+        <tbody>
+            {% for x in rows %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ x.who.name }}</td>
+                <td>{{ x.who.bank or '' }}</td>
+                <td>{{ x.who.bank_code or '' }}</td>
+                <td>{{ x.who.bank_branch or '' }}</td>
+                <td>{{ x.who.bank_account or '' }}</td>
+                <td>{{ x.who.bank_key or '' }}</td>
+                <td class="r">{{ x.net|num }}</td>
+                <td>{{ libelle }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="tot"><td colspan="7">{{ t['run.total'] }}</td><td class="r">{{ total|num }}</td><td></td></tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

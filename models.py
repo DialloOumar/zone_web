@@ -842,7 +842,17 @@ class PayRun(db.Model):
     submitted_at = db.Column(db.DateTime)
     validated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     validated_at = db.Column(db.DateTime)
+    # The transfers to the bank: from which company account, and -- once the
+    # bank has carried them out -- the day, the total that left the account
+    # and the bank's reference. Set by "virement effectué"; the account's
+    # statement in Comptes shows it from then on.
+    pay_account_id     = db.Column(db.Integer, db.ForeignKey("cash_accounts.id"), nullable=True)
+    transfer_on        = db.Column(db.String(10))
+    transfer_total     = db.Column(db.Integer)
+    transfer_reference = db.Column(db.String(60))
+    transfer_by        = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
+    pay_account = db.relationship("CashAccount")
     adjustments = db.relationship("PayRunAdjustment", back_populates="run",
                                   cascade="all, delete-orphan",
                                   order_by="PayRunAdjustment.id")
@@ -1530,6 +1540,8 @@ class CashMovement(db.Model):
                   in full from the salary of `advance_month`
         prime   — a bonus the box pays an employee (−): it goes on the payslip
                   of `advance_month` as pay, already paid
+        salaire — the net pay of `advance_month` handed to an employee paid by
+                  Orange Money or in cash (−), once that month is validated
 
     A withdrawal is not a cost: the boss taking his own money back spends
     nothing on the company's behalf, and filing it as an expense would inflate
@@ -1539,7 +1551,7 @@ class CashMovement(db.Model):
     __tablename__ = "cash_movements"
 
     id         = db.Column(db.Integer,     primary_key=True)
-    kind       = db.Column(db.String(20),  nullable=False, default="depot")  # depot | retrait | avance | prime
+    kind       = db.Column(db.String(20),  nullable=False, default="depot")  # depot | retrait | avance | prime | salaire
     date       = db.Column(db.String(10),  nullable=False)              # YYYY-MM-DD
     amount     = db.Column(db.Integer,     nullable=False)              # GNF
     currency   = db.Column(db.String(5),   nullable=False, default="GNF")
