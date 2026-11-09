@@ -53,9 +53,11 @@
     </form>
 
     {% if rows %}
+    <form method="get" action="{{ url_for('purchases.new') }}" id="req-pick">
     <div class="table-wrap"><table class="data-table">
         <thead>
             <tr>
+                {% if can_order %}<th style="width:1%;"></th>{% endif %}
                 <th>{{ t['cinv.number'] }}</th>
                 <th>{{ t['po.date'] }}</th>
                 <th>{{ t['preq.store'] }}</th>
@@ -68,6 +70,9 @@
         <tbody>
             {% for r in rows %}
             <tr>
+                {% if can_order %}
+                <td>{% if r.state in ('waiting', 'partial') %}<input type="checkbox" name="demande" value="{{ r.id }}" aria-label="{{ r.number }}">{% endif %}</td>
+                {% endif %}
                 <td style="white-space:nowrap;"><a href="{{ url_for('purchases.request_detail', rid=r.id) }}"><strong>{{ r.number }}</strong></a></td>
                 <td style="white-space:nowrap;">{{ r.date|dmy }}</td>
                 <td>{{ r.store.name }}</td>
@@ -82,6 +87,22 @@
             {% endfor %}
         </tbody>
     </table></div>
+    {% if can_order %}
+    <div class="form-actions" style="margin-top:10px;">
+        <button type="submit" class="btn btn--tonal" id="req-pick-go" disabled>
+            <span class="material-symbols-outlined">request_quote</span> {{ t['preq.order_selected'] }}
+        </button>
+    </div>
+    <script>
+    (function () {
+        var form = document.getElementById('req-pick'), go = document.getElementById('req-pick-go');
+        form.addEventListener('change', function () {
+            go.disabled = !form.querySelector('input[name=demande]:checked');
+        });
+    })();
+    </script>
+    {% endif %}
+    </form>
     {% else %}
     <div class="empty-state">
         <span class="material-symbols-outlined">pending_actions</span>

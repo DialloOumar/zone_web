@@ -111,6 +111,13 @@ def _next_number(issue_date):
     return "%s%03d" % (prefix, highest + 1)
 
 
+def _may_receive(po):
+    """Whether the user receives any of this order: a line landing in one of
+    his stores. The head of logistics does not receive; the stores do."""
+    from blueprints.stores import can_act_in
+    return any(can_act_in(l.receive_store_id) for l in po.lines)
+
+
 def _get_or_404(oid):
     po = db.session.get(PurchaseOrder, oid)
     if not po:
@@ -255,15 +262,21 @@ def _read_form(po):
         return None, None, t["po.err.store"]
     header = dict(supplier_id=supplier.id, date=date_str, store_id=store.id,
                   note=(request.form.get("note") or "").strip()[:255] or None)
-    req = db.session.get(PurchaseRequest, request.form.get("request_id", type=int) or 0)
-    if req and req.status == "open":
-        header["request_id"] = req.id
-    elif po is None:
-        header["request_id"] = None
+    # The requests the lines answer, read off the lines themselves: one
+    # order may gather several. The header keeps the one request when there
+    # is exactly one, for the old links; several leave it empty, the lines
+    # carry the truth.
+    rids = set()
+    for l in lines:
+        if l.get("request_line_id"):
+            rl = db.session.get(PurchaseRequestLine, l["request_line_id"])
+            if rl is not None:
+                rids.add(rl.request_id)
+    header["request_id"] = rids.pop() if len(rids) == 1 else None
     return header, lines, None
 
 
-def _render_form(po, error=None, lines=None, from_request=None):
+def _render_form(po, error=None, lines=None, from_requests=None):
     """`lines` is what to show: the order's own, or what was just typed."""
     if lines is None:
         lines = [dict(part_id=l.part_id, description=l.description, reference=l.reference or "",
@@ -282,16 +295,25 @@ def _render_form(po, error=None, lines=None, from_request=None):
                               unit=g("unit"), new_unit=g("new_unit"), mode=g("mode") or "new",
                               machines=g("line_vehicles"), request_line_id=g("request_line_id")))
     t = get_t()
-    req = from_request or (po.request if po else None)
-    if req is None and request.method == "POST":
-        req = db.session.get(PurchaseRequest, request.form.get("request_id", type=int) or 0)
+    reqs = from_requests or (po.linked_requests if po else [])
+    if not reqs and request.method == "POST":
+        rids = set()
+        for raw in request.form.getlist("request_line_id"):
+            if raw.strip().isdigit():
+                rl = db.session.get(PurchaseRequestLine, int(raw))
+                if rl is not None:
+                    rids.add(rl.request_id)
+        if rids:
+            reqs = (PurchaseRequest.query.filter(PurchaseRequest.id.in_(rids))
+                    .order_by(PurchaseRequest.id).all())
     parts_json = _parts_json()
-    return render_template("purchase_order_form.html", mode="order", po=po, req=req, error=error, lines=lines,
+    return render_template("purchase_order_form.html", mode="order", po=po, error=error, lines=lines,
+                           req=reqs[0] if len(reqs) == 1 else None, reqs=reqs,
                            suppliers=parts_suppliers(), parts_json=parts_json,
                            units=active_units(),
                            machines=[dict(id=v.id, code=v.code) for v in _accessible_vehicles()],
                            stores=_order_stores(),
-                           default_store=req.store_id if req and not po else _default_store(po),
+                           default_store=reqs[0].store_id if reqs and not po else _default_store(po),
                            today=date.today().isoformat())
 
 
@@ -445,16 +467,25 @@ def new():
                 po = db.session.merge(po)
         log_action("CREATE", "purchase_order", resource_id=po.id,
                    detail="Order %s to %s: %d GNF" % (po.number, po.supplier.name, po.total))
-        if po.request:
-            notify(po.request.requested_by, "info.request_ordered",
-                   url_for("purchases.request_detail", rid=po.request.id),
-                   number=po.request.number, order=po.number)
+        for r in po.linked_requests:
+            notify(r.requested_by, "info.request_ordered",
+                   url_for("purchases.request_detail", rid=r.id),
+                   number=r.number, order=po.number)
         db.session.commit()
         flash("success|" + t["po.created"])
         return redirect(url_for("purchases.detail", oid=po.id))
-    req = db.session.get(PurchaseRequest, request.args.get("demande", type=int) or 0)
-    if req and req.status == "open":
-        return _render_form(None, lines=_lines_from_request(req), from_request=req)
+    # One request, or several ticked on the requests' list, under one order.
+    reqs = []
+    for raw in request.args.getlist("demande"):
+        if raw.isdigit():
+            r = db.session.get(PurchaseRequest, int(raw))
+            if r is not None and r.status == "open" and r not in reqs:
+                reqs.append(r)
+    if reqs:
+        lines = []
+        for r in reqs:
+            lines += _lines_from_request(r)
+        return _render_form(None, lines=lines, from_requests=reqs)
     return _render_form(None)
 
 
@@ -788,7 +819,7 @@ def detail(oid):
                            can_reject=po.status in PENDING and (user_approves("logistics") or user_approves("finance")),
                            can_edit=_may_order_for(po.store_id) and _editable(po),
                            can_receive=has_perm("stock.manage") and po.status in RECEIVABLE
-                                       and _can_act(po.store_id),
+                                       and _may_receive(po),
                            can_delete=(current_user.is_super_admin
                                        or _may_order_for(po.store_id)) and _editable(po))
 
@@ -895,20 +926,27 @@ def receive(oid):
     if po.status not in RECEIVABLE:
         flash("error|" + t["po.err.not_receivable"])
         return redirect(back)
-    # Only the people of the store it is delivered to receive it.
+    # Each line lands in the store whose request asked for it (the order's
+    # own store otherwise), and only that store's people see and receive it:
+    # an order gathering several stores' requests is received by each store
+    # for its part alone.
     from blueprints.stores import can_act_in, default_store_id
     if po.store_id is None:
         po.store_id = default_store_id()
-    if not can_act_in(po.store_id):
+    mine = [l for l in po.lines if can_act_in(l.receive_store_id)]
+    if not mine:
         flash("error|" + t["po.err.other_store"] % (po.store.name if po.store else ""))
         return redirect(back)
+    one = {l.receive_store_id for l in mine}
+    recv_store = mine[0].receive_store if len(one) == 1 else None
     if request.method == "POST":
         date_str = (request.form.get("date") or "").strip() or date.today().isoformat()
         if not _valid_date(date_str):
             return render_template("purchase_order_receive.html", po=po, error=t.get("client.err.date", "Date invalide."),
-                                   today=date.today().isoformat(), back=back, sees_orders=may_read_orders())
+                                   today=date.today().isoformat(), back=back, sees_orders=may_read_orders(),
+                           lines=mine, recv_store=recv_store)
         written = 0
-        for line in po.lines:
+        for line in mine:
             raw = (request.form.get("recv_%d" % line.id) or "").strip().replace(",", ".")
             if not raw:
                 continue
@@ -918,7 +956,8 @@ def receive(oid):
                 qty = -1
             if qty < 0 or qty > line.remaining_qty + 1e-9:
                 return render_template("purchase_order_receive.html", po=po, error=t["po.err.receive_qty"],
-                                       today=date.today().isoformat(), back=back, sees_orders=may_read_orders())
+                                       today=date.today().isoformat(), back=back, sees_orders=may_read_orders(),
+                           lines=mine, recv_store=recv_store)
             if qty == 0:
                 continue
             if not line.part_id and not request.form.get("skip_%d" % line.id):
@@ -935,14 +974,15 @@ def receive(oid):
             if line.part_id:
                 db.session.add(StockMovement(
                     part_id=line.part_id, kind="entree", date=date_str, quantity=qty,
-                    store_id=po.store_id,
+                    store_id=line.receive_store_id,
                     unit_price=line.stock_unit_price, supplier=po.supplier.name,
                     note=po.number, purchase_line_id=line.id, created_by=current_user.id))
             line.received_qty = (line.received_qty or 0) + qty
             written += 1
         if not written:
             return render_template("purchase_order_receive.html", po=po, error=t["po.err.receive_none"],
-                                   today=date.today().isoformat(), back=back, sees_orders=may_read_orders())
+                                   today=date.today().isoformat(), back=back, sees_orders=may_read_orders(),
+                           lines=mine, recv_store=recv_store)
         po.status = "received" if all(l.remaining_qty <= 1e-9 for l in po.lines) else "received_partial"
         log_action("RECEIVE", "purchase_order", resource_id=po.id,
                    detail="%s: %d line(s) received, now %s" % (po.number, written, po.status))
@@ -950,4 +990,5 @@ def receive(oid):
         flash("success|" + (t["po.received_all"] if po.status == "received" else t["po.received_part"]))
         return redirect(back)
     return render_template("purchase_order_receive.html", po=po, error=None, today=date.today().isoformat(),
-                           back=back, sees_orders=may_read_orders())
+                           back=back, sees_orders=may_read_orders(),
+                           lines=mine, recv_store=recv_store)

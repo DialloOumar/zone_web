@@ -17,7 +17,7 @@
     {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
 
     <form method="post" class="entry-form">
-        {% if po.store %}<p class="muted" style="margin:0 0 10px;">{{ t['po.receive_into'] }} <strong>{{ po.store.name }}</strong></p>{% endif %}
+        {% if recv_store %}<p class="muted" style="margin:0 0 10px;">{{ t['po.receive_into'] }} <strong>{{ recv_store.name }}</strong></p>{% endif %}
         <div class="field" style="max-width:220px;">
             <input type="date" id="date" name="date" placeholder=" " required value="{{ request.form.get('date') or today }}">
             <label for="date">{{ t['po.receive_date'] }}</label>
@@ -27,6 +27,7 @@
             <thead>
                 <tr>
                     <th class="po-th-part">{{ t['po.line_part'] }}</th>
+                    {% if not recv_store %}<th class="po-th-part">{{ t['store.one'] }}</th>{% endif %}
                     <th class="po-th-part po-col-ref">{{ t['po.line_reference'] }}</th>
                     <th class="po-th-part">{{ t['po.col_origin'] }}</th>
                     <th class="r po-col-unit">{{ t['po.ordered'] }}</th>
@@ -37,10 +38,11 @@
                 </tr>
             </thead>
             <tbody>
-                {% for l in po.lines %}
+                {% for l in lines %}
                 {% set unit = (unit_label(l.part.unit) if l.part else unit_label(l.new_unit or 'piece')) %}
                 <tr>
                     <td><strong>{{ l.description }}</strong></td>
+                    {% if not recv_store %}<td>{{ l.receive_store.name if l.receive_store else '—' }}</td>{% endif %}
                     <td>{% if l.reference %}{{ l.reference }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                     {# A new article: created in the catalogue as it comes in, in the
                        unit the order gave it. Untick for something that is not stock. #}

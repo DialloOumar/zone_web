@@ -2853,6 +2853,19 @@ class PurchaseOrder(db.Model):
         return self.lines[0].vehicles if len(sets) == 1 and self.lines and self.lines[0].vehicles else None
 
     @property
+    def linked_requests(self):
+        """The stores' requests this order answers, read off its lines. The
+        header's request_id only keeps the one request of a simple order."""
+        seen = {}
+        if self.request is not None:
+            seen[self.request.id] = self.request
+        for l in self.lines:
+            rl = l.request_line
+            if rl is not None and rl.request is not None:
+                seen[rl.request.id] = rl.request
+        return sorted(seen.values(), key=lambda r: r.id)
+
+    @property
     def requester_tel(self):
         """The phone of whoever made the order, as their account has it now;
         the copy taken at the time stands in if the account is gone (an
@@ -2938,6 +2951,21 @@ class PurchaseOrderLine(db.Model):
         """What one unit of stock cost on this line, discount included."""
         return int(round(self.amount / self.stock_qty)) if self.stock_qty else self.unit_price
 
+    @property
+    def receive_store_id(self):
+        """The store this line lands in: the one whose request asked for it,
+        else the order's own. One order may gather several stores' requests,
+        so the store is the line's, not the order's."""
+        if self.request_line is not None and self.request_line.request is not None:
+            return self.request_line.request.store_id
+        return self.order.store_id if self.order else None
+
+    @property
+    def receive_store(self):
+        if self.request_line is not None and self.request_line.request is not None:
+            return self.request_line.request.store
+        return self.order.store if self.order else None
+
 
 class PurchaseRequest(db.Model):
     """A store's request for articles: what it needs and how many, nothing
@@ -2976,6 +3004,17 @@ class PurchaseRequest(db.Model):
     @property
     def fully_ordered(self):
         return bool(self.lines) and all(l.remaining_qty <= 1e-9 for l in self.lines)
+
+    @property
+    def linked_orders(self):
+        """Every order holding a line that answers this request, even when
+        the order gathers other requests too."""
+        seen = {o.id: o for o in self.orders}
+        for l in self.lines:
+            for ol in l.order_lines:
+                if ol.order is not None:
+                    seen[ol.order.id] = ol.order
+        return sorted(seen.values(), key=lambda o: o.id)
 
     @property
     def state(self):

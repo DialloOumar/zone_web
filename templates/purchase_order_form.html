@@ -10,14 +10,14 @@
 {% block content %}
 <div class="card-header card-header--end" style="margin-bottom:0;">
     {% set back_url = back_to or (url_for('purchases.request_detail', rid=req.id) if is_edit else url_for('purchases.requests')) if is_req
-                      else (url_for('purchases.detail', oid=po.id) if is_edit else (url_for('purchases.request_detail', rid=req.id) if req else url_for('purchases.index'))) %}
+                      else (url_for('purchases.detail', oid=po.id) if is_edit else (url_for('purchases.request_detail', rid=req.id) if req else (url_for('purchases.requests') if reqs else url_for('purchases.index')))) %}
     <a data-back href="{{ back_url }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
 </div>
 
 <section class="card">
     {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
-    {% if not is_req and req %}
-    <div class="alert alert--info">{{ t['po.from_request'] % req.number }}</div>
+    {% if not is_req and reqs %}
+    <div class="alert alert--info">{{ t['po.from_request'] % (reqs | map(attribute='number') | join(', ')) }}</div>
     {% endif %}
     {% if not is_req and is_edit and (po.logistics_at or po.status == 'rejected') %}
     <div class="alert alert--warning">{{ t['po.edit_resets'] }}</div>
@@ -26,7 +26,6 @@
     <form method="post" class="entry-form" id="po-form"
           action="{{ (url_for('purchases.request_edit', rid=req.id) if is_edit else url_for('purchases.request_new')) if is_req
                      else (url_for('purchases.edit', oid=po.id) if is_edit else url_for('purchases.new')) }}">
-        {% if not is_req and req %}<input type="hidden" name="request_id" value="{{ req.id }}">{% endif %}
         <div class="form-row">
             {% if not is_req %}
             <div class="field field--select">

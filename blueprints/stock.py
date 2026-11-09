@@ -507,11 +507,15 @@ def _under_way(store_ids):
         if l.remaining_qty > 1e-9:
             asked.add((l.part_id, l.request.store_id))
     for l in (PurchaseOrderLine.query.join(PurchaseOrder)
-              .filter(PurchaseOrder.store_id.in_(store_ids), PurchaseOrderLine.part_id.isnot(None),
+              .filter(PurchaseOrderLine.part_id.isnot(None),
                       PurchaseOrder.status.notin_(("received",))).all()):
         if l.remaining_qty <= 1e-9:
             continue
-        key = (l.part_id, l.order.store_id)
+        # The store a line lands in is its request's, not always the order's.
+        sid = l.receive_store_id
+        if sid not in store_ids:
+            continue
+        key = (l.part_id, sid)
         (coming if l.order.status in RECEIVABLE else asked).add(key)
     return asked, coming
 
@@ -531,11 +535,16 @@ def requests_open_query():
 def receipts_waiting_query():
     from blueprints.purchases import RECEIVABLE
     from blueprints.stores import visible_store_ids
-    from models import PurchaseOrder
+    from models import PurchaseOrder, PurchaseOrderLine, PurchaseRequest, PurchaseRequestLine
     q = PurchaseOrder.query.filter(PurchaseOrder.status.in_(RECEIVABLE))
     ids = visible_store_ids()
     if ids is not None:
-        q = q.filter(PurchaseOrder.store_id.in_(ids))
+        # Delivered to one of my stores, or carrying a line a request of one
+        # of my stores asked for: one order may serve several stores.
+        q = q.filter(db.or_(
+            PurchaseOrder.store_id.in_(ids),
+            PurchaseOrder.lines.any(PurchaseOrderLine.request_line.has(
+                PurchaseRequestLine.request.has(PurchaseRequest.store_id.in_(ids))))))
     return q
 
 
