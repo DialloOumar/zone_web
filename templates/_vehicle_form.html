@@ -28,7 +28,7 @@
                 <option value="" hidden></option>
                 {% set sel_cat = request.form.get('category_id')|int(0) or (vehicle.category_id if is_edit else 0) %}
                 {% for c in categories %}
-                <option value="{{ c.id }}" data-code="{{ c.code }}"
+                <option value="{{ c.id }}" data-code="{{ c.code }}" data-unit="{{ 'L/h' if c.unit_type == 'hours' else t['flux.per_trip'] }}"
                         {% if c.id == sel_cat %}selected{% endif %}>{{ c.label_fr if lang == 'fr' else c.label }}</option>
                 {% endfor %}
             </select>
@@ -49,6 +49,12 @@
                 {% endif %}
             </select>
             <label for="site_id">{{ t['vehicle.site'] }}</label>
+        </div>
+        <div class="field">
+            {% set base_val = request.form.get('baseline') if request.method == 'POST' else (('%g' % vehicle.baseline_l_per_unit_override) if is_edit and vehicle.baseline_l_per_unit_override else '') %}
+            <input type="number" id="baseline" name="baseline" step="0.1" min="0" inputmode="decimal"
+                   placeholder="{{ t['ph.vehicle.baseline'] }}" value="{{ base_val }}">
+            <label for="baseline">{{ t['vehicle.baseline'] }} (<span id="baseline-unit">L/h</span>)</label>
         </div>
     </div>
 
@@ -106,6 +112,7 @@
             if (ok && o.value === catSel.value) currentOk = true;
         });
         if (!currentOk) catSel.value = "";
+        showUnit();
         if (opSel) {
             Array.prototype.forEach.call(opSel.options, function (o) {
                 if (!o.value) return;
@@ -116,6 +123,13 @@
             if (cur && cur.hidden) opSel.value = "";
         }
     }
+    // The reference consumption reads in the category's unit: L/h or L/trip.
+    function showUnit() {
+        var u = document.getElementById("baseline-unit");
+        var o = catSel.options[catSel.selectedIndex];
+        if (u && o && o.dataset.unit) u.textContent = o.dataset.unit;
+    }
+    catSel.addEventListener("change", showUnit);
     fleetSel.addEventListener("change", refresh);
     refresh();
 })();

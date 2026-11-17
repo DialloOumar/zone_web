@@ -124,6 +124,7 @@
                 <div class="flux-machine__litres"><b>{{ liters | num }}</b> L</div>
                 <div class="flux-machine__worked">{{ units }} {{ 'h' if unit == 'hours' else t['flux.trips_short'] }}</div>
                 {% if rate %}<div class="flux-machine__rate">{{ rate }} {{ 'L/h' if unit == 'hours' else t['flux.per_trip'] }}</div>{% endif %}
+                {% if v.effective_baseline %}<div class="flux-machine__ref">{{ t['flux.ref'] }} {{ ('%g' % v.effective_baseline)|replace('.', ',') }} {{ 'L/h' if unit == 'hours' else t['flux.per_trip'] }}</div>{% endif %}
             </div>
             {% endfor %}
         </div>

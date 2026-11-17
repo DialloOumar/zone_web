@@ -19,7 +19,7 @@
         </div>
         <div class="vehicle-card__meta muted small">
             {{ v.fleet.name }}{% if v.site %} · {{ v.site }}{% endif %}
-            {% if v.effective_baseline %}<br>{{ v.effective_baseline }} L / {{ t['unit.' + v.category.unit_type] }}{% endif %}
+            {% if v.effective_baseline %}<br>{{ ('%g' % v.effective_baseline)|replace('.', ',') }} {{ 'L/h' if v.category.unit_type == 'hours' else t['flux.per_trip'] }}{% endif %}
         </div>
     </div>
     {% if has_perm('vehicle.edit') or has_perm('vehicle.delete') %}

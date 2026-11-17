@@ -47,6 +47,8 @@
     <dl class="detail-grid file-head__facts">
         {{ fact(t['vehicle.fleet'], vehicle.fleet.name) }}
         {{ fact(t['vehicle.site'], vehicle.site) }}
+        {% set vb = vehicle.effective_baseline %}
+        {{ fact(t['vehicle.baseline'], (('%g' % vb)|replace('.', ',') ~ ' ' ~ ('L/h' if vehicle.category.unit_type == 'hours' else t['flux.per_trip'])) if vb else None) }}
         <div><dt>{{ t['vehicle.default_operator'] }}</dt><dd>
             {% set dop = vehicle.default_operator %}
             {% if dop %}{% if has_perm('operator.view') %}<a href="{{ url_for('operators.person', pid=dop.staff_id, fleet=dop.fleet_id) }}">{{ dop.name }}</a>{% else %}{{ dop.name }}{% endif %}

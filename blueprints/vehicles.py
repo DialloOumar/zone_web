@@ -201,12 +201,19 @@ def _read_vehicle_form(vehicle):
         if not site or not (site.is_active or (vehicle and vehicle.site_id == site_id)):
             return None, t["vehicle.err.site"]
 
+    # The machine's own reference consumption, in litres per hour or per
+    # trip as its category counts. Blank leaves it unset.
+    baseline, bad = _num(request.form.get("baseline"), float)
+    if bad or (baseline is not None and baseline <= 0):
+        return None, t["vehicle.err.baseline"]
+
     data = dict(
         code=code,
         fleet_id=fleet_id,
         category_id=category_id,
         description=(request.form.get("description") or "").strip() or None,
         site_id=site_id,
+        baseline_l_per_unit_override=round(baseline, 1) if baseline else None,
         default_operator_id=default_operator_id,
         is_active=request.form.get("is_active") is not None,
     )
