@@ -21,7 +21,7 @@ import s3_storage
 from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, require_perm, with_current_fleet)
 from blueprints.staff import driver_from_form
-from models import Citerne, Fleet, FuelMovement, Operator, Vehicle, db
+from models import Citerne, DailyEntry, Fleet, FuelMovement, Operator, Vehicle, db
 
 carburant_bp = Blueprint("carburant", __name__, url_prefix="/carburant")
 
@@ -147,6 +147,14 @@ def _last_12_months():
     return months
 
 
+def _hours_text(h):
+    """Hours as read on the flow page: 1 250 h, or 19,5 h when there is a half."""
+    h = round(float(h or 0), 1)
+    whole = "{:,}".format(int(h)).replace(",", " ")
+    tenth = int(round((h - int(h)) * 10))
+    return whole + ("," + str(tenth) if tenth else "")
+
+
 @carburant_bp.route("/citernes/<int:cid>/vue")
 @login_required
 @require_perm("carburant.view")
@@ -174,13 +182,39 @@ def citerne_flux(cid):
         elif m.kind == "conso":
             conso_total += m.liters
 
-    machines = sorted(per_vehicle.values(), key=lambda r: -r[1])
+    # What each machine worked over the same period, from the daily entries:
+    # hours for the machines counted in hours, trips for the others.
+    worked = {}
+    if per_vehicle:
+        co = db.func.coalesce
+        wq = (db.session.query(DailyEntry.vehicle_id,
+                               co(db.func.sum(DailyEntry.hours), 0.0),
+                               co(db.func.sum(DailyEntry.trips), 0))
+              .filter(DailyEntry.vehicle_id.in_(list(per_vehicle))))
+        if period != "all":
+            wq = wq.filter(DailyEntry.date.like(period + "-%"))
+        for vid, hours, trips in wq.group_by(DailyEntry.vehicle_id).all():
+            worked[vid] = (float(hours or 0), int(trips or 0))
+
+    machines, hours_total, trips_total = [], 0.0, 0
+    for vid, (v, liters) in per_vehicle.items():
+        hours, trips = worked.get(vid, (0.0, 0))
+        if v.category.unit_type == "trips":
+            units, unit = "{:,}".format(trips).replace(",", " "), "trips"
+            trips_total += trips
+        else:
+            units, unit = _hours_text(hours), "hours"
+            hours_total += hours
+        machines.append((v, liters, units, unit))
+    machines.sort(key=lambda r: -r[1])
     fill_pct = round(c.stock / c.capacity_liters * 100, 1) if c.capacity_liters else 0
 
     return render_template(
         "citerne_flux.html", citerne=c, machines=machines, fill_pct=fill_pct,
         rentree_total=rentree_total, conso_total=conso_total,
-        distributed_total=distributed_total, period=period, months=_last_12_months())
+        distributed_total=distributed_total,
+        hours_total=_hours_text(hours_total) if hours_total else None,
+        trips_total=trips_total, period=period, months=_last_12_months())
 
 
 @carburant_bp.route("/mouvements")

@@ -92,6 +92,12 @@
                 </div>
                 {% endif %}
                 <div class="flux-line">{{ t['flux.distributed'] }} : <b>{{ distributed_total | num }}</b> L</div>
+                {% if hours_total %}
+                <div class="flux-line">{{ t['flux.hours_worked'] }} : <b>{{ hours_total }}</b> h</div>
+                {% endif %}
+                {% if trips_total %}
+                <div class="flux-line">{{ t['flux.trips_done'] }} : <b>{{ trips_total | num }}</b></div>
+                {% endif %}
                 {% if conso_total %}
                 <div class="flux-engine"><span class="material-symbols-outlined" aria-hidden="true">directions_bus</span>
                     {{ t['flux.conso'] }} : <b>{{ conso_total | num }}</b> L</div>
@@ -101,8 +107,8 @@
 
         {% if machines %}
         <div class="flux-machines" id="flux-machines">
-            {% for v, liters in machines %}
-            <div class="flux-machine" data-liters="{{ liters }}">
+            {% for v, liters, units, unit in machines %}
+            <div class="flux-machine">
                 <div class="flux-machine__head">
                     {% set vimg = vehicle_image(v) %}
                     <span class="vehicle-thumb {% if not vimg %}vehicle-thumb--empty{% elif vimg.drawing %}vehicle-thumb--drawing{% endif %}">
@@ -115,6 +121,7 @@
                     </div>
                 </div>
                 <div class="flux-machine__litres"><b>{{ liters | num }}</b> L</div>
+                <div class="flux-machine__worked">{{ units }} {{ 'h' if unit == 'hours' else t['flux.trips_short'] }}</div>
             </div>
             {% endfor %}
         </div>
@@ -178,7 +185,6 @@
         machines.forEach(function (card) {
             var t = ctr(card, sr), r = bez(ttx, tby, t[0], t[1]);
             path(r[0], 'pipe-bg'); path(r[0], 'pipe-flow');
-            badge(r[1], (+card.dataset.liters).toLocaleString('fr-FR') + ' L', false);
         });
     }
     window.addEventListener('resize', draw);

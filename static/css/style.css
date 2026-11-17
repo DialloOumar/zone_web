@@ -1541,6 +1541,8 @@ a:hover { text-decoration: underline; }
 .flux-machine__litres { margin-top: 10px; }
 .flux-machine__litres b { font-size: 1.5rem; font-weight: 700; color: #E0830A;
     font-variant-numeric: tabular-nums; }
+.flux-machine__worked { font-size: .9rem; font-weight: 600; color: var(--md-on-surface-variant);
+    font-variant-numeric: tabular-nums; margin-top: 2px; }
 .flux-badge { position: absolute; z-index: 3; transform: translate(-50%, -50%);
     pointer-events: none; background: #E0830A; color: #fff; font-size: .74rem; font-weight: 700;
     padding: 2px 8px; border-radius: 999px; box-shadow: 0 2px 6px rgba(224,131,10,.4);
