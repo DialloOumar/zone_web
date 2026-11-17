@@ -47,6 +47,7 @@
     <dl class="detail-grid file-head__facts">
         {{ fact(t['vehicle.fleet'], vehicle.fleet.name) }}
         {{ fact(t['vehicle.site'], vehicle.site) }}
+        {{ fact(t['vehicle.tonnage'], (('%g' % vehicle.tonnage)|replace('.', ',') ~ ' t') if vehicle.tonnage else None) }}
         {% set vb = vehicle.effective_baseline %}
         {{ fact(t['vehicle.baseline'], (('%g' % vb)|replace('.', ',') ~ ' ' ~ ('L/h' if vehicle.category.unit_type == 'hours' else t['flux.per_trip'])) if vb else None) }}
         <div><dt>{{ t['vehicle.default_operator'] }}</dt><dd>
@@ -93,18 +94,19 @@
     </div>
     <div class="stat-card">
         <span class="stat-icon stat-icon--blue material-symbols-outlined">local_gas_station</span>
-        <div><div class="stat-value">{{ stats.fuel | num }} L</div><div class="stat-label">{{ t['person.fuel_short'] }}</div></div>
+        <div><div class="stat-value">{{ stats.fuel | num }} L</div><div class="stat-label">{% if has_perm('carburant.view') %}<a href="{{ url_for('carburant.history', vehicle=vehicle.id) }}">{{ t['person.fuel_short'] }}</a>{% else %}{{ t['person.fuel_short'] }}{% endif %}</div></div>
     </div>
 </div>
 
 <section class="card">
     <nav class="tabs" role="tablist">
-        {% set icons = {'entries': 'list_alt', 'records': 'handyman', 'costs': 'payments', 'parts': 'inventory', 'history': 'history'} %}
-        {% set labels = {'entries': t['nav.daily_entries'], 'records': t['nav.maintenance_records'], 'costs': t['perm.res.expense'], 'parts': t['vehicle.parts_used'], 'history': t['vehicle.status_history']} %}
+        {% set icons = {'entries': 'list_alt', 'records': 'handyman', 'costs': 'payments', 'parts': 'inventory', 'history': 'history', 'documents': 'description'} %}
+        {% set labels = {'entries': t['nav.daily_entries'], 'records': t['nav.maintenance_records'], 'costs': t['perm.res.expense'], 'parts': t['vehicle.parts_used'], 'history': t['vehicle.status_history'], 'documents': t['vdoc.tab']} %}
         {% for key in tabs %}
         <a href="{{ url_for('vehicles.detail', vid=vehicle.id, tab=key if key != 'entries' else None) }}" role="tab"
            aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
             <span class="material-symbols-outlined">{{ icons[key] }}</span> {{ labels[key] }}
+            {%- if key == 'documents' and vehicle.documents %} <span class="tab__count">{{ vehicle.documents|length }}</span>{% endif %}
         </a>
         {% endfor %}
     </nav>
@@ -302,6 +304,46 @@
             {% endfor %}
         </tbody>
     </table></div>
+
+    {% elif tab == 'documents' %}
+    {% if has_perm('vehicle.edit') %}
+    <div class="tab-bar vehicle-tab-bar">
+        <a href="{{ url_for('vehicles.document_add', vid=vehicle.id) }}" class="btn btn--sm btn--primary"
+           data-modal-url="{{ url_for('vehicles.document_add', vid=vehicle.id) }}" data-modal-title="{{ t['vdoc.add'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['vdoc.add'] }}</a>
+    </div>
+    {% endif %}
+    {% if vehicle.documents %}
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr>
+            <th>{{ t['vdoc.name'] }}</th>
+            <th>{{ t['vdoc.kind'] }}</th>
+            <th>{{ t['vdoc.added_on'] }}</th>
+            <th class="col-secondary">{{ t['vdoc.added_by'] }}</th>
+            <th></th>
+        </tr></thead>
+        <tbody>
+            {% for d in vehicle.documents %}
+            <tr>
+                <td><a href="{{ url_for('vehicles.document', did=d.id) }}" target="_blank" rel="noopener"><strong>{{ d.name }}</strong></a></td>
+                <td><span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle;" aria-hidden="true">{{ 'picture_as_pdf' if d.content_type == 'application/pdf' else 'description' }}</span> {{ 'PDF' if d.content_type == 'application/pdf' else t['vdoc.photo'] }}</td>
+                <td style="white-space:nowrap;">{{ d.created_at.strftime('%d/%m/%Y') }}</td>
+                <td class="col-secondary">{{ d.author.full_name if d.author else '' }}</td>
+                <td class="row-actions">
+                    {% if has_perm('vehicle.edit') %}
+                    <form method="post" action="{{ url_for('vehicles.document_delete', did=d.id) }}" style="display:inline"
+                          data-confirm="{{ t['vdoc.delete_confirm'] }}" data-confirm-title="{{ t['delete.title'] }}" data-confirm-ok="{{ t['delete.forever'] }}" data-confirm-danger>
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft"><span class="material-symbols-outlined">description</span><p>{{ t['vdoc.empty'] }}</p></div>
+    {% endif %}
 
     {% elif tab == 'history' %}
     {# The machine's working states over time: when it went down, when it

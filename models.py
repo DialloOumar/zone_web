@@ -298,6 +298,7 @@ class Vehicle(db.Model):
     # Where the machine works: one of the sites the super admin keeps.
     site_id                       = db.Column(db.Integer,   db.ForeignKey("sites.id"), nullable=True)
     baseline_l_per_unit_override  = db.Column(db.Float,     nullable=True)
+    tonnage                       = db.Column(db.Float,     nullable=True)   # tonnes
     cost_per_unit_override        = db.Column(db.Integer,   nullable=True)
     # Optional default driver — a real link to a registered Operator (same
     # fleet), used to pre-fill the conducteur on a new daily entry.
@@ -329,6 +330,10 @@ class Vehicle(db.Model):
     site_ref         = db.relationship("Site")
     supplier         = db.relationship("Supplier", back_populates="machines")
     client           = db.relationship("Client", back_populates="machines")
+    # The machine's papers (carte grise, assurance...), newest first.
+    documents        = db.relationship("VehicleDocument", back_populates="vehicle",
+                                       order_by="VehicleDocument.created_at.desc()",
+                                       cascade="all, delete-orphan")
 
     @property
     def site(self):
@@ -927,6 +932,23 @@ class PayRunLine(db.Model):
 
     run    = db.relationship("PayRun", back_populates="lines")
     person = db.relationship("Staff")
+
+
+class VehicleDocument(db.Model):
+    """A paper kept on a machine's file: carte grise, assurance, visite
+    technique. The name is the one given when it was added."""
+    __tablename__ = "vehicle_documents"
+
+    id           = db.Column(db.Integer, primary_key=True)
+    vehicle_id   = db.Column(db.Integer, db.ForeignKey("vehicles.id"), nullable=False, index=True)
+    name         = db.Column(db.String(160), nullable=False)
+    file_key     = db.Column(db.String(200), nullable=False)   # S3 key
+    content_type = db.Column(db.String(60))
+    created_by   = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at   = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    vehicle = db.relationship("Vehicle", back_populates="documents")
+    author  = db.relationship("User")
 
 
 class StaffDocument(db.Model):

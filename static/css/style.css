@@ -1457,8 +1457,8 @@ a:hover { text-decoration: underline; }
     font-size: 0.72rem; font-weight: 500; letter-spacing: 0.05em;
     text-transform: uppercase; color: var(--md-on-surface-variant);
 }
-.carbu-filter select {
-    font: inherit; font-size: 0.9rem; padding: 8px 12px; min-width: 150px;
+.carbu-filter select, .carbu-filter input[type=date] {
+    font: inherit; font-size: 0.9rem; padding: 0 12px; height: 38px; min-width: 150px;
     border: 1px solid var(--md-outline-variant); border-radius: var(--shape-sm);
     background: var(--md-surface); color: var(--md-on-surface); cursor: pointer;
 }

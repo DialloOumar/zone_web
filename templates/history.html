@@ -7,13 +7,24 @@
 {% block content %}
 <section class="card">
     <div class="card-header card-header--end">
-        <form method="get" class="carbu-filters">
-            <label class="carbu-filter"><span>{{ t['movement.period'] }}</span>
-                <select name="period" onchange="this.form.submit()">
-                    {% for mo in months %}<option value="{{ mo }}" {% if mo == period %}selected{% endif %}>{{ mo }}</option>{% endfor %}
-                    <option value="all" {% if period == 'all' %}selected{% endif %}>{{ t['movement.all_periods'] }}</option>
+        <form method="get" class="carbu-filters" id="mv-filters">
+            <label class="carbu-filter"><span>{{ t['movement.machine'] }}</span>
+                <select name="vehicle" onchange="this.form.submit()">
+                    <option value="">{{ t['movement.all_machines'] }}</option>
+                    {% for v in vehicles %}<option value="{{ v.id }}" {% if v.id == fvehicle %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
                 </select>
             </label>
+            <label class="carbu-filter"><span>{{ t['movement.period'] }}</span>
+                <select name="period" id="mv-period">
+                    {% for mo in months %}<option value="{{ mo }}" {% if mo == period and not (du or au) %}selected{% endif %}>{{ mo }}</option>{% endfor %}
+                    <option value="all" {% if period == 'all' and not (du or au) %}selected{% endif %}>{{ t['movement.all_periods'] }}</option>
+                    {% if du or au %}<option value="all" selected>{{ t['movement.dates_chosen'] }}</option>{% endif %}
+                </select>
+            </label>
+            <label class="carbu-filter"><span>{{ t['movement.from'] }}</span>
+                <input type="date" name="du" value="{{ du }}" class="mv-date"></label>
+            <label class="carbu-filter"><span>{{ t['movement.to'] }}</span>
+                <input type="date" name="au" value="{{ au }}" class="mv-date"></label>
             <label class="carbu-filter"><span>{{ t['distribution.citerne'] }}</span>
                 <select name="citerne" onchange="this.form.submit()">
                     <option value="">{{ t['movement.all_citernes'] }}</option>
@@ -30,6 +41,25 @@
         </form>
     </div>
 
+    {% if machine %}
+    {% set u = 'L/h' if not machine.by_trip else t['flux.per_trip'] %}
+    <div class="mv-totals">
+        <div class="mv-total mv-total--client">
+            <span class="mv-total__val">{{ machine.liters | num }} <small>L</small></span>
+            <span class="mv-total__lbl">{{ t['movement.machine_total'] }} · {{ machine.v.code }}</span>
+            <span class="mv-total__sub">{{ t['movement.from_citerne'] }} {{ machine.citerne | num }} · {{ t['movement.direct'] }} {{ machine.pump | num }}</span>
+        </div>
+        <div class="mv-total">
+            <span class="mv-total__val">{{ machine.worked }} <small>{{ t['flux.trips_short'] if machine.by_trip else 'h' }}</small></span>
+            <span class="mv-total__lbl">{{ t['flux.trips_done'] if machine.by_trip else t['flux.hours_worked'] }}</span>
+        </div>
+        <div class="mv-total">
+            <span class="mv-total__val">{{ machine.rate or '—' }} <small>{{ u }}</small></span>
+            <span class="mv-total__lbl">{{ t['flux.avg_rate'] }}</span>
+            {% if machine.ref %}<span class="mv-total__sub">{{ t['flux.ref'] }} {{ machine.ref }} {{ u }}</span>{% endif %}
+        </div>
+    </div>
+    {% else %}
     <div class="mv-totals">
         <div class="mv-total">
             <span class="mv-total__val">{{ totals.distribution | num }} <small>L</small></span>
@@ -41,6 +71,7 @@
             <span class="mv-total__sub">{{ t['movement.rentree'] }} {{ totals.rentree | num }} · {{ t['movement.direct'] }} {{ totals.direct | num }} · {{ t['movement.conso'] }} {{ totals.conso | num }}</span>
         </div>
     </div>
+    {% endif %}
 
     {% if movements %}
     {% include "_movement_table.html" %}
@@ -52,4 +83,24 @@
     </div>
     {% endif %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// A month and a date range cannot both hold: picking a month clears the
+// dates, typing a date leaves the month aside.
+(function () {
+    var form = document.getElementById('mv-filters');
+    if (!form) return;
+    var per = document.getElementById('mv-period');
+    var dates = form.querySelectorAll('.mv-date');
+    per.addEventListener('change', function () {
+        dates.forEach(function (d) { d.value = ''; });
+        form.submit();
+    });
+    dates.forEach(function (d) {
+        d.addEventListener('change', function () { form.submit(); });
+    });
+})();
+</script>
 {% endblock %}

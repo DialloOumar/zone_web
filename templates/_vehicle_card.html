@@ -18,7 +18,7 @@
             <span class="chip chip--{{ v.category.code|lower }}">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
         </div>
         <div class="vehicle-card__meta muted small">
-            {{ v.fleet.name }}{% if v.site %} · {{ v.site }}{% endif %}
+            {{ v.fleet.name }}{% if v.site %} · {{ v.site }}{% endif %}{% if v.tonnage %} · {{ ('%g' % v.tonnage)|replace('.', ',') }} t{% endif %}
             {% if v.effective_baseline %}<br>{{ ('%g' % v.effective_baseline)|replace('.', ',') }} {{ 'L/h' if v.category.unit_type == 'hours' else t['flux.per_trip'] }}{% endif %}
         </div>
     </div>

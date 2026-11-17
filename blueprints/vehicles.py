@@ -18,7 +18,7 @@ from app import (current_user_fleet_ids, get_t, is_modal_request, log_action,
                  modal_ok, needs_approval, require_perm, scoped, submit_change, with_current_fleet)
 from models import (purchase_order_line_vehicles, PurchaseOrder, PurchaseOrderLine, supplier_invoice_vehicles, Alert, DailyEntry, Expense, ExpenseShare, SupplierInvoice, Fleet, FuelMovement, Site,
                     MaintenanceRecord, MaintenanceRule, Operator, StockMovement,
-                    Vehicle, VehicleCategory, VehicleStatusChange, db)
+                    Vehicle, VehicleCategory, VehicleDocument, VehicleStatusChange, db)
 
 # A machine's working states while it is in the fleet. Inactive is another
 # thing: out of the fleet.
@@ -206,6 +206,9 @@ def _read_vehicle_form(vehicle):
     baseline, bad = _num(request.form.get("baseline"), float)
     if bad or (baseline is not None and baseline <= 0):
         return None, t["vehicle.err.baseline"]
+    tonnage, bad = _num(request.form.get("tonnage"), float)
+    if bad or (tonnage is not None and tonnage <= 0):
+        return None, t["vehicle.err.tonnage"]
 
     data = dict(
         code=code,
@@ -214,6 +217,7 @@ def _read_vehicle_form(vehicle):
         description=(request.form.get("description") or "").strip() or None,
         site_id=site_id,
         baseline_l_per_unit_override=round(baseline, 1) if baseline else None,
+        tonnage=round(tonnage, 1) if tonnage else None,
         default_operator_id=default_operator_id,
         is_active=request.form.get("is_active") is not None,
     )
@@ -256,11 +260,28 @@ def index():
     if status in STATUSES:
         q = q.filter(Vehicle.status == status)
     # A fleet of sixty scrolls forever; the code is what anyone types first.
+    tonnage = (request.args.get("tonnage") or "").strip()
+    try:
+        ton_value = float(tonnage.replace(",", ".")) if tonnage else None
+    except ValueError:
+        ton_value, tonnage = None, ""
+    if ton_value is not None:
+        q = q.filter(Vehicle.tonnage == ton_value)
+    # The search reads what is written on the machine: its code and
+    # description, but also its category, its fleet and its site.
     search = (request.args.get("q") or "").strip()
     if search:
         like = "%" + search + "%"
+        cat_ids = db.session.query(VehicleCategory.id).filter(db.or_(
+            VehicleCategory.label.ilike(like), VehicleCategory.label_fr.ilike(like),
+            VehicleCategory.code.ilike(like)))
+        fleet_ids = db.session.query(Fleet.id).filter(Fleet.name.ilike(like))
+        site_ids = db.session.query(Site.id).filter(Site.name.ilike(like))
         q = q.filter(db.or_(Vehicle.code.ilike(like),
-                            Vehicle.description.ilike(like)))
+                            Vehicle.description.ilike(like),
+                            Vehicle.category_id.in_(cat_ids),
+                            Vehicle.fleet_id.in_(fleet_ids),
+                            Vehicle.site_id.in_(site_ids)))
     pagination = q.order_by(Vehicle.code).paginate(
         page=request.args.get("page", 1, type=int), per_page=PER_PAGE,
         error_out=False)
@@ -288,7 +309,10 @@ def index():
         status_counts=dict(db.session.query(Vehicle.status, db.func.count(Vehicle.id))
                            .filter(Vehicle.is_active.is_(True), Vehicle.deleted_at.is_(None))
                            .group_by(Vehicle.status).all()),
-        view=view, search=search,
+        view=view, search=search, tonnage=tonnage,
+        tonnages=[r[0] for r in scoped(Vehicle)
+                  .filter(Vehicle.is_active.is_(not show_archived), Vehicle.tonnage.isnot(None))
+                  .with_entities(Vehicle.tonnage).distinct().order_by(Vehicle.tonnage).all()],
         filter_cats=filter_cats, active_code=active_code,
         show_archived=show_archived, archived_count=archived_count))
     if explicit:
@@ -400,7 +424,7 @@ def detail(vid):
     stats = {"entries": int(m_entries or 0), "trips": int(m_trips or 0),
              "hours": float(m_hours or 0), "km": float(m_km or 0), "fuel": float(m_fuel or 0)}
 
-    tabs = ["entries", "records", "costs"]
+    tabs = ["entries", "records", "costs", "documents"]
     if parts_used:
         tabs.append("parts")
     if vehicle.status_changes:
@@ -535,6 +559,84 @@ def edit(vid):
     return _render_vehicle_form(vehicle)
 
 
+# ── A machine's papers ───────────────────────────────────────────────────────
+
+# Names offered when a paper is added; any other name can be typed.
+DOCUMENT_NAMES = ("Carte grise", "Assurance", "Visite technique", "Vignette",
+                  "Autorisation de transport", "Contrat de location",
+                  "Facture d'achat", "Manuel d'entretien")
+
+
+@vehicles_bp.route("/vehicles/<int:vid>/documents/ajouter", methods=["GET", "POST"])
+@login_required
+@require_perm("vehicle.edit")
+def document_add(vid):
+    """One paper at a time, each with the name it should carry."""
+    vehicle = _get_vehicle_or_404(vid)
+    t = get_t()
+    error = None
+    if request.method == "POST":
+        name = " ".join((request.form.get("name") or "").split())[:160]
+        upload = request.files.get("file")
+        if not name:
+            error = t["vdoc.err.name"]
+        elif not upload or not upload.filename:
+            error = t["vdoc.err.file"]
+        else:
+            key, err = s3_storage.upload_vehicle_document(upload, vehicle.code)
+            if err:
+                error = t.get(_PHOTO_ERR_KEYS.get(err, "photo.err.unknown"),
+                              "Fichier non enregistré.")
+            else:
+                vehicle.documents.append(VehicleDocument(
+                    name=name, file_key=key, content_type=upload.mimetype,
+                    created_by=current_user.id))
+                log_action("UPDATE", "vehicle", resource_id=vehicle.id,
+                           fleet_id=vehicle.fleet_id,
+                           detail=f"Added paper '{name}' to '{vehicle.code}'")
+                db.session.commit()
+                flash("success|" + t["vdoc.added"])
+                return modal_ok() if is_modal_request() else redirect(
+                    url_for("vehicles.detail", vid=vehicle.id, tab="documents"))
+    tpl = "_vehicle_document_form.html" if is_modal_request() else "vehicle_document_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, vehicle=vehicle, error=error,
+                           names=DOCUMENT_NAMES), status
+
+
+def _get_document_or_404(did):
+    doc = db.session.get(VehicleDocument, did)
+    if not doc:
+        abort(404)
+    _get_vehicle_or_404(doc.vehicle_id)      # the same fleet scope as the machine
+    return doc
+
+
+@vehicles_bp.route("/vehicles/document/<int:did>")
+@login_required
+@require_perm("vehicle.view")
+def document(did):
+    url = s3_storage.signed_url(_get_document_or_404(did).file_key)
+    if not url:
+        abort(404)
+    return redirect(url)
+
+
+@vehicles_bp.route("/vehicles/document/<int:did>/supprimer", methods=["POST"])
+@login_required
+@require_perm("vehicle.edit")
+def document_delete(did):
+    doc = _get_document_or_404(did)
+    vid, key, name = doc.vehicle_id, doc.file_key, doc.name
+    log_action("UPDATE", "vehicle", resource_id=vid, fleet_id=doc.vehicle.fleet_id,
+               detail=f"Removed paper '{name}' from '{doc.vehicle.code}'")
+    db.session.delete(doc)
+    db.session.commit()
+    s3_storage.delete_photo(key)
+    flash("success|" + get_t()["vdoc.deleted"])
+    return redirect(url_for("vehicles.detail", vid=vid, tab="documents"))
+
+
 @vehicles_bp.route("/vehicles/<int:vid>/delete", methods=["POST"])
 @login_required
 @require_perm("vehicle.delete")
@@ -587,10 +689,12 @@ def destroy(vid):
         return redirect(url_for("vehicles.index"))
 
     fleet_id, code = vehicle.fleet_id, vehicle.code
+    gone = []        # the papers' files, removed once the row is
     if _vehicle_history(vid):
         vehicle.deleted_at = datetime.utcnow()
         detail = f"Deleted vehicle '{code}' (kept for history)"
     else:
+        gone = [d.file_key for d in vehicle.documents]
         Alert.query.filter_by(vehicle_id=vid).delete(synchronize_session=False)
         db.session.execute(supplier_invoice_vehicles.delete()   # none left, by the check above
                            .where(supplier_invoice_vehicles.c.vehicle_id == vid))
@@ -598,5 +702,7 @@ def destroy(vid):
         detail = f"Deleted vehicle '{code}' (no history, row removed)"
     log_action("DELETE", "vehicle", resource_id=vid, fleet_id=fleet_id, detail=detail)
     db.session.commit()
+    for key in gone:
+        s3_storage.delete_photo(key)
     flash("success|" + t.get("vehicle.deleted", "Véhicule supprimé."))
     return redirect(url_for("vehicles.index", archived=1))

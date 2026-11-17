@@ -16,6 +16,8 @@
             {% elif archived_count %}
             <a href="{{ url_for('carburant.index', archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
             {% endif %}
+            <a href="{{ url_for('carburant.history') }}" class="btn btn--sm btn--outlined">
+                <span class="material-symbols-outlined">history</span> {{ t['movement.history'] }}</a>
             {# One VIVO refuel action — taking fuel at the pump, into a citerne
                (réservoir / conso) or straight into a vehicle. A citerne's own
                actions (distribution, relevé) live on its row and flux page. #}

@@ -211,27 +211,37 @@ def upload_person_photo(file_storage, code: str = "") -> Tuple[Optional[str], Op
 def upload_person_document(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
     """A paper on a person's file: a PDF kept as it came, an image resized
     like any photo. Returns (key, None) or (None, error_code)."""
+    return _upload_document(file_storage, PEOPLE_PREFIX + "docs/", code)
+
+
+def upload_vehicle_document(file_storage, code: str = "") -> Tuple[Optional[str], Optional[str]]:
+    """A paper on a machine's file (carte grise, assurance), under
+    {S3_PREFIX}vehicles/docs/, kept the same way as a person's."""
+    return _upload_document(file_storage, VEHICLE_PREFIX + "docs/", code)
+
+
+def _upload_document(file_storage, prefix: str, code: str = "") -> Tuple[Optional[str], Optional[str]]:
     s3 = _client()
     if s3 is None:
-        log.warning("S3 not configured; skipping person document upload")
+        log.warning("S3 not configured; skipping document upload")
         return None, ERR_NOT_CONFIGURED
     head = file_storage.stream.read(1024)
     file_storage.stream.seek(0)
     if b"%PDF-" not in head:
-        return _upload_photo(file_storage, PEOPLE_PREFIX + "docs/", code)
+        return _upload_photo(file_storage, prefix, code)
     try:
         body = file_storage.read(MAX_PDF_BYTES + 1)
         if len(body) > MAX_PDF_BYTES:
             return None, ERR_TOO_LARGE
-        key = (f"{PEOPLE_PREFIX}docs/{_slug(code)}-{int(time.time())}"
+        key = (f"{prefix}{_slug(code)}-{int(time.time())}"
                f"-{uuid.uuid4().hex[:6]}.pdf")
         s3.put_object(Bucket=S3_BUCKET, Key=key, Body=body, ContentType="application/pdf")
         return key, None
     except (BotoCoreError, ClientError) as e:
-        log.exception("S3 person document upload failed: %s", e)
+        log.exception("S3 document upload failed: %s", e)
         return None, ERR_S3
     except Exception as e:
-        log.exception("Unexpected error during person document upload: %s", e)
+        log.exception("Unexpected error during document upload: %s", e)
         return None, ERR_UNKNOWN
 
 

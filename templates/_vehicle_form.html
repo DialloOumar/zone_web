@@ -36,7 +36,7 @@
         </div>
     </div>
 
-    <div class="form-row">
+    <div class="form-row form-row--3">
         <div class="field field--select">
             {% set sel_site = (request.form.get('site_id')|int(0)) if request.method == 'POST' else (vehicle.site_id if is_edit and vehicle.site_id else 0) %}
             <select id="site_id" name="site_id">
@@ -55,6 +55,12 @@
             <input type="number" id="baseline" name="baseline" step="0.1" min="0" inputmode="decimal"
                    placeholder="{{ t['ph.vehicle.baseline'] }}" value="{{ base_val }}">
             <label for="baseline">{{ t['vehicle.baseline'] }} (<span id="baseline-unit">L/h</span>)</label>
+        </div>
+        <div class="field">
+            {% set ton_val = request.form.get('tonnage') if request.method == 'POST' else (('%g' % vehicle.tonnage) if is_edit and vehicle.tonnage else '') %}
+            <input type="number" id="tonnage" name="tonnage" step="0.1" min="0" inputmode="decimal"
+                   placeholder="{{ t['ph.vehicle.tonnage'] }}" value="{{ ton_val }}">
+            <label for="tonnage">{{ t['vehicle.tonnage'] }} (t)</label>
         </div>
     </div>
 

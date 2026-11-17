@@ -1,0 +1,19 @@
+{# A paper for a machine's file: the name it should carry, then the file. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form enctype="multipart/form-data"
+      action="{{ url_for('vehicles.document_add', vid=vehicle.id) }}">
+    <div class="field">
+        <input type="text" id="vdoc_name" name="name" list="vdoc_names" required maxlength="160"
+               placeholder="{{ t['ph.vdoc.name'] }}" value="{{ request.form.get('name', '') }}">
+        <label for="vdoc_name">{{ t['vdoc.name'] }}</label>
+        <datalist id="vdoc_names">{% for n in names %}<option value="{{ n }}">{% endfor %}</datalist>
+    </div>
+    <div class="field">
+        <input type="file" id="vdoc_file" name="file" required accept="image/*,application/pdf">
+        <label for="vdoc_file">{{ t['vdoc.file'] }}</label>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('vehicles.detail', vid=vehicle.id, tab='documents') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

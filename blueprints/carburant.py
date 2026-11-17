@@ -242,7 +242,15 @@ def history():
 
     ftype = request.args.get("type") or "all"
     fciterne = request.args.get("citerne", type=int)
+    fvehicle = request.args.get("vehicle", type=int)
     period = request.args.get("period") or date.today().strftime("%Y-%m")
+    # A date range, when given, takes the place of the month.
+    du = request.args.get("du") or ""
+    au = request.args.get("au") or ""
+    du = du if _valid_date(du) else ""
+    au = au if _valid_date(au) else ""
+    if du or au:
+        period = "all"
 
     rows, pagination = [], None
     totals = {"rentree": 0, "distribution": 0, "direct": 0, "conso": 0}
@@ -252,8 +260,14 @@ def history():
             q = q.filter(FuelMovement.kind == ftype)
         if fciterne:
             q = q.filter(FuelMovement.citerne_id == fciterne)
+        if fvehicle:
+            q = q.filter(FuelMovement.vehicle_id == fvehicle)
         if period != "all":
             q = q.filter(FuelMovement.date.like(period + "-%"))
+        if du:
+            q = q.filter(FuelMovement.date >= du)
+        if au:
+            q = q.filter(FuelMovement.date <= au)
         # Litres are summed by the database over everything the filters match.
         # Adding up the rows on screen would have made the totals shrink as the
         # list got longer than a page.
@@ -271,12 +285,45 @@ def history():
     # dispensed to machines from the citernes.
     client_total = totals["rentree"] + totals["direct"] + totals["conso"]
 
+    vehicles = _accessible_vehicles()
+    machine = None
+    if fvehicle:
+        v = next((x for x in vehicles if x.id == fvehicle), None)
+        if v:
+            machine = _machine_summary(v, totals, period, du, au)
+
     return render_template(
         "history.html", movements=rows, pagination=pagination,
-        totals=totals, client_total=client_total,
+        totals=totals, client_total=client_total, machine=machine,
         seuil=SEUIL_ECART, months=_last_12_months(), period=period, ftype=ftype,
-        fciterne=fciterne, kinds=MOVEMENT_KINDS,
-        citernes=_scoped_citernes().order_by(Citerne.code).all())
+        fciterne=fciterne, fvehicle=fvehicle, du=du, au=au, kinds=MOVEMENT_KINDS,
+        vehicles=vehicles, citernes=_scoped_citernes().order_by(Citerne.code).all())
+
+
+def _machine_summary(v, totals, period, du, au):
+    """What one machine took over the filtered window -- from the citernes and
+    straight at the pump -- against what it worked in that same window."""
+    wq = (db.session.query(db.func.coalesce(db.func.sum(DailyEntry.hours), 0.0),
+                           db.func.coalesce(db.func.sum(DailyEntry.trips), 0))
+          .filter(DailyEntry.vehicle_id == v.id))
+    if period != "all":
+        wq = wq.filter(DailyEntry.date.like(period + "-%"))
+    if du:
+        wq = wq.filter(DailyEntry.date >= du)
+    if au:
+        wq = wq.filter(DailyEntry.date <= au)
+    hours, trips = wq.one()
+    liters = totals["distribution"] + totals["direct"]
+    by_trip = v.category.unit_type == "trips"
+    worked = int(trips or 0) if by_trip else float(hours or 0)
+    return {
+        "v": v, "liters": liters,
+        "citerne": totals["distribution"], "pump": totals["direct"],
+        "by_trip": by_trip,
+        "worked": "{:,}".format(worked).replace(",", " ") if by_trip else _dec1(worked),
+        "rate": _dec1(liters / worked) if worked else None,
+        "ref": _dec1(v.effective_baseline) if v.effective_baseline else None,
+    }
 
 
 # ── Citerne CRUD ──────────────────────────────────────────────────────────────
