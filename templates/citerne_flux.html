@@ -94,6 +94,7 @@
                 <div class="flux-line">{{ t['flux.distributed'] }} : <b>{{ distributed_total | num }}</b> L</div>
                 {% if hours_total %}
                 <div class="flux-line">{{ t['flux.hours_worked'] }} : <b>{{ hours_total }}</b> h</div>
+                {% if hours_rate %}<div class="flux-line">{{ t['flux.avg_rate'] }} : <b>{{ hours_rate }}</b> L/h</div>{% endif %}
                 {% endif %}
                 {% if trips_total %}
                 <div class="flux-line">{{ t['flux.trips_done'] }} : <b>{{ trips_total | num }}</b></div>
@@ -107,7 +108,7 @@
 
         {% if machines %}
         <div class="flux-machines" id="flux-machines">
-            {% for v, liters, units, unit in machines %}
+            {% for v, liters, units, unit, rate in machines %}
             <div class="flux-machine">
                 <div class="flux-machine__head">
                     {% set vimg = vehicle_image(v) %}
@@ -122,6 +123,7 @@
                 </div>
                 <div class="flux-machine__litres"><b>{{ liters | num }}</b> L</div>
                 <div class="flux-machine__worked">{{ units }} {{ 'h' if unit == 'hours' else t['flux.trips_short'] }}</div>
+                {% if rate %}<div class="flux-machine__rate">{{ rate }} {{ 'L/h' if unit == 'hours' else t['flux.per_trip'] }}</div>{% endif %}
             </div>
             {% endfor %}
         </div>

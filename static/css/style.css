@@ -1543,6 +1543,9 @@ a:hover { text-decoration: underline; }
     font-variant-numeric: tabular-nums; }
 .flux-machine__worked { font-size: .9rem; font-weight: 600; color: var(--md-on-surface-variant);
     font-variant-numeric: tabular-nums; margin-top: 2px; }
+.flux-machine__rate { display: inline-block; margin-top: 6px; font-size: .82rem; font-weight: 700;
+    font-variant-numeric: tabular-nums; color: var(--md-primary);
+    background: var(--md-primary-container); border-radius: 8px; padding: 2px 8px; }
 .flux-badge { position: absolute; z-index: 3; transform: translate(-50%, -50%);
     pointer-events: none; background: #E0830A; color: #fff; font-size: .74rem; font-weight: 700;
     padding: 2px 8px; border-radius: 999px; box-shadow: 0 2px 6px rgba(224,131,10,.4);

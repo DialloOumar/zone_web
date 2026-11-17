@@ -147,8 +147,9 @@ def _last_12_months():
     return months
 
 
-def _hours_text(h):
-    """Hours as read on the flow page: 1 250 h, or 19,5 h when there is a half."""
+def _dec1(h):
+    """A figure as read on the flow page: 1 250, or 19,5 when it has a tenth
+    (hours worked, litres per hour)."""
     h = round(float(h or 0), 1)
     whole = "{:,}".format(int(h)).replace(",", " ")
     tenth = int(round((h - int(h)) * 10))
@@ -196,16 +197,21 @@ def citerne_flux(cid):
         for vid, hours, trips in wq.group_by(DailyEntry.vehicle_id).all():
             worked[vid] = (float(hours or 0), int(trips or 0))
 
-    machines, hours_total, trips_total = [], 0.0, 0
+    # Litres per hour (or per trip): what the machine drew here over what it
+    # worked in the same period. No work entered, no rate.
+    machines, hours_total, trips_total, hours_liters = [], 0.0, 0, 0
     for vid, (v, liters) in per_vehicle.items():
         hours, trips = worked.get(vid, (0.0, 0))
         if v.category.unit_type == "trips":
             units, unit = "{:,}".format(trips).replace(",", " "), "trips"
+            rate = _dec1(liters / trips) if trips else None
             trips_total += trips
         else:
-            units, unit = _hours_text(hours), "hours"
+            units, unit = _dec1(hours), "hours"
+            rate = _dec1(liters / hours) if hours else None
             hours_total += hours
-        machines.append((v, liters, units, unit))
+            hours_liters += liters
+        machines.append((v, liters, units, unit, rate))
     machines.sort(key=lambda r: -r[1])
     fill_pct = round(c.stock / c.capacity_liters * 100, 1) if c.capacity_liters else 0
 
@@ -213,7 +219,8 @@ def citerne_flux(cid):
         "citerne_flux.html", citerne=c, machines=machines, fill_pct=fill_pct,
         rentree_total=rentree_total, conso_total=conso_total,
         distributed_total=distributed_total,
-        hours_total=_hours_text(hours_total) if hours_total else None,
+        hours_total=_dec1(hours_total) if hours_total else None,
+        hours_rate=_dec1(hours_liters / hours_total) if hours_total else None,
         trips_total=trips_total, period=period, months=_last_12_months())
 
 
