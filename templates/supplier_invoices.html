@@ -164,14 +164,14 @@
     {% else %}
     {% if invoices %}
     <div class="table-desktop">
-    <table class="data-table">
+    <table class="data-table data-table--wide">
         <thead>
             <tr>
                 <th>{{ t['invoice.date'] }}</th>
                 <th>{{ t['invoice.number_col'] }}</th>
                 <th>{{ t['invoice.supplier'] }}</th>
                 <th class="col-secondary">{{ t['invoice.po_col'] }}</th>
-                <th>{{ t['invoice.vehicles_col'] }}</th>
+                <th class="col-secondary">{{ t['invoice.vehicles_col'] }}</th>
                 <th>{{ t['invoice.object'] }}</th>
                 <th>{{ t['invoice.due_date'] }}</th>
                 <th style="text-align:right;">{{ t['invoice.amount'] }}</th>
@@ -184,13 +184,13 @@
             {% for inv in invoices %}
             <tr>
                 <td style="white-space:nowrap;">{{ inv.date|dmy }}</td>
-                <td style="white-space:nowrap;">{{ inv.number or '—' }}</td>
+                <td>{{ inv.number or '—' }}</td>
                 <td><strong>{{ inv.supplier.name }}</strong></td>
                 <td class="col-secondary" style="white-space:nowrap;">
                     {% if inv.purchase_order %}<a href="{{ url_for('purchases.detail', oid=inv.purchase_order_id) }}">{{ inv.purchase_order.number }}</a>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
                 {# The machines: the one, or how many -- their codes when the
                    pointer rests on the cell. #}
-                <td style="white-space:nowrap;">
+                <td class="col-secondary" style="white-space:nowrap;">
                     {% if inv.vehicles|length == 1 %}{% set v = inv.vehicles[0] %}<a href="{{ url_for('vehicles.detail', vid=v.id) }}" class="chip">{{ v.code }}</a>
                     {% elif inv.vehicles %}<span class="chip chip--more" title="{{ inv.vehicles|map(attribute='code')|join(', ') }}">{{ inv.vehicles|length }} {{ t['invoice.vehicles_n'] }}</span>
                     {% else %}<span class="muted">&mdash;</span>{% endif %}

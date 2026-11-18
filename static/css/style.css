@@ -1646,6 +1646,15 @@ a:hover { text-decoration: underline; }
 
 /* Horizontal scroll for wide tables instead of breaking the mobile layout. */
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* The same for the desktop tables: the page never scrolls sideways (see
+   html above), so a table wider than the screen scrolls inside its card
+   rather than losing its right-hand columns off the edge. */
+.table-desktop { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* A table with many columns lets its secondary ones go on a laptop screen. */
+.data-table--wide th, .data-table--wide td { padding-left: 8px; padding-right: 8px; }
+@media (max-width: 1500px) {
+    .data-table--wide .col-secondary { display: none; }
+}
 
 /* Table-on-desktop / cards-on-mobile (batmex pattern). The list-cards block is
    hidden on desktop; on phones the table hides and the cards show instead. */
