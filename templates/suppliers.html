@@ -19,15 +19,28 @@
 <section class="card">
     <div class="card-header">
         <div>
-            <h2>{{ t['invoice.tab_suppliers'] }}<span class="tab__count" style="margin-left:8px;">{{ suppliers | length }}</span></h2>
+            <h2>{{ t['invoice.tab_suppliers'] }}</h2>
         </div>
         {% if can_manage %}
-        <a href="{{ url_for('supplier_invoices.supplier_new') }}" class="fab"
-           data-modal-url="{{ url_for('supplier_invoices.supplier_new') }}" data-modal-title="{{ t['invoice.supplier_new'] }}">
+        {% set new_url = url_for('supplier_invoices.supplier_new', machines=1) if tab == 'machines' else url_for('supplier_invoices.supplier_new') %}
+        <a href="{{ new_url }}" class="fab"
+           data-modal-url="{{ new_url }}" data-modal-title="{{ t['invoice.supplier_new'] }}">
             <span class="material-symbols-outlined">add</span> {{ t['invoice.supplier_new'] }}
         </a>
         {% endif %}
     </div>
+    {# Two lists: who sells parts (and whoever else sends a bill), and who
+       rents the company machines. One that does both is in both. #}
+    {% if has_perm('supplier_invoice.view') %}
+    <nav class="tabs" role="tablist">
+        {% for key, label in (('pieces', t['supplier.tab_parts']), ('machines', t['supplier.tab_machines'])) %}
+        <a href="{{ url_for('supplier_invoices.suppliers', tab=key, kind=kind or none) }}" role="tab"
+           aria-selected="{{ 'true' if tab == key else 'false' }}" class="tab {% if tab == key %}tab--on{% endif %}">
+            {{ label }}<span class="tab__count">{{ counts[key] }}</span>
+        </a>
+        {% endfor %}
+    </nav>
+    {% endif %}
     {% include "_suppliers_table.html" %}
 </section>
 {% endblock %}

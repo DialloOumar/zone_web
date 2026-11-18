@@ -1,0 +1,55 @@
+{# One machine for a client: which one, its rate, the date that rate starts.
+   With a machine already the client's, only a new rate and its date. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('invoicing.client_machine', cid=client.id, vid=fixed.id if fixed else none) }}">
+    {% if fixed %}
+    <div class="expense-total" style="margin-top:0;">
+        {{ t['entry.vehicle'] }} <strong>{{ fixed.code }}</strong>
+        {% if rate_now is not none %}<span class="muted small">&middot; {{ t['client.rate_now'] }} {{ rate_now | num }} {{ currency }}/{{ t['unit.' + fixed.category.unit_type] }}</span>{% endif %}
+    </div>
+    {% else %}
+    <div class="field field--select">
+        {% set sel = request.form.get('vehicle_id')|int(0) %}
+        <select id="cm_vehicle" name="vehicle_id" required>
+            <option value="" hidden></option>
+            {% for v in choices %}
+            <option value="{{ v.id }}" data-unit="{{ t['unit.' + v.category.unit_type] }}" {% if v.id == sel %}selected{% endif %}>
+                {{ v.code }} — {{ v.category.label_fr if lang == 'fr' else v.category.label }}{% if v.client %} ({{ t['supplier.held_by'] }} {{ v.client.name }}){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <label for="cm_vehicle">{{ t['entry.vehicle'] }}</label>
+    </div>
+    {% endif %}
+    <div class="form-row">
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="cm_rate" name="rate" required placeholder=" "
+                   value="{{ request.form.get('rate', '') }}">
+            <label for="cm_rate">{{ t['invoicing.rate'] }} (<span id="cm_unit">{{ currency }}/{{ t['unit.' + fixed.category.unit_type] if fixed else '…' }}</span>)</label>
+        </div>
+        <div class="field">
+            <input type="date" id="cm_from" name="effective_from" required placeholder=" "
+                   value="{{ request.form.get('effective_from') or today }}">
+            <label for="cm_from">{{ t['client.machine_from'] }}</label>
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('invoicing.client_detail', cid=client.id, tab='machines') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
+{% if not fixed %}
+<script>
+(function () {
+    var sel = document.getElementById("cm_vehicle"), unit = document.getElementById("cm_unit");
+    if (!sel || !unit) return;
+    function apply() {
+        var o = sel.options[sel.selectedIndex];
+        unit.textContent = "{{ currency }}/" + (o && o.dataset.unit ? o.dataset.unit : "…");
+    }
+    sel.addEventListener("change", apply);
+    apply();
+})();
+</script>
+{% endif %}

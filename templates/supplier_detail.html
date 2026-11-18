@@ -65,7 +65,9 @@
     {% include "_supplier_entries_tab.html" %}
     {% endif %}
 
-    {% if tab == 'a_payer' %}
+    {% if tab == 'machines' %}
+    {% include "_supplier_machines_tab.html" %}
+    {% elif tab == 'a_payer' %}
     {% if open_bills %}
     <div class="table-wrap"><table class="data-table">
         <thead><tr>

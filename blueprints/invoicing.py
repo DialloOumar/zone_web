@@ -6,10 +6,11 @@ what each costs; a client has machines placed with it and the app knows what
 each earns. One machine may be both at once -- leased from Diallo, working
 for VIVO -- with a price on each side.
 
-A client's machines are ticked on its form, like a lessor's. Each carries a
-rate, GNF per worked unit, as dated history (see billing.py): saving a new
-rate appends a row with its date of effect, the old one stays for the months
-it applied. Codes are CL-001, CL-002... issued by the app, never typed.
+A client is created with its details only; its machines are added one at a
+time on its Machines tab, each with a rate, GNF per worked unit, and the date
+it starts. Rates are dated history (see billing.py): a new rate appends a row
+with its date of effect, the old one stays for the months it applied. Codes
+are CL-001, CL-002... issued by the app, never typed.
 
 Factures: the register of bills issued. "Nouvelle facture" works a month out
 for a client -- each entry's units × the machine's rate on that day, one line
@@ -558,38 +559,84 @@ def client_detail(cid):
                            f=cr.figures(row, date_from, date_to, today))
 
 
-def _assign_machines(row, chosen_ids):
-    """Make `chosen_ids` this client's machines, among those the user may
-    touch. A machine picked away from another client moves; one the user
-    cannot see is left exactly as it is, whoever holds it."""
-    for v in _pickable_machines():
-        if v.id in chosen_ids:
-            v.client_id = row.id
-        elif v.client_id == row.id:
-            v.client_id = None
-
-
 def _clean_rate(raw):
-    return (raw or "").replace(" ", "").replace(" ", "").replace(" ", "").strip()
+    return (raw or "").replace(" ", "").replace(" ", "").replace(" ", "").strip()
 
 
-def _record_rates(row, chosen_ids, eff):
-    """Append a dated rate for every chosen machine whose box holds a number
-    different from the rate in force on `eff`. An empty box changes nothing;
-    the same number changes nothing. Returns how many were written."""
+def _get_client_or_404(cid):
+    row = db.session.get(Client, cid)
+    if not row:
+        abort(404)
+    return row
+
+
+def _machine_tab(row):
+    return url_for("invoicing.client_detail", cid=row.id, tab="machines")
+
+
+@invoicing_bp.route("/facturation/clients/<int:cid>/machines/ajouter", methods=["GET", "POST"])
+@login_required
+@require_perm("invoicing.manage")
+def client_machine(cid):
+    """Give the client one machine with its rate and the date it starts, or,
+    with ?vid= for a machine it already has, a new rate from a date. A machine
+    held by another client moves here; its old prices stay with the old one."""
+    row = _get_client_or_404(cid)
+    t = get_t()
+    pickable = _pickable_machines()
+    by_id = {v.id: v for v in pickable}
+    fixed = by_id.get(request.args.get("vid", type=int))
+    if fixed is not None and fixed.client_id != row.id:
+        fixed = None
     book = billing.rate_book(row.id)
-    written = 0
-    for vid in chosen_ids:
-        raw = _clean_rate(request.form.get("rate_%d" % vid))
-        if not raw:
-            continue
-        new_rate = int(raw)
-        if new_rate == billing.rate_on(book, vid, eff):
-            continue
-        db.session.add(ClientRate(client_id=row.id, vehicle_id=vid, rate_per_unit=new_rate,
-                                  effective_from=eff, created_by=current_user.id))
-        written += 1
-    return written
+    today = date.today().isoformat()
+    error = None
+    if request.method == "POST":
+        v = fixed or by_id.get(request.form.get("vehicle_id", type=int))
+        raw = _clean_rate(request.form.get("rate"))
+        eff = (request.form.get("effective_from") or "").strip()
+        if v is None:
+            error = t["client.err.machine"]
+        elif not raw.isdigit() or int(raw) <= 0:
+            error = t["client.err.rate"]
+        elif not _valid_date(eff):
+            error = t["client.err.date"]
+        else:
+            moved = v.client_id != row.id
+            v.client_id = row.id
+            rate = int(raw)
+            if rate != billing.rate_on(book, v.id, eff):
+                db.session.add(ClientRate(client_id=row.id, vehicle_id=v.id, rate_per_unit=rate,
+                                          effective_from=eff, created_by=current_user.id))
+            log_action("UPDATE", "client", resource_id=row.id,
+                       detail="%s %s for client '%s' at %d from %s"
+                              % ("Added" if moved else "Rated", v.code, row.name, rate, eff))
+            db.session.commit()
+            flash("success|" + t["client.machine_saved"])
+            return modal_ok() if is_modal_request() else redirect(_machine_tab(row))
+    choices = [v for v in pickable if v.client_id != row.id]
+    tpl = "_client_machine_form.html" if is_modal_request() else "client_machine_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, client=row, fixed=fixed, choices=choices, error=error,
+                           rate_now=billing.rate_on(book, fixed.id, today) if fixed else None,
+                           today=today), status
+
+
+@invoicing_bp.route("/facturation/clients/<int:cid>/machines/<int:vid>/retirer", methods=["POST"])
+@login_required
+@require_perm("invoicing.manage")
+def client_machine_remove(cid, vid):
+    """Take a machine off the client. Its past prices stay, so the months it
+    worked here still bill the same."""
+    row = _get_client_or_404(cid)
+    v = db.session.get(Vehicle, vid)
+    if v is not None and v.client_id == row.id and v in _pickable_machines():
+        v.client_id = None
+        log_action("UPDATE", "client", resource_id=row.id,
+                   detail="Removed %s from client '%s'" % (v.code, row.name))
+        db.session.commit()
+        flash("success|" + get_t()["client.machine_removed"])
+    return redirect(_machine_tab(row))
 
 
 def _save_client(row):
@@ -602,19 +649,6 @@ def _save_client(row):
         clash = clash.filter(Client.id != row.id)
     if clash.first():
         return t.get("list.err.name_taken", "Ce nom existe déjà.")
-    eff = (request.form.get("rate_effective_from") or "").strip() or date.today().isoformat()
-    if not _valid_date(eff):
-        return t.get("client.err.date", "Date d'effet invalide.")
-    chosen = set()
-    for raw in request.form.getlist("machine_ids"):
-        try:
-            chosen.add(int(raw))
-        except (TypeError, ValueError):
-            pass
-    for vid in chosen:
-        r = _clean_rate(request.form.get("rate_%d" % vid))
-        if r and not r.isdigit():
-            return t.get("client.err.rate", "Un tarif est un nombre entier, en GNF.")
 
     creating = row is None
     if creating:
@@ -625,12 +659,9 @@ def _save_client(row):
     for field in ("contact", "address", "email", "po_box", "attention", "tax_id", "rccm", "note"):
         setattr(row, field, (request.form.get(field) or "").strip() or None)
     db.session.flush()
-    _assign_machines(row, chosen)
-    rates = _record_rates(row, chosen, eff)
     log_action("CREATE" if creating else "UPDATE", "client", resource_id=row.id,
-               detail="%s client '%s' (%s), %d machines, %d rate changes"
-                      % ("Created" if creating else "Updated", row.name, row.code,
-                         len(chosen), rates))
+               detail="%s client '%s' (%s)"
+                      % ("Created" if creating else "Updated", row.name, row.code))
     for attempt in range(3):
         try:
             db.session.commit()
@@ -647,13 +678,7 @@ def _save_client(row):
 def _render_client_form(row, error=None):
     tpl = "_client_form.html" if is_modal_request() else "client_form.html"
     status = 422 if (error and is_modal_request()) else 200
-    rates = {}
-    if row is not None:
-        book = billing.rate_book(row.id)
-        today = date.today().isoformat()
-        rates = {vid: billing.rate_on(book, vid, today) for vid in book}
-    return render_template(tpl, row=row, error=error, machines=_pickable_machines(),
-                           rates=rates, today=date.today().isoformat()), status
+    return render_template(tpl, row=row, error=error), status
 
 
 @invoicing_bp.route("/facturation/clients/nouveau", methods=["GET", "POST"])

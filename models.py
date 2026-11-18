@@ -1932,6 +1932,30 @@ class ClientRate(db.Model):
     vehicle = db.relationship("Vehicle")
 
 
+class SupplierRate(db.Model):
+    """Dated price the company pays a lessor for one machine, the cost side
+    of ClientRate. A supplier bills either per worked unit (trip or hour,
+    whichever the machine's category counts) or a fixed amount per month:
+    `basis` is "unit" or "month", and it is dated with the price, so a lessor
+    that moves from hourly to monthly keeps its hourly months as they were.
+    Append-only: a new price is a new row with its date of effect; the price
+    in force on a date is the row with the greatest effective_from <= date.
+    """
+    __tablename__ = "supplier_rates"
+
+    id             = db.Column(db.Integer,    primary_key=True)
+    supplier_id    = db.Column(db.Integer,    db.ForeignKey("suppliers.id"), nullable=False, index=True)
+    vehicle_id     = db.Column(db.Integer,    db.ForeignKey("vehicles.id"),  nullable=False, index=True)
+    basis          = db.Column(db.String(5),  nullable=False, default="unit")  # unit | month
+    rate           = db.Column(db.Integer,    nullable=False)                  # GNF per unit, or per month
+    effective_from = db.Column(db.String(10), nullable=False)                  # YYYY-MM-DD
+    created_at     = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+    created_by     = db.Column(db.Integer,    db.ForeignKey("users.id"), nullable=True)
+
+    supplier = db.relationship("Supplier")
+    vehicle  = db.relationship("Vehicle")
+
+
 class ClientInvoice(db.Model):
     """A bill issued to a client for a month of its machines' work.
 

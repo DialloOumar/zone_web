@@ -2,6 +2,7 @@
 {# The suppliers list: the kind filter and the table, on the suppliers'
    own page. #}
     <form method="get" class="filter-bar filter-bar--live" style="margin-bottom:10px;">
+        <input type="hidden" name="tab" value="{{ tab }}">
         <label class="filter-date">
             <span>{{ t['supplier.kind'] }}</span>
             <select name="kind" onchange="this.form.submit()">

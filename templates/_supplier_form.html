@@ -63,51 +63,24 @@
     {# What the supplier provides. Parts: the store may address it a bon de
        commande. From the store the box is implied; the form there is for a
        parts supplier by definition. A lessor rents machines to the company
-       and bills their hours and trips; its machines are ticked below, and
-       their daily entries can then be pulled up and printed under its name
-       to check the bill. #}
+       and bills their hours and trips, or a month; its machines are added
+       afterwards, one by one with their price, on its Machines tab. #}
     {% if parts_only %}
     <input type="hidden" name="provides_parts" value="1">
     {% else %}
     {% set sells_parts = (request.form.get('provides_parts') is not none) if request.method == 'POST'
-                         else (row.provides_parts if is_edit else True) %}
+                         else (row.provides_parts if is_edit else request.args.get('machines') != '1') %}
     <label class="checkbox-item">
         <input type="checkbox" name="provides_parts" {% if sells_parts %}checked{% endif %}>
         <span>{{ t['supplier.provides_parts'] }}</span>
     </label>
     {% set provides = (request.form.get('provides_machines') is not none) if request.method == 'POST'
-                      else (row.provides_machines if is_edit else False) %}
+                      else (row.provides_machines if is_edit else request.args.get('machines') == '1') %}
     <label class="checkbox-item">
         <input type="checkbox" name="provides_machines" id="provides_machines" {% if provides %}checked{% endif %}>
         <span>{{ t['supplier.provides_machines'] }}</span>
     </label>
 
-    <div id="supplier-machines" {% if not provides %}hidden{% endif %}>
-        {% if machines %}
-        {% set chosen = request.form.getlist('machine_ids')|map('int')|list if request.method == 'POST'
-                        else (row.machines|map(attribute='id')|list if is_edit else []) %}
-        <span class="photo-input__label">{{ t['supplier.machines_pick'] }}</span>
-        {# Twenty machines are a wall of boxes: type a code or a type to keep
-           only those; a ticked machine never disappears. #}
-        <input type="search" class="list-filter" data-filter-list="#supplier-machine-list"
-               placeholder="{{ t['machines.search_ph'] }}" aria-label="{{ t['machines.search_ph'] }}" autocomplete="off">
-        <div class="checkbox-grid" id="supplier-machine-list">
-            {% for v in machines %}
-            <label class="checkbox-item">
-                <input type="checkbox" name="machine_ids" value="{{ v.id }}" {% if v.id in chosen %}checked{% endif %}>
-                <span>{{ v.code }}
-                    <span class="muted small">{{ v.category.label_fr if lang == 'fr' else v.category.label }}</span>
-                    {% if v.supplier and (not is_edit or v.supplier_id != row.id) %}
-                    <span class="muted small">— {{ t['supplier.held_by'] }} {{ v.supplier.name }}</span>
-                    {% endif %}
-                </span>
-            </label>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="field-hint">{{ t['supplier.machines_none'] }}</div>
-        {% endif %}
-    </div>
     {% endif %}
 
     {# His account on the plan, associated here by whoever keeps the
@@ -127,16 +100,3 @@
         <a href="{{ cancel_url or (url_for('supplier_invoices.suppliers') if has_perm('supplier_invoice.view') else url_for('supplier_invoices.suppliers')) }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
     </div>
 </form>
-
-<script>
-// The list of machines only means something for a lessor; it stays out of
-// the way until the box is ticked.
-(function () {
-    var box = document.getElementById("provides_machines"),
-        list = document.getElementById("supplier-machines");
-    if (!box || !list) return;
-    function apply() { list.hidden = !box.checked; }
-    box.addEventListener("change", apply);
-    apply();
-})();
-</script>

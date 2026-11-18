@@ -11,7 +11,7 @@ A daily entry's billable amount = its units × that rate on its date.
 The earlier per-fleet-and-category rates (FleetRate) are kept in the database
 untouched but no longer read: the price belongs to the machine and its client.
 """
-from models import ClientRate
+from models import ClientRate, SupplierRate
 
 
 def rate_book(client_id):
@@ -45,3 +45,28 @@ def entry_units(entry, unit_type):
     if unit_type == "trips":
         return float(entry.trips or 0)
     return float(entry.hours or 0)
+
+
+# ── What a lessor is paid ────────────────────────────────────────────────────
+# The cost side, for the day profit per machine is worked out: SupplierRate
+# holds, per machine, GNF per worked unit or per month, dated the same way.
+
+def lease_book(supplier_id):
+    """{vehicle_id: [(effective_from, basis, rate), ...]} ascending."""
+    book = {}
+    rows = (SupplierRate.query.filter_by(supplier_id=supplier_id)
+            .order_by(SupplierRate.effective_from.asc(), SupplierRate.id.asc()).all())
+    for r in rows:
+        book.setdefault(r.vehicle_id, []).append((r.effective_from, r.basis, r.rate))
+    return book
+
+
+def lease_on(book, vehicle_id, on_date):
+    """(basis, rate) in force for the machine on `on_date`, or None."""
+    best = None
+    for eff, basis, rate in book.get(vehicle_id, []):
+        if eff <= on_date:
+            best = (basis, rate)
+        else:
+            break
+    return best

@@ -163,6 +163,13 @@
     {% endif %}
 
     {% else %}
+    {% if has_perm('invoicing.manage') %}
+    <div class="tab-bar vehicle-tab-bar">
+        <a href="{{ url_for('invoicing.client_machine', cid=client.id) }}" class="btn btn--sm btn--primary"
+           data-modal-url="{{ url_for('invoicing.client_machine', cid=client.id) }}" data-modal-title="{{ t['client.machine_add'] }}">
+            <span class="material-symbols-outlined">add</span> {{ t['client.machine_add'] }}</a>
+    </div>
+    {% endif %}
     {% if machines %}
     <div class="table-wrap"><table class="data-table">
         <thead>
@@ -172,6 +179,7 @@
                 <th style="text-align:right;">{{ t['client.rate_now'] }}</th>
                 <th>{{ t['client.rate_since'] }}</th>
                 <th>{{ t['client.rate_history'] }}</th>
+                {% if has_perm('invoicing.manage') %}<th></th>{% endif %}
             </tr>
         </thead>
         <tbody>
@@ -195,6 +203,17 @@
                     {% elif m.history %}<span class="muted">{{ t['client.rate_first'] }}</span>
                     {% else %}<span class="muted">&mdash;</span>{% endif %}
                 </td>
+                {% if has_perm('invoicing.manage') %}
+                <td class="row-actions">
+                    <a href="{{ url_for('invoicing.client_machine', cid=client.id, vid=m.v.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('invoicing.client_machine', cid=client.id, vid=m.v.id) }}" data-modal-title="{{ t['client.machine_rate'] }} — {{ m.v.code }}"
+                       title="{{ t['client.machine_rate'] }}" aria-label="{{ t['client.machine_rate'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    <form method="post" action="{{ url_for('invoicing.client_machine_remove', cid=client.id, vid=m.v.id) }}" style="display:inline"
+                          data-confirm="{{ t['client.machine_remove_confirm'] }}" data-confirm-title="{{ t['client.machine_remove'] }}" data-confirm-ok="{{ t['client.machine_remove'] }}" data-confirm-danger>
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['client.machine_remove'] }}" aria-label="{{ t['client.machine_remove'] }}"><span class="material-symbols-outlined">close</span></button>
+                    </form>
+                </td>
+                {% endif %}
             </tr>
             {% endfor %}
         </tbody>

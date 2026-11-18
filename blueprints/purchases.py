@@ -411,6 +411,9 @@ def index():
         q = q.filter(PurchaseOrder.status.in_(PENDING))
     elif status:
         q = q.filter(PurchaseOrder.status == status)
+    supplier_id = request.args.get("supplier", type=int)
+    if supplier_id:
+        q = q.filter(PurchaseOrder.supplier_id == supplier_id)
     search = (request.args.get("q") or "").strip()
     if search:
         like = "%" + search + "%"
@@ -431,6 +434,10 @@ def index():
     return render_template("purchase_orders.html", orders=pagination.items, pagination=pagination,
                            requests_todo=len(open_requests), can_request=_may_request(),
                            status=status, search=search, counts=counts, mine=mine,
+                           supplier_id=supplier_id,
+                           order_suppliers=(Supplier.query
+                                            .filter(Supplier.id.in_(base.with_entities(PurchaseOrder.supplier_id)))
+                                            .order_by(Supplier.name).all()),
                            statuses=STATUSES, can_create=_may_order(),
                            stores_count=len(_stores()),
                            parts_count=Part.query.filter(Part.is_active.is_(True)).count(),

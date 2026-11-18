@@ -1,0 +1,67 @@
+{# One machine leased from this supplier: which one, how it is paid -- per
+   hour or trip, or per month -- the price, and the date it starts. With a
+   machine already its own, only a new price and its date. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('supplier_invoices.supplier_machine', sid=sup.id, vid=fixed.id if fixed else none) }}">
+    {% if fixed %}
+    <div class="expense-total" style="margin-top:0;">
+        {{ t['entry.vehicle'] }} <strong>{{ fixed.code }}</strong>
+        {% if lease_now %}<span class="muted small">&middot; {{ t['lease.price_now'] }} {{ lease_now[1] | num }} {{ currency }}/{{ t['lease.month'] if lease_now[0] == 'month' else t['unit.' + fixed.category.unit_type] }}</span>{% endif %}
+    </div>
+    {% else %}
+    <div class="field field--select">
+        {% set sel = request.form.get('vehicle_id')|int(0) %}
+        <select id="sm_vehicle" name="vehicle_id" required>
+            <option value="" hidden></option>
+            {% for v in choices %}
+            <option value="{{ v.id }}" data-unit="{{ t['unit.' + v.category.unit_type] }}" {% if v.id == sel %}selected{% endif %}>
+                {{ v.code }} — {{ v.category.label_fr if lang == 'fr' else v.category.label }}{% if v.supplier %} ({{ t['supplier.held_by'] }} {{ v.supplier.name }}){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <label for="sm_vehicle">{{ t['entry.vehicle'] }}</label>
+    </div>
+    {% endif %}
+    {% set basis = request.form.get('basis') or (lease_now[0] if lease_now else 'unit') %}
+    <div class="field field--select">
+        <select id="sm_basis" name="basis" required>
+            {% for b in ('unit', 'month') %}
+            <option value="{{ b }}" {% if b == basis %}selected{% endif %}>{{ t['lease.basis.' + b] }}</option>
+            {% endfor %}
+        </select>
+        <label for="sm_basis">{{ t['lease.basis'] }}</label>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="sm_rate" name="rate" required placeholder=" "
+                   value="{{ request.form.get('rate', '') }}">
+            <label for="sm_rate">{{ t['lease.price'] }} (<span id="sm_unit">…</span>)</label>
+        </div>
+        <div class="field">
+            <input type="date" id="sm_from" name="effective_from" required placeholder=" "
+                   value="{{ request.form.get('effective_from') or today }}">
+            <label for="sm_from">{{ t['client.machine_from'] }}</label>
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('supplier_reports.detail', sid=sup.id, tab='machines') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>
+<script>
+(function () {
+    var sel = document.getElementById("sm_vehicle"), basis = document.getElementById("sm_basis"),
+        unit = document.getElementById("sm_unit"),
+        fixedUnit = {{ (t['unit.' + fixed.category.unit_type] if fixed else '') | tojson }};
+    if (!basis || !unit) return;
+    function apply() {
+        var u = fixedUnit;
+        if (sel) { var o = sel.options[sel.selectedIndex]; u = o && o.dataset.unit ? o.dataset.unit : "…"; }
+        unit.textContent = {{ currency | tojson }} + "/" + (basis.value === "month" ? {{ t['lease.month'] | tojson }} : u);
+    }
+    if (sel) sel.addEventListener("change", apply);
+    basis.addEventListener("change", apply);
+    apply();
+})();
+</script>

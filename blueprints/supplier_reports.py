@@ -118,8 +118,10 @@ def detail(sid):
     orders = (PurchaseOrder.query.filter_by(supplier_id=sid)
               .order_by(PurchaseOrder.date.desc(), PurchaseOrder.id.desc()).limit(20).all())
     tab = request.args.get("tab")
-    if tab not in ("a_payer", "releve", "commandes", "saisies"):
+    if tab not in ("a_payer", "releve", "commandes", "saisies", "machines"):
         tab = "a_payer" if open_bills else "releve"
+    if tab == "machines" and not sup.provides_machines:
+        tab = "releve"
     # A lessor's machines' daily entries, as a tab of this page.
     extra = {}
     if tab == "saisies":
@@ -127,7 +129,18 @@ def detail(sid):
             abort(404)
         from blueprints.entries import lessor_entries_context
         extra = lessor_entries_context(sup)
+    # Its machines, each with what it is paid now, since when, and the prices
+    # before: the cost side a machine's profit will be read against.
+    machines = []
+    if sup.provides_machines:
+        import billing
+        book = billing.lease_book(sup.id)
+        for v in sup.live_machines:
+            hist = list(reversed(book.get(v.id, [])))   # newest first
+            machines.append({"v": v, "now": billing.lease_on(book, v.id, today),
+                             "since": next((eff for eff, _, _ in hist), None), "history": hist})
     return render_template("supplier_detail.html", sup=sup, rows=list(reversed(rows)), tab=tab,
+                           lease_machines=machines,
                            open_bills=open_bills, orders=orders, today=today,
                            date_from=date_from, date_to=date_to,
                            f=figures(sup, date_from, date_to, today), **extra)

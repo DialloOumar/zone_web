@@ -57,11 +57,20 @@
                 {% endfor %}
             </select>
         </label>
+        <label class="filter-date">
+            <span>{{ t['invoice.supplier'] }}</span>
+            <select name="supplier" onchange="this.form.submit()">
+                <option value="">{{ t['po.all_suppliers'] }}</option>
+                {% for sp in order_suppliers %}
+                <option value="{{ sp.id }}" {% if sp.id == supplier_id %}selected{% endif %}>{{ sp.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
         <label class="filter-search">
             <input type="search" name="q" value="{{ search }}" placeholder="{{ t['po.search'] }}">
         </label>
         <button type="submit" class="btn btn--sm btn--primary">{{ t['entry.filter'] }}</button>
-        {% if status or search %}
+        {% if status or search or supplier_id %}
         <a href="{{ url_for('purchases.index') }}" class="btn btn--sm btn--outlined">{{ t['entry.clear'] }}</a>
         {% endif %}
     </form>

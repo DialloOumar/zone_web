@@ -1,0 +1,64 @@
+{# A lessor's machines, each with what the company pays for it now, since
+   when, and the prices before: per worked unit or per month, dated, so a
+   new price never moves a month already past. #}
+{% if has_perm('supplier_invoice.create') %}
+<div class="tab-bar vehicle-tab-bar">
+    <a href="{{ url_for('supplier_invoices.supplier_machine', sid=sup.id) }}" class="btn btn--sm btn--primary"
+       data-modal-url="{{ url_for('supplier_invoices.supplier_machine', sid=sup.id) }}" data-modal-title="{{ t['client.machine_add'] }}">
+        <span class="material-symbols-outlined">add</span> {{ t['client.machine_add'] }}</a>
+</div>
+{% endif %}
+{% macro per(basis, v) %}{{ currency }}/{{ t['lease.month'] if basis == 'month' else t['unit.' + v.category.unit_type] }}{% endmacro %}
+{% if lease_machines %}
+<div class="table-wrap"><table class="data-table">
+    <thead>
+        <tr>
+            <th>{{ t['entry.vehicle'] }}</th>
+            <th>{{ t['vehicle.category'] }}</th>
+            <th>{{ t['lease.basis'] }}</th>
+            <th style="text-align:right;">{{ t['lease.price_now'] }}</th>
+            <th>{{ t['client.rate_since'] }}</th>
+            <th>{{ t['client.rate_history'] }}</th>
+            {% if has_perm('supplier_invoice.create') %}<th></th>{% endif %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for m in lease_machines %}
+        <tr>
+            <td><a href="{{ url_for('vehicles.detail', vid=m.v.id) }}"><strong>{{ m.v.code }}</strong></a></td>
+            <td><span class="chip chip--{{ m.v.category.code|lower }}">{{ m.v.category.label_fr if lang == 'fr' else m.v.category.label }}</span></td>
+            <td>{% if m.now %}{{ t['lease.basis.' + m.now[0]] }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+            <td style="text-align:right; white-space:nowrap;">
+                {% if m.now %}<strong>{{ m.now[1] | num }}</strong> <span class="muted small">{{ per(m.now[0], m.v) }}</span>
+                {% else %}<span class="variance--danger">{{ t['lease.no_price'] }}</span>{% endif %}
+            </td>
+            <td style="white-space:nowrap;">{% if m.since %}{{ m.since|dmy }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+            <td style="white-space:nowrap;">
+                {% if m.history | length > 1 %}
+                {% set ns = namespace(lines=[]) %}
+                {% for eff, basis, rate in m.history %}{% set ns.lines = ns.lines + [(eff|dmy) ~ ' : ' ~ (rate|num) ~ ' ' ~ per(basis, m.v)] %}{% endfor %}
+                <span class="chip chip--more" title="{{ ns.lines | join('\n') }}">{{ m.history | length }} {{ t['client.rate_changes'] }}</span>
+                {% elif m.history %}<span class="muted">{{ t['client.rate_first'] }}</span>
+                {% else %}<span class="muted">&mdash;</span>{% endif %}
+            </td>
+            {% if has_perm('supplier_invoice.create') %}
+            <td class="row-actions">
+                <a href="{{ url_for('supplier_invoices.supplier_machine', sid=sup.id, vid=m.v.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                   data-modal-url="{{ url_for('supplier_invoices.supplier_machine', sid=sup.id, vid=m.v.id) }}" data-modal-title="{{ t['client.machine_rate'] }} — {{ m.v.code }}"
+                   title="{{ t['client.machine_rate'] }}" aria-label="{{ t['client.machine_rate'] }}"><span class="material-symbols-outlined">edit</span></a>
+                <form method="post" action="{{ url_for('supplier_invoices.supplier_machine_remove', sid=sup.id, vid=m.v.id) }}" style="display:inline"
+                      data-confirm="{{ t['lease.remove_confirm'] }}" data-confirm-title="{{ t['client.machine_remove'] }}" data-confirm-ok="{{ t['client.machine_remove'] }}" data-confirm-danger>
+                    <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['client.machine_remove'] }}" aria-label="{{ t['client.machine_remove'] }}"><span class="material-symbols-outlined">close</span></button>
+                </form>
+            </td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table></div>
+{% else %}
+<div class="empty-state empty-state--soft">
+    <span class="material-symbols-outlined">directions_bus</span>
+    <p>{{ t['lease.no_machines'] }}</p>
+</div>
+{% endif %}

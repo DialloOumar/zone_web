@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['client.machine_rate'] if fixed else t['client.machine_add'] }}{% endblock %}
+{% block page_title %}{{ client.name }} — {{ t['client.machine_rate'] if fixed else t['client.machine_add'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px;">
+    {% include "_client_machine_form.html" %}
+</section>
+{% endblock %}

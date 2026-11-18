@@ -36,8 +36,9 @@ from app import (current_user_fleet_ids, get_t, has_perm, is_modal_request, log_
 from blueprints.expenses import (PAYMENT_METHODS, _accessible_vehicles, company_accounts, method_error,
                                  methods_of)
 from ledger import charge_accounts, code_supplier_settlements, labels_for, read_code, used_accounts_in
+import billing
 from models import (AccountTransfer, BankCharge, CashAccount, CashTransfer, PurchaseOrder, Supplier, SupplierInvoice, SupplierPayment,
-                    Vehicle, db)
+                    SupplierRate, Vehicle, db)
 
 supplier_invoices_bp = Blueprint("supplier_invoices", __name__)
 
@@ -509,6 +510,15 @@ def index():
                 for name in TABS}
 
     to_bill = orders_to_bill() if has_perm("supplier_invoice.create") else []
+    # The page's supplier filter and search narrow the orders to bill as well.
+    if supplier_ids:
+        to_bill = [po for po in to_bill if po.supplier_id in supplier_ids]
+    if search:
+        needle = search.lower()
+        to_bill = [po for po in to_bill
+                   if needle in (po.number or "").lower()
+                   or needle in (po.supplier.name or "").lower()
+                   or needle in (po.supplier.code or "").lower()]
     if tab == "a_facturer" and not has_perm("supplier_invoice.create"):
         tab = "factures"
     return render_template(
@@ -896,17 +906,6 @@ def _pickable_machines():
     return q.order_by(Vehicle.code).all()
 
 
-def _assign_machines(row, chosen_ids):
-    """Make `chosen_ids` this supplier's machines, among those the user may
-    touch. A machine picked away from another supplier moves; one the user
-    cannot see is left exactly as it is, whoever holds it."""
-    for v in _pickable_machines():
-        if v.id in chosen_ids:
-            v.supplier_id = row.id
-        elif v.supplier_id == row.id:
-            v.supplier_id = None
-
-
 def _save_supplier(row, parts_only=False):
     """Read the form onto the supplier. From the store (`parts_only`) the
     supplier sells parts by definition, whatever the form says."""
@@ -957,17 +956,11 @@ def _save_supplier(row, parts_only=False):
     db.session.flush()
     if row.ledger_code:
         code_supplier_settlements(row.id)
-    # A lessor's machines follow the boxes ticked; one that stops being a
-    # lessor lets its machines go.
-    if not parts_only:
-        chosen = set()
-        if row.provides_machines:
-            for raw in request.form.getlist("machine_ids"):
-                try:
-                    chosen.add(int(raw))
-                except (TypeError, ValueError):
-                    pass
-        _assign_machines(row, chosen)
+    # Its machines are added one by one on its page, each with its price; one
+    # that stops being a lessor lets them go (their prices stay, dated).
+    if not parts_only and not row.provides_machines:
+        for v in row.machines:
+            v.supplier_id = None
     log_action("CREATE" if creating else "UPDATE", "supplier", resource_id=row.id,
                detail="%s supplier '%s' (%s)" % ("Created" if creating else "Updated",
                                                  row.name, row.code))
@@ -992,7 +985,6 @@ def _render_supplier_form(row, error=None):
     # Without the bills' rights this is the store's form: parts only.
     return render_template(tpl, row=row, error=error,
                            parts_only=not has_perm("supplier_invoice.create"),
-                           machines=_pickable_machines(),
                            ledger_accounts=used_accounts_in((4,))), status
 
 
@@ -1015,9 +1007,19 @@ def suppliers():
     sq = Supplier.query
     if kind:
         sq = sq.filter(Supplier.kind == kind)
+    # Two tabs: those who rent the company machines, and the rest -- the
+    # parts sellers and whoever else sends a bill. One that does both is in
+    # both. The store only ever reads the parts suppliers it buys from.
+    tab = request.args.get("tab")
     if not has_perm("supplier_invoice.view"):
-        # The store's reading: the parts suppliers it buys from, and only them.
+        tab = "pieces"
         sq = sq.filter(Supplier.provides_parts.is_(True))
+    if tab not in ("pieces", "machines"):
+        tab = "pieces"
+    is_lessor = Supplier.provides_machines.is_(True)
+    in_parts = db.or_(Supplier.provides_parts.is_(True), Supplier.provides_machines.is_(False))
+    counts = {"pieces": sq.filter(in_parts).count(), "machines": sq.filter(is_lessor).count()}
+    sq = sq.filter(is_lessor if tab == "machines" else in_parts)
     rows = sq.order_by(*_by_kind_then_name()).all()
     owed = {}
     if has_perm("supplier_invoice.view"):
@@ -1028,7 +1030,7 @@ def suppliers():
             .group_by(SupplierInvoice.supplier_id).all())
         owed = {r[0]: {"count": int(r[1]), "remaining": int(r[2] or 0)} for r in owed_rows}
     return render_template("suppliers.html", suppliers=rows, owed=owed,
-                           supplier_kinds=SUPPLIER_KINDS, kind=kind,
+                           supplier_kinds=SUPPLIER_KINDS, kind=kind, tab=tab, counts=counts,
                            can_manage=has_perm("supplier_invoice.create") or has_perm("stock.manage"))
 
 
@@ -1079,6 +1081,9 @@ def supplier_action(sid, what):
                                    "utilisé. Archivez-le à la place."))
             return redirect(_suppliers_url())
         name = row.name
+        for v in row.machines:
+            v.supplier_id = None
+        SupplierRate.query.filter_by(supplier_id=row.id).delete(synchronize_session=False)
         db.session.delete(row)
         log_action("DELETE", "supplier", resource_id=sid,
                    detail="Deleted supplier '%s'" % name)
@@ -1091,6 +1096,96 @@ def supplier_action(sid, what):
     db.session.commit()
     flash("success|" + t.get(msg, "Fait."))
     return redirect(_suppliers_url())
+
+
+# ── A lessor's machines and what each costs ─────────────────────────────────
+
+LEASE_BASES = ("unit", "month")
+
+
+def _clean_amount(raw):
+    return (raw or "").replace(" ", "").replace(" ", "").replace(" ", "").strip()
+
+
+def _lessor_or_404(sid):
+    row = db.session.get(Supplier, sid)
+    if not row or not row.provides_machines:
+        abort(404)
+    return row
+
+
+def _lessor_machines_url(row):
+    return url_for("supplier_reports.detail", sid=row.id, tab="machines")
+
+
+@supplier_invoices_bp.route("/fournisseurs/<int:sid>/machines/ajouter", methods=["GET", "POST"])
+@login_required
+@require_perm("supplier_invoice.create")
+def supplier_machine(sid):
+    """Give the lessor one machine with what it is paid for it -- per hour or
+    trip, or per month -- and the date that price starts; or, with ?vid= for
+    one of its machines, a new price from a date. Prices are dated: a new one
+    never changes a month already past. A machine leased from another
+    supplier moves here; its old prices stay with the old one."""
+    row = _lessor_or_404(sid)
+    t = get_t()
+    pickable = _pickable_machines()
+    by_id = {v.id: v for v in pickable}
+    fixed = by_id.get(request.args.get("vid", type=int))
+    if fixed is not None and fixed.supplier_id != row.id:
+        fixed = None
+    book = billing.lease_book(row.id)
+    today = date.today().isoformat()
+    error = None
+    if request.method == "POST":
+        v = fixed or by_id.get(request.form.get("vehicle_id", type=int))
+        basis = request.form.get("basis")
+        raw = _clean_amount(request.form.get("rate"))
+        eff = (request.form.get("effective_from") or "").strip()
+        if v is None:
+            error = t["client.err.machine"]
+        elif basis not in LEASE_BASES:
+            error = t["lease.err.basis"]
+        elif not raw.isdigit() or int(raw) <= 0:
+            error = t["lease.err.rate"]
+        elif not _valid_date(eff):
+            error = t["client.err.date"]
+        else:
+            moved = v.supplier_id != row.id
+            v.supplier_id = row.id
+            rate = int(raw)
+            if billing.lease_on(book, v.id, eff) != (basis, rate):
+                db.session.add(SupplierRate(supplier_id=row.id, vehicle_id=v.id, basis=basis, rate=rate,
+                                            effective_from=eff, created_by=current_user.id))
+            log_action("UPDATE", "supplier", resource_id=row.id,
+                       detail="%s %s for supplier '%s' at %d per %s from %s"
+                              % ("Added" if moved else "Rated", v.code, row.name, rate, basis, eff))
+            db.session.commit()
+            flash("success|" + t["client.machine_saved"])
+            return modal_ok() if is_modal_request() else redirect(_lessor_machines_url(row))
+    choices = [v for v in pickable if v.supplier_id != row.id]
+    tpl = "_supplier_machine_form.html" if is_modal_request() else "supplier_machine_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, sup=row, fixed=fixed, choices=choices, error=error,
+                           lease_now=billing.lease_on(book, fixed.id, today) if fixed else None,
+                           today=today), status
+
+
+@supplier_invoices_bp.route("/fournisseurs/<int:sid>/machines/<int:vid>/retirer", methods=["POST"])
+@login_required
+@require_perm("supplier_invoice.create")
+def supplier_machine_remove(sid, vid):
+    """The machine goes back to the company or elsewhere. Its past prices
+    stay, so the months it was leased keep their cost."""
+    row = _lessor_or_404(sid)
+    v = db.session.get(Vehicle, vid)
+    if v is not None and v.supplier_id == row.id and v in _pickable_machines():
+        v.supplier_id = None
+        log_action("UPDATE", "supplier", resource_id=row.id,
+                   detail="Removed %s from supplier '%s'" % (v.code, row.name))
+        db.session.commit()
+        flash("success|" + get_t()["client.machine_removed"])
+    return redirect(_lessor_machines_url(row))
 
 
 # ── What was owed to a supplier before the app ──────────────────────────────
