@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}{{ s.sheet }}{% endblock %}
+{% block page_title %}{{ s.sheet }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a data-back href="{{ url_for('supplier_import.review', iid=imp.id) }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+<section class="card">
+    <div class="card-header"><h2>{{ s.sheet }}</h2></div>
+    {% include "_supplier_import_sheet.html" %}
+</section>
+{% endblock %}

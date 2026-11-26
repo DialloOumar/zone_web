@@ -1,0 +1,29 @@
+{# The lines of one sheet, as read from the file. #}
+<div class="table-wrap"><table class="data-table">
+    <thead>
+        <tr>
+            <th>{{ t['imp.col.date'] }}</th>
+            <th>{{ t['imp.col.text'] }}</th>
+            <th>{{ t['imp.col.ref'] }}</th>
+            <th style="text-align:right;">{{ t['imp.col.debit'] }}</th>
+            <th style="text-align:right;">{{ t['imp.col.credit'] }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for day, raw, text, ref, debit, credit in s.lines %}
+        <tr>
+            <td style="white-space:nowrap;">{% if day %}{{ day|dmy }}{% elif raw %}<span class="variance--danger">{{ raw }}</span>{% else %}<span class="variance--danger">&mdash;</span>{% endif %}</td>
+            <td>{{ text }}</td>
+            <td style="white-space:nowrap;">{{ ref }}</td>
+            <td style="text-align:right; white-space:nowrap;">{% if debit %}{{ debit|num }}{% endif %}</td>
+            <td style="text-align:right; white-space:nowrap;">{% if credit %}{{ credit|num }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="3"><strong>{{ t['imp.bal.calc'] % (s.calc|num) }}</strong></td>
+            <td colspan="2" style="text-align:right;"><strong>{% if s.last is not none %}{{ t['imp.bal.last'] % (s.last|num) }}{% endif %}</strong></td>
+        </tr>
+    </tfoot>
+</table></div>

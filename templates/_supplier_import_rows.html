@@ -1,0 +1,92 @@
+{# One <tbody> per sheet: its line, and under it the questions it raises.
+   A question without an answer is outlined; the review filter reads the
+   tbody's data-state. #}
+{% macro choice(q) %}
+<select data-key="{{ q.key }}" {% if q.open %}class="imp-open"{% endif %}>
+    {% if q.open %}<option value="" selected>{{ t['imp.choose'] }}</option>{% endif %}
+    {% for val, label in q.options %}
+    <option value="{{ val }}" {% if q.value == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+</select>
+{% endmacro %}
+{% for r in rows %}
+{% set g = groups[r.group] if r.group is defined else none %}
+{% set is_head = g is not none and g.head.i == r.i %}
+{% set qs = r.questions | rejectattr('code', 'equalto', 'type') | list %}
+{% set type_q = r.questions | selectattr('code', 'equalto', 'type') | first %}
+<tbody class="imp-row" data-state="{{ r.state }}">
+<tr>
+    <td>
+        <div style="display:flex; align-items:center; gap:6px;">
+            {% if r.readable %}
+            <a href="{{ url_for('supplier_import.sheet', iid=imp.id, i=r.i) }}" class="btn btn--sm btn--tonal btn--icon"
+               data-modal-url="{{ url_for('supplier_import.sheet', iid=imp.id, i=r.i) }}" data-modal-title="{{ r.sheet }}"
+               title="{{ t['imp.lines'] }}" aria-label="{{ t['imp.lines'] }}"><span class="material-symbols-outlined">visibility</span></a>
+            {% endif %}
+            <strong {% if r.state == 'skip' %}class="muted"{% endif %}>{{ r.sheet }}</strong>
+        </div>
+    </td>
+    <td class="imp-sel">
+        {% if r.status == 'unread' %}<span class="muted">{{ t['imp.unread'] }}</span>
+        {% elif r.status == 'skip' %}<span class="muted">{{ t['imp.skip'] }}</span>
+        {% elif r.status == 'merged' %}<span class="muted">{{ t['imp.with'] % rows[r.merged_into].sheet }}</span>
+        {% else %}
+        <select data-key="{{ r.i }}:match" {% if r.match_open %}class="imp-open"{% endif %}>
+            {% if r.match_open %}<option value="" selected>{{ t['imp.choose'] }}</option>{% endif %}
+            {% if r.candidates %}
+            <optgroup label="{{ t['imp.near'] }}">
+                {% for s in r.candidates %}
+                <option value="{{ s.id }}" {% if r.target is not string and r.target and r.target.id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </optgroup>
+            {% endif %}
+            <option value="new" {% if r.target == 'new' %}selected{% endif %}>{{ t['imp.new'] }}</option>
+            <optgroup label="{{ t['imp.all_suppliers'] }}">
+                {% for s in suppliers if s not in r.candidates %}
+                <option value="{{ s.id }}" {% if r.target is not string and r.target and r.target.id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </optgroup>
+        </select>
+        {% if r.target == 'new' %}
+        <input type="text" data-key="{{ r.i }}:name" value="{{ r.name }}" maxlength="80"
+               aria-label="{{ t['imp.new_name'] }}" style="margin-top:4px;">
+        {% endif %}
+        {% endif %}
+    </td>
+    <td class="imp-sel">
+        {% if type_q %}{{ choice(type_q) }}
+        {% elif is_head %}<span class="badge badge--{{ 'info' if g.kind == 'machines' else 'active' }}">{{ t['imp.type.' + g.kind] }}</span>
+        {% else %}<span class="muted">&mdash;</span>{% endif %}
+    </td>
+    <td style="text-align:right; white-space:nowrap;">
+        {% if r.balance is not none %}{{ r.balance|num }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+    </td>
+    <td style="text-align:right; white-space:nowrap;">
+        {% if is_head and g.opening is not none %}<strong>{{ g.opening|num }}</strong>
+        {% else %}<span class="muted">&mdash;</span>{% endif %}
+    </td>
+    <td style="white-space:nowrap;">
+        {% if r.state == 'open' %}<span class="badge badge--warning">{{ t['imp.state.points'] % r.open }}</span>
+        {% elif r.state == 'ready' %}<span class="badge badge--active">{{ t['imp.state.ready'] }}</span>
+        {% else %}<span class="badge badge--inactive">{{ t['imp.unread'] if r.status == 'unread' else t['imp.skip'] }}</span>{% endif %}
+    </td>
+</tr>
+{% if qs or r.errors %}
+<tr class="imp-q-row">
+    <td></td>
+    <td colspan="5">
+        <div class="imp-qs">
+            {% for q in qs %}
+            <label class="imp-q">
+                <span class="imp-q__label">{{ q.label }}</span>
+                {% if q.detail %}<span class="imp-q__detail">{{ q.detail }}</span>{% endif %}
+                {{ choice(q) }}
+            </label>
+            {% endfor %}
+            {% for e in r.errors %}<div class="imp-q imp-err">{{ e }}</div>{% endfor %}
+        </div>
+    </td>
+</tr>
+{% endif %}
+</tbody>
+{% endfor %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['imp.title'] }}{% endblock %}
+{% block page_title %}{{ t['imp.title'] }}{% endblock %}
+
+{% block content %}
+{# An import already done: what it created, as it was at that moment. #}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a data-back href="{{ url_for('supplier_import.index') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <div>
+            <h2>{{ imp.filename }}</h2>
+            <p class="muted small">{{ t['imp.done_on'] }} {{ imp.done_at.strftime('%d/%m/%Y %H:%M') if imp.done_at }} · {{ t['imp.as_of'] }} {{ imp.as_of|dmy }}</p>
+        </div>
+    </div>
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['imp.col.code'] }}</th>
+                <th>{{ t['invoice.supplier'] }}</th>
+                <th>{{ t['imp.col.sheet'] }}</th>
+                <th>{{ t['imp.col.status'] }}</th>
+                <th>{{ t['imp.col.type'] }}</th>
+                <th style="text-align:right;">{{ t['imp.col.opening'] }}</th>
+                <th style="text-align:right;">{{ t['imp.col.bills'] }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in result.groups or [] %}
+            <tr>
+                <td><span class="chip">{{ g.code }}</span></td>
+                <td><a href="{{ url_for('supplier_reports.detail', sid=g.sid) }}"><strong>{{ g.name }}</strong></a></td>
+                <td>{{ g.sheets | join(', ') }}</td>
+                <td><span class="badge {{ 'badge--info' if g.new else 'badge--active' }}">{{ t['imp.result.new'] if g.new else t['imp.result.linked'] }}</span></td>
+                <td>{{ t['imp.type.' + g.kind] }}</td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if g.kept %}<span class="muted">{{ t['imp.kept'] }}</span>
+                    {% elif g.opening %}<strong>{{ g.opening|num }}</strong>{% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td style="text-align:right;">{% if g.bills %}{{ g.bills }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            {% for name in result.skipped or [] %}
+            <tr>
+                <td></td>
+                <td class="muted">&mdash;</td>
+                <td>{{ name }}</td>
+                <td><span class="badge badge--inactive">{{ t['imp.skip'] }}</span></td>
+                <td></td><td></td><td></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+</section>
+{% endblock %}

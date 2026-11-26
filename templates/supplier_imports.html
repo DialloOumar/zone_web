@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['imp.title'] }}{% endblock %}
+{% block page_title %}{{ t['imp.title'] }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a data-back href="{{ url_for('supplier_invoices.suppliers') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    <div class="card-header"><h2>{{ t['imp.title'] }}</h2></div>
+    <form method="post" enctype="multipart/form-data" class="filter-bar" style="align-items:flex-end;">
+        <label class="filter-date">
+            <span>{{ t['imp.file'] }}</span>
+            <input type="file" name="file" accept=".xlsx,.xlsm" required>
+        </label>
+        <button type="submit" class="btn btn--primary">
+            <span class="material-symbols-outlined">unarchive</span> {{ t['imp.upload'] }}
+        </button>
+    </form>
+
+    {% if imports %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['imp.col.file'] }}</th>
+                <th>{{ t['imp.col.date'] }}</th>
+                <th>{{ t['imp.col.by'] }}</th>
+                <th>{{ t['imp.as_of'] }}</th>
+                <th>{{ t['imp.col.status'] }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for imp in imports %}
+            <tr>
+                <td><a href="{{ url_for('supplier_import.review', iid=imp.id) }}"><strong>{{ imp.filename }}</strong></a></td>
+                <td style="white-space:nowrap;">{{ imp.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ imp.author.username if imp.author else '—' }}</td>
+                <td style="white-space:nowrap;">{{ imp.as_of|dmy }}</td>
+                <td><span class="badge {{ 'badge--active' if imp.status == 'done' else 'badge--warning' }}">{{ t['imp.status.' + imp.status] }}</span></td>
+                <td class="row-actions">
+                    {% if imp.status == 'draft' %}
+                    <form method="post" action="{{ url_for('supplier_import.delete', iid=imp.id) }}" style="display:inline"
+                          data-confirm="{{ t['imp.delete_confirm'] }}" data-confirm-title="{{ t['imp.delete'] }}" data-confirm-ok="{{ t['imp.delete'] }}" data-confirm-danger>
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['imp.delete'] }}" aria-label="{{ t['imp.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">unarchive</span>
+        <p>{{ t['imp.none'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

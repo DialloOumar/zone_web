@@ -14,6 +14,11 @@
         <span class="material-symbols-outlined">query_stats</span> {{ t['aged.title'] }}
     </a>
     {% endif %}
+    {% if is_super_admin %}
+    <a href="{{ url_for('supplier_import.index') }}" class="btn btn--sm btn--tonal">
+        <span class="material-symbols-outlined">unarchive</span> {{ t['imp.button'] }}
+    </a>
+    {% endif %}
 </div>
 
 <section class="card">
