@@ -109,6 +109,9 @@ def _accessible_operators():
 @login_required
 @require_perm("carburant.view")
 def index():
+    """The citernes, and under them the whole fuel ledger: every movement,
+    filtered by period, citerne, machine and type, paginated, with the
+    period's totals. One page, nothing to leave it for."""
     show_archived = request.args.get("archived") == "1"
     rows = (_scoped_citernes().filter(Citerne.is_active.is_(not show_archived))
             .order_by(Citerne.code).all())
@@ -124,16 +127,65 @@ def index():
     if vids:  # direct fills have no citerne — scope them by the vehicle's fleet
         conds.append(db.and_(FuelMovement.kind == "direct",
                              FuelMovement.vehicle_id.in_(vids)))
-    recent = []
+
+    ftype = request.args.get("type") or "all"
+    fciterne = request.args.get("citerne", type=int)
+    fvehicle = request.args.get("vehicle", type=int)
+    period = request.args.get("period") or date.today().strftime("%Y-%m")
+    # A date range, when given, takes the place of the month.
+    du = request.args.get("du") or ""
+    au = request.args.get("au") or ""
+    du = du if _valid_date(du) else ""
+    au = au if _valid_date(au) else ""
+    if du or au:
+        period = "all"
+
+    movements, pagination = [], None
+    totals = {"rentree": 0, "distribution": 0, "direct": 0, "conso": 0}
     if conds:
-        recent = (FuelMovement.query.filter(db.or_(*conds))
-                  .order_by(FuelMovement.date.desc(), FuelMovement.id.desc())
-                  .limit(50).all())
+        q = FuelMovement.query.filter(db.or_(*conds))
+        if ftype in MOVEMENT_KINDS:
+            q = q.filter(FuelMovement.kind == ftype)
+        if fciterne:
+            q = q.filter(FuelMovement.citerne_id == fciterne)
+        if fvehicle:
+            q = q.filter(FuelMovement.vehicle_id == fvehicle)
+        if period != "all":
+            q = q.filter(FuelMovement.date.like(period + "-%"))
+        if du:
+            q = q.filter(FuelMovement.date >= du)
+        if au:
+            q = q.filter(FuelMovement.date <= au)
+        # Litres are summed by the database over everything the filters match.
+        for kind, litres in (q.with_entities(
+                FuelMovement.kind,
+                db.func.coalesce(db.func.sum(FuelMovement.liters), 0))
+                .group_by(FuelMovement.kind).all()):
+            if kind in totals:
+                totals[kind] = int(litres or 0)
+        pagination = (q.order_by(FuelMovement.date.desc(), FuelMovement.id.desc())
+                      .paginate(page=request.args.get("page", 1, type=int),
+                                per_page=PER_PAGE, error_out=False))
+        movements = pagination.items
+    client_total = totals["rentree"] + totals["direct"] + totals["conso"]
+
+    filter_vehicles = _accessible_vehicles()
+    machine = None
+    if fvehicle:
+        v = next((x for x in filter_vehicles if x.id == fvehicle), None)
+        if v:
+            machine = _machine_summary(v, totals, period, du, au)
+
     return render_template(
         "citernes.html", citernes=rows, active_citernes=active_citernes,
-        recent=recent, show_archived=show_archived, archived_count=archived_count,
-        vehicles=_entry_vehicles(), operators=_accessible_operators(),
-        seuil=SEUIL_ECART, today=date.today().isoformat())
+        show_archived=show_archived, archived_count=archived_count,
+        seuil=SEUIL_ECART, today=date.today().isoformat(),
+        movements=movements, pagination=pagination,
+        totals=totals, client_total=client_total, machine=machine,
+        months=_last_12_months(), period=period, ftype=ftype,
+        fciterne=fciterne, fvehicle=fvehicle, du=du, au=au, kinds=MOVEMENT_KINDS,
+        vehicles=filter_vehicles,
+        all_citernes=_scoped_citernes().order_by(Citerne.code).all())
 
 
 MOVEMENT_KINDS = ("rentree", "distribution", "direct", "conso", "releve")
@@ -228,76 +280,9 @@ def citerne_flux(cid):
 @login_required
 @require_perm("carburant.view")
 def history():
-    """The filterable fuel ledger — every movement, by period / citerne / type,
-    with the period totals that make months of data usable."""
-    cids = [c.id for c in _scoped_citernes().all()]
-    vids = [v.id for v in _accessible_vehicles()]
-    conds = []
-    if cids:
-        conds.append(db.and_(FuelMovement.citerne_id.in_(cids),
-                             FuelMovement.kind.in_(("rentree", "distribution", "releve", "conso"))))
-    if vids:
-        conds.append(db.and_(FuelMovement.kind == "direct",
-                             FuelMovement.vehicle_id.in_(vids)))
-
-    ftype = request.args.get("type") or "all"
-    fciterne = request.args.get("citerne", type=int)
-    fvehicle = request.args.get("vehicle", type=int)
-    period = request.args.get("period") or date.today().strftime("%Y-%m")
-    # A date range, when given, takes the place of the month.
-    du = request.args.get("du") or ""
-    au = request.args.get("au") or ""
-    du = du if _valid_date(du) else ""
-    au = au if _valid_date(au) else ""
-    if du or au:
-        period = "all"
-
-    rows, pagination = [], None
-    totals = {"rentree": 0, "distribution": 0, "direct": 0, "conso": 0}
-    if conds:
-        q = FuelMovement.query.filter(db.or_(*conds))
-        if ftype in MOVEMENT_KINDS:
-            q = q.filter(FuelMovement.kind == ftype)
-        if fciterne:
-            q = q.filter(FuelMovement.citerne_id == fciterne)
-        if fvehicle:
-            q = q.filter(FuelMovement.vehicle_id == fvehicle)
-        if period != "all":
-            q = q.filter(FuelMovement.date.like(period + "-%"))
-        if du:
-            q = q.filter(FuelMovement.date >= du)
-        if au:
-            q = q.filter(FuelMovement.date <= au)
-        # Litres are summed by the database over everything the filters match.
-        # Adding up the rows on screen would have made the totals shrink as the
-        # list got longer than a page.
-        for kind, litres in (q.with_entities(
-                FuelMovement.kind,
-                db.func.coalesce(db.func.sum(FuelMovement.liters), 0))
-                .group_by(FuelMovement.kind).all()):
-            if kind in totals:
-                totals[kind] = int(litres or 0)
-        pagination = (q.order_by(FuelMovement.date.desc(), FuelMovement.id.desc())
-                      .paginate(page=request.args.get("page", 1, type=int),
-                                per_page=PER_PAGE, error_out=False))
-        rows = pagination.items
-    # What the client billed (everything taken at the client) vs what was
-    # dispensed to machines from the citernes.
-    client_total = totals["rentree"] + totals["direct"] + totals["conso"]
-
-    vehicles = _accessible_vehicles()
-    machine = None
-    if fvehicle:
-        v = next((x for x in vehicles if x.id == fvehicle), None)
-        if v:
-            machine = _machine_summary(v, totals, period, du, au)
-
-    return render_template(
-        "history.html", movements=rows, pagination=pagination,
-        totals=totals, client_total=client_total, machine=machine,
-        seuil=SEUIL_ECART, months=_last_12_months(), period=period, ftype=ftype,
-        fciterne=fciterne, fvehicle=fvehicle, du=du, au=au, kinds=MOVEMENT_KINDS,
-        vehicles=vehicles, citernes=_scoped_citernes().order_by(Citerne.code).all())
+    """The ledger lives on the Carburant page now; an old link lands there
+    with its filters kept."""
+    return redirect(url_for("carburant.index", **request.args.to_dict()) + "#mouvements")
 
 
 def _machine_summary(v, totals, period, du, au):
@@ -958,7 +943,7 @@ def direct_edit(mid):
                    detail=f"Corrected direct fill: {before} -> {v.code} {mv.date} {mv.liters} L")
         db.session.commit()
         flash("success|" + t.get("direct.updated", "Plein direct modifié."))
-        return modal_ok() if is_modal_request() else redirect(url_for("carburant.history"))
+        return modal_ok() if is_modal_request() else redirect(url_for("carburant.index") + "#mouvements")
     return _render_direct_form(mv)
 
 

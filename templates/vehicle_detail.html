@@ -94,7 +94,7 @@
     </div>
     <div class="stat-card">
         <span class="stat-icon stat-icon--blue material-symbols-outlined">local_gas_station</span>
-        <div><div class="stat-value">{{ stats.fuel | num }} L</div><div class="stat-label">{% if has_perm('carburant.view') %}<a href="{{ url_for('carburant.history', vehicle=vehicle.id) }}">{{ t['person.fuel_short'] }}</a>{% else %}{{ t['person.fuel_short'] }}{% endif %}</div></div>
+        <div><div class="stat-value">{{ stats.fuel | num }} L</div><div class="stat-label">{% if has_perm('carburant.view') %}<a href="{{ url_for('carburant.index', vehicle=vehicle.id) }}#mouvements">{{ t['person.fuel_short'] }}</a>{% else %}{{ t['person.fuel_short'] }}{% endif %}</div></div>
     </div>
 </div>
 

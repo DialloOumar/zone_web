@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_pager.html" import pager with context %}
 
 {% block title %}{{ t['nav.fuel'] }}{% endblock %}
 {% block page_title %}{{ t['nav.fuel'] }}{% endblock %}
@@ -16,8 +17,6 @@
             {% elif archived_count %}
             <a href="{{ url_for('carburant.index', archived=1) }}" class="btn btn--sm btn--outlined">{{ t['archive.show_archived'] }} ({{ archived_count }})</a>
             {% endif %}
-            <a href="{{ url_for('carburant.history') }}" class="btn btn--sm btn--outlined">
-                <span class="material-symbols-outlined">history</span> {{ t['movement.history'] }}</a>
             {# One VIVO refuel action — taking fuel at the pump, into a citerne
                (réservoir / conso) or straight into a vehicle. A citerne's own
                actions (distribution, relevé) live on its row and flux page. #}
@@ -78,7 +77,7 @@
                     {# Today's figure can be fine while the history is not — that
                        is what a late rentrée leaves behind. #}
                     {% if anom and anom.past_only %}
-                    <div><a href="{{ url_for('carburant.history', citerne=c.id, period='all') }}" class="badge badge--warning"
+                    <div><a href="{{ url_for('carburant.index', citerne=c.id, period='all') ~ '#mouvements' }}" class="badge badge--warning"
                             title="{{ t['citerne.past_hint'] }}">{{ t['citerne.past_anomaly'] }}</a></div>
                     {% endif %}
                 </td>
@@ -142,7 +141,7 @@
             <div class="stock-bar"><span style="width:{{ [pct, 100]|min }}%;"></span></div>
             {% endif %}
             {% if anom and anom.past_only %}
-            <div><a href="{{ url_for('carburant.history', citerne=c.id, period='all') }}" class="badge badge--warning">{{ t['citerne.past_anomaly'] }}</a></div>
+            <div><a href="{{ url_for('carburant.index', citerne=c.id, period='all') ~ '#mouvements' }}" class="badge badge--warning">{{ t['citerne.past_anomaly'] }}</a></div>
             {% endif %}
             <div class="list-card__meta"><span class="muted small">{{ c.name }} · {{ c.fleet.name }}</span></div>
             {% if has_perm('carburant.manage') or (has_perm('carburant.create') and c.is_active) %}
@@ -196,14 +195,106 @@
     {% endif %}
 </section>
 
-{% if recent %}
-<section class="card">
+{# The whole ledger lives here: filters, the period's totals, the pages. #}
+<section class="card" id="mouvements">
     <div class="card-header">
-        <h2>{{ t['movement.recent'] }}</h2>
-        <a class="link-more" href="{{ url_for('carburant.history') }}">{{ t['movement.history'] }}</a>
+        <h2>{{ t['movement.history'] }}</h2>
     </div>
-    {% set movements = recent %}
+    <div class="card-header card-header--end">
+        <form method="get" action="{{ url_for('carburant.index') }}#mouvements" class="carbu-filters" id="mv-filters">
+            {% if show_archived %}<input type="hidden" name="archived" value="1">{% endif %}
+            <label class="carbu-filter"><span>{{ t['movement.machine'] }}</span>
+                <select name="vehicle" onchange="this.form.submit()">
+                    <option value="">{{ t['movement.all_machines'] }}</option>
+                    {% for v in vehicles %}<option value="{{ v.id }}" {% if v.id == fvehicle %}selected{% endif %}>{{ v.code }}</option>{% endfor %}
+                </select>
+            </label>
+            <label class="carbu-filter"><span>{{ t['movement.period'] }}</span>
+                <select name="period" id="mv-period">
+                    {% for mo in months %}<option value="{{ mo }}" {% if mo == period and not (du or au) %}selected{% endif %}>{{ mo }}</option>{% endfor %}
+                    <option value="all" {% if period == 'all' and not (du or au) %}selected{% endif %}>{{ t['movement.all_periods'] }}</option>
+                    {% if du or au %}<option value="all" selected>{{ t['movement.dates_chosen'] }}</option>{% endif %}
+                </select>
+            </label>
+            <label class="carbu-filter"><span>{{ t['movement.from'] }}</span>
+                <input type="date" name="du" value="{{ du }}" class="mv-date"></label>
+            <label class="carbu-filter"><span>{{ t['movement.to'] }}</span>
+                <input type="date" name="au" value="{{ au }}" class="mv-date"></label>
+            <label class="carbu-filter"><span>{{ t['distribution.citerne'] }}</span>
+                <select name="citerne" onchange="this.form.submit()">
+                    <option value="">{{ t['movement.all_citernes'] }}</option>
+                    {% for c in all_citernes %}<option value="{{ c.id }}" {% if c.id == fciterne %}selected{% endif %}>{{ c.code }}</option>{% endfor %}
+                </select>
+            </label>
+            <label class="carbu-filter"><span>{{ t['movement.type'] }}</span>
+                <select name="type" onchange="this.form.submit()">
+                    <option value="all">{{ t['movement.all_types'] }}</option>
+                    {% for k in kinds %}<option value="{{ k }}" {% if k == ftype %}selected{% endif %}>{{ t['movement.' + k] }}</option>{% endfor %}
+                </select>
+            </label>
+        </form>
+    </div>
+
+    {% if machine %}
+    {% set u = 'L/h' if not machine.by_trip else t['flux.per_trip'] %}
+    <div class="mv-totals">
+        <div class="mv-total mv-total--client">
+            <span class="mv-total__val">{{ machine.liters | num }} <small>L</small></span>
+            <span class="mv-total__lbl">{{ t['movement.machine_total'] }} · {{ machine.v.code }}</span>
+            <span class="mv-total__sub">{{ t['movement.from_citerne'] }} {{ machine.citerne | num }} · {{ t['movement.direct'] }} {{ machine.pump | num }}</span>
+        </div>
+        <div class="mv-total">
+            <span class="mv-total__val">{{ machine.worked }} <small>{{ t['flux.trips_short'] if machine.by_trip else 'h' }}</small></span>
+            <span class="mv-total__lbl">{{ t['flux.trips_done'] if machine.by_trip else t['flux.hours_worked'] }}</span>
+        </div>
+        <div class="mv-total">
+            <span class="mv-total__val">{{ machine.rate or '—' }} <small>{{ u }}</small></span>
+            <span class="mv-total__lbl">{{ t['flux.avg_rate'] }}</span>
+            {% if machine.ref %}<span class="mv-total__sub">{{ t['flux.ref'] }} {{ machine.ref }} {{ u }}</span>{% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="mv-totals">
+        <div class="mv-total">
+            <span class="mv-total__val">{{ totals.distribution | num }} <small>L</small></span>
+            <span class="mv-total__lbl">{{ t['movement.total_distributed'] }}</span>
+        </div>
+        <div class="mv-total mv-total--client">
+            <span class="mv-total__val">{{ client_total | num }} <small>L</small></span>
+            <span class="mv-total__lbl">{{ t['movement.total_client'] }}</span>
+            <span class="mv-total__sub">{{ t['movement.rentree'] }} {{ totals.rentree | num }} · {{ t['movement.direct'] }} {{ totals.direct | num }} · {{ t['movement.conso'] }} {{ totals.conso | num }}</span>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if movements %}
     {% include "_movement_table.html" %}
+    {{ pager(pagination, 'carburant.index') }}
+    {% else %}
+    <div class="empty-state empty-state--soft">
+        <span class="material-symbols-outlined">history</span>
+        <p>{{ t['movement.none'] }}</p>
+    </div>
+    {% endif %}
 </section>
-{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// A month and a date range cannot both hold: picking a month clears the
+// dates, typing a date leaves the month aside.
+(function () {
+    var form = document.getElementById('mv-filters');
+    if (!form) return;
+    var per = document.getElementById('mv-period');
+    var dates = form.querySelectorAll('.mv-date');
+    per.addEventListener('change', function () {
+        dates.forEach(function (d) { d.value = ''; });
+        form.submit();
+    });
+    dates.forEach(function (d) {
+        d.addEventListener('change', function () { form.submit(); });
+    });
+})();
+</script>
 {% endblock %}
