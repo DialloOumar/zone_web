@@ -1048,6 +1048,9 @@ class DailyEntry(DriverLink, db.Model):
     # kept as a trace (see DriverLink).
     operator_text = db.Column("operator", db.String(120), nullable=True)
     driver_id     = db.Column(db.Integer, db.ForeignKey("staff.id"), nullable=True, index=True)
+    # A half worked day: the machine served the morning or the afternoon
+    # only. A monthly-priced machine bills such a day at half its day price.
+    half_day         = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     note             = db.Column(db.String(255), nullable=True)
     photo_key        = db.Column(db.String(200), nullable=True)              # S3 slip photo
     created_by       = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -1956,6 +1959,91 @@ class SupplierRate(db.Model):
     vehicle  = db.relationship("Vehicle")
 
 
+class SupplierImport(db.Model):
+    """An old supplier ledger read from Excel, waiting for its doubtful points
+    to be decided before anything is written (see ledger_import.py). `data`
+    is the file as read, `choices` the answers given so far, both JSON; they
+    are kept so a review can be left and taken up again."""
+    __tablename__ = "supplier_imports"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    filename   = db.Column(db.String(200), nullable=False)
+    as_of      = db.Column(db.String(10),  nullable=False)              # the day the balances stood on
+    data       = db.Column(db.Text,        nullable=False)
+    choices    = db.Column(db.Text,        nullable=False, default="{}")
+    status     = db.Column(db.String(10),  nullable=False, default="draft")  # draft | done
+    created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+    done_by    = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    done_at    = db.Column(db.DateTime,    nullable=True)
+
+    author = db.relationship("User", foreign_keys=[created_by])
+
+
+class BillingTag(db.Model):
+    """A tarif: a named price that machines share. The machine carries the
+    tag, dated; the tag carries its price, dated. Billing a day reads the
+    machine's tag on that day, then that tag's price on that day — so thirty
+    identical trucks are one tarif, and a price change is one new row that
+    never moves a month already billed.
+
+    `basis` says what the price counts: "unit" is per worked trip or hour;
+    "month" is a monthly price, billed as price ÷ days of that very month ×
+    days worked (a 28-day February divides by 28). `currency` is GNF or
+    USD — a USD tarif bills in dollars and the invoice converts its total
+    to GNF at the BCRG rate written on it.
+    """
+    __tablename__ = "billing_tags"
+
+    id         = db.Column(db.Integer,     primary_key=True)
+    name       = db.Column(db.String(80),  nullable=False, unique=True)
+    basis      = db.Column(db.String(5),   nullable=False, default="unit", server_default="unit")  # unit | month
+    currency   = db.Column(db.String(3),   nullable=False, default="GNF",  server_default="GNF")   # GNF | USD
+    is_active  = db.Column(db.Boolean,     nullable=False, default=True)  # soft delete = archive
+    created_at = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
+    created_by = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+
+    prices = db.relationship("BillingTagRate", back_populates="tag",
+                             order_by="BillingTagRate.effective_from, BillingTagRate.id",
+                             cascade="all, delete-orphan")
+
+
+class BillingTagRate(db.Model):
+    """One dated price of a tarif: GNF per worked unit (trip or hour,
+    whichever the machine's category counts). Append-only: a new price is a
+    new row with its date of effect; in force on a date = the row with the
+    greatest effective_from on or before it.
+    """
+    __tablename__ = "billing_tag_rates"
+
+    id             = db.Column(db.Integer,    primary_key=True)
+    tag_id         = db.Column(db.Integer,    db.ForeignKey("billing_tags.id"), nullable=False, index=True)
+    rate_per_unit  = db.Column(db.Integer,    nullable=False)              # GNF per trip / hour
+    effective_from = db.Column(db.String(10), nullable=False)              # YYYY-MM-DD
+    created_at     = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+    created_by     = db.Column(db.Integer,    db.ForeignKey("users.id"), nullable=True)
+
+    tag = db.relationship("BillingTag", back_populates="prices")
+
+
+class VehicleTag(db.Model):
+    """Which tarif a machine bills at, from a date. Append-only: a machine
+    that changes tarif — a new client, a renegotiation — gets a new dated
+    row, and a past month keeps billing on the tag it carried then.
+    """
+    __tablename__ = "vehicle_tags"
+
+    id             = db.Column(db.Integer,    primary_key=True)
+    vehicle_id     = db.Column(db.Integer,    db.ForeignKey("vehicles.id"),      nullable=False, index=True)
+    tag_id         = db.Column(db.Integer,    db.ForeignKey("billing_tags.id"),  nullable=False, index=True)
+    effective_from = db.Column(db.String(10), nullable=False)              # YYYY-MM-DD
+    created_at     = db.Column(db.DateTime,   nullable=False, default=datetime.utcnow)
+    created_by     = db.Column(db.Integer,    db.ForeignKey("users.id"), nullable=True)
+
+    vehicle = db.relationship("Vehicle")
+    tag     = db.relationship("BillingTag")
+
+
 class ClientInvoice(db.Model):
     """A bill issued to a client for a month of its machines' work.
 
@@ -1987,6 +2075,12 @@ class ClientInvoice(db.Model):
     period_start = db.Column(db.String(10), nullable=True)               # YYYY-MM-DD, first day covered
     period_end   = db.Column(db.String(10), nullable=True)               # YYYY-MM-DD, last day covered
     total      = db.Column(db.Numeric(18, 2), nullable=False)
+    # A bill written in dollars: its lines and fx_total are in `currency`,
+    # and `total` above is the GNF the client owes, fixed once and for all
+    # at the BCRG rate of the day, written here. A GNF bill leaves fx empty.
+    currency   = db.Column(db.String(3),   nullable=False, default="GNF", server_default="GNF")
+    fx_rate    = db.Column(db.Numeric(12, 4), nullable=True)             # GNF for 1 unit of currency
+    fx_total   = db.Column(db.Numeric(18, 2), nullable=True)             # the total in `currency`
     status     = db.Column(db.String(12),  nullable=False, default="issued")  # issued | cancelled
     # What the bill is for, in the client's words ("Location juillet 2026"),
     # and the reference the client gave, a purchase order for instance.

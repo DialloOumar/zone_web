@@ -69,6 +69,12 @@
         </div>
     </div>
 
+    <label class="checkbox-item" style="margin:0 0 10px;">
+        <input type="checkbox" name="half_day" value="1"
+               {% if request.form.get('half_day') or (is_edit and entry.half_day and not request.form) %}checked{% endif %}>
+        <span>{{ t['entry.half_day'] }}</span>
+    </label>
+
     <div class="field">
         <textarea id="note" name="note" placeholder="{{ t['ph.entry.note'] }}" rows="1">{{ request.form.get('note') or (entry.note if is_edit else '') }}</textarea>
         <label for="note">{{ t['entry.note'] }}</label>

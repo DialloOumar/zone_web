@@ -191,6 +191,7 @@ def _read_entry_form(entry):
         index_end=index_end,
         operator=driver_name,
         driver_id=driver_id,
+        half_day=request.form.get("half_day") == "1",
         note=(request.form.get("note") or "").strip() or None,
     )
     return data, None

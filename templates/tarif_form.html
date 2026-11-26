@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ row.name if row else t['tarif.new'] }}{% endblock %}
+{% block page_title %}{{ row.name if row else t['tarif.new'] }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px;">
+    {% include "_tarif_form.html" %}
+</section>
+{% endblock %}

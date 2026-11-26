@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['tarif.title'] }}{% endblock %}
+{% block page_title %}{{ t['tarif.title'] }}{% endblock %}
+
+{% block content %}
+<div class="card-header card-header--end" style="margin-bottom:0;">
+    <a data-back href="{{ url_for('client_reports.clients') }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+</div>
+
+<section class="card">
+    {# A tarif names a price machines share. The machine carries the tarif,
+       the tarif carries its dated prices: a past month bills at the price
+       that applied then, whatever is typed here since. #}
+    <div class="tab-bar">
+        <div class="tab-bar__filters"></div>
+        <div class="tab-bar__actions">
+            {% if has_perm('invoicing.manage') %}
+            <a href="{{ url_for('invoicing.tarif_new') }}" class="fab"
+               data-modal-url="{{ url_for('invoicing.tarif_new') }}" data-modal-title="{{ t['tarif.new'] }}">
+                <span class="material-symbols-outlined">add</span> {{ t['tarif.new'] }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if archived %}
+    <p class="muted small" style="margin:0 0 10px;">
+        {% if show_archived %}
+        <a href="{{ url_for('invoicing.tarifs') }}">{{ t['archive.show_active'] }}</a>
+        {% else %}
+        <a href="{{ url_for('invoicing.tarifs', archives=1) }}">{{ t['archive.show_archived'] }} ({{ archived }})</a>
+        {% endif %}
+    </p>
+    {% endif %}
+
+    {% if rows %}
+    <div class="table-wrap"><table class="data-table">
+        <thead>
+            <tr>
+                <th>{{ t['tarif.one'] }}</th>
+                <th style="text-align:right;">{{ t['client.rate_now'] }}</th>
+                <th>{{ t['client.rate_since'] }}</th>
+                <th>{{ t['client.rate_history'] }}</th>
+                <th style="text-align:right;">{{ t['po.machines'] }}</th>
+                {% if has_perm('invoicing.manage') %}<th></th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td><strong>{{ r.tag.name }}</strong></td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if r.rate is not none %}<strong>{{ r.rate | num }}</strong> <span class="muted small">{{ r.tag.currency if r.tag.currency != 'GNF' else currency }}{% if r.tag.basis == 'month' %}/{{ t['lease.month'] }}{% endif %}</span>
+                    {% else %}<span class="variance--danger">{{ t['invoicing.no_rate'] }}</span>{% endif %}
+                </td>
+                <td style="white-space:nowrap;">{% if r.since %}{{ r.since|dmy }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+                {# The successive prices: how many, each with its date when
+                   the pointer rests on the chip. #}
+                <td style="white-space:nowrap;">
+                    {% if r.history | length > 1 %}
+                    {% set ns = namespace(lines=[]) %}
+                    {% for eff, rate in r.history %}{% set ns.lines = ns.lines + [(eff|dmy) ~ ' : ' ~ (rate|num) ~ ' ' ~ (r.tag.currency if r.tag.currency != 'GNF' else currency)] %}{% endfor %}
+                    <span class="chip chip--more" title="{{ ns.lines | join('\n') }}">{{ r.history | length }} {{ t['client.rate_changes'] }}</span>
+                    {% elif r.history %}<span class="muted">{{ t['client.rate_first'] }}</span>
+                    {% else %}<span class="muted">&mdash;</span>{% endif %}
+                </td>
+                <td style="text-align:right;">{% if r.count %}{{ r.count }}{% else %}<span class="muted">0</span>{% endif %}</td>
+                {% if has_perm('invoicing.manage') %}
+                <td class="row-actions">
+                    {% if r.tag.is_active %}
+                    <a href="{{ url_for('invoicing.tarif_price', tid=r.tag.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('invoicing.tarif_price', tid=r.tag.id) }}" data-modal-title="{{ t['tarif.new_price'] }} — {{ r.tag.name }}"
+                       title="{{ t['tarif.new_price'] }}" aria-label="{{ t['tarif.new_price'] }}"><span class="material-symbols-outlined">add</span></a>
+                    <a href="{{ url_for('invoicing.tarif_edit', tid=r.tag.id) }}" class="btn btn--sm btn--tonal btn--icon"
+                       data-modal-url="{{ url_for('invoicing.tarif_edit', tid=r.tag.id) }}" data-modal-title="{{ t['btn.edit'] }} — {{ r.tag.name }}"
+                       title="{{ t['btn.edit'] }}" aria-label="{{ t['btn.edit'] }}"><span class="material-symbols-outlined">edit</span></a>
+                    {% endif %}
+                    {% if not r.used %}
+                    <form method="post" action="{{ url_for('invoicing.tarif_delete', tid=r.tag.id) }}" style="display:inline"
+                          data-confirm="{{ t['tarif.delete_confirm'] }}" data-confirm-ok="{{ t['btn.delete'] }}" data-confirm-danger>
+                        <button type="submit" class="btn btn--sm btn--danger btn--icon" title="{{ t['btn.delete'] }}" aria-label="{{ t['btn.delete'] }}"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('invoicing.tarif_archive', tid=r.tag.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn--sm btn--tonal btn--icon"
+                                title="{{ t['btn.reactivate'] if not r.tag.is_active else t['btn.archive'] }}"
+                                aria-label="{{ t['btn.reactivate'] if not r.tag.is_active else t['btn.archive'] }}">
+                            <span class="material-symbols-outlined">{{ 'unarchive' if not r.tag.is_active else 'archive' }}</span></button>
+                    </form>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state">
+        <span class="material-symbols-outlined">request_quote</span>
+        <p>{{ t['tarif.none'] }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

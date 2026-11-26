@@ -168,8 +168,14 @@
         <tfoot>
             <tr>
                 <td colspan="{{ 4 + (1 if show_desc else 0) + (1 if show_discount else 0) }}" style="text-align:right;"><strong>{{ t['cinv.total'] }}</strong></td>
+                <td style="text-align:right;"><strong>{{ (inv.fx_total if inv.currency != 'GNF' else inv.total) | num }} {{ inv.currency if inv.currency != 'GNF' else currency }}</strong></td>
+            </tr>
+            {% if inv.currency != 'GNF' %}
+            <tr>
+                <td colspan="{{ 4 + (1 if show_desc else 0) + (1 if show_discount else 0) }}" style="text-align:right;">{{ t['cinv.fx_rate'] }} {{ inv.fx_rate }}</td>
                 <td style="text-align:right;"><strong>{{ inv.total | num }} {{ currency }}</strong></td>
             </tr>
+            {% endif %}
         </tfoot>
     </table></div>
 

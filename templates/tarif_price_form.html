@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t['tarif.new_price'] }} — {{ row.name }}{% endblock %}
+{% block page_title %}{{ t['tarif.new_price'] }} — {{ row.name }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px;">
+    {% include "_tarif_price_form.html" %}
+</section>
+{% endblock %}

@@ -170,9 +170,9 @@ Phone: {{ co.company_phone }}{% endif %}</div>
             <th style="width:6%;"></th>
             <th style="width:8%;">Unit/Qty</th>
             <th>Description</th>
-            <th style="width:16%;">Unit Price in {{ currency }}</th>
+            <th style="width:16%;">Unit Price in {{ inv.currency if inv.currency != 'GNF' else currency }}</th>
             <th style="width:12%;">Discount</th>
-            <th style="width:20%;">Total {{ currency }}</th>
+            <th style="width:20%;">Total {{ inv.currency if inv.currency != 'GNF' else currency }}</th>
         </tr>
     </thead>
     <tbody>
@@ -187,7 +187,7 @@ Phone: {{ co.company_phone }}{% endif %}</div>
                 {% if l.description %}<div class="desc pre">{{ l.description }}</div>{% endif %}
                 {% else %}
                 <div class="desc">{{ l.vehicle_code }} — {{ l.category_label }}</div>
-                <div class="span">{{ (t['cprint.detail_trips'] if l.unit_type == 'trips' else t['cprint.detail_hours']) | format(month_words) }}</div>
+                <div class="span">{{ (t['cprint.detail_trips'] if l.unit_type == 'trips' else (t['cprint.detail_days'] if l.unit_type == 'days' else t['cprint.detail_hours'])) | format(month_words) }}</div>
                 {% endif %}
             </td>
             <td class="r">{{ l.rate | num }}</td>
@@ -203,7 +203,7 @@ Phone: {{ co.company_phone }}{% endif %}</div>
     <tr>
         <td class="rib">{{ (co.bank_details or '') | replace('\n', '  ') }}</td>
         <td class="lbl">Sous /Total</td>
-        <td class="val">{{ inv.total | num }}</td>
+        <td class="val">{{ (inv.fx_total if inv.currency != 'GNF' else inv.total) | num }}</td>
     </tr>
     <tr>
         <td>{% if co.company_rccm %}RCCM/{{ co.company_rccm }}{% endif %}{% if co.company_nif %} <span class="red">NIF: {{ co.company_nif }}</span>{% endif %}{% if co.tax_mention %} <span class="red">{{ co.tax_mention }}</span>{% endif %}</td>
@@ -213,8 +213,17 @@ Phone: {{ co.company_phone }}{% endif %}</div>
     <tr>
         <td>Amount to pay</td>
         <td class="lbl">Total</td>
-        <td class="val">{{ inv.total | num }} {{ currency }}</td>
+        <td class="val">{{ (inv.fx_total if inv.currency != 'GNF' else inv.total) | num }} {{ inv.currency if inv.currency != 'GNF' else currency }}</td>
     </tr>
+    {% if inv.currency != 'GNF' %}
+    {# The paper's own conversion line: the BCRG rate of the day, and the
+       francs the client owes, fixed once and for all. #}
+    <tr>
+        <td class="r">Soit un montant total de : <b>Taux du {{ dmy(inv.date) }}</b> {{ inv.fx_rate }} BCRG</td>
+        <td class="lbl">{{ currency }}</td>
+        <td class="val">{{ inv.total | num }}</td>
+    </tr>
+    {% endif %}
 </table>
 </div>
 

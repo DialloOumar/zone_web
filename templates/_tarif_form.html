@@ -1,0 +1,47 @@
+{# A tarif's birth: name, first price, the date that price starts. Editing
+   an existing one renames it only — its prices are dated history. #}
+{% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+<form method="post" class="entry-form" data-modal-form
+      action="{{ url_for('invoicing.tarif_edit', tid=row.id) if row else url_for('invoicing.tarif_new') }}">
+    <div class="field">
+        <input type="text" id="tg_name" name="name" required maxlength="80" placeholder=" "
+               value="{{ request.form.get('name', row.name if row else '') }}">
+        <label for="tg_name">{{ t['tarif.name'] }}</label>
+    </div>
+    {% if not row %}
+    <div class="form-row">
+        <div class="field field--select">
+            {% set b = request.form.get('basis', 'unit') %}
+            <select id="tg_basis" name="basis">
+                <option value="unit" {% if b != 'month' %}selected{% endif %}>{{ t['lease.basis.unit'] }}</option>
+                <option value="month" {% if b == 'month' %}selected{% endif %}>{{ t['lease.basis.month'] }}</option>
+            </select>
+            <label for="tg_basis">{{ t['tarif.basis'] }}</label>
+        </div>
+        <div class="field field--select">
+            {% set c = request.form.get('tag_currency', 'GNF') %}
+            <select id="tg_cur" name="tag_currency">
+                <option value="GNF" {% if c != 'USD' %}selected{% endif %}>GNF</option>
+                <option value="USD" {% if c == 'USD' %}selected{% endif %}>USD</option>
+            </select>
+            <label for="tg_cur">{{ t['tarif.currency'] }}</label>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <input data-money type="text" inputmode="numeric" id="tg_rate" name="rate" required placeholder=" "
+                   value="{{ request.form.get('rate', '') }}">
+            <label for="tg_rate">{{ t['tarif.price'] }}</label>
+        </div>
+        <div class="field">
+            <input type="date" id="tg_from" name="effective_from" required placeholder=" "
+                   value="{{ request.form.get('effective_from') or today }}">
+            <label for="tg_from">{{ t['client.machine_from'] }}</label>
+        </div>
+    </div>
+    {% endif %}
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">save</span> {{ t['btn.save'] }}</button>
+        <a href="{{ url_for('invoicing.tarifs') }}" class="btn btn--outlined" data-modal-cancel>{{ t['btn.cancel'] }}</a>
+    </div>
+</form>

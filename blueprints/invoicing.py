@@ -25,7 +25,7 @@ off them, never stored.
 import calendar
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from flask import (Blueprint, abort, flash, redirect, render_template,
                    request, url_for)
@@ -38,8 +38,9 @@ from app import (_get_setting, _num, current_lang, current_user_fleet_ids, get_t
                  is_modal_request, log_action, modal_ok, parse_amount, parse_money, require_perm)
 from blueprints.expenses import PAYMENT_METHODS, active_accounts, method_error, methods_of
 from ledger import ensure_client_account, labels_for, read_code, revenue_accounts
-from models import (AppSetting, CashAccount, Client, ClientInvoice, ClientInvoiceLine, PurchaseOrder,
-                    ClientPayment, ClientRate, DailyEntry, LedgerAccount, Vehicle, db)
+from models import (AppSetting, BillingTag, BillingTagRate, CashAccount, Client, ClientInvoice,
+                    ClientInvoiceLine, PurchaseOrder, ClientPayment, ClientRate, DailyEntry,
+                    LedgerAccount, Vehicle, VehicleTag, db)
 
 invoicing_bp = Blueprint("invoicing", __name__)
 
@@ -121,13 +122,22 @@ def _month_lines(client, month):
 
 
 def _period_lines(client, start, end):
-    """The days from `start` to `end` worked out: one line per machine and
-    rate in force, since a price that changed within the span gives the same
-    machine two lines. Returns (lines, total, any_missing); a line with rate
-    None is one an entry had no price for, and blocks issuing."""
+    """The days from `start` to `end` worked out, one line per machine and
+    price in force.
+
+    A per-unit machine bills units × rate; a price that changed within the
+    span gives it two lines. A monthly machine bills its worked days — a
+    half day marked in the saisie counts 0.5, two saisies the same day stay
+    one day — each day at monthly price ÷ days of that very month (February
+    divides by 28), so a span over two months gives one line per month.
+
+    Lines carry their tarif's currency; a bill takes one currency's lines.
+    Returns (lines, any_missing); a line with rate None is one an entry had
+    no price for, and blocks issuing."""
     book = billing.rate_book(client.id)
     fids = current_user_fleet_ids()
     groups = {}
+    month_days = {}   # a monthly line's worked days: {date: weight}
     for v in client.live_machines:
         if fids is not None and v.fleet_id not in fids:
             continue
@@ -136,24 +146,44 @@ def _period_lines(client, start, end):
                    .filter(DailyEntry.date >= start, DailyEntry.date <= end)
                    .order_by(DailyEntry.date).all())
         for e in entries:
+            basis, cur, rate = billing.price_on(book, v.id, e.date)
             u = billing.entry_units(e, unit_type)
-            if u <= 0:
-                continue
-            rate = billing.rate_on(book, v.id, e.date)
-            g = groups.setdefault((v.code, rate), {
-                "vehicle_id": v.id, "vehicle_code": v.code,
-                "category_label": v.category.label_fr, "unit_type": unit_type,
-                "units": 0.0, "rate": rate, "amount": 0})
-            g["units"] += u
+            if basis == "month":
+                if u <= 0 and not e.half_day:
+                    continue
+                key = (v.code, rate, cur, e.date[:7])
+                days = month_days.setdefault(key, {})
+                days[e.date] = max(days.get(e.date, 0.0), billing.day_weight(e))
+                groups.setdefault(key, {
+                    "vehicle_id": v.id, "vehicle_code": v.code,
+                    "category_label": v.category.label_fr, "unit_type": "days",
+                    "units": 0.0, "rate": None, "amount": 0,
+                    "currency": cur, "monthly": rate})
+            else:
+                if u <= 0:
+                    continue
+                key = (v.code, rate, cur or "GNF", "")
+                g = groups.setdefault(key, {
+                    "vehicle_id": v.id, "vehicle_code": v.code,
+                    "category_label": v.category.label_fr, "unit_type": unit_type,
+                    "units": 0.0, "rate": rate, "amount": 0,
+                    "currency": cur, "monthly": None})
+                g["units"] += u
     lines = []
-    for g in groups.values():
-        # Whole francs, as machine lines always were.
-        g["amount"] = Decimal(int(round(g["units"] * g["rate"]))) if g["rate"] is not None else Decimal(0)
+    for key, g in groups.items():
+        if g["monthly"] is not None:
+            dim = billing.days_in_month(key[3] + "-01")
+            g["units"] = sum(month_days[key].values())
+            # The day price as the paper shows it; the amount from the exact
+            # fraction, rounded once, whole francs or dollars.
+            g["rate"] = (Decimal(g["monthly"]) / Decimal(dim)).quantize(Decimal("0.01"))
+            g["amount"] = Decimal(int(round(g["monthly"] * g["units"] / dim)))
+        else:
+            g["amount"] = Decimal(int(round(g["units"] * g["rate"]))) if g["rate"] is not None else Decimal(0)
         lines.append(g)
-    lines.sort(key=lambda g: (g["vehicle_code"], g["rate"] or 0))
-    total = sum(g["amount"] for g in lines)
+    lines.sort(key=lambda g: (g["vehicle_code"], Decimal(g["rate"] or 0)))
     any_missing = any(g["rate"] is None for g in lines)
-    return lines, total, any_missing
+    return lines, any_missing
 
 
 def _open_invoice(client_id, period):
@@ -162,13 +192,15 @@ def _open_invoice(client_id, period):
             .filter(ClientInvoice.status != "cancelled").first())
 
 
-def _machine_overlap(client_id, start, end):
-    """A standing bill of this client that already bills machines over any
-    of these days: the same work must not be billed twice. A bill of free
-    lines only bills no machine, and never stands in the way."""
+def _machine_overlap(client_id, start, end, vehicle_ids):
+    """A standing bill of this client that already bills one of THESE
+    machines over any of these days: the same work must not be billed
+    twice. Bills of other machines — the dollar bill beside the franc
+    bill — and bills of free lines never stand in the way."""
     for inv in (ClientInvoice.query.filter_by(client_id=client_id, is_opening=False)
                 .filter(ClientInvoice.status != "cancelled").all()):
-        if not any((l.kind or "machine") == "machine" for l in inv.lines):
+        if not any((l.kind or "machine") == "machine" and l.vehicle_id in vehicle_ids
+                   for l in inv.lines):
             continue
         a, b = (inv.period_start, inv.period_end) if inv.period_start else month_bounds(inv.period)
         if a <= end and start <= b:
@@ -373,14 +405,24 @@ def invoice_new():
     if not (_valid_date(start) and _valid_date(end) and start <= end):
         start, end = month_bounds(month)
     month = end[:7]
-    lines, total, any_missing = _period_lines(client, start, end)
-    existing = _machine_overlap(client.id, start, end)
+    all_lines, _ = _period_lines(client, start, end)
+    currencies = sorted({g["currency"] for g in all_lines if g["currency"]})
+    cur = request.values.get("cur") or ""
+    if cur not in currencies:
+        cur = "GNF" if ("GNF" in currencies or not currencies) else currencies[0]
+    # This bill's lines: the chosen currency's, plus any day no price covers
+    # (those must be seen, whichever currency is picked).
+    lines = [g for g in all_lines if g["currency"] in (None, cur)]
+    total = sum((g["amount"] for g in lines), Decimal(0))
+    any_missing = any(g["rate"] is None for g in lines)
+    existing = _machine_overlap(client.id, start, end,
+                                {g["vehicle_id"] for g in lines})
     t = get_t()
 
     if request.method == "POST":
         if not has_perm("invoicing.manage"):
             abort(403)
-        back = url_for("invoicing.invoice_new", client_id=client.id, month=month)
+        back = url_for("invoicing.invoice_new", client_id=client.id, month=month, cur=cur)
         # Machine lines are billed unless the form says otherwise; a form
         # from before free lines came says nothing, and billed them.
         flags = request.form.getlist("use_machines")
@@ -411,9 +453,25 @@ def invoice_new():
             return redirect(back)
         text = lambda k, n: (request.form.get(k) or "").strip()[:n] or None
         grand = (total if use_machines else Decimal(0)) + sum((f["amount"] for f in free), Decimal(0))
+        # A dollar bill fixes its francs once and for all: the BCRG rate of
+        # the day is typed on it, and the GNF total is what the client owes.
+        fx_rate = fx_total = None
+        total_gnf = grand
+        if cur != "GNF":
+            raw = (request.form.get("fx_rate") or "").strip().replace(" ", "").replace(",", ".")
+            try:
+                fx_rate = Decimal(raw)
+            except InvalidOperation:
+                fx_rate = None
+            if fx_rate is None or fx_rate <= 0:
+                flash("error|" + t["cinv.err.fx"])
+                return redirect(back)
+            fx_total = grand
+            total_gnf = (fx_total * fx_rate).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         inv = ClientInvoice(client_id=client.id, number=_next_number(issue_date), period=month,
                             period_start=start, period_end=end,
-                            date=issue_date, due_date=due, total=grand,
+                            currency=cur, fx_rate=fx_rate, fx_total=fx_total,
+                            date=issue_date, due_date=due, total=total_gnf,
                             subject=text("subject", 120), client_ref=text("client_ref", 60),
                             contract_no=text("contract_no", 60), attention=text("attention", 120),
                             equipments=text("equipments", 120), work_purpose=text("work_purpose", 80),
@@ -455,7 +513,7 @@ def invoice_new():
     default_subject = (t["cinv.subject_default"] % days_label(start, end, lang))
     return render_template("invoice_new.html", clients=clients, client=client, month=month,
                            period_start=start, period_end=end,
-                           lines=lines, total=total, any_missing=any_missing,
+                           cur=cur, currencies=currencies, lines=lines, total=total, any_missing=any_missing,
                            existing=existing, default_subject=default_subject,
                            # whoever issues the bill is its contact, unless they say otherwise
                            default_contact_name=current_user.full_name,
@@ -538,12 +596,16 @@ def client_detail(cid):
         abort(404)
     book = billing.rate_book(row.id)
     today = date.today().isoformat()
+    tag_names = {tg.id: tg.name for tg in BillingTag.query.all()}
     machines = []
     for v in row.live_machines:
-        hist = list(reversed(book.get(v.id, [])))   # newest first
-        machines.append({"v": v, "rate": billing.rate_on(book, v.id, today),
+        hist = list(reversed(book["tags"].get(v.id, [])))   # newest first
+        cur = billing.tag_on(book, v.id, today)
+        basis, currency, rate = billing.price_on(book, v.id, today)
+        machines.append({"v": v, "rate": rate, "basis": basis, "cur": currency,
+                         "tag": tag_names.get(cur),
                          "since": next((eff for eff, _ in hist), None),
-                         "history": hist})
+                         "history": [(eff, tag_names.get(tid)) for eff, tid in hist]})
     # The money side, the mirror of a supplier's page.
     from blueprints import client_reports as cr
     date_from, date_to = cr.year_bounds()
@@ -578,9 +640,10 @@ def _machine_tab(row):
 @login_required
 @require_perm("invoicing.manage")
 def client_machine(cid):
-    """Give the client one machine with its rate and the date it starts, or,
-    with ?vid= for a machine it already has, a new rate from a date. A machine
-    held by another client moves here; its old prices stay with the old one."""
+    """Give the client one machine with its tarif and the date it starts,
+    or, with ?vid= for a machine it already has, a new tarif from a date. A
+    machine held by another client moves here; its dated tarifs stay, so the
+    months it worked elsewhere still bill as they were."""
     row = _get_client_or_404(cid)
     t = get_t()
     pickable = _pickable_machines()
@@ -590,35 +653,39 @@ def client_machine(cid):
         fixed = None
     book = billing.rate_book(row.id)
     today = date.today().isoformat()
+    tags = _pickable_tags(book)
     error = None
     if request.method == "POST":
         v = fixed or by_id.get(request.form.get("vehicle_id", type=int))
-        raw = _clean_rate(request.form.get("rate"))
+        tag = db.session.get(BillingTag, request.form.get("tag_id", type=int) or 0)
         eff = (request.form.get("effective_from") or "").strip()
         if v is None:
             error = t["client.err.machine"]
-        elif not raw.isdigit() or int(raw) <= 0:
-            error = t["client.err.rate"]
+        elif tag is None or not tag.is_active:
+            error = t["client.err.tag"]
         elif not _valid_date(eff):
             error = t["client.err.date"]
         else:
             moved = v.client_id != row.id
             v.client_id = row.id
-            rate = int(raw)
-            if rate != billing.rate_on(book, v.id, eff):
-                db.session.add(ClientRate(client_id=row.id, vehicle_id=v.id, rate_per_unit=rate,
+            if tag.id != billing.tag_on(book, v.id, eff):
+                db.session.add(VehicleTag(vehicle_id=v.id, tag_id=tag.id,
                                           effective_from=eff, created_by=current_user.id))
             log_action("UPDATE", "client", resource_id=row.id,
-                       detail="%s %s for client '%s' at %d from %s"
-                              % ("Added" if moved else "Rated", v.code, row.name, rate, eff))
+                       detail="%s %s for client '%s' on tarif '%s' from %s"
+                              % ("Added" if moved else "Retagged", v.code, row.name, tag.name, eff))
             db.session.commit()
             flash("success|" + t["client.machine_saved"])
             return modal_ok() if is_modal_request() else redirect(_machine_tab(row))
     choices = [v for v in pickable if v.client_id != row.id]
     tpl = "_client_machine_form.html" if is_modal_request() else "client_machine_form.html"
     status = 422 if (error and is_modal_request()) else 200
+    cur_tag = billing.tag_on(book, fixed.id, today) if fixed else None
+    basis_now, cur_now, rate_now = (billing.price_on(book, fixed.id, today)
+                                    if fixed else (None, None, None))
     return render_template(tpl, client=row, fixed=fixed, choices=choices, error=error,
-                           rate_now=billing.rate_on(book, fixed.id, today) if fixed else None,
+                           tags=tags, tag_now=next((n for i, n in tags if i == cur_tag), None),
+                           rate_now=rate_now, basis_now=basis_now, cur_now=cur_now,
                            today=today), status
 
 
@@ -637,6 +704,213 @@ def client_machine_remove(cid, vid):
         db.session.commit()
         flash("success|" + get_t()["client.machine_removed"])
     return redirect(_machine_tab(row))
+
+
+def _pickable_tags(book):
+    """(id, "name — price") pairs of the live tarifs, for a select. The
+    label carries the dollars and the per-month where they apply."""
+    t = get_t()
+    today = date.today().isoformat()
+    out = []
+    for tg in BillingTag.query.filter_by(is_active=True).order_by(BillingTag.name).all():
+        rate = billing.latest(book["prices"].get(tg.id, []), today)
+        if rate is None:
+            out.append((tg.id, tg.name))
+            continue
+        label = "%s — %s" % (tg.name, _num(rate))
+        if tg.currency != "GNF":
+            label += " " + tg.currency
+        if tg.basis == "month":
+            label += "/" + t["lease.month"]
+        out.append((tg.id, label))
+    return out
+
+
+@invoicing_bp.route("/facturation/tarifs")
+@login_required
+@require_perm("invoicing.view")
+def tarifs():
+    """The tarifs: each one's price today, since when, its past prices, and
+    how many machines carry it. Prices are dated history — a past month
+    bills at the price that applied then, whatever is typed here since."""
+    show_archived = request.args.get("archives") == "1"
+    rows = (BillingTag.query.filter(BillingTag.is_active.is_(not show_archived))
+            .order_by(BillingTag.name).all())
+    archived = BillingTag.query.filter_by(is_active=False).count()
+    today = date.today().isoformat()
+    prices = billing.price_book()
+    # Machines carrying each tarif today, live ones only.
+    counts, used = {}, set()
+    live = {i for (i,) in Vehicle.query.filter(Vehicle.deleted_at.is_(None))
+            .with_entities(Vehicle.id).all()}
+    for vid, hist in billing.tag_book().items():
+        used.update(tid for _, tid in hist)
+        if vid not in live:
+            continue
+        cur = billing.latest(hist, today)
+        if cur is not None:
+            counts[cur] = counts.get(cur, 0) + 1
+    data = []
+    for tg in rows:
+        hist = list(reversed(prices.get(tg.id, [])))   # newest first
+        data.append({"tag": tg, "rate": billing.latest(prices.get(tg.id, []), today),
+                     "since": next((eff for eff, _ in hist), None),
+                     "history": hist, "count": counts.get(tg.id, 0),
+                     "used": tg.id in used})
+    return render_template("tarifs.html", rows=data, show_archived=show_archived,
+                           archived=archived)
+
+
+def _tarifs_url():
+    return url_for("invoicing.tarifs")
+
+
+def _save_tag_price(tag, raw, eff, t):
+    """Append a dated price to the tarif when it differs from the one already
+    in force that day. Returns an error text or None."""
+    raw = _clean_rate(raw)
+    if not raw.isdigit() or int(raw) <= 0:
+        return t["client.err.rate"]
+    if not _valid_date(eff):
+        return t["client.err.date"]
+    rate = int(raw)
+    pairs = [(r.effective_from, r.rate_per_unit) for r in tag.prices]
+    if rate != billing.latest(pairs, eff):
+        db.session.add(BillingTagRate(tag_id=tag.id, rate_per_unit=rate,
+                                      effective_from=eff, created_by=current_user.id))
+    return None
+
+
+@invoicing_bp.route("/facturation/tarifs/nouveau", methods=["GET", "POST"])
+@login_required
+@require_perm("invoicing.manage")
+def tarif_new():
+    """A tarif is born with its name, its first price and the date that
+    price starts — which may sit in the past, so months never billed yet
+    bill at it."""
+    t = get_t()
+    error = None
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        clash = BillingTag.query.filter(db.func.lower(BillingTag.name) == name.lower()).first()
+        if not name:
+            error = t.get("list.err.name_required", "Le nom est obligatoire.")
+        elif clash:
+            error = t["tarif.err.exists"]
+        else:
+            basis = request.form.get("basis")
+            currency = request.form.get("tag_currency")
+            tag = BillingTag(name=name, created_by=current_user.id,
+                             basis=basis if basis in ("unit", "month") else "unit",
+                             currency=currency if currency in ("GNF", "USD") else "GNF")
+            db.session.add(tag)
+            db.session.flush()
+            error = _save_tag_price(tag, request.form.get("rate"),
+                                    (request.form.get("effective_from") or "").strip(), t)
+            if error is None:
+                log_action("CREATE", "tarif", resource_id=tag.id,
+                           detail="Created tarif '%s'" % tag.name)
+                db.session.commit()
+                flash("success|" + t["tarif.saved"])
+                return modal_ok() if is_modal_request() else redirect(_tarifs_url())
+            db.session.rollback()
+    tpl = "_tarif_form.html" if is_modal_request() else "tarif_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, row=None, error=error, today=date.today().isoformat()), status
+
+
+def _get_tag_or_404(tid):
+    row = db.session.get(BillingTag, tid)
+    if not row:
+        abort(404)
+    return row
+
+
+@invoicing_bp.route("/facturation/tarifs/<int:tid>/modifier", methods=["GET", "POST"])
+@login_required
+@require_perm("invoicing.manage")
+def tarif_edit(tid):
+    """Rename only: the prices live in their own dated rows and a past month
+    keeps billing on them whatever the tarif is called."""
+    row = _get_tag_or_404(tid)
+    t = get_t()
+    error = None
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        clash = (BillingTag.query.filter(db.func.lower(BillingTag.name) == name.lower())
+                 .filter(BillingTag.id != row.id).first())
+        if not name:
+            error = t.get("list.err.name_required", "Le nom est obligatoire.")
+        elif clash:
+            error = t["tarif.err.exists"]
+        else:
+            row.name = name
+            log_action("UPDATE", "tarif", resource_id=row.id,
+                       detail="Renamed tarif to '%s'" % name)
+            db.session.commit()
+            flash("success|" + t["tarif.saved"])
+            return modal_ok() if is_modal_request() else redirect(_tarifs_url())
+    tpl = "_tarif_form.html" if is_modal_request() else "tarif_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, row=row, error=error, today=date.today().isoformat()), status
+
+
+@invoicing_bp.route("/facturation/tarifs/<int:tid>/prix", methods=["GET", "POST"])
+@login_required
+@require_perm("invoicing.manage")
+def tarif_price(tid):
+    """A new dated price on the tarif. The old rows stay: a month already
+    billed moves nothing, and a month not yet billed takes, day by day, the
+    price in force then."""
+    row = _get_tag_or_404(tid)
+    t = get_t()
+    today = date.today().isoformat()
+    pairs = [(r.effective_from, r.rate_per_unit) for r in row.prices]
+    error = None
+    if request.method == "POST":
+        error = _save_tag_price(row, request.form.get("rate"),
+                                (request.form.get("effective_from") or "").strip(), t)
+        if error is None:
+            log_action("UPDATE", "tarif", resource_id=row.id,
+                       detail="Priced tarif '%s'" % row.name)
+            db.session.commit()
+            flash("success|" + t["tarif.saved"])
+            return modal_ok() if is_modal_request() else redirect(_tarifs_url())
+    tpl = "_tarif_price_form.html" if is_modal_request() else "tarif_price_form.html"
+    status = 422 if (error and is_modal_request()) else 200
+    return render_template(tpl, row=row, error=error, today=today,
+                           rate_now=billing.latest(pairs, today)), status
+
+
+@invoicing_bp.route("/facturation/tarifs/<int:tid>/archiver", methods=["POST"])
+@login_required
+@require_perm("invoicing.manage")
+def tarif_archive(tid):
+    row = _get_tag_or_404(tid)
+    row.is_active = not row.is_active
+    log_action("UPDATE", "tarif", resource_id=row.id,
+               detail="%s tarif '%s'" % ("Restored" if row.is_active else "Archived", row.name))
+    db.session.commit()
+    flash("success|" + get_t()["tarif.saved"])
+    return redirect(_tarifs_url())
+
+
+@invoicing_bp.route("/facturation/tarifs/<int:tid>/supprimer", methods=["POST"])
+@login_required
+@require_perm("invoicing.manage")
+def tarif_delete(tid):
+    """Gone for good — but only a tarif no machine ever carried: one that
+    was used holds the price of months already worked, so it archives."""
+    row = _get_tag_or_404(tid)
+    t = get_t()
+    if VehicleTag.query.filter_by(tag_id=row.id).first() is not None:
+        flash("error|" + t["tarif.in_use"])
+        return redirect(_tarifs_url())
+    log_action("DELETE", "tarif", resource_id=row.id, detail="Deleted tarif '%s'" % row.name)
+    db.session.delete(row)
+    db.session.commit()
+    flash("success|" + t["tarif.deleted"])
+    return redirect(_tarifs_url())
 
 
 def _save_client(row):

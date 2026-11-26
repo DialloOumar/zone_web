@@ -11,7 +11,8 @@
     {% if show_lessor %}<td class="col-secondary">{{ e.vehicle.supplier.name if e.vehicle.supplier else '—' }}</td>{% endif %}
     {% endif %}
     <td>
-        {% if e.vehicle.category.unit_type == 'trips' %}
+        {% if e.half_day %}<span class="chip chip--more" title="{{ t['entry.half_day'] }}">½</span> {% endif %}
+        {%- if e.vehicle.category.unit_type == 'trips' %}
             {% if e.trips is not none %}{{ e.trips }} {{ t['unit.trips'] }}{% if e.trips != 1 %}s{% endif %}{% else %}—{% endif %}
         {% else %}
             {% if e.hours is not none %}{{ e.hours }} {{ t['unit.hours'] }}{% else %}—{% endif %}

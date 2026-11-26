@@ -7,6 +7,9 @@
 {# The clients, on a page of their own: who the machines work for and what
    each still owes. A name opens the client's page. #}
 <div class="card-header card-header--end" style="margin-bottom:0;">
+    <a href="{{ url_for('invoicing.tarifs') }}" class="btn btn--sm btn--tonal">
+        <span class="material-symbols-outlined">request_quote</span> {{ t['tarif.title'] }}
+    </a>
     <a href="{{ url_for('client_reports.aged_report') }}" class="btn btn--sm btn--tonal">
         <span class="material-symbols-outlined">query_stats</span> {{ t['creance.title'] }}
     </a>
