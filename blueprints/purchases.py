@@ -11,7 +11,8 @@ States: à approuver (logistique), à approuver (finance), à approuver (gérant
 approuvé, refusé.
 Refusing takes a reason; a refused order is corrected and resubmitted, and
 every refusal stays on it. Editing an order that already had an approval
-takes the approval back -- what was signed is not what is now written.
+takes the approval back -- what was signed is not what is now written. That
+holds for an approved order too, while nothing of it was received or billed.
 
 Prices are known at order time; each line may carry a discount (an amount, "Remise"), summed
 at the foot. Numbers are BC-2026-001, per year of issue, given by the app.
@@ -553,10 +554,18 @@ def _shows_manager(po):
         (po.status in PENDING or po.status == "rejected") and manager_signs())
 
 
-def _editable(po):
+def _deletable(po):
     """While nobody has fully signed it. An approved order is what the
-    supplier was sent: it does not move."""
+    supplier was sent: it is not removed."""
     return po.status in PENDING or po.status == "rejected"
+
+
+def _editable(po):
+    """Unsigned, or approved with nothing received and no bill tied to it:
+    the head of logistics may still correct it, and it goes back through
+    every signature. Once the store took some in or a bill names it, it
+    does not move."""
+    return _deletable(po) or (po.status == "approved" and not po.invoices)
 
 
 @purchases_bp.route("/<int:oid>/modifier", methods=["GET", "POST"])
@@ -567,8 +576,9 @@ def edit(oid):
     if not _may_order_for(po.store_id):
         abort(403)
     if not _editable(po):
-        flash("error|" + t["po.err.locked"])
+        flash("error|" + t["po.err.locked_done"])
         return redirect(url_for("purchases.detail", oid=po.id))
+    was_approved = po.status == "approved"
     if request.method == "POST":
         header, lines, error = _read_form(po)
         if error:
@@ -581,7 +591,8 @@ def edit(oid):
         _reset_approvals(po)
         po.rejected_by = po.rejected_at = po.rejected_reason = None
         log_action("UPDATE", "purchase_order", resource_id=po.id,
-                   detail="Order %s rewritten: %d GNF" % (po.number, po.total))
+                   detail="Order %s rewritten%s: %d GNF" % (po.number, " after approval" if was_approved else "",
+                                                             po.total))
         db.session.commit()
         flash("success|" + t["po.updated"])
         return redirect(url_for("purchases.detail", oid=po.id))
@@ -850,7 +861,7 @@ def detail(oid):
                            can_receive=has_perm("stock.manage") and po.status in RECEIVABLE
                                        and _may_receive(po),
                            can_delete=(current_user.is_super_admin
-                                       or _may_order_for(po.store_id)) and _editable(po))
+                                       or _may_order_for(po.store_id)) and _deletable(po))
 
 
 @purchases_bp.route("/<int:oid>/approuver/<any(logistics,finance,manager):kind>", methods=["POST"])
@@ -914,7 +925,7 @@ def delete(oid):
     t = get_t()
     if not current_user.is_super_admin and not _may_order_for(po.store_id):
         abort(403)
-    if not _editable(po):
+    if not _deletable(po):
         flash("error|" + t["po.err.locked"])
         return redirect(url_for("purchases.detail", oid=po.id))
     number = po.number
