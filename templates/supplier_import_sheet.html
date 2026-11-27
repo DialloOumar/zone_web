@@ -1,14 +1,255 @@
 {% extends "base.html" %}
 
-{% block title %}{{ s.sheet }}{% endblock %}
-{% block page_title %}{{ s.sheet }}{% endblock %}
+{% block title %}{{ r.sheet }}{% endblock %}
+{% block page_title %}{{ t['imp.title'] }}{% endblock %}
 
 {% block content %}
+{# One sheet of the file: who it is in the app, its lines (a line unticked
+   stays out of the solde à nouveau), and what the app already holds for
+   that supplier. Ticks save as they are made; a list or a choice saves and
+   reloads, since it changes what the page shows. #}
+<style>
+    .imp-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+    .imp-title { font-size: clamp(1.4rem, 4vw, 1.9rem); font-weight: 700; line-height: 1.15; margin: 0; }
+    .imp-who { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 16px 0 6px; }
+    .imp-who label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; font-weight: 500; }
+    .imp-who select, .imp-who input { width: 100%; }
+    .imp-open { outline: 2px solid var(--c-amber); outline-offset: 1px; border-radius: 6px; }
+    .imp-lines td { vertical-align: middle; }
+    .imp-lines tr.imp-doubt td { background: var(--c-amber-bg); }
+    .imp-lines tr.imp-off td:not(:first-child) { color: var(--md-on-surface-variant); text-decoration: line-through; }
+    .imp-lines tr.imp-claim td:not(:first-child) { color: var(--md-on-surface-variant); text-decoration: line-through; }
+    .imp-lines input[type=checkbox] { width: 20px; height: 20px; }
+    .imp-solde { display: flex; justify-content: flex-end; align-items: baseline; gap: 14px; flex-wrap: wrap; padding: 14px 4px 4px; }
+    .imp-solde b { font-size: 1.4rem; white-space: nowrap; }
+    .imp-app { border: 1px solid var(--md-outline-variant); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+    .imp-app__head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-weight: 500; margin-bottom: 8px; }
+    .imp-app label { display: flex; align-items: center; gap: 8px; padding: 5px 0; flex-wrap: wrap; }
+    .imp-app input[type=radio] { width: 18px; height: 18px; }
+    .imp-app select { flex: 1 1 260px; max-width: 520px; }
+    .imp-app--open { border-color: var(--c-amber); box-shadow: inset 3px 0 0 var(--c-amber); }
+    .imp-blocks { color: var(--c-red); margin: 14px 0 0; padding-left: 18px; }
+    .imp-actions { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .imp-actions div { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>
+
 <div class="card-header card-header--end" style="margin-bottom:0;">
-    <a data-back href="{{ url_for('supplier_import.review', iid=imp.id) }}" class="btn btn--sm btn--outlined">{{ t['btn.back'] }}</a>
+    <a href="{{ url_for('supplier_import.review', iid=imp.id) }}" class="btn btn--sm btn--outlined">{{ t['imp.back_list'] }}</a>
 </div>
+
 <section class="card">
-    <div class="card-header"><h2>{{ s.sheet }}</h2></div>
-    {% include "_supplier_import_sheet.html" %}
+    <div class="imp-top">
+        <span class="muted">{{ t['imp.sheet_of'] % dict(n=pos, m=n) }}</span>
+        <div style="display:flex; gap:6px;">
+            {% if prev %}<a href="{{ url_for('supplier_import.sheet', iid=imp.id, i=prev.i) }}" class="btn btn--sm btn--outlined">&larr; {{ t['imp.prev'] }}</a>{% endif %}
+            {% if nxt %}<a href="{{ url_for('supplier_import.sheet', iid=imp.id, i=nxt.i) }}" class="btn btn--sm btn--outlined">{{ t['imp.next'] }} &rarr;</a>{% endif %}
+        </div>
+    </div>
+    <h2 class="imp-title">{{ r.sheet }}
+        {% if r.state == 'ok' %}<span class="badge badge--active">{{ t['imp.state.ok'] }}</span>
+        {% elif r.state == 'skip' %}<span class="badge badge--inactive">{{ t['imp.skip'] }}</span>{% endif %}
+    </h2>
+
+    <form method="post" id="imp-form">
+        {% if not r.skip %}
+        <div class="imp-who">
+            <label>
+                <span>{{ t['imp.col.supplier'] }}</span>
+                <select name="match" data-reload {% if r.target is none %}class="imp-open"{% endif %}>
+                    {% if not r.choice %}<option value="" selected>{{ t['imp.choose'] }}</option>{% endif %}
+                    {% if r.candidates %}
+                    <optgroup label="{{ t['imp.near'] }}">
+                        {% for s in r.candidates %}<option value="{{ s.id }}" {% if r.choice == s.id|string %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+                    </optgroup>
+                    {% endif %}
+                    {% if r.sheet_cands %}
+                    <optgroup label="{{ t['imp.near_sheets'] }}">
+                        {% for o in r.sheet_cands %}<option value="sheet:{{ o.i }}" {% if r.choice == 'sheet:' ~ o.i %}selected{% endif %}>{{ t['imp.same_as'] % o.sheet }}</option>{% endfor %}
+                    </optgroup>
+                    {% endif %}
+                    <option value="new" {% if r.choice == 'new' %}selected{% endif %}>{{ t['imp.new'] }}</option>
+                    <optgroup label="{{ t['imp.all_suppliers'] }}">
+                        {% for s in suppliers if s not in r.candidates %}<option value="{{ s.id }}" {% if r.choice == s.id|string %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+                    </optgroup>
+                </select>
+            </label>
+            {% if r.target == 'new' and r.head == r.i %}
+            <label>
+                <span>{{ t['imp.new_name'] }}</span>
+                <input type="text" name="name" value="{{ r.name }}" maxlength="80" required data-reload-blur
+                       {% if r.blocks | select('in', ['no_name', 'name_taken', 'name_twice', 'name_long']) | list %}class="imp-open"{% endif %}>
+            </label>
+            {% endif %}
+            {% if r.target is not none %}
+            <label>
+                <span>{{ t['imp.provides'] }}</span>
+                <select name="type" data-save>
+                    {% for k in ('parts', 'machines', 'both') %}<option value="{{ k }}" {% if r.kind == k %}selected{% endif %}>{{ t['imp.type.' + k] }}</option>{% endfor %}
+                </select>
+            </label>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if not r.skip and (r.bills or r.orders or r.existing is not none) %}
+        <h3 style="margin:18px 0 4px;">{{ t['imp.in_app_title'] }}</h3>
+        {% set credit_lines = r.lines | selectattr('credit') | list %}
+        {% for b in r.bills %}
+        {% set mine = b.answer and b.answer.startswith(r.i ~ '.') %}
+        {% set same_refs = [] %}{% for n in b.same %}{% set _ = same_refs.append(r.i ~ '.' ~ n) %}{% endfor %}
+        <div class="imp-app {% if b.answer is none %}imp-app--open{% endif %}">
+            <div class="imp-app__head">
+                <span>{{ t['imp.app_bill'] % dict(num=b.number or '—', day=b.day) }}{% if b.text %} · {{ b.text }}{% endif %}</span>
+                <span style="white-space:nowrap;">{{ b.amount|num }}</span>
+            </div>
+            {% for n in b.same %}{% set l = r.lines[n] %}
+            <label><input type="radio" name="{{ b.key }}" value="{{ r.i }}.{{ n }}" data-reload {% if b.answer == r.i ~ '.' ~ n %}checked{% endif %}>
+                {{ t['imp.is_line'] % dict(day=l.day or '—', text=l.text) }}</label>
+            {% endfor %}
+            <label><input type="radio" name="{{ b.key }}" value="none" data-reload {% if b.answer == 'none' %}checked{% endif %}> {{ t['imp.not_in_file'] }}</label>
+            <label><input type="radio" name="{{ b.key }}" value="other" {% if b.answer and b.answer != 'none' and b.answer not in same_refs %}checked{% endif %}> {{ t['imp.other_line'] }}
+                <select name="other:{{ b.key }}" data-reload-other>
+                    <option value="">{{ t['imp.choose'] }}</option>
+                    {% for l in credit_lines %}<option value="{{ r.i }}.{{ l.n }}" {% if b.answer == r.i ~ '.' ~ l.n %}selected{% endif %}>{{ l.day or '—' }} · {{ l.text[:60] }} · {{ l.credit|num }}</option>{% endfor %}
+                </select>
+            </label>
+            {% if b.answer and not mine and b.answer != 'none' %}<p class="muted small">{{ t['imp.other_sheet'] }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        {% for o in r.orders %}
+        <div class="imp-app {% if o.answer is none %}imp-app--open{% endif %}">
+            <div class="imp-app__head">
+                <span>{{ t['imp.app_order'] % dict(num=o.number, day=o.day) }}</span>
+                <span style="white-space:nowrap;">{{ o.amount|num }}</span>
+            </div>
+            {% for n in o.same %}{% set l = r.lines[n] %}
+            <label><input type="radio" name="{{ o.key }}" value="{{ r.i }}.{{ n }}" data-reload {% if o.answer == r.i ~ '.' ~ n %}checked{% endif %}>
+                {{ t['imp.order_is_line'] % dict(day=l.day or '—', text=l.text) }}</label>
+            {% endfor %}
+            <label><input type="radio" name="{{ o.key }}" value="none" data-reload {% if o.answer == 'none' %}checked{% endif %}> {{ t['imp.order_not'] }}</label>
+        </div>
+        {% endfor %}
+        {% if r.existing is not none %}
+        <div class="imp-app {% if r.open_answer is none %}imp-app--open{% endif %}">
+            <div class="imp-app__head">
+                <span>{{ t['imp.app_opening'] }}</span>
+                <span style="white-space:nowrap;">{{ r.existing.amount|num }}</span>
+            </div>
+            <label><input type="radio" name="open:{{ r.target.id }}" value="replace" data-reload {% if r.open_answer == 'replace' %}checked{% endif %}> {{ t['imp.open.replace'] }}</label>
+            <label><input type="radio" name="open:{{ r.target.id }}" value="keep" data-reload {% if r.open_answer == 'keep' %}checked{% endif %}> {{ t['imp.open.keep'] }}</label>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <h3 style="margin:22px 0 4px;">{{ t['imp.lines_title'] }}</h3>
+        <input type="hidden" name="lines" value="1">
+        <div class="table-wrap"><table class="data-table imp-lines" id="imp-lines">
+            <thead><tr>
+                <th style="width:40px;"></th>
+                <th>{{ t['imp.col.day'] }}</th>
+                <th>{{ t['imp.col.text'] }}</th>
+                <th>{{ t['imp.col.ref'] }}</th>
+                <th style="text-align:right;">{{ t['imp.col.debit'] }}</th>
+                <th style="text-align:right;">{{ t['imp.col.credit'] }}</th>
+            </tr></thead>
+            <tbody>
+                {% for l in r.lines %}
+                <tr class="{% if l.doubt %}imp-doubt{% endif %} {% if l.claim %}imp-claim{% elif l.off %}imp-off{% endif %}"
+                    data-credit="{{ l.credit }}" data-debit="{{ l.debit }}" {% if l.claim %}data-claim{% endif %}>
+                    <td>
+                        {% if l.claim %}
+                        <input type="hidden" name="keep" value="{{ l.n }}">
+                        <span class="material-symbols-outlined" title="{{ t['imp.in_app'] % l.claim }}">receipt_long</span>
+                        {% else %}
+                        <input type="checkbox" name="keep" value="{{ l.n }}" {% if not l.off %}checked{% endif %}
+                               {% if r.skip %}disabled{% endif %} aria-label="{{ t['imp.keep_line'] }}" data-tick>
+                        {% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">{{ l.day }}</td>
+                    <td>{{ l.text }}{% if l.claim %} <span class="chip">{{ t['imp.in_app'] % l.claim }}</span>{% endif %}</td>
+                    <td>{{ l.ref }}</td>
+                    <td style="text-align:right; white-space:nowrap;">{% if l.debit %}{{ l.debit|num }}{% endif %}</td>
+                    <td style="text-align:right; white-space:nowrap;">{% if l.credit %}{{ l.credit|num }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table></div>
+        <div class="imp-solde">
+            {% if 'balance' in r.doubts %}<span class="muted">{{ t['imp.last_written'] }} {{ r.last|num }}</span>{% endif %}
+            <span style="color:var(--c-red);" id="imp-owed" {% if not r.owed %}hidden{% endif %}>{{ t['imp.owed'] }} <b id="imp-owed-v" style="font-size:1rem;">{{ r.owed|num }}</b></span>
+            <span>{{ t['imp.col.solde'] }}</span>
+            <b id="imp-solde">{{ r.solde|num }}</b>
+        </div>
+
+        {% if r.blocks and not r.skip %}
+        <ul class="imp-blocks">
+            {% for b in r.blocks | unique %}<li>{{ t['imp.block.' + b] % (r.paid|num if b == 'paid' else (r.name_twin or '')) if '%' in t['imp.block.' + b] else t['imp.block.' + b] }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+
+        <div class="imp-actions">
+            <div>
+                {% if r.skip %}
+                <button type="submit" name="action" value="unskip" class="btn btn--outlined">{{ t['imp.unskip'] }}</button>
+                {% else %}
+                <button type="submit" name="action" value="skip" class="btn btn--outlined">{{ t['imp.skip_sheet'] }}</button>
+                {% endif %}
+            </div>
+            {% if not r.skip %}
+            <div>
+                <button type="submit" name="action" value="save" class="btn btn--outlined">{{ t['btn.save'] }}</button>
+                <button type="submit" name="action" value="ok" class="btn btn--primary" {% if r.blocks %}disabled{% endif %}>
+                    <span class="material-symbols-outlined">check</span> {{ t['imp.validate_next'] }}
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </form>
 </section>
+
+<script>
+(function () {
+    var form = document.getElementById("imp-form");
+    var key = "imp-scroll-{{ imp.id }}-{{ r.i }}";
+    try {
+        var y = sessionStorage.getItem(key);
+        if (y) { window.scrollTo(0, +y); sessionStorage.removeItem(key); }
+    } catch (e) {}
+
+    function fmt(n) { return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+    function total() {
+        var sum = 0;
+        form.querySelectorAll("#imp-lines tbody tr").forEach(function (tr) {
+            var box = tr.querySelector("[data-tick]");
+            var kept = !tr.hasAttribute("data-claim") && (!box || box.checked);
+            tr.classList.toggle("imp-off", !!box && !box.checked);
+            if (kept) sum += (+tr.dataset.credit || 0) - (+tr.dataset.debit || 0);
+        });
+        document.getElementById("imp-solde").textContent = fmt(Math.max(sum, 0));
+        document.getElementById("imp-owed").hidden = sum >= 0;
+        document.getElementById("imp-owed-v").textContent = fmt(-sum);
+    }
+    function reload() {
+        try { sessionStorage.setItem(key, window.scrollY); } catch (e) {}
+        form.submit();
+    }
+    function quietSave() {
+        var data = new FormData(form);
+        data.set("action", "save");
+        fetch(form.action || location.href, {method: "POST", body: data, headers: {"X-Requested-With": "fetch"}});
+    }
+    form.addEventListener("change", function (e) {
+        var el = e.target;
+        if (el.matches("[data-tick]")) { total(); quietSave(); }
+        else if (el.matches("[data-save]")) { quietSave(); }
+        else if (el.matches("[data-reload]")) { reload(); }
+        else if (el.matches("[data-reload-other]")) {
+            var radio = el.closest("label").querySelector("input[type=radio]");
+            if (radio) radio.checked = true;
+            if (el.value) reload();
+        }
+        else if (el.matches("[data-reload-blur]")) { reload(); }
+    });
+})();
+</script>
 {% endblock %}

@@ -1,26 +1,13 @@
 """Bringing an old supplier ledger in: one Excel sheet per supplier, with its
 invoices (CREDIT), payments (DEBIT) and running BALANCE.
 
-Only each supplier's balance comes in, as its solde antérieur. The lines
-themselves stay in the file: the payments are not tied to the bills they
-settled, some have no date, and the final balance is the figure both sides
-agree on.
+Only each supplier's balance comes in, as its solde antérieur: the sum of
+the lines the people reviewing the file kept ticked. The lines themselves
+stay in the file: the payments are not tied to the bills they settled, and
+some have no date.
 
-Nothing is written while the file is reviewed. Every point the app cannot
-settle alone becomes a question with no answer, and the import stays locked
-until each one has been answered by a person. The questions:
-
-  keep   the sheet may not be a supplier (land, loans, fuel, taxes...)
-  dup    the sheet looks like the same supplier as an earlier sheet
-  match  the name looks like a supplier already in the app, not exactly
-  bal    the sheet's last balance and the sum of its lines disagree
-  neg    the balance is negative: the supplier owes the company
-  type   parts or machines cannot be told from the lines
-  open   the supplier already has a solde antérieur in the app
-  inv:N  an unpaid bill already in the app may also be in the file
-  po:N   an order still to bill may already be billed in the file
-
-A computed solde antérieur below zero is an error, and blocks the import too.
+Nothing is written while the file is reviewed, sheet by sheet, and the
+import stays locked until every sheet is validated or left out.
 """
 import difflib
 import io
@@ -213,17 +200,240 @@ def read_workbook(data):
 
 
 # ── The review ─────────────────────────────────────────────────────────────
+#
+# One page per sheet: which supplier it is in the app, its lines with a box
+# each (a line unticked stays out of the solde à nouveau), and, for a
+# supplier the app already knows, the bills and orders the app holds that
+# may be lines of the sheet too. A sheet is validated by hand; the import
+# waits until every sheet is validated or left out.
+#
+# The answers, in imp.choices:
+#   "<i>:match"   "new" | a supplier id | "sheet:<j>" (same supplier as sheet j)
+#   "<i>:name"    the name of a new supplier
+#   "<i>:type"    parts | machines | both
+#   "<i>:off"     [line numbers unticked]
+#   "<i>:skip"    "1": the sheet is not imported
+#   "<i>:ok"      "1": the sheet is validated
+#   "inv:<id>"    "<i>.<n>": that app bill is line n of sheet i | "none"
+#   "po:<id>"     "<i>.<n>": that order was billed by line n of sheet i | "none"
+#   "open:<sid>"  replace | keep: the supplier's solde antérieur already in the app
 
-class Q:
-    """One question about a sheet: its options, and the answer if given."""
-    def __init__(self, key, code, label, options, value, detail=None):
-        self.key, self.code, self.label, self.options, self.detail = key, code, label, options, detail
-        valid = {o[0] for o in options}
-        self.value = value if value in valid else None
 
-    @property
-    def open(self):
-        return self.value is None
+def review(imp, suppliers, open_bills, opening_rows, orders):
+    """Read the file against the app and the answers given so far.
+
+    suppliers: [Supplier]; open_bills: {supplier_id: [SupplierInvoice unpaid,
+    not the opening]}; opening_rows: {supplier_id: SupplierInvoice};
+    orders: {supplier_id: [PurchaseOrder still to bill]}.
+
+    Returns (rows, groups): one row per sheet, one group per supplier that
+    will receive something."""
+    sheets = json.loads(imp.data)
+    ans = json.loads(imp.choices or "{}")
+    by_id = {s.id: s for s in suppliers}
+    by_name = {plain(s.name): s for s in suppliers}
+    as_of = imp.as_of or "9999"
+    rows = []
+
+    for s in sheets:
+        i = s["i"]
+        r = dict(i=i, sheet=s["sheet"], readable=s["readable"], default_name=s["name"],
+                 name=ans.get("%d:name" % i) or s["name"], skip=ans.get("%d:skip" % i) == "1",
+                 ok=ans.get("%d:ok" % i) == "1", last=s["last"], lines=[], candidates=[], sheet_cands=[],
+                 pick=ans.get("%d:match" % i), auto=None, target=None, follows=None, bills=[], orders=[],
+                 existing=None, open_answer=None, blocks=[], doubts=[], solde=0, owed=0)
+        rows.append(r)
+        if not s["readable"]:
+            r["state"] = "unread"
+            continue
+        off = {n for n in ans.get("%d:off" % i, []) if isinstance(n, int)}
+        for n, x in enumerate(s["lines"]):
+            r["lines"].append(dict(n=n, day=_show_day(x), text=x[2], ref=x[3], debit=x[4] or 0, credit=x[5] or 0,
+                                   carried=_carried(x[2], x[3]),
+                                   doubt=bool(_PERSONAL.search(plain(x[2]))), off=n in off, claim=None))
+        r["not_supplier"] = any(w in plain(s["sheet"]).split() or w in plain(s["sheet"]) for w in _NOT_SUPPLIER)
+        # Who it is: the same name in the app, or names close to it, in the
+        # app or among the sheets before it.
+        exact = by_name.get(plain(r["name"])) or by_name.get(plain(s["sheet"]))
+        r["candidates"] = sorted((x for x in suppliers if x is not exact and
+                                  max(likeness(x.name, s["sheet"]), likeness(x.name, s["name"])) >= NEAR),
+                                 key=lambda x: x.name)
+        r["sheet_cands"] = [o for o in rows[:-1] if o["readable"] and likeness(o["sheet"], s["sheet"]) >= NEAR]
+        if exact and not r["sheet_cands"]:
+            r["auto"] = str(exact.id)
+        elif not exact and not r["candidates"] and not r["sheet_cands"]:
+            r["auto"] = "new"
+        r["choice"] = r["pick"] or r["auto"]
+
+    # Where each sheet goes: a supplier of the app, a new one, or the same
+    # supplier as an earlier sheet (followed to wherever that one goes).
+    by_i = {r["i"]: r for r in rows}
+
+    def resolve(r, seen=()):
+        c = r.get("choice")
+        if not c:
+            return None, r
+        if c.startswith("sheet:"):
+            j = int(c[6:]) if c[6:].isdigit() else -1
+            o = by_i.get(j)
+            if o is None or o["i"] in seen or o["i"] == r["i"] or o.get("state") == "unread":
+                return None, r
+            return resolve(o, seen + (r["i"],))
+        if c == "new":
+            return "new", r
+        return (by_id.get(int(c)) if c.isdigit() else None), r
+
+    for r in rows:
+        if not r["readable"]:
+            continue
+        r["target"], head = resolve(r)
+        r["head"] = head["i"]
+        r["new_name"] = head["name"]
+        if r["target"] is None:
+            r["blocks"].append("match")
+
+    # What the app already holds for a supplier, put against his sheets.
+    for r in rows:
+        tgt = r["target"]
+        if not r["readable"] or tgt in (None, "new") or r["skip"]:
+            continue
+        credits = {}
+        for l in r["lines"]:
+            if l["credit"] and not l["carried"]:
+                credits.setdefault(l["credit"], []).append(l["n"])
+
+        def claim(key, label):
+            a = ans.get(key)
+            if a and a.startswith("%d." % r["i"]):
+                n = a.split(".", 1)[1]
+                if n.isdigit() and int(n) < len(r["lines"]):
+                    r["lines"][int(n)]["claim"] = label
+            return a
+        for b in open_bills.get(tgt.id, []):
+            if b.date > as_of:
+                continue
+            key = "inv:%d" % b.id
+            a = claim(key, b.number or _dmy(b.date))
+            same = credits.get(b.remaining, []) or credits.get(b.amount, [])
+            r["bills"].append(dict(key=key, obj=b, day=_dmy(b.date), number=b.number, text=b.description,
+                                   amount=b.amount, same=same, answer=a))
+            if a is None:
+                r["blocks"].append("bill")
+        for po in orders.get(tgt.id, []):
+            key = "po:%d" % po.id
+            same = credits.get(po.total, [])
+            a = ans.get(key)
+            if not same and not a:
+                continue
+            a = claim(key, po.number)
+            r["orders"].append(dict(key=key, obj=po, day=_dmy(po.date), number=po.number, amount=po.total,
+                                    same=same, answer=a))
+            if a is None:
+                r["blocks"].append("order")
+        ex = opening_rows.get(tgt.id)
+        if ex is not None:
+            r["existing"] = ex
+            r["open_answer"] = ans.get("open:%d" % tgt.id) if ans.get("open:%d" % tgt.id) in ("replace", "keep") else None
+            if r["open_answer"] is None:
+                r["blocks"].append("open")
+
+    for r in rows:
+        if not r["readable"]:
+            continue
+        kept = [l for l in r["lines"] if not l["off"] and not l["claim"]]
+        total = sum(l["credit"] - l["debit"] for l in kept)
+        # A sheet where the supplier owes the company comes in with no
+        # balance: a solde à nouveau is what the company owes.
+        r["owed"] = -total if total < 0 else 0
+        r["solde"] = max(total, 0)
+        r["all_total"] = sum(l["credit"] - l["debit"] for l in r["lines"])
+        k = _kind_of([[None, None, l["text"], l["ref"], l["debit"], l["credit"]] for l in kept])
+        r["kind_guess"] = "both" if k is None else (k or "parts")
+        r["kind"] = ans.get("%d:type" % r["i"]) if ans.get("%d:type" % r["i"]) in ("parts", "machines", "both") \
+            else r["kind_guess"]
+        if r["not_supplier"]:
+            r["doubts"].append("name")
+        # Loans and the boss's own purchases: a doubt only while the sheet
+        # still has a balance they may be part of.
+        if r["all_total"] and any(l["doubt"] for l in r["lines"]):
+            r["doubts"].append("lines")
+        else:
+            for l in r["lines"]:
+                l["doubt"] = False
+        if r["last"] is not None and abs(r["last"] - r["all_total"]) > 1:
+            r["doubts"].append("balance")
+        if r["owed"]:
+            r["doubts"].append("owed")
+
+    # Suppliers: every sheet that comes in, grouped by where it goes.
+    groups = {}
+    for r in rows:
+        if not r["readable"] or r["skip"] or r["target"] is None:
+            continue
+        head = by_i[r["head"]]
+        if head["skip"]:
+            r["blocks"].append("follows_skip")
+            continue
+        tgt = r["target"]
+        gkey = ("s", tgt.id) if tgt != "new" else ("n", head["i"])
+        g = groups.setdefault(gkey, dict(key=gkey, target=tgt, head=head, rows=[]))
+        g["rows"].append(r)
+        r["group"] = gkey
+    new_names = {}
+    for g in groups.values():
+        rs = g["rows"]
+        g["solde"] = sum(r["solde"] for r in rs)
+        kinds = {r["kind"] for r in rs}
+        g["kind"] = kinds.pop() if len(kinds) == 1 else "both"
+        g["bills"] = [(o["obj"], by_i[int(o["answer"].split(".")[0])]["lines"][int(o["answer"].split(".")[1])])
+                      for r in rs for o in r["orders"] if o["answer"] and o["answer"] != "none"
+                      and o["answer"].startswith("%d." % r["i"])]
+        ex = rs[0]["existing"]
+        g["existing"] = ex
+        g["keep_old"] = bool(ex is not None and rs[0]["open_answer"] == "keep")
+        g["opening"] = ex.amount if g["keep_old"] else g["solde"]
+        if ex is not None and not g["keep_old"] and g["opening"] < ex.paid_amount:
+            for r in rs:
+                r["blocks"].append("paid")
+                r["paid"] = ex.paid_amount
+        if g["target"] == "new":
+            h = g["head"]
+            nm = plain(h["name"])
+            why = None
+            if not nm:
+                why = "no_name"
+            elif nm in by_name:
+                why = "name_taken"
+            elif nm in new_names:
+                why = "name_twice"
+            elif len(h["name"]) > 80:
+                why = "name_long"
+            else:
+                new_names[nm] = h["sheet"]
+            if why:
+                h["blocks"].append(why)
+                h["name_twin"] = new_names.get(nm)
+
+    for r in rows:
+        if r.get("state") == "unread":
+            continue
+        # Nothing to decide: the name is the app's or new to it, no line is
+        # in doubt, and the app holds nothing that may be in the sheet.
+        r["simple"] = (r["auto"] is not None and r["pick"] in (None, r["auto"]) and not r["doubts"]
+                       and not r["bills"] and not r["orders"] and r["existing"] is None and not r["blocks"])
+        if r["skip"]:
+            r["state"] = "skip"
+        elif r["blocks"]:
+            r["state"] = "todo"
+        elif r["ok"]:
+            r["state"] = "ok"
+        else:
+            r["state"] = "check"
+    return rows, groups
+
+
+def _show_day(x):
+    return _dmy(x[0]) if x[0] else (x[1] or "")
 
 
 def _kind_of(lines):
@@ -237,218 +447,6 @@ def _kind_of(lines):
     if m == len(bills):
         return "machines"
     return None
-
-
-def review(imp, t, suppliers, open_bills, opening_rows, orders):
-    """Read the file against the app and the answers given so far.
-
-    suppliers: [Supplier]; open_bills: {supplier_id: [SupplierInvoice unpaid,
-    not the opening]}; opening_rows: {supplier_id: SupplierInvoice};
-    orders: {supplier_id: [PurchaseOrder still to bill]}.
-
-    Returns (rows, groups, open_count): one row per sheet, and one group per
-    supplier that will receive something."""
-    sheets = json.loads(imp.data)
-    ans = json.loads(imp.choices or "{}")
-    by_id = {s.id: s for s in suppliers}
-    by_name = {plain(s.name): s for s in suppliers}
-    rows = []
-
-    def ask(row, code, label, options, detail=None):
-        key = "%d:%s" % (row["i"], code)
-        q = Q(key, code, label, options, ans.get(key), detail)
-        row["questions"].append(q)
-        return q.value
-
-    for s in sheets:
-        row = dict(i=s["i"], sheet=s["sheet"], lines=s["lines"], readable=s["readable"], questions=[],
-                   status=None, target=None, merged_into=None, name=ans.get("%d:name" % s["i"]) or s["name"],
-                   default_name=s["name"], balance=None, kind=None, candidates=[], errors=[])
-        rows.append(row)
-        if not s["readable"]:
-            row["status"] = "unread"
-            continue
-        # 1. Is it a supplier?
-        name_hit = any(w in plain(s["sheet"]).split() or w in plain(s["sheet"]) for w in _NOT_SUPPLIER)
-        # Loans and the boss's own purchases billed by a supplier: a doubt
-        # only while the sheet still has a balance they may be part of.
-        personal = sum(x[5] for x in s["lines"] if x[5] and _PERSONAL.search(plain(x[2])))
-        if not (s["last"] or s["calc"]):
-            personal = 0
-        if name_hit or personal:
-            v = ask(row, "keep", t["imp.q.keep_name"] if name_hit else t["imp.q.keep_lines"],
-                    [("yes", t["imp.keep.yes"] if name_hit else t["imp.keep.balance"]), ("no", t["imp.keep.no"])],
-                    None if name_hit else t["imp.personal_lines"] % fmt(personal))
-            if v == "no":
-                row["status"] = "skip"
-                continue
-        # 2. The same supplier as an earlier sheet?
-        earlier = [r for r in rows[:-1] if r["readable"] and likeness(r["sheet"], s["sheet"]) >= NEAR]
-        if earlier:
-            v = ask(row, "dup", t["imp.q.dup"],
-                    [("no", t["imp.dup.no"])] + [(str(r["i"]), t["imp.dup.with"] % r["sheet"]) for r in earlier])
-            if v and v != "no":
-                row["merged_into"] = int(v)
-                row["status"] = "merged"
-        # 3. Which supplier in the app.
-        if row["status"] != "merged":
-            exact = by_name.get(plain(row["name"])) or by_name.get(plain(s["sheet"]))
-            row["candidates"] = sorted((x for x in suppliers if x is not exact and
-                                        max(likeness(x.name, s["sheet"]), likeness(x.name, s["name"])) >= NEAR),
-                                       key=lambda x: x.name)
-            key = "%d:match" % s["i"]
-            picked = ans.get(key)
-            if picked == "new":
-                row["target"] = "new"
-            elif picked and picked.isdigit() and int(picked) in by_id:
-                row["target"] = by_id[int(picked)]
-            elif exact:
-                row["target"] = exact
-            elif not row["candidates"]:
-                row["target"] = "new"
-            # A question only when the name is close to someone's without
-            # being theirs; the choice can be changed on every row anyway.
-            row["match_open"] = row["target"] is None
-        # 4. Which balance.
-        last, calc = s["last"], s["calc"]
-        if last is not None and abs(last - calc) > 1:
-            v = ask(row, "bal", t["imp.q.bal"],
-                    [("last", t["imp.bal.last"] % fmt(last)), ("calc", t["imp.bal.calc"] % fmt(calc))])
-            row["balance"] = {"last": last, "calc": calc}.get(v)
-        else:
-            row["balance"] = last if last is not None else calc
-        # 5. A negative balance.
-        if row["balance"] is not None and row["balance"] < 0:
-            v = ask(row, "neg", t["imp.q.neg"] % fmt(-row["balance"]),
-                    [("zero", t["imp.neg.zero"]), ("skip", t["imp.neg.skip"])])
-            if v == "skip":
-                row["status"] = "skip"
-                row["questions"] = [q for q in row["questions"] if q.code in ("keep", "dup", "bal", "neg")]
-                continue
-            row["balance"] = 0 if v == "zero" else None
-        # 6. Parts or machines.
-        row["kind"] = _kind_of(s["lines"])
-        if row["status"] != "merged":
-            row["status"] = "ok"
-
-    # Sheets folded into another follow it; the one they follow carries the
-    # questions about the supplier in the app.
-    by_i = {r["i"]: r for r in rows}
-
-    def head(r, seen=()):
-        if r["status"] == "merged" and r["merged_into"] in by_i and r["i"] not in seen:
-            return head(by_i[r["merged_into"]], seen + (r["i"],))
-        return r
-    groups = {}
-    for r in rows:
-        if r["status"] not in ("ok", "merged"):
-            continue
-        h = head(r)
-        if h["status"] != "ok":
-            # It follows a sheet that was left aside.
-            r["status"], r["follows_skip"] = "skip", True
-            continue
-        tgt = h["target"]
-        gkey = ("s", tgt.id) if tgt not in (None, "new") else ("n", h["i"])
-        g = groups.setdefault(gkey, dict(key=gkey, head=h, rows=[], target=tgt))
-        g["rows"].append(r)
-        r["group"] = gkey
-    # Two sheets pointing at the same supplier in the app add up.
-    for g in groups.values():
-        h = g["head"]
-        g["lines"] = [x for r in g["rows"] for x in r["lines"]]
-        bal = [r["balance"] for r in g["rows"]]
-        g["balance"] = None if any(b is None for b in bal) else sum(bal)
-        tgt = g["target"]
-        # Parts or machines: the lines say, or the question is asked. A
-        # supplier already in the app keeps what it has and gains the rest.
-        kinds = {r["kind"] for r in g["rows"]} - {""}
-        kind = kinds.pop() if len(kinds) == 1 else (None if kinds else "")
-        current = None
-        if tgt not in (None, "new"):
-            current = ("both" if tgt.provides_parts and tgt.provides_machines else
-                       "machines" if tgt.provides_machines else "parts" if tgt.provides_parts else None)
-        if kind is None and current is None:
-            v = ask(h, "type", t["imp.q.type"], [("parts", t["imp.type.parts"]), ("machines", t["imp.type.machines"]),
-                                                ("both", t["imp.type.both"])])
-            g["kind"] = v
-        else:
-            g["kind"] = kind or current or "parts"
-            if kind and current and kind != current and current != "both":
-                g["kind"] = "both"
-        g["kind_auto"] = not any(q.code == "type" for q in h["questions"])
-        g["deduct"], g["bills"] = 0, []
-        if tgt in (None, "new"):
-            g["opening"] = g["balance"]
-            continue
-        # What the app already holds for this supplier.
-        amounts = {}
-        for x in g["lines"]:
-            if x[5] and not _carried(x[2], x[3]):
-                amounts.setdefault(x[5], x)
-        existing = opening_rows.get(tgt.id)
-        g["existing"] = existing
-        about_old = None
-        if existing is not None:
-            about_old = ask(h, "open", t["imp.q.open"] % fmt(existing.amount),
-                            [("replace", t["imp.open.replace"]), ("keep", t["imp.open.keep"])])
-        for b in open_bills.get(tgt.id, []):
-            if b.date > (imp.as_of or "9999"):
-                continue
-            seen = amounts.get(b.amount)
-            v = ask(h, "inv:%d" % b.id,
-                    t["imp.q.bill"] % dict(num=b.number or "—", day=_dmy(b.date), amount=fmt(b.amount),
-                                          rest=fmt(b.remaining)),
-                    [("in", t["imp.bill.in"]), ("out", t["imp.bill.out"])],
-                    (t["imp.seen"] % (_dmy(seen[0]) if seen[0] else (seen[1] or "?"), seen[2][:60])) if seen else None)
-            if v == "in":
-                g["deduct"] += b.remaining
-        for po in orders.get(tgt.id, []):
-            seen = amounts.get(po.total)
-            if not seen:
-                continue
-            v = ask(h, "po:%d" % po.id, t["imp.q.order"] % dict(num=po.number, amount=fmt(po.total)),
-                    [("billed", t["imp.order.billed"]), ("not", t["imp.order.not"])],
-                    t["imp.seen"] % (_dmy(seen[0]) if seen[0] else (seen[1] or "?"), seen[2][:60]))
-            if v == "billed":
-                g["deduct"] += po.total
-                g["bills"].append((po, seen))
-        g["keep_old"] = about_old == "keep"
-        if g["keep_old"]:
-            g["opening"] = existing.amount
-        elif existing is not None and about_old is None:
-            g["opening"] = None
-        else:
-            g["opening"] = None if g["balance"] is None else g["balance"] - g["deduct"]
-
-    # Errors: what no single answer settles.
-    new_names = {}
-    for g in groups.values():
-        h = g["head"]
-        if g["opening"] is not None and g["opening"] < 0:
-            h["errors"].append(t["imp.err.below_zero"] % fmt(g["opening"]))
-        ex = g.get("existing")
-        if ex is not None and not g.get("keep_old") and g["opening"] is not None and g["opening"] < ex.paid_amount:
-            h["errors"].append(t["imp.err.below_paid"] % fmt(ex.paid_amount))
-        if g["target"] == "new":
-            nm = plain(h["name"])
-            if not nm:
-                h["errors"].append(t["imp.err.no_name"])
-            elif nm in by_name:
-                h["errors"].append(t["imp.err.name_taken"])
-            elif nm in new_names:
-                h["errors"].append(t["imp.err.name_twice"] % new_names[nm])
-            else:
-                new_names[nm] = h["sheet"]
-            if len(h["name"]) > 80:
-                h["errors"].append(t["imp.err.name_long"])
-
-    for r in rows:
-        r["open"] = sum(1 for q in r["questions"] if q.open) + (1 if r.get("match_open") and r["status"] == "ok" else 0) \
-            + len(r["errors"])
-        r["state"] = ("open" if r["open"] else
-                      "skip" if r["status"] in ("skip", "unread") else "ready")
-    return rows, groups, sum(r["open"] for r in rows)
 
 
 def _dmy(iso):
