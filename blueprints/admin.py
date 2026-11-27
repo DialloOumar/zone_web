@@ -533,6 +533,7 @@ def _save_role(role):
     can_approve = request.form.get("can_approve") is not None
     approves_logistics = request.form.get("approves_logistics") is not None
     approves_finance = request.form.get("approves_finance") is not None
+    approves_manager = request.form.get("approves_manager") is not None
     approves_payroll = request.form.get("approves_payroll") is not None
     if not name:
         return t.get("role.err.name_required", "Le nom est obligatoire.")
@@ -546,13 +547,15 @@ def _save_role(role):
         can_approve = role.can_approve if role else False
         approves_logistics = role.approves_logistics if role else False
         approves_finance = role.approves_finance if role else False
+        approves_manager = role.approves_manager if role else False
         approves_payroll = role.approves_payroll if role else False
 
     creating = role is None
     if creating:
         role = Role(name=name, slug=slugify(name), description=description or None,
                     can_approve=can_approve, approves_logistics=approves_logistics,
-                    approves_finance=approves_finance, approves_payroll=approves_payroll,
+                    approves_finance=approves_finance, approves_manager=approves_manager,
+                    approves_payroll=approves_payroll,
                     is_system=False, created_by=current_user.id)
         db.session.add(role)
         db.session.flush()
@@ -562,6 +565,7 @@ def _save_role(role):
         role.can_approve = can_approve
         role.approves_logistics = approves_logistics
         role.approves_finance = approves_finance
+        role.approves_manager = approves_manager
         role.approves_payroll = approves_payroll
 
     # Rebuild the role's permissions from the tri-state grid. Anything outside

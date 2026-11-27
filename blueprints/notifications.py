@@ -51,8 +51,8 @@ def todos():
         return []
     out = []
 
-    # Orders to sign: logistics first, then finance -- each to whoever holds
-    # that box. Finance signs from Facturation when they can open it.
+    # Orders to sign: logistics first, then finance, then the gerant -- each
+    # to whoever holds that box. Finance signs from Facturation when they can open it.
     if _holds("approves_logistics"):
         for po in (PurchaseOrder.query.filter_by(status="pending_logistics")
                    .order_by(PurchaseOrder.date, PurchaseOrder.id).all()):
@@ -72,6 +72,11 @@ def todos():
             url = (url_for("invoicing.index", tab="commandes") if on_billing
                    else url_for("purchases.detail", oid=po.id))
             out.append(dict(kind="todo.po_finance", url=url,
+                            params=dict(number=po.number, supplier=po.supplier.name if po.supplier else "")))
+    if _holds("approves_manager"):
+        for po in (PurchaseOrder.query.filter_by(status="pending_manager")
+                   .order_by(PurchaseOrder.date, PurchaseOrder.id).all()):
+            out.append(dict(kind="todo.po_manager", url=url_for("purchases.detail", oid=po.id),
                             params=dict(number=po.number, supplier=po.supplier.name if po.supplier else "")))
 
     # Orders approved and not billed yet: for whoever records the bills.

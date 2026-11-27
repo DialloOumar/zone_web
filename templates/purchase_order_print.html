@@ -33,7 +33,7 @@
     .lines .num { text-align: center; width: 48px; }
     .lines tfoot td { font-weight: 700; }
     .lines tfoot .total td { background: #f2f4f7; font-size: 12.5px; }
-    .signs { display: flex; justify-content: space-between; gap: 40px; margin-top: 34px; }
+    .signs { display: flex; justify-content: space-between; gap: 28px; margin-top: 34px; }
     .sign { flex: 1; max-width: 300px; }
     .sign .who { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #333; }
     .sign .name { margin-top: 8px; border-top: 1px solid #333; padding-top: 4px; font-size: 10px; }
@@ -144,6 +144,13 @@
         <div class="stamp">{% if po.finance_at and user_has_stamp(po.finance_signer) %}<img src="{{ url_for('stamp_svg', user_id=po.finance_by) }}" alt="">{% endif %}</div>
         <div class="name">{% if po.finance_at %}{{ po.finance_signer.full_name if po.finance_signer else '' }}<small>{{ t['po.signed'] }} {{ po.finance_at.strftime('%d/%m/%Y') }}</small>{% else %}&nbsp;{% endif %}</div>
     </div>
+    {% if show_manager %}
+    <div class="sign">
+        <div class="who">{{ t['po.sign.manager'] }}</div>
+        <div class="stamp">{% if po.manager_at and user_has_stamp(po.manager_signer) %}<img src="{{ url_for('stamp_svg', user_id=po.manager_by) }}" alt="">{% endif %}</div>
+        <div class="name">{% if po.manager_at %}{{ po.manager_signer.full_name if po.manager_signer else '' }}<small>{{ t['po.signed'] }} {{ po.manager_at.strftime('%d/%m/%Y') }}</small>{% else %}&nbsp;{% endif %}</div>
+    </div>
+    {% endif %}
 </div>
 
 <div class="foot">{% if co.company_name %}{{ co.company_name }}{% endif %}{% if co.company_address %} · {{ co.company_address.replace('\n', ', ') }}{% endif %}{% if co.company_nif %} · NIF {{ co.company_nif }}{% endif %}{% if co.company_rccm %} · RCCM {{ co.company_rccm }}{% endif %}</div>

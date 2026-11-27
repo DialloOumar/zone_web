@@ -41,6 +41,7 @@
                 {% elif po.status == 'approved' %}<span class="badge badge--active">{{ t['po.status.approved'] }}</span>
                 {% elif po.status == 'rejected' %}<span class="badge badge--critical">{{ t['po.status.rejected'] }}</span>
                 {% elif po.status == 'pending_finance' %}<span class="badge badge--warning">{{ t['po.status.pending_finance'] }}</span>
+                {% elif po.status == 'pending_manager' %}<span class="badge badge--warning">{{ t['po.status.pending_manager'] }}</span>
                 {% else %}<span class="badge badge--inactive">{{ t['po.status.pending_logistics'] }}</span>{% endif %}
             </h2>
             <p class="muted small" style="margin:4px 0 0;"><span class="chip">{{ po.supplier.code }}</span> {{ po.supplier.name }}
@@ -63,10 +64,15 @@
         <div><dt>{{ t['po.sign.finance'] }}</dt>
             <dd>{% if po.finance_at %}<span class="badge badge--active">{{ t['po.signed'] }}</span> {{ po.finance_signer.full_name if po.finance_signer else '' }} · {{ po.finance_at.strftime('%Y-%m-%d %H:%M') }}
                 {% else %}<span class="muted">{{ t['po.awaiting'] }}</span>{% endif %}</dd></div>
+        {% if show_manager %}
+        <div><dt>{{ t['po.sign.manager'] }}</dt>
+            <dd>{% if po.manager_at %}<span class="badge badge--active">{{ t['po.signed'] }}</span> {{ po.manager_signer.full_name if po.manager_signer else '' }} · {{ po.manager_at.strftime('%Y-%m-%d %H:%M') }}
+                {% else %}<span class="muted">{{ t['po.awaiting'] }}</span>{% endif %}</dd></div>
+        {% endif %}
         {% if po.note %}<div style="grid-column: 1 / -1;"><dt>{{ t['entry.note'] }}</dt><dd>{{ po.note }}</dd></div>{% endif %}
     </dl>
 
-    {% if can_sign_logistics or can_sign_finance or can_reject %}
+    {% if can_sign_logistics or can_sign_finance or can_sign_manager or can_reject %}
     <div class="form-actions" style="margin-top:12px; gap:8px; flex-wrap:wrap;">
         {% if can_sign_logistics %}
         <form method="post" action="{{ url_for('purchases.approve', oid=po.id, kind='logistics') }}" style="display:inline"
@@ -80,6 +86,13 @@
               data-confirm="{{ t['po.approve_confirm'] }}" data-confirm-title="{{ t['po.sign.finance'] }}" data-confirm-ok="{{ t['po.approve'] }}">
             {% if sign_next %}<input type="hidden" name="next" value="{{ sign_next }}">{% endif %}
             <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">task_alt</span> {{ t['po.approve_as'] % t['po.sign.finance'] }}</button>
+        </form>
+        {% endif %}
+        {% if can_sign_manager %}
+        <form method="post" action="{{ url_for('purchases.approve', oid=po.id, kind='manager') }}" style="display:inline"
+              data-confirm="{{ t['po.approve_confirm'] }}" data-confirm-title="{{ t['po.sign.manager'] }}" data-confirm-ok="{{ t['po.approve'] }}">
+            {% if sign_next %}<input type="hidden" name="next" value="{{ sign_next }}">{% endif %}
+            <button type="submit" class="btn btn--primary"><span class="material-symbols-outlined">task_alt</span> {{ t['po.approve_as'] % t['po.sign.manager'] }}</button>
         </form>
         {% endif %}
         {% if can_reject %}

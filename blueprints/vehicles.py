@@ -379,7 +379,7 @@ def detail(vid):
     # Orders still on their way with a line for this machine: what has been
     # asked for it and not all come in yet. A link, no cost.
     open_orders = (PurchaseOrder.query
-                   .filter(PurchaseOrder.status.in_(("pending_logistics", "pending_finance",
+                   .filter(PurchaseOrder.status.in_(("pending_logistics", "pending_finance", "pending_manager",
                                                      "approved", "received_partial")))
                    .filter(PurchaseOrder.lines.any(PurchaseOrderLine.vehicles.any(id=vid)))
                    .order_by(PurchaseOrder.date.desc(), PurchaseOrder.id.desc())

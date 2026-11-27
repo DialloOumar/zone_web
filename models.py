@@ -150,6 +150,9 @@ class Role(db.Model):
     # bon de commande. A holder of a role with the box gives that approval.
     approves_logistics = db.Column(db.Boolean, nullable=False, default=False)
     approves_finance   = db.Column(db.Boolean, nullable=False, default=False)
+    # The third, the gerant's, after finance. While no role has this box,
+    # finance's signature approves the order alone.
+    approves_manager   = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     # Who validates the month's pay. While no role has the box, whoever
     # prepares the pay closes it alone.
     approves_payroll   = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
@@ -2932,10 +2935,10 @@ class LedgerAccount(db.Model):
 class PurchaseOrder(db.Model):
     """What the store orders from a supplier, and who signed it.
 
-    Two signatures, as on the company's paper order: logistics, then
-    finance, each a user and a time. The status follows them: pending
-    logistics, pending finance, approved; or rejected, with who, when and
-    why. Totals are stored when the lines are written, so the register
+    Three signatures: logistics, finance, then the gerant (only once a role
+    carries the gerant's box), each a user and a time. The status follows
+    them: pending logistics, pending finance, pending manager, approved; or
+    rejected, with who, when and why. Totals are stored when the lines are written, so the register
     never adds them up row by row.
     """
     __tablename__ = "purchase_orders"
@@ -2956,6 +2959,8 @@ class PurchaseOrder(db.Model):
     logistics_at   = db.Column(db.DateTime,    nullable=True)
     finance_by     = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     finance_at     = db.Column(db.DateTime,    nullable=True)
+    manager_by     = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
+    manager_at     = db.Column(db.DateTime,    nullable=True)
     rejected_by    = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=True)
     rejected_at    = db.Column(db.DateTime,    nullable=True)
     rejected_reason = db.Column(db.String(255), nullable=True)
@@ -2972,9 +2977,16 @@ class PurchaseOrder(db.Model):
     requester        = db.relationship("User", foreign_keys=[requested_by])
     logistics_signer = db.relationship("User", foreign_keys=[logistics_by])
     finance_signer   = db.relationship("User", foreign_keys=[finance_by])
+    manager_signer   = db.relationship("User", foreign_keys=[manager_by])
     rejecter         = db.relationship("User", foreign_keys=[rejected_by])
     lines = db.relationship("PurchaseOrderLine", back_populates="order",
                             cascade="all, delete-orphan", order_by="PurchaseOrderLine.id")
+
+    @property
+    def approved_at(self):
+        """When the last signature fell: the gerant's, or finance's on an
+        order approved before that step existed (or while no role has it)."""
+        return self.manager_at or self.finance_at
 
     @property
     def machines(self):

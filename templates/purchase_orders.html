@@ -10,6 +10,7 @@
     {% elif po.status == 'approved' %}<span class="badge badge--active">{{ t['po.status.approved'] }}</span>
     {% elif po.status == 'rejected' %}<span class="badge badge--critical">{{ t['po.status.rejected'] }}</span>
     {% elif po.status == 'pending_finance' %}<span class="badge badge--warning">{{ t['po.status.pending_finance'] }}</span>
+    {% elif po.status == 'pending_manager' %}<span class="badge badge--warning">{{ t['po.status.pending_manager'] }}</span>
     {% else %}<span class="badge badge--inactive">{{ t['po.status.pending_logistics'] }}</span>{% endif %}
 {%- endmacro %}
 

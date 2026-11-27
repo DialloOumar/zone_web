@@ -139,7 +139,7 @@
             <tr>
                 <td style="white-space:nowrap;"><a href="{{ url_for('purchases.detail', oid=po.id) }}"><strong>{{ po.number }}</strong></a></td>
                 <td>{{ po.supplier.name if po.supplier else '—' }}</td>
-                <td style="white-space:nowrap;">{{ po.finance_at.strftime('%Y-%m-%d') if po.finance_at else po.date }}</td>
+                <td style="white-space:nowrap;">{{ po.approved_at.strftime('%Y-%m-%d') if po.approved_at else po.date }}</td>
                 <td>{% if po.status == 'received' %}<span class="badge badge--active">{{ t['po.status.received'] }}</span>
                     {% elif po.status == 'received_partial' %}<span class="badge badge--warning">{{ t['po.status.received_partial'] }}</span>
                     {% else %}<span class="badge badge--inactive">{{ t['tobill.not_received'] }}</span>{% endif %}

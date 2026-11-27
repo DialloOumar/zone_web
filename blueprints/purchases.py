@@ -1,12 +1,14 @@
 """Bons de commande — what the store orders from a supplier, and who signed.
 
-The company's paper order carries two signatures, responsable logistique and
-responsable financière. Here those are two boxes on a role (Administration >
-Rôles): a holder of a role with the box gives that approval. An order made by
-someone holding the logistics box is born with the first approval already
-given, and waits for the second.
+The company's paper order carries the signatures of the responsable
+logistique, the responsable financière, then the gérant. Here those are boxes
+on a role (Administration > Rôles): a holder of a role with the box gives that
+approval. An order made by someone holding the logistics box is born with the
+first approval already given, and waits for the second. While no role holds
+the gérant's box, finance's signature is the last one.
 
-States: à approuver (logistique), à approuver (finance), approuvé, refusé.
+States: à approuver (logistique), à approuver (finance), à approuver (gérant),
+approuvé, refusé.
 Refusing takes a reason; a refused order is corrected and resubmitted, and
 every refusal stays on it. Editing an order that already had an approval
 takes the approval back -- what was signed is not what is now written.
@@ -33,14 +35,16 @@ from blueprints.stock import active_units, buying_units_for, unit_codes
 from blueprints.expenses import _accessible_vehicles
 from blueprints.supplier_invoices import _save_supplier, parts_suppliers
 from models import (Part, PurchaseOrder, PurchaseOrderLine, PurchaseRequest, PurchaseRequestLine,
-                    StockMovement, Supplier, db)
+                    Role, StockMovement, Supplier, db)
 
 purchases_bp = Blueprint("purchases", __name__, url_prefix="/stock/commandes")
 
-STATUSES = ("pending_logistics", "pending_finance", "approved", "rejected",
+STATUSES = ("pending_logistics", "pending_finance", "pending_manager", "approved", "rejected",
             "received_partial", "received")
-PENDING = ("pending_logistics", "pending_finance")
-PENDING_BY_ROLE = {"logistics": "pending_logistics", "finance": "pending_finance"}
+PENDING = ("pending_logistics", "pending_finance", "pending_manager")
+PENDING_BY_ROLE = {"logistics": "pending_logistics", "finance": "pending_finance",
+                   "manager": "pending_manager"}
+SIGNERS = tuple(PENDING_BY_ROLE)
 RECEIVABLE = ("approved", "received_partial")
 PER_PAGE = 50
 
@@ -58,11 +62,22 @@ def user_approves(kind):
     return any(uf.role and getattr(uf.role, flag, False) for uf in current_user.user_fleets)
 
 
+def manager_signs():
+    """Whether orders wait for the gérant after finance: only once an active
+    role carries that box."""
+    return Role.query.filter_by(approves_manager=True, is_active=True).first() is not None
+
+
+def user_signs_orders():
+    """Whether the current user gives any of the order's signatures."""
+    return any(user_approves(k) for k in SIGNERS)
+
+
 def may_read_orders():
     """The orders -- suppliers, prices -- are read with their permission;
     whoever signs them reads them too, from wherever they sign --
     Facturation, for the finance signature."""
-    return has_perm("purchase_order.view") or user_approves("logistics") or user_approves("finance")
+    return has_perm("purchase_order.view") or user_signs_orders()
 
 
 _may_read = may_read_orders
@@ -131,6 +146,7 @@ def _reset_approvals(po):
     click of its own."""
     po.logistics_by = po.logistics_at = None
     po.finance_by = po.finance_at = None
+    po.manager_by = po.manager_at = None
     if user_approves("logistics"):
         po.logistics_by, po.logistics_at = current_user.id, datetime.utcnow()
         po.status = "pending_finance"
@@ -424,11 +440,7 @@ def index():
     counts = dict(base.with_entities(PurchaseOrder.status, db.func.count(PurchaseOrder.id))
                   .group_by(PurchaseOrder.status).all())
     # What waits for the person looking: the signatures they can give.
-    mine = 0
-    if user_approves("logistics"):
-        mine += counts.get("pending_logistics", 0)
-    if user_approves("finance"):
-        mine += counts.get("pending_finance", 0)
+    mine = sum(counts.get(PENDING_BY_ROLE[k], 0) for k in SIGNERS if user_approves(k))
     open_requests = [r for r in PurchaseRequest.query.filter_by(status="open").all()
                      if not r.fully_ordered and (seen is None or r.store_id in seen)]
     return render_template("purchase_orders.html", orders=pagination.items, pagination=pagination,
@@ -531,6 +543,14 @@ def supplier_new():
         flash("success|" + t.get("list.created", "Ajouté."))
         return redirect(url_for("purchases.new", supplier=row.id if row else None))
     return render_template("purchase_supplier_form.html", error=None)
+
+
+def _shows_manager(po):
+    """Whether the order has a gerant's signature line: once signed,
+    or while it is still on its way and a role gives that signature. An
+    order approved before the step existed keeps its two."""
+    return po.manager_at is not None or (
+        (po.status in PENDING or po.status == "rejected") and manager_signs())
 
 
 def _editable(po):
@@ -823,7 +843,9 @@ def detail(oid):
                            sign_next=back if from_billing else "",
                            can_sign_logistics=po.status == "pending_logistics" and user_approves("logistics"),
                            can_sign_finance=po.status == "pending_finance" and user_approves("finance"),
-                           can_reject=po.status in PENDING and (user_approves("logistics") or user_approves("finance")),
+                           can_sign_manager=po.status == "pending_manager" and user_approves("manager"),
+                           show_manager=_shows_manager(po),
+                           can_reject=po.status in PENDING and user_signs_orders(),
                            can_edit=_may_order_for(po.store_id) and _editable(po),
                            can_receive=has_perm("stock.manage") and po.status in RECEIVABLE
                                        and _may_receive(po),
@@ -831,28 +853,31 @@ def detail(oid):
                                        or _may_order_for(po.store_id)) and _editable(po))
 
 
-@purchases_bp.route("/<int:oid>/approuver/<any(logistics,finance):kind>", methods=["POST"])
+@purchases_bp.route("/<int:oid>/approuver/<any(logistics,finance,manager):kind>", methods=["POST"])
 @login_required
 def approve(oid, kind):
     po = _get_or_404(oid)
     t = get_t()
     if not user_approves(kind):
         abort(403)
-    expected = "pending_logistics" if kind == "logistics" else "pending_finance"
-    if po.status != expected:
+    if po.status != PENDING_BY_ROLE[kind]:
         flash("error|" + t["po.err.not_pending"])
         return redirect(_back_to(url_for("purchases.detail", oid=po.id)))
     now = datetime.utcnow()
     if kind == "logistics":
         po.logistics_by, po.logistics_at, po.status = current_user.id, now, "pending_finance"
+    elif kind == "finance":
+        po.finance_by, po.finance_at = current_user.id, now
+        po.status = "pending_manager" if manager_signs() else "approved"
     else:
-        po.finance_by, po.finance_at, po.status = current_user.id, now, "approved"
+        po.manager_by, po.manager_at, po.status = current_user.id, now, "approved"
     log_action("APPROVE", "purchase_order", resource_id=po.id,
                detail="%s signed %s (%s)" % (current_user.full_name, po.number, kind))
     if po.status == "approved":
         notify(po.requested_by, "info.po_approved", url_for("purchases.detail", oid=po.id), number=po.number)
     db.session.commit()
-    flash("success|" + (t["po.approved_final"] if po.status == "approved" else t["po.approved_step"]))
+    flash("success|" + t["po.approved_final" if po.status == "approved"
+                         else "po.approved_step_" + po.status.split("_", 1)[1]])
     return redirect(_back_to(url_for("purchases.detail", oid=po.id)))
 
 
@@ -861,7 +886,7 @@ def approve(oid, kind):
 def reject(oid):
     po = _get_or_404(oid)
     t = get_t()
-    if not (user_approves("logistics") or user_approves("finance")):
+    if not user_signs_orders():
         abort(403)
     if po.status not in PENDING:
         flash("error|" + t["po.err.not_pending"])
@@ -905,13 +930,14 @@ def delete(oid):
 @require_perm("stock.view")
 def print_sheet(oid):
     """The order as a sheet, after the company's own: header, submitted by,
-    the supplier, the lines with their discount, and the two signature
-    blocks naming who signed and when."""
+    the supplier, the lines with their discount, and the signature blocks
+    naming who signed and when."""
     if not _may_read():
         abort(403)
     po = _get_or_404(oid)
     from blueprints.invoicing import invoice_settings
     return render_template("purchase_order_print.html", po=po, co=invoice_settings(),
+                           show_manager=_shows_manager(po),
                            currency=_get_setting("currency", "GNF"))
 
 

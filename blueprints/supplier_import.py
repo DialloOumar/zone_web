@@ -5,7 +5,8 @@ sheet by sheet: which supplier of the app it is, which of its lines count in
 the solde à nouveau, and which bills or orders of the app are lines of the
 sheet too. Each sheet is validated by hand, or left out, and the import
 button stays locked until all of them are. Nothing reaches the suppliers,
-their bills or their balances before that click. Super admin only.
+their bills or their balances before that click. Given by its own
+permission (supplier_import.manage), to the comptable typically.
 """
 import json
 from datetime import datetime
@@ -14,7 +15,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from flask_login import current_user, login_required
 
 import ledger_import
-from app import get_t, log_action
+from app import get_t, has_perm, log_action
 from blueprints.supplier_invoices import orders_to_bill
 from models import Supplier, SupplierImport, SupplierInvoice, db
 
@@ -22,7 +23,7 @@ supplier_import_bp = Blueprint("supplier_import", __name__)
 
 
 def _guard():
-    if not current_user.is_super_admin:
+    if not has_perm("supplier_import.manage"):
         abort(403)
 
 

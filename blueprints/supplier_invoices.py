@@ -50,11 +50,12 @@ BILLABLE = ("approved", "received_partial", "received")
 
 
 def orders_to_bill():
-    """Orders both signatures approved that no bill is tied to yet: the
+    """Orders every signature approved that no bill is tied to yet: the
     accountant's to-do, oldest approval first. A bill tied to one, whatever
     its amount, takes it off the list."""
     return [po for po in (PurchaseOrder.query.filter(PurchaseOrder.status.in_(BILLABLE))
-                          .order_by(PurchaseOrder.finance_at, PurchaseOrder.id).all())
+                          .order_by(db.func.coalesce(PurchaseOrder.manager_at, PurchaseOrder.finance_at),
+                                    PurchaseOrder.id).all())
             if not po.invoices]
 
 # How a charge leaves the bank with no bill behind it. Never cash: that is

@@ -1556,6 +1556,9 @@ PERMISSIONS_CATALOG = [
     ("supplier_invoice.create", "Log supplier invoice",     "Supplier invoices", "supplier_invoice", "create"),
     ("supplier_invoice.edit",   "Edit supplier invoice",    "Supplier invoices", "supplier_invoice", "edit"),
     ("supplier_invoice.delete", "Delete supplier invoice",  "Supplier invoices", "supplier_invoice", "delete"),
+    # Bringing the old supplier ledger in from Excel: it creates suppliers
+    # and their soldes antérieurs, so it is given apart, to the comptable.
+    ("supplier_import.manage",  "Import the supplier ledger (Excel)", "Supplier invoices", "supplier_import", "manage"),
     ("invoicing.manage",        "Manage clients and rates", "Invoicing",         "invoicing",        "manage"),
     # Invoicing (facturation)
     ("invoicing.view", "View invoicing", "Invoicing", "invoicing", "view"),
